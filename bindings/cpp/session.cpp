@@ -588,10 +588,6 @@ uint32_t session::get_trace_id()
 
 void session::read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size)
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		throw_error(-ENXIO, "Node is already destroyed");
-
 	int err;
 
 	if (id.by_id()) {
@@ -612,10 +608,6 @@ void session::read_file(const key &id, const std::string &file, uint64_t offset,
 void session::write_file(const key &id, const std::string &file, uint64_t local_offset,
 				uint64_t offset, uint64_t size)
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		throw_error(-ENXIO, "Node is already destroyed");
-
 	int err;
 
 	if (id.by_id()) {
@@ -642,8 +634,6 @@ async_read_result session::read_data(const key &id, const std::vector<int> &grou
 
 async_read_result session::read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd)
 {
-	DNET_SESSION_NODE_CHECK(async_read_result);
-
 	transform(id);
 
 	async_read_result result(*this);
@@ -666,14 +656,12 @@ async_read_result session::read_data(const key &id, const std::vector<int> &grou
 
 async_read_result session::read_data(const key &id, int group, const dnet_io_attr &io)
 {
-	DNET_SESSION_NODE_CHECK(async_read_result);
 	const std::vector<int> groups(1, group);
 	return read_data(id, groups, io);
 }
 
 async_read_result session::read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size)
 {
-	DNET_SESSION_NODE_CHECK(async_read_result);
 	transform(id);
 
 	struct dnet_io_attr io;
@@ -691,7 +679,6 @@ async_read_result session::read_data(const key &id, const std::vector<int> &grou
 
 async_read_result session::read_data(const key &id, uint64_t offset, uint64_t size)
 {
-	DNET_SESSION_NODE_CHECK(async_read_result);
 	transform(id);
 
 	return read_data(id, mix_states(id), offset, size);
@@ -765,7 +752,6 @@ struct prepare_latest_functor
 
 async_lookup_result session::prepare_latest(const key &id, const std::vector<int> &groups)
 {
-	DNET_SESSION_NODE_CHECK(async_lookup_result);
 	async_lookup_result result(*this);
 	async_result_handler<lookup_result_entry> result_handler(result);
 
@@ -829,7 +815,6 @@ struct read_latest_callback
 
 async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t size)
 {
-	DNET_SESSION_NODE_CHECK(async_read_result);
 	async_read_result result(*this);
 	{
 		session sess = clone();
@@ -844,7 +829,6 @@ async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t 
 
 async_write_result session::write_data(const dnet_io_control &ctl)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	async_write_result result(*this);
 	auto cb = createCallback<write_callback>(*this, result, ctl);
 
@@ -859,7 +843,6 @@ async_write_result session::write_data(const dnet_io_control &ctl)
 
 async_write_result session::write_data(const dnet_io_attr &io, const data_pointer &file)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	struct dnet_io_control ctl;
 	memset(&ctl, 0, sizeof(ctl));
 	dnet_empty_time(&ctl.io.timestamp);
@@ -883,7 +866,6 @@ async_write_result session::write_data(const dnet_io_attr &io, const data_pointe
 
 async_write_result session::write_data(const key &id, const data_pointer &file, uint64_t remote_offset)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	transform(id);
 	dnet_id raw = id.id();
 
@@ -965,7 +947,6 @@ struct chunk_handler : public std::enable_shared_from_this<chunk_handler> {
 
 async_write_result session::write_data(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t chunk_size)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	if (file.size() <= chunk_size || chunk_size == 0)
 		return write_data(id, file, remote_offset);
 
@@ -1160,7 +1141,6 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 async_write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
 		uint64_t remote_offset, int count)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	transform(id);
 
 	async_write_result result(*this);
@@ -1173,7 +1153,6 @@ async_write_result session::write_cas(const key &id, const std::function<data_po
 
 async_write_result session::write_cas(const key &id, const data_pointer &file, const dnet_id &old_csum, uint64_t remote_offset)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	transform(id);
 	dnet_id raw = id.id();
 
@@ -1201,7 +1180,6 @@ async_write_result session::write_cas(const key &id, const data_pointer &file, c
 
 async_write_result session::write_prepare(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	transform(id);
 
 	struct dnet_io_control ctl;
@@ -1227,7 +1205,6 @@ async_write_result session::write_prepare(const key &id, const data_pointer &fil
 
 async_write_result session::write_plain(const key &id, const data_pointer &file, uint64_t remote_offset)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	transform(id);
 
 	struct dnet_io_control ctl;
@@ -1254,7 +1231,6 @@ async_write_result session::write_plain(const key &id, const data_pointer &file,
 
 async_write_result session::write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	transform(id);
 
 	struct dnet_io_control ctl;
@@ -1279,7 +1255,6 @@ async_write_result session::write_commit(const key &id, const data_pointer &file
 
 async_write_result session::write_cache(const key &id, const data_pointer &file, long timeout)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	transform(id);
 	dnet_id raw = id.id();
 
@@ -1305,10 +1280,6 @@ async_write_result session::write_cache(const key &id, const data_pointer &file,
 
 std::string session::lookup_address(const key &id, int group_id)
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		throw_error(-EINVAL, "Node is already destroyed");
-
 	char buf[128];
 
 	int err = dnet_lookup_addr(m_data->session_ptr,
@@ -1330,9 +1301,6 @@ std::string session::lookup_address(const key &id, int group_id)
 
 void session::transform(const std::string &data, struct dnet_id &id) const
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		return;
 	dnet_transform(m_data->session_ptr, (void *)data.data(), data.size(), &id);
 	id.trace_id = m_data->trace_id;
 	trace_id = m_data->trace_id;
@@ -1340,17 +1308,11 @@ void session::transform(const std::string &data, struct dnet_id &id) const
 
 void session::transform(const std::string &data, struct dnet_raw_id &id) const
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		return;
 	dnet_transform_raw(m_data->session_ptr, (void *)data.data(), data.size(), (char *)id.id, sizeof(id.id));
 }
 
 void session::transform(const data_pointer &data, dnet_id &id) const
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		return;
 	dnet_transform(m_data->session_ptr, data.data(), data.size(), &id);
 	id.trace_id = m_data->trace_id;
 	trace_id = m_data->trace_id;
@@ -1363,7 +1325,6 @@ void session::transform(const key &id) const
 
 async_lookup_result session::lookup(const key &id)
 {
-	DNET_SESSION_NODE_CHECK(async_lookup_result);
 	transform(id);
 
 	async_lookup_result result(*this);
@@ -1378,7 +1339,6 @@ async_lookup_result session::lookup(const key &id)
 
 async_remove_result session::remove(const key &id)
 {
-	DNET_SESSION_NODE_CHECK(async_remove_result);
 	transform(id);
 
 	async_remove_result result(*this);
@@ -1390,7 +1350,6 @@ async_remove_result session::remove(const key &id)
 
 async_stat_result session::stat_log()
 {
-	DNET_SESSION_NODE_CHECK(async_stat_result);
 	async_stat_result result(*this);
 	auto cb = createCallback<stat_callback>(*this, result);
 
@@ -1400,7 +1359,6 @@ async_stat_result session::stat_log()
 
 async_stat_result session::stat_log(const key &id)
 {
-	DNET_SESSION_NODE_CHECK(async_stat_result);
 	async_stat_result result(*this);
 	transform(id);
 
@@ -1414,7 +1372,6 @@ async_stat_result session::stat_log(const key &id)
 
 async_stat_count_result session::stat_log_count()
 {
-	DNET_SESSION_NODE_CHECK(async_stat_count_result);
 	async_stat_count_result result(*this);
 	auto cb = createCallback<stat_count_callback>(*this, result);
 
@@ -1424,15 +1381,11 @@ async_stat_count_result session::stat_log_count()
 
 int session::state_num(void)
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		return 0;
 	return dnet_state_num(m_data->session_ptr);
 }
 
 async_generic_result session::request_cmd(const transport_control &ctl)
 {
-	DNET_SESSION_NODE_CHECK(async_generic_result);
 	async_generic_result result(*this);
 	auto cb = createCallback<cmd_callback>(*this, result, ctl);
 
@@ -1442,10 +1395,6 @@ async_generic_result session::request_cmd(const transport_control &ctl)
 
 void session::update_status(const char *saddr, const int port, const int family, struct dnet_node_status *status)
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		throw_error(-ENXIO, "Node is already destoryed");
-
 	int err;
 	struct dnet_addr addr;
 
@@ -1464,10 +1413,6 @@ void session::update_status(const char *saddr, const int port, const int family,
 
 void session::update_status(const key &id, struct dnet_node_status *status)
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		throw_error(-ENXIO, "Node is already destoryed");
-
 	transform(id);
 	dnet_id raw = id.id();
 
@@ -1694,7 +1639,6 @@ class remove_data_range_callback : public read_data_range_callback
 
 async_read_result session::read_data_range(const struct dnet_io_attr &io, int group_id)
 {
-	DNET_SESSION_NODE_CHECK(async_read_result);
 	async_read_result result(*this);
 	async_result_handler<read_result_entry> handler(result);
 	error_info error;
@@ -1707,10 +1651,6 @@ async_read_result session::read_data_range(const struct dnet_io_attr &io, int gr
 
 std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int group_id)
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		throw_error(-ENXIO, "Node is already destoryed");
-
 	sync_read_result range_result = read_data_range(io, group_id).get();
 	std::vector<std::string> result;
 
@@ -1735,7 +1675,6 @@ std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int grou
 
 async_read_result session::remove_data_range(const dnet_io_attr &io, int group_id)
 {
-	DNET_SESSION_NODE_CHECK(async_read_result);
 	async_read_result result(*this);
 	async_result_handler<read_result_entry> handler(result);
 	error_info error;
@@ -1747,10 +1686,6 @@ async_read_result session::remove_data_range(const dnet_io_attr &io, int group_i
 
 std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		throw_error(-ENXIO, "Node is already destoryed");
-
 	std::vector<std::pair<struct dnet_id, struct dnet_addr> > res;
 	struct dnet_id *ids = NULL;
 	struct dnet_addr *addrs = NULL;
@@ -1776,7 +1711,6 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
 
 async_exec_result session::request(dnet_id *id, const exec_context &context)
 {
-	DNET_SESSION_NODE_CHECK(async_exec_result);
 	async_exec_result result(*this);
 	auto cb = createCallback<exec_callback>(*this, result);
 	cb->id = id;
@@ -1788,7 +1722,6 @@ async_exec_result session::request(dnet_id *id, const exec_context &context)
 
 async_iterator_result session::iterator(const key &id, const data_pointer& request)
 {
-	DNET_SESSION_NODE_CHECK(async_iterator_result);
 	transform(id);
 	async_iterator_result result(*this);
 	auto cb = createCallback<iterator_callback>(*this, result);
@@ -1801,10 +1734,6 @@ async_iterator_result session::iterator(const key &id, const data_pointer& reque
 
 void session::mix_states(const key &id, std::vector<int> &groups)
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		throw_error(-ENXIO, "Node is already destoryed");
-
 	transform(id);
 	cstyle_scoped_pointer<int> groups_ptr;
 
@@ -1816,10 +1745,6 @@ void session::mix_states(const key &id, std::vector<int> &groups)
 }
 void session::mix_states(std::vector<int> &groups)
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		throw_error(-ENXIO, "Node is already destoryed");
-
 	cstyle_scoped_pointer<int> groups_ptr;
 
 	int num = dnet_mix_states(m_data->session_ptr, NULL, &groups_ptr.data());
@@ -1847,7 +1772,6 @@ async_iterator_result session::start_iterator(const key &id, const std::vector<d
 								uint32_t type, uint64_t flags,
 								const dnet_time& time_begin, const dnet_time& time_end)
 {
-	DNET_SESSION_NODE_CHECK(async_iterator_result);
 	auto ranges_size = ranges.size() * sizeof(ranges.front());
 
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request) + ranges_size);
@@ -1868,7 +1792,6 @@ async_iterator_result session::start_iterator(const key &id, const std::vector<d
 
 async_iterator_result session::pause_iterator(const key &id, uint64_t iterator_id)
 {
-	DNET_SESSION_NODE_CHECK(async_iterator_result);
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request));
 	auto request = data.data<dnet_iterator_request>();
 	memset(request, 0, sizeof(dnet_iterator_request));
@@ -1880,7 +1803,6 @@ async_iterator_result session::pause_iterator(const key &id, uint64_t iterator_i
 
 async_iterator_result session::continue_iterator(const key &id, uint64_t iterator_id)
 {
-	DNET_SESSION_NODE_CHECK(async_iterator_result);
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request));
 	auto request = data.data<dnet_iterator_request>();
 	memset(request, 0, sizeof(dnet_iterator_request));
@@ -1892,7 +1814,6 @@ async_iterator_result session::continue_iterator(const key &id, uint64_t iterato
 
 async_iterator_result session::cancel_iterator(const key &id, uint64_t iterator_id)
 {
-	DNET_SESSION_NODE_CHECK(async_iterator_result);
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request));
 	auto request = data.data<dnet_iterator_request>();
 	memset(request, 0, sizeof(dnet_iterator_request));
@@ -1904,7 +1825,6 @@ async_iterator_result session::cancel_iterator(const key &id, uint64_t iterator_
 
 async_exec_result session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
 {
-	DNET_SESSION_NODE_CHECK(async_exec_result);
 	exec_context context = exec_context_data::create(event, data);
 
 	sph *s = context.m_data->sph.data<sph>();
@@ -1918,7 +1838,6 @@ async_exec_result session::exec(dnet_id *id, const std::string &event, const dat
 
 async_exec_result session::exec(struct dnet_id *id, int src_key, const std::string &event, const data_pointer &data)
 {
-	DNET_SESSION_NODE_CHECK(async_exec_result);
 	exec_context context = exec_context_data::create(event, data);
 
 	sph *s = context.m_data->sph.data<sph>();
@@ -1933,7 +1852,6 @@ async_exec_result session::exec(struct dnet_id *id, int src_key, const std::stri
 
 async_exec_result session::exec(const exec_context &tmp_context, const std::string &event, const data_pointer &data)
 {
-	DNET_SESSION_NODE_CHECK(async_exec_result);
 	exec_context context = exec_context_data::copy(tmp_context, event, data);
 
 	sph *s = context.m_data->sph.data<sph>();
@@ -1947,7 +1865,6 @@ async_exec_result session::exec(const exec_context &tmp_context, const std::stri
 
 async_push_result session::push(dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
 {
-	DNET_SESSION_NODE_CHECK(async_push_result);
 	exec_context context = exec_context_data::copy(tmp_context, event, data);
 
 	sph *s = context.m_data->sph.data<sph>();
@@ -1959,7 +1876,6 @@ async_push_result session::push(dnet_id *id, const exec_context &tmp_context, co
 
 async_reply_result session::reply(const exec_context &tmp_context, const data_pointer &data, exec_context::final_state state)
 {
-	DNET_SESSION_NODE_CHECK(async_reply_result);
 	exec_context context = exec_context_data::copy(tmp_context, tmp_context.event(), data);
 
 	sph *s = context.m_data->sph.data<sph>();
@@ -1980,17 +1896,12 @@ async_reply_result session::reply(const exec_context &tmp_context, const data_po
 
 void session::reply(const struct sph &sph, const std::string &event, const std::string &data, const std::string &)
 {
-	auto node_guard = m_data->node_guard.lock();
-	if (!node_guard)
-		throw_error(-ENXIO, "Node is already destoryed");
-
 	exec_context context = exec_context_data::copy(sph, event, data);
 	reply(context, data, (sph.flags & DNET_SPH_FLAGS_FINISH) ? exec_context::final : exec_context::progressive).wait();
 }
 
 async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios_vector)
 {
-	DNET_SESSION_NODE_CHECK(async_read_result);
 	if (ios_vector.empty()) {
 		error_info error = create_error(-EINVAL, "bulk_read failed: ios list is empty");
 		if (get_exceptions_policy() & throw_at_start) {
@@ -2037,7 +1948,6 @@ bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const struct dnet_io_a
 
 async_read_result session::bulk_read(const std::vector<std::string> &keys)
 {
-	DNET_SESSION_NODE_CHECK(async_read_result);
 	std::vector<struct dnet_io_attr> ios;
 	struct dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
@@ -2059,7 +1969,6 @@ async_read_result session::bulk_read(const std::vector<std::string> &keys)
 
 async_read_result session::bulk_read(const std::vector<key> &keys)
 {
-	DNET_SESSION_NODE_CHECK(async_read_result);
 	std::vector<struct dnet_io_attr> ios;
 	struct dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
@@ -2080,7 +1989,6 @@ async_read_result session::bulk_read(const std::vector<key> &keys)
 
 async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<data_pointer> &data)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	if (ios.size() != data.size()) {
 		error_info error = create_error(-EINVAL, "BULK_WRITE: ios doesn't meet data: io.size: %zd, data.size: %zd",
 			ios.size(), data.size());
@@ -2114,7 +2022,6 @@ async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, con
 
 async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<std::string> &data)
 {
-	DNET_SESSION_NODE_CHECK(async_write_result);
 	std::vector<data_pointer> pointer_data(data.begin(), data.end());
 	return bulk_write(ios, pointer_data);
 }

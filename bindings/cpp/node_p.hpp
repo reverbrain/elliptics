@@ -47,18 +47,6 @@ class session_data
 		uint32_t		trace_id;
 };
 
-#define DNET_SESSION_NODE_CHECK(TYPE)
-
-/*
-	auto node_guard = m_data->node_guard.lock(); \
-	if (!node_guard) { \
-		TYPE result(*this); \
-		async_result_handler<typename TYPE::entry_type> handler(result); \
-		handler.complete(create_error(-ENXIO, "Node is already destroyed")); \
-		return result; \
-	}
-*/
-
 }} // namespace ioremap::elliptics
 
 #endif // IOREMAP_ELLIPTICS_NODE_P_HPP
