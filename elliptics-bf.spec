@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.34
+Version:	2.24.14.35
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Dec 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.35
+- socket: alot of debug and double-close checks
+
 * Wed Dec 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.34
 - python: Acquire GIL in python binding in async_result::get()
 - config: update reserved fields to maintain proper ABI structure size
