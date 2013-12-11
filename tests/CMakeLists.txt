@@ -39,6 +39,7 @@ set_target_properties(dnet_cpp_srw_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_srw_test -lev ${TEST_LIBRARIES} ${CocaineNative_LIBRARIES})
 
 add_executable(dnet_cpp_srw_test_app srw_test_app.cpp)
+set_target_properties(dnet_cpp_srw_test_app ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_srw_test_app -lev elliptics_cpp ${CocaineNative_LIBRARIES} ${Boost_LIBRARIES})
 
 add_custom_command(TARGET dnet_cpp_srw_test_app
@@ -47,8 +48,8 @@ add_custom_command(TARGET dnet_cpp_srw_test_app
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 
 enable_testing()
-set(TEST_ARGUMENTS --report_level=detailed --report_sink=stdout --log_level=warning  --log_sink=stdout)
-add_test(NAME test COMMAND dnet_cpp_test ${TEST_ARGUMENTS})
+set(TEST_ARGUMENTS --report_level=detailed --report_sink=stderr --log_level=warning  --log_sink=stderr)
+add_test(NAME generic_test COMMAND dnet_cpp_test ${TEST_ARGUMENTS})
 add_test(NAME cache_test COMMAND dnet_cpp_cache_test ${TEST_ARGUMENTS})
 add_test(NAME srw_test COMMAND dnet_cpp_srw_test ${TEST_ARGUMENTS})
 

@@ -199,7 +199,5 @@ int main(int argc, char *argv[])
 	atexit(tests::destroy_global_data);
 
 	srand(time(0));
-	int result = unit_test_main(tests::register_tests, argc, argv);
-	tests::global_data.reset();
-	return result;
+	return unit_test_main(tests::register_tests, argc, argv);
 }
