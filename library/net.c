@@ -810,8 +810,8 @@ static void dnet_state_remove_and_shutdown(struct dnet_net_state *st, int error)
 
 		st->__need_exit = error;
 
-		shutdown(st->read_s, 2);
-		shutdown(st->write_s, 2);
+		shutdown(st->read_s, SHUT_RDWR);
+		shutdown(st->write_s, SHUT_RDWR);
 	}
 
 	pthread_mutex_unlock(&st->send_lock);
@@ -841,7 +841,7 @@ void dnet_state_reset(struct dnet_net_state *st, int error)
 
 void dnet_sock_close(int s)
 {
-	shutdown(s, 2);
+	shutdown(s, SHUT_RDWR);
 	close(s);
 }
 
@@ -1006,8 +1006,6 @@ err_out_send_destroy:
 err_out_trans_destroy:
 	pthread_mutex_destroy(&st->trans_lock);
 err_out:
-	dnet_sock_close(st->write_s);
-
 	return err;
 }
 
@@ -1044,6 +1042,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	}
 
 	fcntl(st->write_s, F_SETFD, FD_CLOEXEC);
+
+	dnet_log(n, DNET_LOG_DEBUG, "%s: sockets: %d/%d\n", dnet_server_convert_dnet_addr(addr), st->read_s, st->write_s);
 
 	err = dnet_state_micro_init(st, n, addr, join, process);
 	if (err)

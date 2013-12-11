@@ -381,7 +381,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 
 	salen = addr.addr_len = sizeof(addr.addr);
 	cs = accept(orig->read_s, (struct sockaddr *)&addr.addr, &salen);
-	if (cs <= 0) {
+	if (cs < 0) {
 		err = -errno;
 
 		/* EAGAIN (or EWOULDBLOCK) is totally good here */
