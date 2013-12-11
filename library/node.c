@@ -734,6 +734,7 @@ void dnet_session_destroy(struct dnet_session *s)
 	dnet_log(s->node, DNET_LOG_DEBUG, "Destroying session.\n");
 
 	free(s->groups);
+	free(s->ns);
 	free(s);
 }
 
