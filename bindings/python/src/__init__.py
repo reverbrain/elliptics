@@ -19,14 +19,12 @@ from elliptics.core import ErrorInfo, trace_bit, Logger, iterator_flags
 from elliptics.core import iterator_types, command_flags, io_flags, log_level
 from elliptics.core import exceptions_policy, config_flags, IteratorResultContainer
 from elliptics.core import Id, Time, IoAttr, status_flags, Range, IteratorRange
+from elliptics.core import Error, NotFoundError, TimeoutError
 from elliptics.route import Address
 from elliptics.session import Session
 from elliptics.node import Node
 from elliptics.misc import create_node
 from elliptics.config import Config
-
-import elliptics.core
-del elliptics.core
 
 __author__ = "Kirill Smorodinnikov, Evgeniy Polyakov, Ruslan Nigmatullin, Alexey Ivanov"
 __copyright__ = """2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
