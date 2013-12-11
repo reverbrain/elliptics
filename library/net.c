@@ -97,9 +97,9 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 
 	dnet_set_sockopt(s);
 
-	dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d.\n",
+	dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d, socket: %d.\n",
 		dnet_server_convert_addr(sa, salen),
-		dnet_server_convert_port(sa, salen));
+		dnet_server_convert_port(sa, salen), s);
 
 	err = 0;
 
