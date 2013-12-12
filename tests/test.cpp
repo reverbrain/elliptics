@@ -830,6 +830,38 @@ static void test_prepare_latest(session &sess, const std::string &id)
 	BOOST_REQUIRE_EQUAL(lookup_result.size(), 2);
 }
 
+static void test_partial_lookup(session &sess, const std::string &id)
+{
+	const std::string data = "some-data";
+
+	session second_sess = sess.clone();
+	second_sess.set_groups(std::vector<int>(1, 2));
+
+	sess.set_filter(filters::all);
+
+	dnet_raw_id raw_id;
+	sess.transform(id, raw_id);
+
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	dnet_current_time(&io.timestamp);
+	memcpy(io.id, raw_id.id, DNET_ID_SIZE);
+
+	ELLIPTICS_REQUIRE(second_write_result, second_sess.write_data(io, data));
+	ELLIPTICS_REQUIRE(lookup_result, sess.lookup(id));
+
+	auto sync_lookup_result = lookup_result.get();
+
+	BOOST_REQUIRE_EQUAL(sync_lookup_result.size(), 2);
+
+	BOOST_REQUIRE_EQUAL(sync_lookup_result[0].command()->id.group_id, 1);
+	BOOST_REQUIRE_EQUAL(sync_lookup_result[0].command()->status, -ENOENT);
+
+	BOOST_REQUIRE_EQUAL(sync_lookup_result[1].command()->id.group_id, 2);
+	BOOST_REQUIRE_EQUAL(sync_lookup_result[1].command()->status, 0);
+	BOOST_REQUIRE_EQUAL(sync_lookup_result[1].file_info()->size, data.size());
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
@@ -868,6 +900,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_partial_bulk_read, create_session(n, {1, 2, 3}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_indexes_update, create_session(n, {2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_prepare_latest, create_session(n, {1, 2}, 0, 0), "prepare-latest-key");
+	ELLIPTICS_TEST_CASE(test_partial_lookup, create_session(n, {1, 2}, 0, 0), "partial-lookup-key");
 
 	return true;
 }
