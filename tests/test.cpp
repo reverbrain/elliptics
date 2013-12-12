@@ -249,6 +249,49 @@ static void test_error(session &s, const std::string &id, int err)
 	ELLIPTICS_REQUIRE_ERROR(read_result, s.read_data(id, 0, 0), err);
 }
 
+static bool test_error_check_exception(const not_found_error &e)
+{
+	return e.error_message()
+			.find("entry::io_attribute(): data.size is too small, expected: 208, actual: 0, status: -2")
+			!= std::string::npos;
+}
+
+static void test_error_message(session &s, const std::string &id, int err)
+{
+	s.set_filter(filters::all);
+
+	ELLIPTICS_REQUIRE_ERROR(read_result, s.read_data(id, 0, 0), err);
+
+	sync_read_result sync_result = read_result.get();
+
+	BOOST_REQUIRE(sync_result.size() > 0);
+
+	read_result_entry entry = sync_result[0];
+
+	BOOST_REQUIRE_EXCEPTION(entry.io_attribute(), not_found_error, test_error_check_exception);
+}
+
+static bool test_error_null_message_check_exception_1(const not_found_error &e)
+{
+	return e.error_message()
+			.find("entry::command(): entry is null")
+			!= std::string::npos;
+}
+
+static bool test_error_null_message_check_exception_2(const not_found_error &e)
+{
+	return e.error_message()
+			.find("entry::io_attribute(): entry is null")
+			!= std::string::npos;
+}
+
+static void test_error_null_message(session &)
+{
+	read_result_entry entry;
+	BOOST_REQUIRE_EXCEPTION(entry.command(), not_found_error, test_error_null_message_check_exception_1);
+	BOOST_REQUIRE_EXCEPTION(entry.io_attribute(), not_found_error, test_error_null_message_check_exception_2);
+}
+
 static void test_remove(session &s, const std::string &id)
 {
 	ELLIPTICS_REQUIRE(remove_result, s.remove(id));
@@ -883,6 +926,9 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_more_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {99}, 0, 0), "non-existen-key", -ENXIO);
+	ELLIPTICS_TEST_CASE(test_error, create_session(n, {1, 2}, 0, 0), "non-existen-key", -ENOENT);
+	ELLIPTICS_TEST_CASE(test_error_message, create_session(n, {1, 2}, 0, 0), "non-existen-key", -ENOENT);
+	ELLIPTICS_TEST_CASE(test_error_null_message, create_session(n, {}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, 0), "2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "cache-2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_cas, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CHECKSUM));
