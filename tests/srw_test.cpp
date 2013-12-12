@@ -182,12 +182,12 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 		logger log(NULL);
 
 		global_data = std::make_shared<nodes_data>();
-		global_data->node = node(log, config);
+		global_data->node.reset(new node(log, config));
 		for (auto it = remote.begin(); it != remote.end(); ++it)
-			global_data->node.add_remote(it->c_str());
+			global_data->node->add_remote(it->c_str());
 	}
 
-	register_tests(suite, global_data->node);
+	register_tests(suite, *global_data->node);
 
 	return suite;
 }
