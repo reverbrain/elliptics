@@ -21,7 +21,22 @@ from elliptics.log import logged_class
 
 @logged_class
 class Node(Node):
+    """
+    Node represents a connection with Elliptics.
+    """
     def add_remote(self, addr, port=None, family=AF_INET):
+        """
+           Adds connection to Elliptics node
+           Keyword arguments:
+           addr -- can be an Address instance or
+                   string 'host' or 'host:port' or 'host:port:family'
+           port -- destination port (default None, thus should be specified in addr)
+           family -- network family (default AF_INET)\n
+           node.add_remote(addr="host.com", port=1025, family=2)
+           node.add_remote(addr="host.com:1025")
+           node.add_remote(addr="host.com:1025:2")
+           node.add_remote(Address.from_host_port("host.com:1025"))
+        """
         if type(addr) is Address:
             super(Node, self).add_remote(addr=addr.host,
                                          port=addr.port,
