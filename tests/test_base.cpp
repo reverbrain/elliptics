@@ -60,6 +60,8 @@ void create_directory(const std::string &path)
 	boost::filesystem::create_directory(path);
 }
 
+#ifndef NO_SERVER
+
 config_data &config_data::operator()(const std::string &name, const std::string &value)
 {
 	for (auto it = m_data.begin(); it != m_data.end(); ++it) {
@@ -267,26 +269,6 @@ static std::string create_remote(const std::string &port)
 	return "localhost:" + port + ":2";
 }
 
-std::string read_file(const char *file_path)
-{
-	char buffer[1024];
-	std::string result;
-
-	std::ifstream config_in(file_path);
-	if (!config_in)
-		throw std::runtime_error(std::string("can not open for read: ") + file_path);
-
-	while (config_in) {
-		std::streamsize read = config_in.readsome(buffer, sizeof(buffer));
-		if (read > 0)
-			result.append(buffer, buffer + read);
-		else
-			break;
-	}
-
-	return result;
-}
-
 nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs)
 {
 	nodes_data::ptr data = std::make_shared<nodes_data>();
@@ -400,13 +382,35 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		memset(&config, 0, sizeof(config));
 
 		logger log(NULL);
-		data->node = node(log);
+		data->node.reset(new node(log));
 		for (size_t i = 0; i < data->nodes.size(); ++i) {
-			data->node.add_remote(data->nodes[i].remote().c_str());
+			data->node->add_remote(data->nodes[i].remote().c_str());
 		}
 	}
 
 	return data;
+}
+
+#endif // NO_SERVER
+
+std::string read_file(const char *file_path)
+{
+	char buffer[1024];
+	std::string result;
+
+	std::ifstream config_in(file_path);
+	if (!config_in)
+		throw std::runtime_error(std::string("can not open for read: ") + file_path);
+
+	while (config_in) {
+		std::streamsize read = config_in.readsome(buffer, sizeof(buffer));
+		if (read > 0)
+			result.append(buffer, buffer + read);
+		else
+			break;
+	}
+
+	return result;
 }
 
 } // namespace tests

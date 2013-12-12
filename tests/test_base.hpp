@@ -1,7 +1,7 @@
 #ifndef TEST_BASE_HPP
 #define TEST_BASE_HPP
 
-#include "../include/elliptics/cppdef.h"
+#include <elliptics/cppdef.h>
 
 namespace tests {
 
@@ -70,6 +70,8 @@ private:
 };
 
 void create_directory(const std::string &path);
+
+#ifndef NO_SERVER
 
 enum dummy_value_type { DUMMY_VALUE, NULL_VALUE };
 
@@ -140,17 +142,27 @@ private:
 	std::string m_remote;
 };
 
+#endif // NO_SERVER
+
 struct nodes_data
 {
 	typedef std::shared_ptr<nodes_data> ptr;
 
+#ifndef NO_SERVER
 	std::vector<server_node> nodes;
 	directory_handler directory;
-	ioremap::elliptics::node node;
+#endif // NO_SERVER
+
+	std::unique_ptr<ioremap::elliptics::node> node;
 };
 
-std::string read_file(const char *file_path);
+#ifndef NO_SERVER
+
 nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs);
+
+#endif // NO_SERVER
+
+std::string read_file(const char *file_path);
 
 } // namespace tests
 
