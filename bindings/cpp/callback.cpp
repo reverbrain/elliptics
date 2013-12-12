@@ -24,6 +24,45 @@
 
 namespace ioremap { namespace elliptics {
 
+/*
+ * This is a helper for counting sum of sizeof's of Args in compile time
+ */
+template <typename FirstArg, typename... Args>
+struct total_size
+{
+	enum : size_t {
+		value = sizeof(FirstArg) + total_size<Args...>::value
+	};
+};
+
+template <typename Arg>
+struct total_size<Arg>
+{
+	enum : size_t {
+		value = sizeof(Arg)
+	};
+};
+
+/*
+ * This macroses should be used surrounding all entry::methods which work directly
+ * with m_data or data() to ensure that meanfull exceptions are thrown
+ */
+#define DNET_DATA_BEGIN() try { \
+	do {} while (false)
+
+#define DNET_DATA_END(SIZES...) \
+	} catch (not_found_error &) { \
+		if (!is_valid()) { \
+			throw_error(-ENOENT, "entry::%s(): entry is null", __FUNCTION__); \
+		} else {\
+			dnet_cmd *cmd = command(); \
+			throw_error(-ENOENT, cmd->id, "entry::%s(): data.size is too small, expected: %zu, actual: %zu, status: %d", \
+				__FUNCTION__, total_size<SIZES>::value, data().size(), cmd->status); \
+		} \
+		throw; \
+	} \
+	do {} while (false)
+
 callback_result_entry::callback_result_entry() : m_data(std::make_shared<callback_result_data>())
 {
 }
@@ -73,22 +112,28 @@ data_pointer callback_result_entry::raw_data() const
 
 struct dnet_addr *callback_result_entry::address() const
 {
+	DNET_DATA_BEGIN();
 	return m_data->data
 		.data<struct dnet_addr>();
+	DNET_DATA_END(char);
 }
 
 struct dnet_cmd *callback_result_entry::command() const
 {
+	DNET_DATA_BEGIN();
 	return m_data->data
 		.skip<struct dnet_addr>()
 		.data<struct dnet_cmd>();
+	DNET_DATA_END(char);
 }
 
 data_pointer callback_result_entry::data() const
 {
+	DNET_DATA_BEGIN();
 	return m_data->data
 		.skip<struct dnet_addr>()
 		.skip<struct dnet_cmd>();
+	DNET_DATA_END(char);
 }
 
 uint64_t callback_result_entry::size() const
@@ -118,14 +163,18 @@ read_result_entry &read_result_entry::operator =(const read_result_entry &other)
 
 struct dnet_io_attr *read_result_entry::io_attribute() const
 {
+	DNET_DATA_BEGIN();
 	return data()
 		.data<struct dnet_io_attr>();
+	DNET_DATA_END(dnet_io_attr);
 }
 
 data_pointer read_result_entry::file() const
 {
+	DNET_DATA_BEGIN();
 	return data()
 		.skip<struct dnet_io_attr>();
+	DNET_DATA_END(dnet_io_attr);
 }
 
 lookup_result_entry::lookup_result_entry()
@@ -148,23 +197,29 @@ lookup_result_entry &lookup_result_entry::operator =(const lookup_result_entry &
 
 struct dnet_addr *lookup_result_entry::storage_address() const
 {
+	DNET_DATA_BEGIN();
 	return data()
 		.data<struct dnet_addr>();
+	DNET_DATA_END(dnet_addr);
 }
 
 struct dnet_file_info *lookup_result_entry::file_info() const
 {
+	DNET_DATA_BEGIN();
 	return data()
 		.skip<struct dnet_addr>()
 		.data<struct dnet_file_info>();
+	DNET_DATA_END(dnet_addr, dnet_file_info);
 }
 
 const char *lookup_result_entry::file_path() const
 {
+	DNET_DATA_BEGIN();
 	return data()
 		.skip<struct dnet_addr>()
 		.skip<struct dnet_file_info>()
 		.data<char>();
+	DNET_DATA_END(dnet_addr, dnet_file_info, char);
 }
 
 stat_result_entry::stat_result_entry()
@@ -187,10 +242,10 @@ stat_result_entry &stat_result_entry::operator =(const stat_result_entry &other)
 
 dnet_stat *stat_result_entry::statistics() const
 {
-	return m_data->data
-		.skip<struct dnet_addr>()
-		.skip<struct dnet_cmd>()
+	DNET_DATA_BEGIN();
+	return data()
 		.data<struct dnet_stat>();
+	DNET_DATA_END(dnet_stat);
 }
 
 stat_count_result_entry::stat_count_result_entry()
@@ -213,10 +268,12 @@ stat_count_result_entry &stat_count_result_entry::operator =(const stat_count_re
 
 struct dnet_addr_stat *stat_count_result_entry::statistics() const
 {
+	DNET_DATA_BEGIN();
 	return m_data->data
 		.skip<struct dnet_addr>()
 		.skip<struct dnet_cmd>()
 		.data<struct dnet_addr_stat>();
+	DNET_DATA_END(dnet_addr_stat);
 }
 
 exec_result_entry::exec_result_entry()
@@ -279,7 +336,9 @@ uint64_t iterator_result_entry::id() const
 
 data_pointer iterator_result_entry::reply_data() const
 {
+	DNET_DATA_BEGIN();
 	return data().skip<dnet_iterator_response>();
+	DNET_DATA_END(dnet_iterator_response);
 }
 
 //

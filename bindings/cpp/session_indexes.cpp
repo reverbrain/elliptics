@@ -78,6 +78,13 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 
 	const std::vector<int> known_groups = orig_sess.get_groups();
 
+	if (known_groups.empty()) {
+		async_set_indexes_result result(orig_sess);
+		async_result_handler<callback_result_entry> handler(result);
+		handler.complete(create_error(-ENXIO, "session_set_indexes: groups list is empty"));
+		return result;
+	}
+
 	session sess = orig_sess.clone();
 	sess.set_filter(filters::all_with_ack);
 	sess.set_checker(checkers::no_check);
