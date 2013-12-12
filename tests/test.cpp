@@ -31,6 +31,7 @@ static std::shared_ptr<nodes_data> global_data;
 
 static void configure_server_nodes()
 {
+#ifndef NO_SERVER
 	global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
 		config_data::default_value()
 			("group", 1),
@@ -38,6 +39,7 @@ static void configure_server_nodes()
 		config_data::default_value()
 			("group", 2)
 	}));
+#endif // NO_SERVER
 }
 
 static void test_cache_write(session &sess, int num)
@@ -927,7 +929,11 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 	bpo::store(bpo::parse_command_line(argc, argv, generic), vm);
 	bpo::notify(vm);
 
+#ifndef NO_SERVER
 	if (vm.count("help")) {
+#else
+	if (vm.count("help") || remote.empty()) {
+#endif
 		std::cerr << generic;
 		return NULL;
 	}
@@ -943,12 +949,12 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 		logger log(NULL);
 
 		global_data = std::make_shared<nodes_data>();
-		global_data->node = node(log, config);
+		global_data->node.reset(new node(log, config));
 		for (auto it = remote.begin(); it != remote.end(); ++it)
-			global_data->node.add_remote(it->c_str());
+			global_data->node->add_remote(it->c_str());
 	}
 
-	register_tests(suite, global_data->node);
+	register_tests(suite, *global_data->node);
 
 	return suite;
 }
