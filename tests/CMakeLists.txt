@@ -31,27 +31,35 @@ add_executable(dnet_cpp_cache_test cache_test.cpp)
 set_target_properties(dnet_cpp_cache_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_cache_test ${TEST_LIBRARIES})
 
-find_package(CocaineNative REQUIRED)
-include_directories(${CocaineNative_INCLUDE_DIRS})
+if(WITH_COCAINE)
+	include(../cmake/Modules/locate_library.cmake)
+	LOCATE_LIBRARY(LIBEV "ev++.h" "ev" "libev")
 
-add_executable(dnet_cpp_srw_test srw_test.cpp srw_test.hpp)
-set_target_properties(dnet_cpp_srw_test ${TEST_PROPERTIES})
-target_link_libraries(dnet_cpp_srw_test -lev ${TEST_LIBRARIES} ${CocaineNative_LIBRARIES})
+	find_package(CocaineNative REQUIRED)
+	include_directories(${CocaineNative_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS})
 
-add_executable(dnet_cpp_srw_test_app srw_test_app.cpp)
-set_target_properties(dnet_cpp_srw_test_app ${TEST_PROPERTIES})
-target_link_libraries(dnet_cpp_srw_test_app -lev elliptics_cpp ${CocaineNative_LIBRARIES} ${Boost_LIBRARIES})
+	add_executable(dnet_cpp_srw_test srw_test.cpp srw_test.hpp)
+	set_target_properties(dnet_cpp_srw_test ${TEST_PROPERTIES})
+	target_link_libraries(dnet_cpp_srw_test ${TEST_LIBRARIES} ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
 
-add_custom_command(TARGET dnet_cpp_srw_test_app
-    POST_BUILD
-    COMMAND tar -cf dnet_cpp_srw_test_app.tar dnet_cpp_srw_test_app
-    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+	add_executable(dnet_cpp_srw_test_app srw_test_app.cpp)
+	set_target_properties(dnet_cpp_srw_test_app ${TEST_PROPERTIES})
+	target_link_libraries(dnet_cpp_srw_test_app elliptics_cpp ${CocaineNative_LIBRARIES} ${Boost_LIBRARIES} ${LIBEV_LIBRARIES})
+
+	add_custom_command(TARGET dnet_cpp_srw_test_app
+	    POST_BUILD
+	    COMMAND tar -cf dnet_cpp_srw_test_app.tar dnet_cpp_srw_test_app
+	    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+endif()
 
 enable_testing()
 set(TEST_ARGUMENTS --report_level=detailed --report_sink=stderr --log_level=warning  --log_sink=stderr)
 add_test(NAME generic_test COMMAND dnet_cpp_test ${TEST_ARGUMENTS})
 add_test(NAME cache_test COMMAND dnet_cpp_cache_test ${TEST_ARGUMENTS})
+
+if(WITH_COCAINE)
 add_test(NAME srw_test COMMAND dnet_cpp_srw_test ${TEST_ARGUMENTS})
+endif()
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)
