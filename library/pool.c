@@ -499,6 +499,9 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 	}
 
 err_out_exit:
+	if ((err < 0) && (atomic_read(&st->send_queue_size) > 0))
+		pthread_cond_broadcast(&st->send_wait);
+
 	return err;
 }
 
