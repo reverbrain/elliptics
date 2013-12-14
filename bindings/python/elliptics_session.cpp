@@ -37,6 +37,20 @@ namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {
 
+enum elliptics_filters {
+	elliptics_filters_positive = 0,
+	elliptics_filters_negative,
+	elliptics_filters_all,
+	elliptics_filters_all_with_ack,
+};
+
+enum elliptics_checkers {
+	elliptics_checkers_no_check = 0,
+	elliptics_checkers_at_least_one,
+	elliptics_checkers_all,
+	elliptics_checkers_quorum,
+};
+
 struct write_cas_converter {
 	write_cas_converter(PyObject *converter): py_converter(converter) {}
 
@@ -186,6 +200,28 @@ public:
 		dnet_time ts;
 		session::get_timestamp(&ts);
 		return elliptics_time(ts);
+	}
+
+	void set_filter(elliptics_filters filter) {
+		auto res = filters::positive;
+		switch (filter) {
+			case elliptics_filters_negative:		res = filters::negative;		break;
+			case elliptics_filters_all:				res = filters::all;				break;
+			case elliptics_filters_all_with_ack:	res = filters::all_with_ack;	break;
+		}
+
+		session::set_filter(res);
+	}
+
+	void set_checker(elliptics_checkers checker) {
+		auto res = checkers::at_least_one;
+		switch (checker) {
+			case elliptics_checkers_no_check:	res = checkers::no_check;	break;
+			case elliptics_checkers_all:		res = checkers::all;		break;
+			case elliptics_checkers_quorum:		res = checkers::quorum;		break;
+		}
+
+		session::set_checker(res);
 	}
 
 	void read_file(const bp::api::object &id, const std::string &file, uint64_t offset, uint64_t size) {
@@ -506,6 +542,30 @@ private:
 
 void init_elliptics_session() {
 
+	bp::enum_<elliptics_filters>("filters",
+	    "Built-in replies filters. It is used at session.set_filter:\n\n"
+	    "positive\n    Filters only positive replies\n"
+	    "negative\n    Filters only negative replies\n"
+	    "all\n    Doesn't apply any filter on replies\n"
+	    "all_with_ack\n    Filters replies with ack")
+		.value("positive", elliptics_filters_positive)
+		.value("negative", elliptics_filters_negative)
+		.value("all", elliptics_filters_all)
+		.value("all_with_ack", elliptics_filters_all_with_ack)
+	;
+
+	bp::enum_<elliptics_checkers>("checkers",
+	    "Different strategies to determine the success of the operation. It is used at session.set_checkers:\n\n"
+	    "no_check\n    The operation is always successful\n"
+	    "at_least_one\n    The operation is successful if at least one group returns positive result\n"
+	    "all\n    The operation is successful if all groups return positive result\n"
+	    "quorum\n    The operation is successful if more than half of groups returns positive result")
+		.value("no_check", elliptics_checkers_no_check)
+		.value("at_least_one", elliptics_checkers_at_least_one)
+		.value("all", elliptics_checkers_all)
+		.value("quorum", elliptics_checkers_quorum)
+	;
+
 	bp::class_<elliptics_status>("SessionStatus", bp::init<>())
 		.def_readwrite("nflags", &dnet_node_status::nflags)
 		.def_readwrite("status_flags", &dnet_node_status::status_flags)
@@ -645,6 +705,18 @@ void init_elliptics_session() {
 		     "get_routes()\n"
 		     "    Returns current routes table\n\n"
 		     "    routes = session.routes")
+
+		.def("set_filter", &elliptics_session::set_filter,
+		     bp::args("filter"),
+		    "set_filter(filter)\n"
+		    "    Sets replies filter to the session\n\n"
+		    "    session.set_filter(elliptics.filters.positive)  #filters only positive replies")
+
+		.def("set_checker", &elliptics_session::set_checker,
+		     bp::args("checker"),
+		    "set_checker(checker)\n"
+		    "    Sets to session how it should determines whether operation successful or not\n\n"
+		    "    session.set_checker(elliptics.checkers.quorum)")
 
 //Lookup operations
 
