@@ -205,9 +205,17 @@ public:
 	void set_filter(elliptics_filters filter) {
 		auto res = filters::positive;
 		switch (filter) {
-			case elliptics_filters_negative:		res = filters::negative;		break;
-			case elliptics_filters_all:				res = filters::all;				break;
-			case elliptics_filters_all_with_ack:	res = filters::all_with_ack;	break;
+			case elliptics_filters_negative:
+				res = filters::negative;
+				break;
+			case elliptics_filters_all:
+				res = filters::all;
+				break;
+			case elliptics_filters_all_with_ack:
+				res = filters::all_with_ack;
+				break;
+			default:
+				break;
 		}
 
 		session::set_filter(res);
@@ -216,9 +224,17 @@ public:
 	void set_checker(elliptics_checkers checker) {
 		auto res = checkers::at_least_one;
 		switch (checker) {
-			case elliptics_checkers_no_check:	res = checkers::no_check;	break;
-			case elliptics_checkers_all:		res = checkers::all;		break;
-			case elliptics_checkers_quorum:		res = checkers::quorum;		break;
+			case elliptics_checkers_no_check:
+				res = checkers::no_check;
+				break;
+			case elliptics_checkers_all:
+				res = checkers::all;
+				break;
+			case elliptics_checkers_quorum:
+				res = checkers::quorum;
+				break;
+			default:
+				break;
 		}
 
 		session::set_checker(res);
