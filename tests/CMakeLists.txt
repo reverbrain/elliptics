@@ -53,7 +53,7 @@ if(WITH_COCAINE)
 endif()
 
 enable_testing()
-set(TEST_ARGUMENTS --report_level=detailed --report_sink=stderr --log_level=warning  --log_sink=stderr)
+#set(TEST_ARGUMENTS --report_level=detailed --report_sink=stderr --log_level=warning  --log_sink=stderr)
 add_test(NAME generic_test COMMAND dnet_cpp_test ${TEST_ARGUMENTS})
 add_test(NAME cache_test COMMAND dnet_cpp_cache_test ${TEST_ARGUMENTS})
 
