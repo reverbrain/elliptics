@@ -1781,12 +1781,17 @@ static int dnet_update_status_complete(struct dnet_net_state *state, struct dnet
 	struct dnet_update_status_priv *p = priv;
 
 	if (is_trans_destroyed(state, cmd)) {
+		int err = -ENOENT;
+		if (cmd)
+			err = cmd->status;
+
 		dnet_wakeup(p->w, p->w->cond++);
 		dnet_wait_put(p->w);
 		if (atomic_dec_and_test(&p->refcnt)) {
 			free(p);
-			return -ENOENT;
 		}
+
+		return err;
 	}
 
 	if (cmd->size == sizeof(struct dnet_node_status)) {
@@ -1831,10 +1836,12 @@ int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dn
 		goto err_out_exit;
 	}
 
+	atomic_init(&priv->refcnt, 1);
+
 	priv->w = dnet_wait_alloc(0);
 	if (!priv->w) {
 		err = -ENOMEM;
-		goto err_out_exit;
+		goto err_out_free;
 	}
 
 	ctl.complete = dnet_update_status_complete;
@@ -1845,6 +1852,8 @@ int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dn
 	ctl.data = status;
 
 	dnet_wait_get(priv->w);
+	atomic_inc(&priv->refcnt);
+
 	dnet_request_cmd_single(s, NULL, &ctl);
 
 	err = dnet_wait_event(priv->w, priv->w->cond == 1, dnet_session_get_timeout(s));
@@ -1852,6 +1861,8 @@ int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dn
 	if (!err && priv) {
 		memcpy(status, &priv->status, sizeof(struct dnet_node_status));
 	}
+
+err_out_free:
 	if (atomic_dec_and_test(&priv->refcnt))
 		free(priv);
 
