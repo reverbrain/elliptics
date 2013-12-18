@@ -464,8 +464,8 @@ void test_1(session &sess)
 			test_1_find_all(sess, i, cache);
 			test_1_find_any(sess, i, cache);
 		}
-		test_1_find_any(sess, i, cache, tags);
 		test_1_list(sess, i, cache);
+		test_1_find_any(sess, i, cache, tags);
 //		std::cerr << "cache: " << cache << std::endl;
 	}
 }
