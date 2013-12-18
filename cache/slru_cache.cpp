@@ -89,7 +89,9 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 			}
 
 			m_cache_stats.size_of_objects -= it->size();
+			m_cache_pages_sizes[page_number] -= it->size();
 			raw.insert(raw.end(), data, data + io->size);
+			m_cache_pages_sizes[page_number] += it->size();
 			m_cache_stats.size_of_objects += it->size();
 
 			move_data_between_pages(id, page_number, new_page_number, &*it);
