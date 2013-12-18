@@ -242,38 +242,81 @@ public:
 
 	void read_file(const bp::api::object &id, const std::string &file, uint64_t offset, uint64_t size) {
 		py_allow_threads_scoped pythr;
-		return session::read_file(elliptics_id::convert(id), file, offset, size);
+
+		bp::extract<elliptics_io_attr&> get_io_attr(id);
+		if (!get_io_attr.check())
+			return session::read_file(elliptics_id::convert(id), file, offset, size);
+
+		elliptics_io_attr &io_attr = get_io_attr;
+		transform_io_attr(io_attr);
+
+		return session::read_file(io_attr.id, file, io_attr.offset, io_attr.size);
 	}
 
 	void write_file(const bp::api::object &id, const std::string &file, uint64_t local_offset, uint64_t offset, uint64_t size) {
 		py_allow_threads_scoped pythr;
-		return session::write_file(elliptics_id::convert(id), file, local_offset, offset, size);
+
+		bp::extract<elliptics_io_attr&> get_io_attr(id);
+		if (!get_io_attr.check())
+			return session::write_file(elliptics_id::convert(id), file, local_offset, offset, size);
+
+		elliptics_io_attr &io_attr = get_io_attr;
+		transform_io_attr(io_attr);
+
+		return session::write_file(io_attr.id, file, local_offset, io_attr.offset, io_attr.size);
 	}
 
 	python_read_result read_data(const bp::api::object &id, uint64_t offset, uint64_t size) {
-		return create_result(std::move(session::read_data(elliptics_id::convert(id), offset, size)));
+		bp::extract<elliptics_io_attr&> get_io_attr(id);
+		if (!get_io_attr.check())
+			return create_result(std::move(session::read_data(elliptics_id::convert(id), offset, size)));
+
+		elliptics_io_attr &io_attr = get_io_attr;
+		transform_io_attr(io_attr);
+
+		return create_result(std::move(session::read_data(io_attr.id, io_attr.offset, io_attr.size)));
 	}
 
 	python_read_result read_data_from_groups(const bp::api::object &id, const bp::api::object &groups, uint64_t offset, uint64_t size) {
 		auto std_groups = convert_to_vector<int>(groups);
-		return create_result(std::move(session::read_data(elliptics_id::convert(id), std_groups, offset, size)));
+
+		bp::extract<elliptics_io_attr&> get_io_attr(id);
+		if (!get_io_attr.check())
+			return create_result(std::move(session::read_data(elliptics_id::convert(id), std_groups, offset, size)));
+
+		elliptics_io_attr &io_attr = get_io_attr;
+		transform_io_attr(io_attr);
+
+		return create_result(std::move(session::read_data(io_attr.id, std_groups, io_attr.offset, io_attr.size)));
 	}
 
 	python_lookup_result prepare_latest(const bp::api::object &id, const bp::api::object &gl) {
 		std::vector<int> groups = convert_to_vector<int>(gl);
+		bp::extract<elliptics_io_attr&> get_io_attr(id);
+		if (!get_io_attr.check())
+			return create_result(std::move(session::prepare_latest(elliptics_id::convert(id), groups)));
 
-		return create_result(std::move(session::prepare_latest(elliptics_id::convert(id), groups)));
+		elliptics_io_attr &io_attr = get_io_attr;
+		transform_io_attr(io_attr);
+
+		return create_result(std::move(session::prepare_latest(io_attr.id, groups)));
 	}
 
 	python_read_result read_latest(const bp::api::object &id, uint64_t offset, uint64_t size) {
-		return create_result(std::move(session::read_latest(elliptics_id::convert(id), offset, size)));
+		bp::extract<elliptics_io_attr&> get_io_attr(id);
+		if (!get_io_attr.check())
+			return create_result(std::move(session::read_latest(elliptics_id::convert(id), offset, size)));
+
+		elliptics_io_attr &io_attr = get_io_attr;
+		transform_io_attr(io_attr);
+
+		return create_result(std::move(session::read_latest(io_attr.id, io_attr.offset, io_attr.size)));
 	}
 
 	python_write_result write_data(const bp::api::object &id, const std::string &data, uint64_t offset) {
 		bp::extract<elliptics_io_attr&> get_io_attr(id);
-		if (!get_io_attr.check()){
+		if (!get_io_attr.check())
 			return create_result(std::move(session::write_data(elliptics_id::convert(id), data_pointer::copy(data), offset)));
-		}
 
 		elliptics_io_attr &io_attr = get_io_attr;
 		transform_io_attr(io_attr);
@@ -282,7 +325,17 @@ public:
 	}
 
 	python_write_result write_data_by_chunks(const bp::api::object &id, const std::string &data, uint64_t offset, uint64_t chunk_size) {
-		return create_result(std::move(session::write_data(elliptics_id::convert(id), data_pointer::copy(data), offset, chunk_size)));
+		if (chunk_size == 0)
+			return write_data(id, data, offset);
+
+		bp::extract<elliptics_io_attr&> get_io_attr(id);
+		if (!get_io_attr.check())
+			return create_result(std::move(session::write_data(elliptics_id::convert(id), data_pointer::copy(data), offset, chunk_size)));
+
+		elliptics_io_attr &io_attr = get_io_attr;
+		transform_io_attr(io_attr);
+
+		return create_result(std::move(session::write_data(io_attr.id, data_pointer::copy(data), io_attr.offset, chunk_size)));
 	}
 
 	python_write_result write_cas(const bp::api::object &id, const std::string &data, const elliptics_id &old_csum, uint64_t remote_offset) {
