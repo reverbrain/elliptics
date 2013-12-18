@@ -50,6 +50,12 @@ elliptics_id::elliptics_id(const bp::list &id,
 	set_group_id(group_id);
 }
 
+elliptics_id::elliptics_id(const uint8_t *raw_id) {
+	dnet_raw_id id;
+	memcpy(id.id, raw_id, sizeof(id.id));
+	key::set_id(id);
+}
+
 bp::list elliptics_id::get_id() const {
 	return convert_to_list(id().id, sizeof(id().id));
 }
@@ -131,15 +137,34 @@ struct id_pickle : bp::pickle_suite
 };
 
 void init_elliptics_id() {
-	bp::class_<elliptics_id>("Id", bp::no_init)
-		.def(bp::init<bp::list, uint32_t>(bp::args("key", "group_id")))
-		.def(bp::init<std::string>(bp::args("remote")))
-		.add_property("id", &elliptics_id::get_id, &elliptics_id::set_id)
-		.add_property("group_id", &elliptics_id::group_id, &elliptics_id::set_group_id)
-		.def("__cmp__", &elliptics_id::cmp)
-		.def("__str__", &elliptics_id::to_str)
+	bp::class_<elliptics_id>(
+	    "Id", "elliptics.Id is used as a key for all operations with Elliptics")
+		.def(bp::init<bp::list, uint32_t>(bp::args("key", "group_id"),
+		     "__init__(key, group_id)"
+		     "    Initializes elliptics.Id\n"
+		     "    -- key - list of 64 integers from [0, 255] which represents 512 bit key\n"
+		     "    -- group_id - Elliptics group identificator from which key is considered\n\n"
+		     "    id = elliptics.Id(key=[0] * 64, group_id = 1)"))
+		.def(bp::init<std::string>(bp::args("key"),
+		     "__init__(key)\n"
+		     "    Initializes elliptics.Id\n"
+		     "    -- key - string key\n\n"
+		     "    id = elliptics.Id(key='some key')"))
+		.add_property("id", &elliptics_id::get_id, &elliptics_id::set_id,
+		     "Internal representation of the key\n\n"
+		     "internal_id = id.id\n"
+		     "id.id = [0] * 64")
+		.add_property("group_id", &elliptics_id::group_id, &elliptics_id::set_group_id,
+		     "Group identificator from which the key is considered\n\n"
+		     "group_id = id.group_id\n"
+		     "id.group_id = 1")
+		.def("__cmp__", &elliptics_id::cmp,
+		     "x.__cmp__(y) <==> cmp(x,y)")
+		.def("__str__", &elliptics_id::to_str,
+		     "x.__str__() <==> str(x)")
 		.def_pickle(id_pickle())
-		.def("__repr__", &elliptics_id::to_repr)
+		.def("__repr__", &elliptics_id::to_repr,
+		     "x.__repr__() <==> repr(x)")
 	;
 }
 

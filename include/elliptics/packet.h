@@ -418,6 +418,26 @@ static inline void dnet_convert_list(struct dnet_list *l)
  */
 #define DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL	(1<<2)
 
+/*
+ * DNET_INDEXES_FLAGS_INTERNAL_REMOVE_FROM_OBJECTS
+ *
+ * Send requests to remove index from object's list in storages.
+ * Use it in addition to DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL.
+ *
+ * This flag is for DNET_CMD_INDEXES_INTERNAL request only.
+ */
+#define DNET_INDEXES_FLAGS_INTERNAL_REMOVE_FROM_OBJECTS	(1<<3)
+
+/*
+ * DNET_INDEXES_FLAGS_INTERNAL_REMOVE_FROM_STORAGE
+ *
+ * Also remove object from disk.
+ * Use it in addition to DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL
+ *
+ * This flag is for DNET_CMD_INDEXES_INTERNAL request only.
+ */
+#define DNET_INDEXES_FLAGS_INTERNAL_REMOVE_FROM_STORAGE	(1<<4)
+
 
 struct dnet_time {
 	uint64_t		tsec, tnsec;

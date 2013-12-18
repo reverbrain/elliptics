@@ -96,7 +96,8 @@ again:
 	if (fd < 0) {
 		err = -errno;
 		if (err == -ENOENT) {
-			err = dnet_ids_update(1, path, cfg_addrs, remotes);
+			if (n->flags & DNET_CFG_KEEPS_IDS_IN_CLUSTER)
+				err = dnet_ids_update(1, path, cfg_addrs, remotes);
 			if (err)
 				err = dnet_ids_generate(n, path, storage_free);
 
@@ -127,7 +128,8 @@ again:
 		goto err_out_close;
 	}
 
-	dnet_ids_update(0, path, cfg_addrs, remotes);
+	if (n->flags & DNET_CFG_KEEPS_IDS_IN_CLUSTER)
+		dnet_ids_update(0, path, cfg_addrs, remotes);
 
 	ids = malloc(st.st_size);
 	if (!ids) {
@@ -338,6 +340,9 @@ void dnet_server_node_destroy(struct dnet_node *n)
 
 	dnet_srw_cleanup(n);
 	dnet_cache_cleanup(n);
+
+	if (n->cache_pages_proportions)
+		free(n->cache_pages_proportions);
 
 	if (n->cb && n->cb->backend_cleanup)
 		n->cb->backend_cleanup(n->cb->command_private);

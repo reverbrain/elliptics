@@ -21,9 +21,9 @@
 
 #include <errno.h>
 
+#include "../bindings/cpp/session_indexes.hpp"
 #include "../library/elliptics.h"
 #include "../bindings/cpp/functional_p.h"
-#include "../bindings/cpp/session_indexes.hpp"
 #include "local_session.h"
 
 #include "elliptics/debug.hpp"

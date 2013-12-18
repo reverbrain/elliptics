@@ -1142,7 +1142,7 @@ class remove_index_callback
 		typedef std::shared_ptr<remove_index_callback> ptr;
 
 		remove_index_callback(const session &sess, const async_generic_result &result, const dnet_raw_id &index)
-			: sess(sess), cb(sess, result), index(index)
+			: sess(sess), flags(0), cb(sess, result), index(index)
 		{
 		}
 
@@ -1188,7 +1188,7 @@ class remove_index_callback
 			dnet_indexes_request_entry entry;
 			memset(&entry, 0, sizeof(entry));
 
-			entry.flags |= DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL;
+			entry.flags |= DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL | flags;
 
 			std::unique_ptr<state_container[]> states(new state_container[groups.size()]);
 
@@ -1269,11 +1269,12 @@ class remove_index_callback
 					data_pointer data = std::move(state.buffer);
 
 					// Set the actual entries_count value as it is unknown at the beginning
-					dnet_indexes_request *request = data.data<dnet_indexes_request>();
-					request->entries_count = state.entries_count;
+					dnet_indexes_request *request_ptr = data.data<dnet_indexes_request>();
+					request_ptr->entries_count = state.entries_count;
+					dnet_setup_id(&request_ptr->id, id.group_id, request_ptr->entries[0].id.id);
 					state.entries_count = 0;
 
-					control.id = request->id;
+					control.id = request_ptr->id;
 					control.data = data.data();
 					control.size = data.size();
 
@@ -1287,6 +1288,7 @@ class remove_index_callback
 					++count;
 
 					if (!after_last_entry) {
+						state.buffer.write(request);
 						state.buffer.write(entry);
 						state.entries_count++;
 					}
@@ -1308,6 +1310,7 @@ class remove_index_callback
 		}
 
 		session sess;
+		uint64_t flags;
 		default_callback<callback_result_entry> cb;
 		dnet_raw_id index;
 		std::vector<int> groups;

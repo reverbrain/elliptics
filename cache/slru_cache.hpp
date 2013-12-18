@@ -28,26 +28,24 @@ private:
 	struct dnet_node *m_node;
 	size_t m_cache_size, m_max_cache_size;
 	std::mutex m_lock;
-	iset_t m_set;
 	size_t m_cache_pages_number;
 	std::vector<size_t> m_cache_pages_max_sizes;
 	std::vector<size_t> m_cache_pages_sizes;
 	std::unique_ptr<lru_list_t[]> m_cache_pages_lru;
-	life_set_t m_lifeset;
-	sync_set_t m_syncset;
 	std::thread m_lifecheck;
-	cache_stats m_cache_stats;
+	treap_t m_treap;
+	mutable cache_stats m_cache_stats;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 
-	size_t next_page_number(size_t page_number) const {
+	size_t get_next_page_number(size_t page_number) const {
 		if (page_number == 0) {
 			return 0;
 		}
 		return page_number - 1;
 	}
 
-	size_t previous_page_number(size_t page_number) const {
+	size_t get_previous_page_number(size_t page_number) const {
 		return page_number + 1;
 	}
 
@@ -55,9 +53,14 @@ private:
 
 	void remove_data_from_page(const unsigned char *id, size_t page_number, data_t *data);
 
-	iset_t::iterator create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk);
+	void move_data_between_pages(const unsigned char *id,
+								 size_t source_page_number,
+								 size_t destination_page_number,
+								 data_t *data);
 
-	iset_t::iterator populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err);
+	data_t* create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk);
+
+	data_t* populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err);
 
 	void resize_page(const unsigned char *id, size_t page_number, size_t reserve);
 

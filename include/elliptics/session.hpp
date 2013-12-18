@@ -142,6 +142,8 @@ class session_data;
 class node
 {
 	public:
+		node();
+		explicit node(const std::shared_ptr<node_data> &data);
 		explicit node(const logger &l);
 		node(const logger &l, struct dnet_config &cfg);
 		node(const node &other);
@@ -154,8 +156,11 @@ class node
 
 		void			set_timeouts(const int wait_timeout, const int check_timeout);
 
+		bool is_valid() const;
+
 		logger get_log() const;
 		struct dnet_node *	get_native();
+		struct dnet_node *	get_native() const;
 
 	protected:
 		std::shared_ptr<node_data> m_data;
@@ -717,6 +722,8 @@ class session
 		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<std::string> &indexes);
 		async_generic_result remove_index_internal(const dnet_raw_id &id);
 		async_generic_result remove_index_internal(const std::string &id);
+		async_generic_result remove_index(const dnet_raw_id &id, bool remove_data);
+		async_generic_result remove_index(const std::string &id, bool remove_data);
 
 		async_find_indexes_result find_all_indexes(const std::vector<dnet_raw_id> &indexes);
 		async_find_indexes_result find_all_indexes(const std::vector<std::string> &indexes);
@@ -728,11 +735,7 @@ class session
 		/*!
 		 * Returns reference to parent node.
 		 */
-		node	&get_node();
-		/*!
-		 * \overload get_node()
-		 */
-		const node	&get_node() const;
+		node	get_node() const;
 		/*!
 		 * Returns pointer to dnet_session.
 		 */

@@ -222,6 +222,7 @@ enum dnet_log_level {
 #define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
 #define DNET_CFG_NO_CSUM		(1<<3)		/* globally disable checksum verification and update */
 #define DNET_CFG_RANDOMIZE_STATES	(1<<5)		/* randomize states for read requests */
+#define DNET_CFG_KEEPS_IDS_IN_CLUSTER	(1<<6)		/* keeps ids in elliptics cluster */
 
 struct dnet_log {
 	/*
@@ -398,16 +399,19 @@ struct dnet_config
 	/* Total cache size */
 	uint64_t		cache_size;
 
+	int			cache_sync_timeout;
+
 	/* Caches number */
 	unsigned int	caches_number;
 
 	/* Cache pages number */
 	unsigned int	cache_pages_number;
 
-	int			cache_sync_timeout;
+	/* Cache pages proportions */
+	unsigned int*	cache_pages_proportions;
 
 	/* so that we do not change major version frequently */
-	int			reserved_for_future_use[11];
+	int			reserved_for_future_use[9 - (sizeof(unsigned int*) / sizeof(int))];
 
 	/*
 	 * Monitor socket port

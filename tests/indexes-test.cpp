@@ -333,12 +333,8 @@ void test_1_find_all(session &sess, int iteration, const data_cache &cache)
 	assert(valid_results_str == results_str);
 }
 
-void test_1_find_any(session &sess, int iteration, const data_cache &cache)
+void test_1_find_any(session &sess, int iteration, const data_cache &cache, const std::vector<std::string> &object_tags)
 {
-	std::vector<std::string> object_tags = tags;
-	const size_t count = rand() % TAGS_COUNT;
-	std::random_shuffle(object_tags.begin(), object_tags.end());
-	object_tags.resize(count);
 
 	std::cerr << iteration << " find any: " << sorted(object_tags) << std::endl;
 
@@ -382,17 +378,94 @@ void test_1_find_any(session &sess, int iteration, const data_cache &cache)
 	assert(valid_results_str == results_str);
 }
 
+void test_1_find_any(session &sess, int iteration, const data_cache &cache)
+{
+	std::vector<std::string> object_tags = tags;
+	const size_t count = rand() % TAGS_COUNT;
+	std::random_shuffle(object_tags.begin(), object_tags.end());
+	object_tags.resize(count);
+	test_1_find_any(sess, iteration, cache, object_tags);
+}
+
+void test_1_list(session &sess, int iteration, const data_cache &cache)
+{
+	std::cerr << iteration << " list" << std::endl;
+
+	std::vector<std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> results;
+	std::vector<std::pair<std::string, std::vector<std::pair<std::string, std::string>>>> valid_results;
+
+	for (auto it = objects.begin(); it != objects.end(); ++it) {
+		int result = 0;
+		try {
+			sync_list_indexes_result result = sess.list_indexes(*it);
+			std::vector<std::pair<std::string, std::string>> str_result;
+			for (auto jt = result.begin(); jt != result.end(); ++jt) {
+				str_result.emplace_back(to_string(jt->index), jt->data.to_string());
+			}
+			results.emplace_back(*it, std::move(str_result));
+		} catch (error &e) {
+			result = e.error_code();
+		} catch (std::bad_alloc &e) {
+			result = -ENOMEM;
+		}
+
+		if (result != -2 && result != -6)
+			assert_perror(result);
+	}
+
+	for (auto it = cache.begin(); it != cache.end(); ++it) {
+		valid_results.emplace_back(it->first,
+			std::vector<std::pair<std::string, std::string>>(it->second.begin(), it->second.end()));
+	}
+
+	std::string valid_results_str = to_string(sorted(valid_results));
+	std::string results_str = to_string(sorted(results));
+	std::cerr << valid_results_str << " vs " << results_str << std::endl;
+	assert(cache.size() == results.size());
+	assert(valid_results_str == results_str);
+}
+
+void test_1_remove_index(session &sess, int iteration, data_cache &cache)
+{
+	const std::string &tag = tags[rand() % OBJECT_COUNT];
+
+	for (auto it = cache.begin(); it != cache.end(); ++it) {
+		it->second.erase(tag);
+	}
+
+	std::cerr << iteration << " remove index: " << tag << std::endl;
+
+	int result = 0;
+	try {
+		sess.remove_index(tag, false).get();
+	} catch (error &e) {
+		std::cerr << e.what() << std::endl;
+		result = e.error_code();
+	} catch (std::bad_alloc &e) {
+		result = -ENOMEM;
+	}
+
+	if (result != -2)
+		assert_perror(result);
+}
+
 void test_1(session &sess)
 {
 	data_cache cache;
 	for (size_t i = 0; i < 10000; ++i) {
-		const bool update = (rand() & 1);
+		const int value = rand() % 3;
+		const bool update = value == 0;
+		const bool remove = value == 1;
 		if (update) {
 			test_1_update(sess, i, cache);
+		} else if (remove) {
+			test_1_remove_index(sess, i, cache);
 		} else { // find
 			test_1_find_all(sess, i, cache);
 			test_1_find_any(sess, i, cache);
 		}
+		test_1_list(sess, i, cache);
+		test_1_find_any(sess, i, cache, tags);
 //		std::cerr << "cache: " << cache << std::endl;
 	}
 }
@@ -401,7 +474,7 @@ void test_1(session &sess)
 
 int main(int argc, char *argv[])
 {
-	// Results must be reproducible
+	// Results must be reproducable
 	srand(0xd34db33f);
 
 	using namespace index_test;
@@ -436,6 +509,10 @@ int main(int argc, char *argv[])
 		dnet_raw_id id;
 		memcpy(id.id, tmp.id().id, sizeof(id.id));
 		hash[id] = *it;
+	}
+
+	for (auto it = hash.begin(); it != hash.end(); ++it) {
+		std::cerr << "!!!   " << dnet_dump_id_str(it->first.id) << " -> " << it->second << std::endl;
 	}
 
 	clear(sess);

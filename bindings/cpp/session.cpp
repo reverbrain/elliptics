@@ -22,6 +22,8 @@
 #include <sstream>
 #include <functional>
 
+#include "node_p.hpp"
+
 extern __thread uint32_t trace_id;
 
 namespace ioremap { namespace elliptics {
@@ -262,7 +264,7 @@ bool negative(const callback_result_entry &entry)
 
 bool all(const callback_result_entry &entry)
 {
-	return !entry.data().empty();
+	return entry.status() != 0 || !entry.data().empty();
 }
 
 bool all_with_ack(const callback_result_entry &entry)
@@ -357,51 +359,37 @@ result_error_handler remove_on_fail(const session &sess)
 
 } // namespace error_handlers
 
-class session_data
+session_data::session_data(const node &n) : node_guard(n.m_data)
 {
-	public:
-		session_data(const node &n) : node_guard(n)
-		{
-			session_ptr = dnet_session_create(node_guard.get_native());
-			if (!session_ptr)
-				throw std::bad_alloc();
-			filter = filters::positive;
-			checker = checkers::at_least_one;
-			error_handler = error_handlers::none;
-			policy = session::default_exceptions;
-			trace_id = 0;
-			::trace_id = 0;
-		}
+	session_ptr = dnet_session_create(n.get_native());
+	if (!session_ptr)
+		throw std::bad_alloc();
+	filter = filters::positive;
+	checker = checkers::at_least_one;
+	error_handler = error_handlers::none;
+	policy = session::default_exceptions;
+	trace_id = 0;
+	::trace_id = 0;
+}
 
-		session_data(const session_data &other)
-			: node_guard(other.node_guard),
-			filter(other.filter),
-			checker(other.checker),
-			error_handler(other.error_handler),
-			policy(other.policy),
-			trace_id(other.trace_id)
-		{
-			session_ptr = dnet_session_copy(other.session_ptr);
-			if (!session_ptr)
-				throw std::bad_alloc();
-			::trace_id = other.trace_id;
-		}
+session_data::session_data(const session_data &other)
+	: node_guard(other.node_guard),
+	  filter(other.filter),
+	  checker(other.checker),
+	  error_handler(other.error_handler),
+	  policy(other.policy),
+	  trace_id(other.trace_id)
+{
+	session_ptr = dnet_session_copy(other.session_ptr);
+	if (!session_ptr)
+		throw std::bad_alloc();
+	::trace_id = other.trace_id;
+}
 
-		~session_data()
-		{
-			dnet_session_destroy(session_ptr);
-		}
-
-
-
-		struct dnet_session	*session_ptr;
-		node			node_guard;
-		result_filter		filter;
-		result_checker		checker;
-		result_error_handler	error_handler;
-		uint32_t		policy;
-		uint32_t		trace_id;
-};
+session_data::~session_data()
+{
+	dnet_session_destroy(session_ptr);
+}
 
 session::session(const node &n) : m_data(std::make_shared<session_data>(n))
 {
@@ -829,11 +817,11 @@ async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t 
 {
 	async_read_result result(*this);
 	{
-		session_scope scope(*this);
-		set_filter(filters::positive);
-		set_checker(checkers::no_check);
+		session sess = clone();
+		sess.set_filter(filters::positive);
+		sess.set_checker(checkers::no_check);
 
-		read_latest_callback callback = { *this, id, offset, size, result, mix_states(id) };
+		read_latest_callback callback = { sess, id, offset, size, result, mix_states(id) };
 		prepare_latest(id, callback.groups).connect(callback);
 	}
 	return result;
@@ -2038,14 +2026,11 @@ async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, con
 	return bulk_write(ios, pointer_data);
 }
 
-node &session::get_node()
+ioremap::elliptics::node session::get_node() const
 {
-	return m_data->node_guard;
-}
-
-const node &session::get_node() const
-{
-	return m_data->node_guard;
+	if (auto node_guard = m_data->node_guard.lock())
+		return node(node_guard);
+	return node();
 }
 
 dnet_session *session::get_native()

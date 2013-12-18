@@ -31,11 +31,10 @@ import elliptics
 
 @logged_class
 class IteratorResult(object):
-    __doc__ = \
-        """
-        Container for iterator results.
-        Provides IteratorResultContainer wrapper.
-        """
+    """
+    Container for iterator results.
+    Provides IteratorResultContainer wrapper.
+    """
 
     def __init__(self,
                  address=None,
@@ -208,14 +207,13 @@ class IteratorResult(object):
 
 @logged_class
 class Iterator(object):
-    __doc__ = \
-        """
-        Wrapper on top of elliptics new iterator and it's result container
-        """
+    """
+    Wrapper on top of elliptics new iterator and it's result container
+    """
 
     def __init__(self, node, group):
         self.session = elliptics.Session(node)
-        self.session.set_groups([group])
+        self.session.groups = [group]
 
     def start(self,
               eid=IdRange.ID_MIN,
@@ -287,10 +285,9 @@ class Iterator(object):
 
 
 class MergeData(object):
-    __doc__ = \
-        """
-        Assist class for IteratorResult.__merge__
-        """
+    """
+    Assist class for IteratorResult.__merge__
+    """
 
     def __init__(self, iter, container):
         self.iter = iter

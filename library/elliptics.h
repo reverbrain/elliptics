@@ -558,9 +558,10 @@ struct dnet_node
 	pthread_mutex_t		iterator_lock;
 
 	size_t			cache_size;
-    size_t			caches_number;
-    size_t			cache_pages_number;
-    void			*cache;
+	size_t			caches_number;
+	size_t			cache_pages_number;
+	unsigned int	*cache_pages_proportions;
+	void			*cache;
 
 	void			*monitor;
 

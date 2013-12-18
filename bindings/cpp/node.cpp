@@ -21,22 +21,17 @@
 #include <sstream>
 #include <vector>
 
-#include <boost/algorithm/string.hpp>
-#include <elliptics/cppdef.h>
-#include <fstream>
+#include "node_p.hpp"
 
 namespace ioremap { namespace elliptics {
 
-class node_data {
-	public:
-		node_data() : node_ptr(NULL) {}
-		~node_data() {
-			dnet_node_destroy(node_ptr);
-		}
+node::node()
+{
+}
 
-		struct dnet_node	*node_ptr;
-		logger				log;
-};
+node::node(const std::shared_ptr<node_data> &data) : m_data(data)
+{
+}
 
 node::node(const logger &l) : m_data(new node_data)
 {
@@ -82,6 +77,9 @@ node &node::operator =(const node &other)
 
 void node::add_remote(const char *addr, const int port, const int family)
 {
+	if (!m_data)
+		throw_error(-EINVAL, "Failed to add remote addr to null node");
+
 	int err;
 
 	err = dnet_add_state(m_data->node_ptr, (char *)addr, port, family, 0);
@@ -92,6 +90,9 @@ void node::add_remote(const char *addr, const int port, const int family)
 
 void node::add_remote(const char *orig_addr)
 {
+	if (!m_data)
+		throw_error(-EINVAL, "Failed to add remote addr to null node");
+
 	int port, family;
 
 	/*
@@ -110,17 +111,28 @@ void node::add_remote(const char *orig_addr)
 
 void node::set_timeouts(const int wait_timeout, const int check_timeout)
 {
-	dnet_set_timeouts(m_data->node_ptr, wait_timeout, check_timeout);
+	if (m_data)
+		dnet_set_timeouts(m_data->node_ptr, wait_timeout, check_timeout);
+}
+
+bool node::is_valid() const
+{
+	return !!m_data;
 }
 
 logger node::get_log() const
 {
-	return m_data->log;
+	return m_data ? m_data->log : logger();
 }
 
 dnet_node *node::get_native()
 {
-	return m_data->node_ptr;
+	return m_data ? m_data->node_ptr : NULL;
+}
+
+dnet_node *node::get_native() const
+{
+	return m_data ? m_data->node_ptr : NULL;
 }
 
 } } // namespace ioremap::elliptics
