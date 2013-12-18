@@ -16,6 +16,8 @@
 #include "cache.hpp"
 #include "slru_cache.hpp"
 
+#include <fstream>
+
 namespace ioremap { namespace cache {
 
 cache_manager::cache_manager(struct dnet_node *n) {
@@ -37,6 +39,9 @@ cache_manager::cache_manager(struct dnet_node *n) {
 	for (size_t i = 0; i < caches_number; ++i) {
 		m_caches.emplace_back(std::make_shared<slru_cache_t>(n, pages_max_sizes));
 	}
+
+	stop = false;
+	m_dump_stats = std::thread(std::bind(&cache_manager::dump_stats, this));
 }
 
 cache_manager::~cache_manager() {
@@ -44,6 +49,8 @@ cache_manager::~cache_manager() {
 	for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it) {
 		(*it)->stop(); //Sets cache as stopped
 	}
+	stop = true;
+	m_dump_stats.join();
 }
 
 int cache_manager::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
@@ -118,6 +125,27 @@ std::vector<cache_stats> cache_manager::get_caches_stats() const
 	return caches_stats;
 }
 
+void cache_manager::dump_stats() const
+{
+	while (!stop) {
+		std::ofstream os("cache.stat");
+		std::vector<cache_stats> stats = get_caches_stats();
+		cache_stats stat = stats[0];
+
+		os << "number_of_objects " << stat.number_of_objects << "\n"
+			<< "size_of_objects " << stat.size_of_objects << "\n"
+			<< "number_of_objects_marked_for_deletion " << stat.size_of_objects << "\n"
+			<< "size_of_objects_marked_for_deletion " << stat.size_of_objects << "\n"
+			<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
+			<< "total_write_time " << stat.total_write_time << "\n"
+			<< "total_read_time " << stat.total_read_time << "\n"
+			<< "total_remove_time " << stat.total_remove_time << "\n"
+			<< "total_lookup_time " << stat.total_lookup_time << "\n";
+		os.close();
+		sleep(1);
+	}
+}
+
 size_t cache_manager::idx(const unsigned char *id) {
 	unsigned i = *(unsigned *)id;
 	return i % m_caches.size();
@@ -141,9 +169,6 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 	cache_manager *cache = (cache_manager *)n->cache;
 	std::shared_ptr<raw_data_t> d;
-
-//	cache_stats stats = cache->get_cache_stats();
-//	dnet_log(n, DNET_LOG_INFO, "CACHE_INFO: objects: %zd\n", stats.number_of_objects);
 
 	try {
 		switch (cmd->cmd) {

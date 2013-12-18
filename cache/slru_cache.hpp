@@ -24,6 +24,15 @@ public:
 	cache_stats get_cache_stats() const;
 
 private:
+
+	int write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data);
+
+	std::shared_ptr<raw_data_t> read_(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io);
+
+	int remove_(const unsigned char *id, dnet_io_attr *io);
+
+	int lookup_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd);
+
 	bool m_need_exit;
 	struct dnet_node *m_node;
 	size_t m_cache_size, m_max_cache_size;
@@ -34,7 +43,7 @@ private:
 	std::unique_ptr<lru_list_t[]> m_cache_pages_lru;
 	std::thread m_lifecheck;
 	treap_t m_treap;
-	mutable cache_stats m_cache_stats;
+	mutable atomic_cache_stats m_cache_stats;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 

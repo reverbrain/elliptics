@@ -36,6 +36,13 @@ void slru_cache_t::stop() {
 }
 
 int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
+	elliptics_timer timer;
+	int result = write_(id, st, cmd, io, data);
+	m_cache_stats.total_write_time += timer.restart();
+	return result;
+}
+
+int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
 	const size_t lifetime = io->start;
 	const size_t size = io->size;
 	const bool remove_from_disk = (io->flags & DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK);
@@ -210,6 +217,13 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 }
 
 std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
+	elliptics_timer timer;
+	auto result = read_(id, cmd, io);
+	m_cache_stats.total_read_time += timer.restart();
+	return result;
+}
+
+std::shared_ptr<raw_data_t> slru_cache_t::read_(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
 	const bool cache = (io->flags & DNET_IO_FLAGS_CACHE);
 	const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
 	(void) cmd;
@@ -265,6 +279,13 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 }
 
 int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
+	elliptics_timer timer;
+	int result = remove_(id, io);
+	m_cache_stats.total_remove_time += timer.restart();
+	return result;
+}
+
+int slru_cache_t::remove_(const unsigned char *id, dnet_io_attr *io) {
 	const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
 	bool remove_from_disk = !cache_only;
 	int err = -ENOENT;
@@ -313,6 +334,13 @@ int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 }
 
 int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
+	elliptics_timer timer;
+	int result = lookup_(id, st, cmd);
+	m_cache_stats.total_lookup_time += timer.restart();
+	return result;
+}
+
+int slru_cache_t::lookup_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
 	int err = 0;
 
 	elliptics_timer timer;
@@ -352,9 +380,10 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 
 cache_stats slru_cache_t::get_cache_stats() const
 {
-	m_cache_stats.pages_sizes = m_cache_pages_sizes;
-	m_cache_stats.pages_max_sizes = m_cache_pages_max_sizes;
-	return m_cache_stats;
+	cache_stats stats(m_cache_stats);
+	stats.pages_sizes = m_cache_pages_sizes;
+	stats.pages_max_sizes = m_cache_pages_max_sizes;
+	return stats;
 }
 
 // private:
@@ -579,7 +608,9 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 }
 
 void slru_cache_t::life_check(void) {
+	elliptics_timer lifecheck_timer;
 	while (!m_need_exit) {
+		(void) lifecheck_timer.restart();
 		std::deque<struct dnet_id> remove;
 
 		dnet_id id;
@@ -658,6 +689,7 @@ void slru_cache_t::life_check(void) {
 			dnet_remove_local(m_node, &(*it));
 		}
 
+		m_cache_stats.total_lifecheck_time += lifecheck_timer.elapsed();
 		sleep(1);
 	}
 }
