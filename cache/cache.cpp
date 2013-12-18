@@ -134,8 +134,8 @@ void cache_manager::dump_stats() const
 
 		os << "number_of_objects " << stat.number_of_objects << "\n"
 			<< "size_of_objects " << stat.size_of_objects << "\n"
-			<< "number_of_objects_marked_for_deletion " << stat.size_of_objects << "\n"
-			<< "size_of_objects_marked_for_deletion " << stat.size_of_objects << "\n"
+			<< "number_of_objects_marked_for_deletion " << stat.number_of_objects_marked_for_deletion << "\n"
+			<< "size_of_objects_marked_for_deletion " << stat.size_of_objects_marked_for_deletion << "\n"
 			<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
 			<< "total_write_time " << stat.total_write_time << "\n"
 			<< "total_read_time " << stat.total_read_time << "\n"
