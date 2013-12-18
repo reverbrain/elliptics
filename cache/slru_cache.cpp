@@ -38,7 +38,7 @@ void slru_cache_t::stop() {
 int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
 	elliptics_timer timer;
 	int result = write_(id, st, cmd, io, data);
-	m_cache_stats.total_write_time += timer.restart();
+	m_cache_stats.total_write_time += timer.elapsed<std::chrono::microseconds>();
 	return result;
 }
 
@@ -219,7 +219,7 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
 	elliptics_timer timer;
 	auto result = read_(id, cmd, io);
-	m_cache_stats.total_read_time += timer.restart();
+	m_cache_stats.total_read_time += timer.elapsed<std::chrono::microseconds>();
 	return result;
 }
 
@@ -281,7 +281,7 @@ std::shared_ptr<raw_data_t> slru_cache_t::read_(const unsigned char *id, dnet_cm
 int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 	elliptics_timer timer;
 	int result = remove_(id, io);
-	m_cache_stats.total_remove_time += timer.restart();
+	m_cache_stats.total_remove_time += timer.elapsed<std::chrono::microseconds>();
 	return result;
 }
 
@@ -336,7 +336,7 @@ int slru_cache_t::remove_(const unsigned char *id, dnet_io_attr *io) {
 int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
 	elliptics_timer timer;
 	int result = lookup_(id, st, cmd);
-	m_cache_stats.total_lookup_time += timer.restart();
+	m_cache_stats.total_lookup_time += timer.elapsed<std::chrono::microseconds>();
 	return result;
 }
 
@@ -689,7 +689,7 @@ void slru_cache_t::life_check(void) {
 			dnet_remove_local(m_node, &(*it));
 		}
 
-		m_cache_stats.total_lifecheck_time += lifecheck_timer.elapsed();
+		m_cache_stats.total_lifecheck_time += lifecheck_timer.elapsed<std::chrono::microseconds>();
 		sleep(1);
 	}
 }

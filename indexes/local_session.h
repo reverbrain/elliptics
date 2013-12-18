@@ -24,6 +24,8 @@
 #include "../include/elliptics/session.hpp"
 #include "../bindings/cpp/session_indexes.hpp"
 
+#include <chrono>
+
 class local_session
 {
 	ELLIPTICS_DISABLE_COPY(local_session)
@@ -56,36 +58,38 @@ class local_session
 class elliptics_timer
 {
 public:
+
+	typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
+
 	elliptics_timer()
 	{
-		dnet_current_time(&m_last_time);
+		m_last_time_chrono = std::chrono::system_clock::now();
 	}
 
+	template<class Period = std::chrono::milliseconds>
 	long long int elapsed() const
 	{
-		dnet_time time;
-		dnet_current_time(&time);
-
-		return delta(m_last_time, time);
+		time_point_t time_chrono = std::chrono::system_clock::now();
+		return delta<Period>(m_last_time_chrono, time_chrono);
 	}
 
+	template<class Period = std::chrono::milliseconds>
 	long long int restart()
 	{
-		dnet_time time;
-		dnet_current_time(&time);
-		std::swap(m_last_time, time);
+		time_point_t time_chrono = std::chrono::system_clock::now();
+		std::swap(m_last_time_chrono, time_chrono);
 
-		return delta(time, m_last_time);
+		return delta<Period>(time_chrono, m_last_time_chrono);
 	}
 
 private:
-	long long int delta(const dnet_time &first, const dnet_time &last) const
+	template<class Period>
+	long long int delta(const time_point_t& start, const time_point_t& end) const
 	{
-		typedef long long int lld;
-		return (lld(last.tsec) - lld(first.tsec)) * 1000 + (lld(last.tnsec) - lld(first.tnsec)) / 1000000;
+		return (std::chrono::duration_cast<Period> (end - start)).count();
 	}
 
-	dnet_time m_last_time;
+	time_point_t m_last_time_chrono;
 };
 
 #endif // LOCAL_SESSION_H
