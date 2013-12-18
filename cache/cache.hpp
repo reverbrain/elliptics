@@ -235,7 +235,8 @@ struct cache_stats {
 		total_lookup_time(stats.total_lookup_time)
 	{}
 
-	cache_stats(): cache_stats(atomic_cache_stats()) {}
+	cache_stats(): size_of_objects(0), number_of_objects(0), number_of_objects_marked_for_deletion(0),
+		size_of_objects_marked_for_deletion(0), total_lifecheck_time(0) {}
 
 	size_t size_of_objects;
 	size_t number_of_objects;
