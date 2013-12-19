@@ -59,14 +59,14 @@ struct write_timer
 			case append_only:
 				dnet_log(node, level, "%s: CACHE WRITE: append only, lock: %lld ms, find: %lld ms, "
 					"create: %lld ms, remove_from_page: %lld ms, add_to_page: %lld, "
-					"last: %lld ms, total: %lld ms",
+					"last: %lld ms, total: %lld ms\n",
 					dnet_dump_id_str(id), lock, find, create,
 					remove_from_page, add_to_page, last, total);
 				break;
 			case write_after_append_only:
 				dnet_log(node, level, "%s: CACHE WRITE: write after append, lock: %lld ms, find: %lld ms, "
 					"sync_after_append: %lld ms, write_after_append: %lld ms, populate: %lld, "
-					"last: %lld ms, total: %lld ms",
+					"last: %lld ms, total: %lld ms\n",
 					dnet_dump_id_str(id), lock, find, sync_after_append,
 					write_after_append, populate, last, total);
 				break;
@@ -74,7 +74,7 @@ struct write_timer
 				dnet_log(node, level, "%s: CACHE WRITE: write, lock: %lld ms, find: %lld ms, "
 					"populate: %lld ms, create: %lld ms, cas: %lld ms, remove_from_page: %lld ms, "
 					"modify: %lld ms, add_to_page: %lld ms, syncset_update: %lld ms, lifeset_update: %lld ms"
-					"last: %lld ms, total: %lld ms",
+					"last: %lld ms, total: %lld ms\n",
 					dnet_dump_id_str(id), lock, find, populate, create, cas, remove_from_page,
 					modify, add_to_page, syncset_update, lifeset_update, last, total);
 				break;
@@ -303,7 +303,7 @@ struct read_timer
 
 		dnet_log(node, level, "%s: CACHE READ: lock: %lld ms, find: %lld ms, "
 			"sync_after_append: %lld ms, populate: %lld ms, "
-			"remove_from_page: %lld ms, add_to_page: %lld ms, last: %lld ms, total: %lld ms",
+			"remove_from_page: %lld ms, add_to_page: %lld ms, last: %lld ms, total: %lld ms\n",
 			dnet_dump_id_str(id), lock, find, sync_after_append, populate,
 			remove_from_page, add_to_page, timer.elapsed(), total);
 	}
@@ -392,7 +392,7 @@ struct remove_timer
 		const int level = total > 100 ? DNET_LOG_ERROR : DNET_LOG_DEBUG;
 
 		dnet_log(node, level, "%s: CACHE REMOVE: lock: %lld ms, find: %lld ms, "
-			"erase: %lld ms, setup: %lld ms, local_remove: %lld ms, last: %lld ms, total: %lld ms",
+			"erase: %lld ms, setup: %lld ms, local_remove: %lld ms, last: %lld ms, total: %lld ms\n",
 			dnet_dump_id_str(id), lock, find, erase, setup,
 			local_remove, timer.elapsed(), total);
 	}
@@ -473,7 +473,7 @@ struct lookup_timer
 		const int level = total > 100 ? DNET_LOG_ERROR : DNET_LOG_DEBUG;
 
 		dnet_log(node, level, "%s: CACHE LOOKUP: lock: %lld ms, find: %lld ms, "
-			"local_lookup: %lld ms, parsed_info: %lld ms, last: %lld ms, total: %lld ms",
+			"local_lookup: %lld ms, parsed_info: %lld ms, last: %lld ms, total: %lld ms\n",
 			dnet_dump_id_str(id), lock, find, local_lookup, parsed_info, timer.elapsed(), total);
 	}
 
@@ -590,7 +590,7 @@ struct populate_timer
 		const int level = total > 100 ? DNET_LOG_ERROR : DNET_LOG_DEBUG;
 
 		dnet_log(node, level, "%s: CACHE: populate, init: %lld ms, local_read: %lld ms, "
-			"lock: %lld ms, create: %lld ms, last: %lld ms, total: %lld ms",
+			"lock: %lld ms, create: %lld ms, last: %lld ms, total: %lld ms\n",
 			dnet_dump_id_str(id), init, local_read, lock, create, timer.elapsed(), total);
 	}
 
@@ -651,6 +651,9 @@ iset_t::iterator slru_cache_t::populate_from_disk(elliptics_unique_lock<std::mut
 }
 
 void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size_t reserve) {
+	elliptics_timer timer;
+	elliptics_timer total_timer;
+
 	size_t removed_size = 0;
 	size_t &cache_size = m_cache_pages_sizes[page_number];
 	size_t &max_cache_size = m_cache_pages_max_sizes[page_number];
@@ -663,10 +666,17 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 		data_t *raw = &*it;
 		++it;
 
+		auto inc = timer.restart();
+
 		// If page is not last move object to previous page
 		if (previous_page < m_cache_pages_number) {
 			remove_data_from_page(id, page_number, raw);
+			auto remove = timer.restart();
 			insert_data_into_page(id, previous_page, raw);
+			auto insert = timer.restart();
+
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize, inc: %lld ms, remove: %lld ms, insert: %lld ms\n",
+				dnet_dump_id_str(id), inc, remove, insert);
 		} else {
 			if (raw->synctime() || raw->remove_from_cache()) {
 				if (!raw->remove_from_cache()) {
@@ -675,12 +685,22 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 					raw->set_synctime(1);
 					m_syncset.insert(*raw);
 				}
+				auto sync = timer.restart();
 				removed_size += raw->size();
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize, inc: %lld ms, syncset: %lld ms\n",
+					dnet_dump_id_str(id), inc, sync);
 			} else {
 				erase_element(raw);
+				auto erase = timer.restart();
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize, inc: %lld ms, erase: %lld ms\n",
+					dnet_dump_id_str(id), inc, erase);
 			}
 		}
 	}
+
+	auto total = total_timer.elapsed();
+	int level = total > 100 ? DNET_LOG_ERROR : DNET_LOG_DEBUG;
+	dnet_log(m_node, level, "%s: CACHE: resize, total: %lld ms\n", dnet_dump_id_str(id), total_timer.restart());
 }
 
 void slru_cache_t::erase_element(data_t *obj) {
