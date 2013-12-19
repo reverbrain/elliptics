@@ -633,18 +633,29 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 			 dnet_dump_id_str(id.id), timer_prepare, timer_erase, timer_before_write, timer_after_write, timer_lock, err);
 }
 
+struct record_info {
+	record_info(data_t* obj)
+	{
+		only_append = obj->only_append();
+		memcpy(id.id, obj->id().id, DNET_ID_SIZE);
+		data = obj->data()->data();
+		user_flags = obj->user_flags();
+		timestamp = obj->timestamp();
+	}
+
+	bool only_append;
+	dnet_id id;
+	std::vector<char> data;
+	uint64_t user_flags;
+	dnet_time timestamp;
+};
+
 void slru_cache_t::life_check(void) {
 	elliptics_timer lifecheck_timer;
 	while (!m_need_exit) {
 		(void) lifecheck_timer.restart();
 		std::deque<struct dnet_id> remove;
-
-		dnet_id id;
-		std::vector<char> data;
-		uint64_t user_flags;
-		dnet_time timestamp;
-
-		memset(&id, 0, sizeof(id));
+		std::deque<record_info> elements_for_sync;
 
 		{
 			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
@@ -674,47 +685,26 @@ void slru_cache_t::life_check(void) {
 				}
 				else if (it->eventtime() == it->synctime())
 				{
-					data_t *obj = &*it;
-					if (obj->synctime() > time)
-						break;
+					elements_for_sync.push_back(record_info(&*it));
 
-					if (obj->only_append()) {
-						sync_after_append(guard, false, obj);
-						continue;
-					}
+					it->clear_synctime();
 
-					memcpy(id.id, obj->id().id, DNET_ID_SIZE);
-					data = it->data()->data();
-					user_flags = obj->user_flags();
-					timestamp = obj->timestamp();
-
-					size_t previous_eventtime = it->eventtime();
-					obj->clear_synctime();
-					if (previous_eventtime != obj->eventtime()) {
-						m_treap.decrease_key(it);
-					}
-
-					guard.unlock();
-					dnet_oplock(m_node, &id);
-
-					// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
-					sync_element(id, false, data, user_flags, timestamp);
-
-					dnet_opunlock(m_node, &id);
-					guard.lock();
-
-					data_t* jt = m_treap.find(id.id);
-					if (jt) {
-						if (jt->remove_from_cache()) {
-							erase_element(&*jt);
-						}
+					if (it->only_append() || it->remove_from_cache()) {
+						erase_element(&*it);
 					}
 				}
 			}
+		}
+		for (auto it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
+			dnet_oplock(m_node, &it->id);
 
-			for (std::deque<struct dnet_id>::iterator it = remove.begin(); it != remove.end(); ++it) {
-				dnet_remove_local(m_node, &(*it));
-			}
+			// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
+			sync_element(it->id, it->only_append, it->data, it->user_flags, it->timestamp);
+
+			dnet_opunlock(m_node, &it->id);
+		}
+		for (std::deque<struct dnet_id>::iterator it = remove.begin(); it != remove.end(); ++it) {
+			dnet_remove_local(m_node, &(*it));
 		}
 
 		m_cache_stats.total_lifecheck_time += lifecheck_timer.elapsed<std::chrono::microseconds>();
