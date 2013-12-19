@@ -99,12 +99,12 @@ private:
 	}
 
 	inline int priorityCompare(const PriorityType& lhs, const PriorityType& rhs) const {
-		if (rhs == 0 || lhs < rhs) {
-			return -1;
+		if (lhs < rhs) {
+			return 1;
 		}
 
 		if (lhs > rhs) {
-			return 1;
+			return -1;
 		}
 
 		return 0;

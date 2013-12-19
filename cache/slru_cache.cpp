@@ -534,6 +534,9 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 void slru_cache_t::erase_element(data_t *obj) {
 	elliptics_timer timer;
 
+	m_cache_stats.number_of_objects--;
+	m_cache_stats.size_of_objects -= obj->size();
+
 	size_t page_number = obj->cache_page_number();
 	m_cache_pages_sizes[page_number] -= obj->size();
 	m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*obj));
@@ -545,9 +548,6 @@ void slru_cache_t::erase_element(data_t *obj) {
 			obj->clear_synctime();
 		}
 	}
-
-	m_cache_stats.number_of_objects--;
-	m_cache_stats.size_of_objects -= obj->size();
 
 	if (obj->remove_from_cache())
 	{
