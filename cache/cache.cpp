@@ -119,8 +119,9 @@ std::vector<cache_stats> cache_manager::get_caches_stats() const
 }
 
 size_t cache_manager::idx(const unsigned char *id) {
-	unsigned i = *(unsigned *)id;
-	return i % m_caches.size();
+	size_t i = *(size_t *)id;
+	size_t j = *(size_t *)(id + DNET_ID_SIZE - sizeof(size_t));
+	return (i ^ j) % m_caches.size();
 }
 
 }}
