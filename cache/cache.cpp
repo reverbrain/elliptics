@@ -114,6 +114,12 @@ cache_stats cache_manager::get_total_cache_stats() const {
 		stats.size_of_objects_marked_for_deletion += page_stats.size_of_objects_marked_for_deletion;
 		stats.size_of_objects += page_stats.size_of_objects;
 
+		stats.total_lifecheck_time += page_stats.total_lifecheck_time;
+		stats.total_write_time += page_stats.total_write_time;
+		stats.total_read_time += page_stats.total_read_time;
+		stats.total_remove_time += page_stats.total_remove_time;
+		stats.total_lookup_time += page_stats.total_lookup_time;
+
 		for (size_t j = 0; j < m_cache_pages_number; ++j) {
 			stats.pages_sizes[j] += page_stats.pages_sizes[j];
 			stats.pages_max_sizes[j] += page_stats.pages_max_sizes[j];
@@ -136,17 +142,37 @@ void cache_manager::dump_stats() const
 	while (!stop) {
 		std::ofstream os("cache.stat");
 		std::vector<cache_stats> stats = get_caches_stats();
-		cache_stats stat = stats[0];
 
-		os << "number_of_objects " << stat.number_of_objects << "\n"
-			<< "size_of_objects " << stat.size_of_objects << "\n"
-			<< "number_of_objects_marked_for_deletion " << stat.number_of_objects_marked_for_deletion << "\n"
-			<< "size_of_objects_marked_for_deletion " << stat.size_of_objects_marked_for_deletion << "\n"
-			<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
-			<< "total_write_time " << stat.total_write_time << "\n"
-			<< "total_read_time " << stat.total_read_time << "\n"
-			<< "total_remove_time " << stat.total_remove_time << "\n"
-			<< "total_lookup_time " << stat.total_lookup_time << "\n";
+		{
+			cache_stats stat = get_total_cache_stats();
+			os << "TOTAL" << "\n"
+				<< "number_of_objects " << stat.number_of_objects << "\n"
+				<< "size_of_objects " << stat.size_of_objects << "\n"
+				<< "number_of_objects_marked_for_deletion " << stat.number_of_objects_marked_for_deletion << "\n"
+				<< "size_of_objects_marked_for_deletion " << stat.size_of_objects_marked_for_deletion << "\n"
+				<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
+				<< "total_write_time " << stat.total_write_time << "\n"
+				<< "total_read_time " << stat.total_read_time << "\n"
+				<< "total_remove_time " << stat.total_remove_time << "\n"
+				<< "total_lookup_time " << stat.total_lookup_time << "\n";
+			os << "\n";
+		}
+
+		for (size_t i = 0; i < stats.size(); ++i) {
+			cache_stats stat = stats[i];
+
+			os << "CACHE " << i << "\n"
+				<< "number_of_objects " << stat.number_of_objects << "\n"
+				<< "size_of_objects " << stat.size_of_objects << "\n"
+				<< "number_of_objects_marked_for_deletion " << stat.number_of_objects_marked_for_deletion << "\n"
+				<< "size_of_objects_marked_for_deletion " << stat.size_of_objects_marked_for_deletion << "\n"
+				<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
+				<< "total_write_time " << stat.total_write_time << "\n"
+				<< "total_read_time " << stat.total_read_time << "\n"
+				<< "total_remove_time " << stat.total_remove_time << "\n"
+				<< "total_lookup_time " << stat.total_lookup_time << "\n";
+			os << "\n";
+		}
 		os.close();
 		sleep(1);
 	}

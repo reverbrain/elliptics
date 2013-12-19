@@ -207,11 +207,14 @@ struct eventtime_less {
 typedef Treap<data_t> treap_t;
 
 struct atomic_cache_stats {
-	atomic_cache_stats(): size_of_objects(0), number_of_objects(0), number_of_objects_marked_for_deletion(0),
-		size_of_objects_marked_for_deletion(0), total_lifecheck_time(0) {}
+	atomic_cache_stats():
+		number_of_objects(0), size_of_objects(0),
+		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
+		total_lifecheck_time(0), total_write_time(0), total_read_time(0),
+		total_remove_time(0), total_lookup_time(0) {}
 
-	std::atomic_size_t size_of_objects;
 	std::atomic_size_t number_of_objects;
+	std::atomic_size_t size_of_objects;
 	std::atomic_size_t number_of_objects_marked_for_deletion;
 	std::atomic_size_t size_of_objects_marked_for_deletion;
 
@@ -224,8 +227,8 @@ struct atomic_cache_stats {
 
 struct cache_stats {
 	cache_stats(const atomic_cache_stats& stats):
-		size_of_objects(stats.size_of_objects),
 		number_of_objects(stats.number_of_objects),
+		size_of_objects(stats.size_of_objects),
 		number_of_objects_marked_for_deletion(stats.number_of_objects_marked_for_deletion),
 		size_of_objects_marked_for_deletion(stats.size_of_objects_marked_for_deletion),
 		total_lifecheck_time(stats.total_lifecheck_time),
@@ -235,11 +238,14 @@ struct cache_stats {
 		total_lookup_time(stats.total_lookup_time)
 	{}
 
-	cache_stats(): size_of_objects(0), number_of_objects(0), number_of_objects_marked_for_deletion(0),
-		size_of_objects_marked_for_deletion(0), total_lifecheck_time(0) {}
+	cache_stats():
+		number_of_objects(0), size_of_objects(0),
+		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
+		total_lifecheck_time(0), total_write_time(0), total_read_time(0),
+		total_remove_time(0), total_lookup_time(0) {}
 
-	size_t size_of_objects;
 	size_t number_of_objects;
+	size_t size_of_objects;
 	size_t number_of_objects_marked_for_deletion;
 	size_t size_of_objects_marked_for_deletion;
 
