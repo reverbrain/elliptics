@@ -1,3 +1,12 @@
+elliptics (2.24.14.36) unstable; urgency=low
+
+  * cache: Improved hash function in cache
+  * * Use last 8 bytes in addition to first one. Otherwise all keys for specific shard comes to single cache object.
+  * Python: Fixed accepting IoAttr instead of Id in read/write operations. Fixed overriding write_data by write_data_by_chunks.
+  * Python: Provided Error, NotFoundError and TimeoutError directly from elliptics module. Removed hiding elliptics.core module.
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Thu, 19 Dec 2013 15:54:38 +0400
+
 elliptics (2.24.14.35) unstable; urgency=low
 
   * socket: alot of debug and double-close checks

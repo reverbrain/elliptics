@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.35
+Version:	2.24.14.36
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 19 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.14.36
+- cache: Improved hash function in cache
+- * Use last 8 bytes in addition to first one. Otherwise all keys for specific shard comes to single cache object.
+- Python: Fixed accepting IoAttr instead of Id in read/write operations. Fixed overriding write_data by write_data_by_chunks.
+- Python: Provided Error, NotFoundError and TimeoutError directly from elliptics module. Removed hiding elliptics.core module.
+
 * Wed Dec 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.35
 - socket: alot of debug and double-close checks
 
