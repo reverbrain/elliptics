@@ -53,6 +53,39 @@ static void test_cache_records_sizes(session &sess)
 	const size_t cache_pages_number = cache->cache_pages_number();
 	data_pointer data("0");
 
+	cache->clear();
+	size_t record_size = 0;
+	{
+		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(0)), data, 3000));
+		const auto& stats = cache->get_total_cache_stats();
+		record_size = stats.size_of_objects;
+		BOOST_REQUIRE_EQUAL(stats.number_of_objects, 1);
+	}
+
+	size_t records_number = cache_size / cache_pages_number / record_size;
+	for (size_t id = 1; id < records_number; ++id) {
+		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(id)), data, 3000));
+		const auto& stats = cache->get_total_cache_stats();
+
+		size_t total_pages_sizes = 0;
+		for (size_t i = 0; i < stats.pages_sizes.size(); ++i) {
+			total_pages_sizes += stats.pages_sizes[i];
+		}
+
+		BOOST_REQUIRE_EQUAL(stats.number_of_objects * record_size, stats.size_of_objects);
+		BOOST_REQUIRE_EQUAL(stats.number_of_objects, id + 1);
+		BOOST_REQUIRE_EQUAL(stats.size_of_objects, total_pages_sizes);
+	}
+}
+
+static void test_cache_overflow(session &sess)
+{
+	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[0].get_native()->cache;
+	const size_t cache_size = cache->cache_size();
+	const size_t cache_pages_number = cache->cache_pages_number();
+	data_pointer data("0");
+
+	cache->clear();
 	size_t record_size = 0;
 	{
 		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::string("0")), data, 3000));
@@ -60,12 +93,20 @@ static void test_cache_records_sizes(session &sess)
 		record_size = stats.size_of_objects;
 	}
 
-	size_t records_number = cache_size / cache_pages_number / record_size;
+	size_t records_number = (cache_size / cache_pages_number / record_size) * 100;
 	for (size_t id = 1; id < records_number; ++id) {
 		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(id)), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();
-		BOOST_REQUIRE_EQUAL(stats.number_of_objects * record_size, stats.size_of_objects);
-		BOOST_REQUIRE_EQUAL(stats.number_of_objects, id + 1);
+
+		size_t total_pages_sizes = 0;
+		for (size_t i = 0; i < stats.pages_sizes.size(); ++i) {
+			total_pages_sizes += stats.pages_sizes[i];
+
+			BOOST_REQUIRE_LE(stats.pages_sizes[i], stats.pages_max_sizes[i]);
+		}
+
+		BOOST_REQUIRE_LE(stats.size_of_objects, cache_size);
+		BOOST_REQUIRE_EQUAL(stats.size_of_objects, total_pages_sizes);
 	}
 }
 
@@ -75,6 +116,7 @@ bool register_tests()
 	node n = *global_data->node;
 
 	ELLIPTICS_TEST_CASE(test_cache_records_sizes, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
+	ELLIPTICS_TEST_CASE(test_cache_overflow, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 
 	return true;
 }

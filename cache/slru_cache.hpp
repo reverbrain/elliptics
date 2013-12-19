@@ -21,6 +21,8 @@ public:
 
 	int lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd);
 
+	void clear();
+
 	cache_stats get_cache_stats() const;
 
 private:

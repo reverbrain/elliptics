@@ -18,17 +18,7 @@ slru_cache_t::slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache
 slru_cache_t::~slru_cache_t() {
 	stop();
 	m_lifecheck.join();
-
-	for (size_t page_number = 0; page_number < m_cache_pages_number; ++page_number) {
-		m_cache_pages_max_sizes[page_number] = 0;
-		resize_page((unsigned char *) "", page_number, 0);
-	}
-
-	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "~cache_t: %p", this);
-
-	while (!m_treap.empty()) {
-		erase_element(m_treap.top());
-	}
+	clear();
 }
 
 void slru_cache_t::stop() {
@@ -173,16 +163,16 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	size_t page_number = it->cache_page_number();
 	size_t new_page_number = page_number;
 
+	m_cache_stats.size_of_objects -= it->size();
+	m_cache_pages_sizes[page_number] -= it->size();
 	if (append) {
-		m_cache_stats.size_of_objects -= it->size();
 		raw.data().insert(raw.data().end(), data, data + size);
-		m_cache_stats.size_of_objects += it->size();
 	} else {
-		m_cache_stats.size_of_objects -= it->size();
 		raw.data().resize(new_size);
 		memcpy(raw.data().data() + io->offset, data, size);
-		m_cache_stats.size_of_objects += it->size();
 	}
+	m_cache_pages_sizes[page_number] += it->size();
+	m_cache_stats.size_of_objects += it->size();
 
 	if (!new_page) {
 		new_page_number = get_next_page_number(page_number);
@@ -340,6 +330,24 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	int result = lookup_(id, st, cmd);
 	m_cache_stats.total_lookup_time += timer.elapsed<std::chrono::microseconds>();
 	return result;
+}
+
+void slru_cache_t::clear()
+{
+	std::vector<size_t> cache_pages_max_sizes = m_cache_pages_max_sizes;
+
+	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE CLEAR: %p", this);
+
+	for (size_t page_number = 0; page_number < m_cache_pages_number; ++page_number) {
+		m_cache_pages_max_sizes[page_number] = 0;
+		resize_page((unsigned char *) "", page_number, 0);
+	}
+
+	while (!m_treap.empty()) {
+		erase_element(m_treap.top());
+	}
+
+	m_cache_pages_max_sizes = cache_pages_max_sizes;
 }
 
 int slru_cache_t::lookup_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
@@ -515,6 +523,7 @@ void slru_cache_t::erase_element(data_t *obj) {
 	elliptics_timer timer;
 
 	size_t page_number = obj->cache_page_number();
+	m_cache_pages_sizes[page_number] -= obj->size();
 	m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*obj));
 	m_treap.erase(obj);
 
@@ -525,7 +534,6 @@ void slru_cache_t::erase_element(data_t *obj) {
 		}
 	}
 
-	m_cache_pages_sizes[page_number] -= obj->size();
 	m_cache_stats.number_of_objects--;
 	m_cache_stats.size_of_objects -= obj->size();
 
@@ -567,11 +575,7 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 
 	std::shared_ptr<raw_data_t> raw_data = obj->data();
 
-	size_t previous_eventtime = obj->eventtime();
-	obj->set_synctime(0);
-	if (previous_eventtime != obj->eventtime()) {
-		m_treap.decrease_key(obj);
-	}
+	obj->clear_synctime();
 
 	dnet_id id;
 	memset(&id, 0, sizeof(id));

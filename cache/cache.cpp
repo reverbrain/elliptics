@@ -33,7 +33,7 @@ cache_manager::cache_manager(struct dnet_node *n) {
 
 	std::vector<size_t> pages_max_sizes(m_cache_pages_number);
 	for (size_t i = 0; i < m_cache_pages_number; ++i) {
-		pages_max_sizes.push_back(max_size * (n->cache_pages_proportions[i] * 1.0 / proportionsSum));
+		pages_max_sizes[i] = max_size * (n->cache_pages_proportions[i] * 1.0 / proportionsSum);
 	}
 
 	for (size_t i = 0; i < caches_number; ++i) {
@@ -85,6 +85,12 @@ int cache_manager::indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request
 	(void) cmd;
 	(void) request;
 	return -ENOTSUP;
+}
+
+void cache_manager::clear() {
+	for (size_t i = 0; i < m_caches.size(); ++i) {
+		m_caches[i]->clear();
+	}
 }
 
 size_t cache_manager::cache_size() const

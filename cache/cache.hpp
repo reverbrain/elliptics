@@ -275,6 +275,8 @@ class cache_manager {
 
 		int indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request);
 
+		void clear();
+
 		size_t cache_size() const;
 
 		size_t cache_pages_number() const;
