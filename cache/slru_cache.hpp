@@ -44,6 +44,8 @@ private:
 	std::unique_ptr<lru_list_t[]> m_cache_pages_lru;
 	std::thread m_lifecheck;
 	treap_t m_treap;
+	std::size_t finds_number;
+	std::size_t total_find_time;
 	mutable atomic_cache_stats m_cache_stats;
 
 	slru_cache_t(const slru_cache_t &) = delete;

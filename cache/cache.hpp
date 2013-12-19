@@ -211,7 +211,7 @@ struct atomic_cache_stats {
 		number_of_objects(0), size_of_objects(0),
 		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
 		total_lifecheck_time(0), total_write_time(0), total_read_time(0),
-		total_remove_time(0), total_lookup_time(0) {}
+		total_remove_time(0), total_lookup_time(0), total_resize_time(0) {}
 
 	std::atomic_size_t number_of_objects;
 	std::atomic_size_t size_of_objects;
@@ -223,6 +223,7 @@ struct atomic_cache_stats {
 	std::atomic_size_t total_read_time;
 	std::atomic_size_t total_remove_time;
 	std::atomic_size_t total_lookup_time;
+	std::atomic_size_t total_resize_time;
 };
 
 struct cache_stats {
@@ -235,14 +236,15 @@ struct cache_stats {
 		total_write_time(stats.total_write_time),
 		total_read_time(stats.total_read_time),
 		total_remove_time(stats.total_remove_time),
-		total_lookup_time(stats.total_lookup_time)
+		total_lookup_time(stats.total_lookup_time),
+		total_resize_time(stats.total_resize_time)
 	{}
 
 	cache_stats():
 		number_of_objects(0), size_of_objects(0),
 		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
 		total_lifecheck_time(0), total_write_time(0), total_read_time(0),
-		total_remove_time(0), total_lookup_time(0) {}
+		total_remove_time(0), total_lookup_time(0), total_resize_time(0) {}
 
 	size_t number_of_objects;
 	size_t size_of_objects;
@@ -254,6 +256,7 @@ struct cache_stats {
 	size_t total_read_time;
 	size_t total_remove_time;
 	size_t total_lookup_time;
+	size_t total_resize_time;
 
 	std::vector<size_t> pages_sizes;
 	std::vector<size_t> pages_max_sizes;

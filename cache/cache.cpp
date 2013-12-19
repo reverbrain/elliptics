@@ -119,6 +119,7 @@ cache_stats cache_manager::get_total_cache_stats() const {
 		stats.total_read_time += page_stats.total_read_time;
 		stats.total_remove_time += page_stats.total_remove_time;
 		stats.total_lookup_time += page_stats.total_lookup_time;
+		stats.total_resize_time += page_stats.total_resize_time;
 
 		for (size_t j = 0; j < m_cache_pages_number; ++j) {
 			stats.pages_sizes[j] += page_stats.pages_sizes[j];
@@ -154,7 +155,8 @@ void cache_manager::dump_stats() const
 				<< "total_write_time " << stat.total_write_time << "\n"
 				<< "total_read_time " << stat.total_read_time << "\n"
 				<< "total_remove_time " << stat.total_remove_time << "\n"
-				<< "total_lookup_time " << stat.total_lookup_time << "\n";
+				<< "total_lookup_time " << stat.total_lookup_time << "\n"
+				<< "total_resize_time " << stat.total_resize_time << "\n";
 			os << "\n";
 		}
 
@@ -170,7 +172,8 @@ void cache_manager::dump_stats() const
 				<< "total_write_time " << stat.total_write_time << "\n"
 				<< "total_read_time " << stat.total_read_time << "\n"
 				<< "total_remove_time " << stat.total_remove_time << "\n"
-				<< "total_lookup_time " << stat.total_lookup_time << "\n";
+				<< "total_lookup_time " << stat.total_lookup_time << "\n"
+				<< "total_resize_time " << stat.total_resize_time << "\n";
 			os << "\n";
 		}
 		os.close();

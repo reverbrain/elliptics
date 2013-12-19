@@ -80,7 +80,7 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 			}
 
 			remove_data_from_page(id, page_number, &*it);
-			resize_page(id, new_page_number, new_size);
+			resize_page(id, new_page_number, 2 * new_size);
 
 			m_cache_stats.size_of_objects -= it->size();
 			raw.insert(raw.end(), data, data + io->size);
@@ -493,6 +493,7 @@ bool slru_cache_t::have_enough_space(const unsigned char *id, size_t page_number
 }
 
 void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size_t reserve) {
+	elliptics_timer timer;
 	size_t removed_size = 0;
 	size_t &cache_size = m_cache_pages_sizes[page_number];
 	size_t &max_cache_size = m_cache_pages_max_sizes[page_number];
@@ -527,6 +528,7 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 			}
 		}
 	}
+	m_cache_stats.total_resize_time += timer.elapsed<std::chrono::microseconds>();
 }
 
 void slru_cache_t::erase_element(data_t *obj) {

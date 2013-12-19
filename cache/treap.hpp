@@ -137,12 +137,18 @@ private:
 		if (!t) {
 			t = it;
 		}
-		else if (priorityCompare(getPriority(it), getPriority(t)) > 0) {
-			split(t, getKey(it), it->l, it->r);
-			t = it;
-		}
 		else {
-			insert((keyCompare(getKey(it), getKey(t)) < 0) ? t->l : t->r, it);
+			int cmp_result = priorityCompare(getPriority(it), getPriority(t));
+			if (cmp_result == 0) {
+				cmp_result = rand() & 1 ? 1 : -1;
+			}
+			if (cmp_result > 0) {
+				split(t, getKey(it), it->l, it->r);
+				t = it;
+			}
+			else {
+				insert((keyCompare(getKey(it), getKey(t)) < 0) ? t->l : t->r, it);
+			}
 		}
 	}
 
@@ -150,13 +156,20 @@ private:
 		if (!l || !r) {
 			t = l ? l : r;
 		}
-		else if (priorityCompare(getPriority(l), getPriority(r)) > 0) {
-			merge(l->r, l->r, r);
-			t = l;
-		}
 		else {
-			merge(r->l, l, r->l);
-			t = r;
+			int cmp_result = priorityCompare(getPriority(l), getPriority(r));
+			if (cmp_result == 0) {
+				cmp_result = rand() & 1 ? 1 : -1;
+			}
+
+			if (cmp_result > 0) {
+				merge(l->r, l->r, r);
+				t = l;
+			}
+			else {
+				merge(r->l, l, r->l);
+				t = r;
+			}
 		}
 	}
 
@@ -165,28 +178,30 @@ private:
 			throw std::logic_error("erase: element does not exist");
 		}
 
-		if (keyCompare(getKey(t), key) == 0) {
+		int cmp_result = keyCompare(getKey(t), key);
+		if (cmp_result == 0) {
 			merge(t, t->l, t->r);
 		}
 		else {
-			erase((keyCompare(key, getKey(t)) < 0) ? t->l : t->r, key);
+			erase((cmp_result > 0) ? t->l : t->r, key);
 		}
 	}
 
-	PNodeType find(PNodeType t, const KeyType& key) const {
+	PNodeType find(PNodeType t, const KeyType& key, int depth = 0) const {
 		if (!t) {
 			return NULL;
 		}
 
-		if (keyCompare(getKey(t), key) == 0) {
+		int cmp_result = keyCompare(getKey(t), key);
+		if (cmp_result == 0) {
 			return t;
 		}
 
-		if (keyCompare(getKey(t), key) > 0) {
-			return find(t->l, key);
+		if (cmp_result > 0) {
+			return find(t->l, key, depth + 1);
 		}
 		else {
-			return find(t->r, key);
+			return find(t->r, key, depth + 1);
 		}
 	}
 
