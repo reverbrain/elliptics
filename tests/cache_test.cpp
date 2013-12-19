@@ -110,6 +110,16 @@ static void test_cache_overflow(session &sess)
 	}
 }
 
+std::string generate_data(size_t length)
+{
+	std::string data;
+	for (size_t i = 0; i < length; ++i)
+	{
+		data += (char) (rand() & (1<<8));
+	}
+	return data;
+}
+
 bool register_tests()
 {
 	configure_server_nodes();

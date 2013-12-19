@@ -37,7 +37,6 @@ private:
 
 	bool m_need_exit;
 	struct dnet_node *m_node;
-	size_t m_cache_size, m_max_cache_size;
 	std::mutex m_lock;
 	size_t m_cache_pages_number;
 	std::vector<size_t> m_cache_pages_max_sizes;
@@ -72,6 +71,8 @@ private:
 	data_t* create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk);
 
 	data_t* populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err);
+
+	bool have_enough_space(const unsigned char *id, size_t page_number, size_t reserve);
 
 	void resize_page(const unsigned char *id, size_t page_number, size_t reserve);
 

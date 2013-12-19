@@ -72,19 +72,21 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 			auto &raw = it->data()->data();
 			size_t page_number = it->cache_page_number();
 			size_t new_page_number = page_number;
+			size_t new_size = it->size() + io->size;
 
 			// Moving item to hotter page
 			if (!new_page) {
 				new_page_number = get_next_page_number(page_number);
 			}
 
+			remove_data_from_page(id, page_number, &*it);
+			resize_page(id, new_page_number, new_size);
+
 			m_cache_stats.size_of_objects -= it->size();
-			m_cache_pages_sizes[page_number] -= it->size();
 			raw.insert(raw.end(), data, data + io->size);
-			m_cache_pages_sizes[page_number] += it->size();
 			m_cache_stats.size_of_objects += it->size();
 
-			move_data_between_pages(id, page_number, new_page_number, &*it);
+			insert_data_into_page(id, new_page_number, &*it);
 
 			it->set_timestamp(io->timestamp);
 			it->set_user_flags(io->user_flags);
@@ -152,34 +154,37 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: CAS checked: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
-	size_t new_size = 0;
+	size_t new_data_size = 0;
 
 	if (append) {
-		new_size = raw.size() + size;
+		new_data_size = raw.size() + size;
 	} else {
-		new_size = io->offset + io->size;
+		new_data_size = io->offset + io->size;
 	}
+
+	size_t new_size = new_data_size + it->overhead_size();
 
 	size_t page_number = it->cache_page_number();
 	size_t new_page_number = page_number;
-
-	m_cache_stats.size_of_objects -= it->size();
-	m_cache_pages_sizes[page_number] -= it->size();
-	if (append) {
-		raw.data().insert(raw.data().end(), data, data + size);
-	} else {
-		raw.data().resize(new_size);
-		memcpy(raw.data().data() + io->offset, data, size);
-	}
-	m_cache_pages_sizes[page_number] += it->size();
-	m_cache_stats.size_of_objects += it->size();
 
 	if (!new_page) {
 		new_page_number = get_next_page_number(page_number);
 	}
 
+	remove_data_from_page(id, page_number, &*it);
+	resize_page(id, new_page_number, new_size);
+
+	m_cache_stats.size_of_objects -= it->size();
+	if (append) {
+		raw.data().insert(raw.data().end(), data, data + size);
+	} else {
+		raw.data().resize(new_data_size);
+		memcpy(raw.data().data() + io->offset, data, size);
+	}
+	m_cache_stats.size_of_objects += it->size();
+
 	it->set_remove_from_cache(false);
-	move_data_between_pages(id, page_number, new_page_number, &*it);
+	insert_data_into_page(id, new_page_number, &*it);
 
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: data modified: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
@@ -480,6 +485,11 @@ data_t* slru_cache_t::populate_from_disk(elliptics_unique_lock<std::mutex> &guar
 	}
 
 	return NULL;
+}
+
+bool slru_cache_t::have_enough_space(const unsigned char *id, size_t page_number, size_t reserve) {
+	(void) id;
+	return m_cache_pages_max_sizes[page_number] >= reserve;
 }
 
 void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size_t reserve) {
