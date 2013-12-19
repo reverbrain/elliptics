@@ -116,6 +116,10 @@ cache_stats cache_manager::get_total_cache_stats() const {
 
 		stats.total_lifecheck_time += page_stats.total_lifecheck_time;
 		stats.total_write_time += page_stats.total_write_time;
+		stats.total_write_find_time += page_stats.total_write_find_time;
+		stats.total_write_create_data_time += page_stats.total_write_create_data_time;
+		stats.total_write_populate_from_disk_time += page_stats.total_write_populate_from_disk_time;
+		stats.total_write_resize_page_time += page_stats.total_write_resize_page_time;
 		stats.total_read_time += page_stats.total_read_time;
 		stats.total_remove_time += page_stats.total_remove_time;
 		stats.total_lookup_time += page_stats.total_lookup_time;
@@ -153,6 +157,10 @@ void cache_manager::dump_stats() const
 				<< "size_of_objects_marked_for_deletion " << stat.size_of_objects_marked_for_deletion << "\n"
 				<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
 				<< "total_write_time " << stat.total_write_time << "\n"
+				<< "total_write_find_time " << stat.total_write_find_time << "\n"
+				<< "total_write_create_data_time " << stat.total_write_create_data_time << "\n"
+				<< "total_write_populate_from_disk_time " << stat.total_write_populate_from_disk_time << "\n"
+				<< "total_write_resize_time " << stat.total_write_resize_page_time << "\n"
 				<< "total_read_time " << stat.total_read_time << "\n"
 				<< "total_remove_time " << stat.total_remove_time << "\n"
 				<< "total_lookup_time " << stat.total_lookup_time << "\n"
@@ -170,6 +178,10 @@ void cache_manager::dump_stats() const
 				<< "size_of_objects_marked_for_deletion " << stat.size_of_objects_marked_for_deletion << "\n"
 				<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
 				<< "total_write_time " << stat.total_write_time << "\n"
+				<< "total_write_find_time " << stat.total_write_find_time << "\n"
+				<< "total_write_create_data_time " << stat.total_write_create_data_time << "\n"
+				<< "total_write_populate_from_disk_time " << stat.total_write_populate_from_disk_time << "\n"
+				<< "total_write_resize_time " << stat.total_write_resize_page_time << "\n"
 				<< "total_read_time " << stat.total_read_time << "\n"
 				<< "total_remove_time " << stat.total_remove_time << "\n"
 				<< "total_lookup_time " << stat.total_lookup_time << "\n"

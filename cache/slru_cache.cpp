@@ -47,6 +47,7 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 	data_t* it = m_treap.find(id);
+	m_cache_stats.total_write_find_time += timer.restart<std::chrono::microseconds>();
 
 	if (!it && !cache) {
 		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not a cache call\n", dnet_dump_id_str(id));
@@ -67,6 +68,7 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 				if (previous_eventtime != it->eventtime()) {
 					m_treap.decrease_key(it);
 				}
+				m_cache_stats.total_write_create_data_time += timer.restart<std::chrono::microseconds>();
 			}
 
 			auto &raw = it->data()->data();
@@ -81,6 +83,7 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 
 			remove_data_from_page(id, page_number, &*it);
 			resize_page(id, new_page_number, 2 * new_size);
+			m_cache_stats.total_write_resize_page_time += timer.restart<std::chrono::microseconds>();
 
 			m_cache_stats.size_of_objects -= it->size();
 			raw.insert(raw.end(), data, data + io->size);
@@ -105,6 +108,7 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: second write result, cmd: %lld ms, err: %d", dnet_dump_id_str(id), timer.restart(), err);
 
 			it = populate_from_disk(guard, id, false, &err);
+			m_cache_stats.total_write_populate_from_disk_time += timer.restart<std::chrono::microseconds>();
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: read result, populate: %lld ms, err: %d", dnet_dump_id_str(id), timer.restart(), err);
 			cmd->flags &= ~DNET_FLAGS_NEED_ACK;
@@ -120,6 +124,7 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 		if (!cache_only && io->offset != 0) {
 			int err = 0;
 			it = populate_from_disk(guard, id, remove_from_disk, &err);
+			m_cache_stats.total_write_populate_from_disk_time += timer.restart<std::chrono::microseconds>();
 			new_page = true;
 
 			if (err != 0 && err != -ENOENT)
@@ -129,6 +134,7 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 		// Create empty data for code simplifyng
 		if (!it) {
 			it = create_data(id, 0, 0, remove_from_disk);
+			m_cache_stats.total_write_create_data_time += timer.restart<std::chrono::microseconds>();
 			new_page = true;
 		}
 	} else {
@@ -172,7 +178,9 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	}
 
 	remove_data_from_page(id, page_number, &*it);
+	timer.restart();
 	resize_page(id, new_page_number, new_size);
+	m_cache_stats.total_write_resize_page_time += timer.restart<std::chrono::microseconds>();
 
 	m_cache_stats.size_of_objects -= it->size();
 	if (append) {
@@ -638,73 +646,75 @@ void slru_cache_t::life_check(void) {
 
 		memset(&id, 0, sizeof(id));
 
-		while (!m_need_exit && !m_treap.empty()) {
-			size_t time = ::time(NULL);
-
+		{
 			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
 
-			if (m_treap.empty())
-				break;
+			while (!m_need_exit && !m_treap.empty()) {
+				size_t time = ::time(NULL);
 
-			data_t* it = m_treap.top();
-			if (it->eventtime() > time)
-				break;
-
-			if (it->eventtime() == it->lifetime())
-			{
-				if (it->remove_from_disk()) {
-					struct dnet_id id;
-					memset(&id, 0, sizeof(struct dnet_id));
-
-					dnet_setup_id(&id, 0, (unsigned char *)it->id().id);
-
-					remove.push_back(id);
-				}
-
-				erase_element(&(*it));
-			}
-			else if (it->eventtime() == it->synctime())
-			{
-				data_t *obj = &*it;
-				if (obj->synctime() > time)
+				if (m_treap.empty())
 					break;
 
-				if (obj->only_append()) {
-					sync_after_append(guard, false, obj);
-					continue;
+				data_t* it = m_treap.top();
+				if (it->eventtime() > time)
+					break;
+
+				if (it->eventtime() == it->lifetime())
+				{
+					if (it->remove_from_disk()) {
+						struct dnet_id id;
+						memset(&id, 0, sizeof(struct dnet_id));
+
+						dnet_setup_id(&id, 0, (unsigned char *)it->id().id);
+
+						remove.push_back(id);
+					}
+
+					erase_element(&(*it));
 				}
+				else if (it->eventtime() == it->synctime())
+				{
+					data_t *obj = &*it;
+					if (obj->synctime() > time)
+						break;
 
-				memcpy(id.id, obj->id().id, DNET_ID_SIZE);
-				data = it->data()->data();
-				user_flags = obj->user_flags();
-				timestamp = obj->timestamp();
+					if (obj->only_append()) {
+						sync_after_append(guard, false, obj);
+						continue;
+					}
 
-				size_t previous_eventtime = it->eventtime();
-				obj->clear_synctime();
-				if (previous_eventtime != obj->eventtime()) {
-					m_treap.decrease_key(it);
-				}
+					memcpy(id.id, obj->id().id, DNET_ID_SIZE);
+					data = it->data()->data();
+					user_flags = obj->user_flags();
+					timestamp = obj->timestamp();
 
-				guard.unlock();
-				dnet_oplock(m_node, &id);
+					size_t previous_eventtime = it->eventtime();
+					obj->clear_synctime();
+					if (previous_eventtime != obj->eventtime()) {
+						m_treap.decrease_key(it);
+					}
 
-				// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
-				sync_element(id, false, data, user_flags, timestamp);
+					guard.unlock();
+					dnet_oplock(m_node, &id);
 
-				dnet_opunlock(m_node, &id);
-				guard.lock();
+					// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
+					sync_element(id, false, data, user_flags, timestamp);
 
-				data_t* jt = m_treap.find(id.id);
-				if (jt) {
-					if (jt->remove_from_cache()) {
-						erase_element(&*jt);
+					dnet_opunlock(m_node, &id);
+					guard.lock();
+
+					data_t* jt = m_treap.find(id.id);
+					if (jt) {
+						if (jt->remove_from_cache()) {
+							erase_element(&*jt);
+						}
 					}
 				}
 			}
-		}
 
-		for (std::deque<struct dnet_id>::iterator it = remove.begin(); it != remove.end(); ++it) {
-			dnet_remove_local(m_node, &(*it));
+			for (std::deque<struct dnet_id>::iterator it = remove.begin(); it != remove.end(); ++it) {
+				dnet_remove_local(m_node, &(*it));
+			}
 		}
 
 		m_cache_stats.total_lifecheck_time += lifecheck_timer.elapsed<std::chrono::microseconds>();
