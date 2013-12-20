@@ -1269,11 +1269,12 @@ class remove_index_callback
 					data_pointer data = std::move(state.buffer);
 
 					// Set the actual entries_count value as it is unknown at the beginning
-					dnet_indexes_request *request = data.data<dnet_indexes_request>();
-					request->entries_count = state.entries_count;
+					dnet_indexes_request *request_ptr = data.data<dnet_indexes_request>();
+					request_ptr->entries_count = state.entries_count;
+					dnet_setup_id(&request_ptr->id, id.group_id, request_ptr->entries[0].id.id);
 					state.entries_count = 0;
 
-					control.id = request->id;
+					control.id = request_ptr->id;
 					control.data = data.data();
 					control.size = data.size();
 
@@ -1287,6 +1288,7 @@ class remove_index_callback
 					++count;
 
 					if (!after_last_entry) {
+						state.buffer.write(request);
 						state.buffer.write(entry);
 						state.entries_count++;
 					}

@@ -501,12 +501,12 @@ bool async_result_handler<T>::check(error_info *error)
 				if (command.status) {
 					*error = create_error(command);
 				} else {
-					*error = create_error(-ENXIO, "insufficiant results count due to checker: "
+					*error = create_error(-ENXIO, "insufficient results count due to checker: "
 							"%zu of %zu (%zu)",
 						success, m_data->total, m_data->statuses.size());
 				}
 			} else {
-				*error = create_error(-ENXIO, "insufficiant results count due to checker: "
+				*error = create_error(-ENXIO, "insufficient results count due to checker: "
 						"%zu of %zu (%zu)",
 					success, m_data->total, m_data->statuses.size());
 			}
