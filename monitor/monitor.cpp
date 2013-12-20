@@ -55,26 +55,39 @@ int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
 	return 0;
 }
 
+static ioremap::monitor::monitor* monitor_cast(void* monitor) {
+	return static_cast<ioremap::monitor::monitor*>(monitor);
+}
+
 void dnet_monitor_exit(struct dnet_node *n) {
-	if (n->monitor)
-		delete (ioremap::monitor::monitor*)n->monitor;
+	auto real_monitor = monitor_cast(n->monitor);
+	if (real_monitor) {
+		delete real_monitor;
+		n->monitor = NULL;
+	}
 }
 
 void dnet_monitor_log(void *monitor) {
-	if (monitor)
-		static_cast<ioremap::monitor::monitor*>(monitor)->get_statistics().log();
+	auto real_monitor = monitor_cast(monitor);
+	if (real_monitor) {
+		real_monitor->get_statistics().log();
+	}
 }
 
 void monitor_command_counter(void *monitor, const int cmd, const int trans,
                              const int err, const int cache,
                              const uint32_t size, const unsigned long time) {
-	if (monitor)
-		static_cast<ioremap::monitor::monitor*>(monitor)->get_statistics().command_counter(cmd, trans, err, cache, size, time);
+	auto real_monitor = monitor_cast(monitor);
+	if (real_monitor) {
+		real_monitor->get_statistics().command_counter(cmd, trans, err, cache, size, time);
+	}
 }
 
 void monitor_io_queue_stat(void *monitor, const uint64_t current_size,
                            const uint64_t min_size, const uint64_t max_size,
                            const uint64_t volume, const uint64_t time) {
-	if (monitor)
-		static_cast<ioremap::monitor::monitor*>(monitor)->get_statistics().io_queue_stat(current_size, min_size, max_size, volume, time);
+	auto real_monitor = monitor_cast(monitor);
+	if (real_monitor) {
+		real_monitor->get_statistics().io_queue_stat(current_size, min_size, max_size, volume, time);
+	}
 }

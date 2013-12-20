@@ -12,7 +12,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -740,9 +740,6 @@ struct dnet_addr_storage
 int dnet_check_thread_start(struct dnet_node *n);
 void dnet_check_thread_stop(struct dnet_node *n);
 int dnet_try_reconnect(struct dnet_node *n);
-
-void dnet_monitor_exit(struct dnet_node *n);
-int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 
 int dnet_set_name(char *name);
 int dnet_ioprio_set(long pid, int class_id, int prio);

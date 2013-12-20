@@ -38,9 +38,9 @@ public:
 	statistics& get_statistics() { return m_statistics; }
 
 private:
-	dnet_node						*m_node;
-	server							m_server;
-	statistics						m_statistics;
+	dnet_node	*m_node;
+	server		m_server;
+	statistics	m_statistics;
 };
 
 }} /* namespace ioremap::monitor */

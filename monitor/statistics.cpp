@@ -36,8 +36,8 @@ std::string statistics::report() {
 	gettimeofday(&end_time, NULL);
 	long diff = (end_time.tv_sec - m_start_time.tv_sec) * 1000000 + (end_time.tv_usec - m_start_time.tv_usec);
 	m_start_time = end_time;
-	//stat_report(out);
-	//cmd_report(out);
+	stat_report(out);
+	cmd_report(out);
 	hist_report(out);
 	out << ",\"time\":" << diff;
 	out << "}";
@@ -67,7 +67,7 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 	if (cmd >= __DNET_CMD_MAX || cmd <= 0)
 		cmd = DNET_CMD_UNKNOWN;
 
-	/*std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
+	std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
 	if (cache) {
 		if (trans) {
 			if(!err)
@@ -108,14 +108,14 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 		std::unique_lock<std::mutex> swap_guard(m_cmd_info_previous_mutex);
 		m_cmd_info_previous.clear();
 		m_cmd_info_current.swap(m_cmd_info_previous);
-	}*/
+	}
 
 	struct timeval current;
 	gettimeofday(&current, NULL);
 
 	histograms *hist = NULL;
 
-	std::unique_lock<std::mutex> guard(m_histograms_mutex);
+	std::unique_lock<std::mutex> hist_guard(m_histograms_mutex);
 	if (m_histograms.empty()) {
 		m_histograms.emplace_back(histograms());
 		hist = &m_histograms.back();

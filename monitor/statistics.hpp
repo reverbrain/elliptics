@@ -109,10 +109,18 @@ struct histograms {
 	                     const uint32_t size, const unsigned long time) {
 		boost::array<hist_counter, 16> *counters = NULL;
 		switch(cmd) {
-			case DNET_CMD_READ:				counters = &read_counters;			break;
-			case DNET_CMD_WRITE:			counters = &write_counters;			break;
-			case DNET_CMD_INDEXES_UPDATE:	counters = &indx_update_counters;	break;
-			case DNET_CMD_INDEXES_INTERNAL:	counters = &indx_internal_counters;	break;
+			case DNET_CMD_READ:
+				counters = &read_counters;
+				break;
+			case DNET_CMD_WRITE:
+				counters = &write_counters;
+				break;
+			case DNET_CMD_INDEXES_UPDATE:
+				counters = &indx_update_counters;
+				break;
+			case DNET_CMD_INDEXES_INTERNAL:
+				counters = &indx_internal_counters;
+				break;
 		}
 
 		if (counters == NULL)

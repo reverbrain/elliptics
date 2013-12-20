@@ -4,5 +4,5 @@ ADD_LIBRARY(elliptics_monitor STATIC
             statistics.cpp)
 
 if(UNIX OR MINGW)
-    set_target_properties(elliptics_monitor PROPERTIES COMPILE_FLAGS "-fPIC")
+    target_link_libraries(elliptics_monitor)
 endif()
