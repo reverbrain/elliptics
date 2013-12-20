@@ -4,5 +4,5 @@ ADD_LIBRARY(elliptics_monitor STATIC
             statistics.cpp)
 
 if(UNIX OR MINGW)
-    target_link_libraries(elliptics_monitor)
+    target_link_libraries(elliptics_monitor unwind unwind-generic unwind-ptrace)
 endif()

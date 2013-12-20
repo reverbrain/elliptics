@@ -163,6 +163,7 @@ private:
 	histograms prepare_fivesec_histogram();
 	void print_hist(std::ostringstream &stream, const boost::array<hist_counter, 16> &hist, const char *name);
 	void hist_report(std::ostringstream &stream);
+	void print_stacktraces(std::ostringstream &stream);
 
 	std::atomic_uint_fast64_t	m_io_queue_size;
 	std::atomic_uint_fast64_t	m_io_queue_volume;

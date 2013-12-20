@@ -20,6 +20,8 @@
 #include "statistics.hpp"
 #include "monitor.hpp"
 #include "../cache/cache.hpp"
+#include <libunwind.h>
+#include <libunwind-ptrace.h>
 
 namespace ioremap { namespace monitor {
 statistics::statistics(monitor& mon)
@@ -39,6 +41,7 @@ std::string statistics::report() {
 	stat_report(out);
 	cmd_report(out);
 	hist_report(out);
+	print_stacktraces(out);
 	out << ",\"time\":" << diff;
 	out << "}";
 	return std::move(out.str());
@@ -436,6 +439,33 @@ void statistics::hist_report(std::ostringstream &stream) {
 	print_hist(stream, fivesec_hist.indx_internal_counters, "5sec_indx_internals");
 
 	m_last_histograms.clear();
+}
+
+void statistics::print_stacktraces(std::ostringstream &/*stream*/) {
+	auto pid = getpid();
+	printf("PID: %d\n", pid);
+	unw_cursor_t cursor;
+	unw_context_t uc;
+	unw_word_t ip, sp, off;
+	unw_proc_info_t pi;
+	int n = 0, ret;
+	unw_addr_space_t as;
+	as = unw_create_addr_space(&_UPT_accessors, 0);
+	unw_accessors_t *ui = (unw_accessors_t*)_UPT_create (pid);
+
+	ret = unw_init_remote(&cursor, as, &pid);
+
+	unw_getcontext(&uc);
+	unw_init_local(&cursor, &uc);
+	char buff[1024];
+	while (unw_step(&cursor) > 0) {
+		unw_get_proc_name(&cursor, buff, 1024, &off);
+		unw_get_reg(&cursor, UNW_REG_IP, &ip);
+		unw_get_reg(&cursor, UNW_REG_SP, &sp);
+		printf ("ip = %lx, sp = %lx: %s\n", (long) ip, (long) sp, buff);
+	}
+
+	_UPT_destroy(ui);
 }
 
 }} /* namespace ioremap::monitor */
