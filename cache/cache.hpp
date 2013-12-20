@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <unordered_map>
 #include <limits>
+#include <atomic>
 
 #include <boost/intrusive/list.hpp>
 
@@ -203,16 +204,62 @@ struct eventtime_less {
 	}
 };
 
-typedef Treap<data_t> treap_t;
+typedef treap<data_t> treap_t;
+
+struct atomic_cache_stats {
+	atomic_cache_stats():
+		number_of_objects(0), size_of_objects(0),
+		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
+		total_lifecheck_time(0),
+		total_write_time(0),
+		total_read_time(0),
+		total_remove_time(0), total_lookup_time(0), total_resize_time(0) {}
+
+	std::atomic_size_t number_of_objects;
+	std::atomic_size_t size_of_objects;
+	std::atomic_size_t number_of_objects_marked_for_deletion;
+	std::atomic_size_t size_of_objects_marked_for_deletion;
+
+	std::atomic_size_t total_lifecheck_time;
+	std::atomic_size_t total_write_time;
+	std::atomic_size_t total_read_time;
+	std::atomic_size_t total_remove_time;
+	std::atomic_size_t total_lookup_time;
+	std::atomic_size_t total_resize_time;
+};
 
 struct cache_stats {
-	cache_stats(): size_of_objects(0), number_of_objects(0), number_of_objects_marked_for_deletion(0),
-		size_of_objects_marked_for_deletion(0) {}
+	cache_stats(const atomic_cache_stats& stats):
+		number_of_objects(stats.number_of_objects),
+		size_of_objects(stats.size_of_objects),
+		number_of_objects_marked_for_deletion(stats.number_of_objects_marked_for_deletion),
+		size_of_objects_marked_for_deletion(stats.size_of_objects_marked_for_deletion),
+		total_lifecheck_time(stats.total_lifecheck_time),
+		total_write_time(stats.total_write_time),
+		total_read_time(stats.total_read_time),
+		total_remove_time(stats.total_remove_time),
+		total_lookup_time(stats.total_lookup_time),
+		total_resize_time(stats.total_resize_time)
+	{}
 
-	size_t size_of_objects;
+	cache_stats():
+		number_of_objects(0), size_of_objects(0),
+		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
+		total_lifecheck_time(0), total_write_time(0), total_read_time(0),
+		total_remove_time(0), total_lookup_time(0), total_resize_time(0) {}
+
 	size_t number_of_objects;
+	size_t size_of_objects;
 	size_t number_of_objects_marked_for_deletion;
 	size_t size_of_objects_marked_for_deletion;
+
+	size_t total_lifecheck_time;
+	size_t total_write_time;
+	size_t total_read_time;
+	size_t total_remove_time;
+	size_t total_lookup_time;
+	size_t total_resize_time;
+
 	std::vector<size_t> pages_sizes;
 	std::vector<size_t> pages_max_sizes;
 };
@@ -239,6 +286,8 @@ class cache_manager {
 
 		int indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request);
 
+		void clear();
+
 		size_t cache_size() const;
 
 		size_t cache_pages_number() const;
@@ -247,10 +296,14 @@ class cache_manager {
 
 		std::vector<cache_stats> get_caches_stats() const;
 
+		void dump_stats() const;
+
 	private:
 		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
 		size_t m_max_cache_size;
 		size_t m_cache_pages_number;
+		std::thread m_dump_stats;
+		bool stop;
 
 		size_t idx(const unsigned char *id);
 };

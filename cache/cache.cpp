@@ -16,6 +16,8 @@
 #include "cache.hpp"
 #include "slru_cache.hpp"
 
+#include <fstream>
+
 namespace ioremap { namespace cache {
 
 cache_manager::cache_manager(struct dnet_node *n) {
@@ -31,12 +33,15 @@ cache_manager::cache_manager(struct dnet_node *n) {
 
 	std::vector<size_t> pages_max_sizes(m_cache_pages_number);
 	for (size_t i = 0; i < m_cache_pages_number; ++i) {
-		pages_max_sizes.push_back(max_size * (n->cache_pages_proportions[i] * 1.0 / proportionsSum));
+		pages_max_sizes[i] = max_size * (n->cache_pages_proportions[i] * 1.0 / proportionsSum);
 	}
 
 	for (size_t i = 0; i < caches_number; ++i) {
 		m_caches.emplace_back(std::make_shared<slru_cache_t>(n, pages_max_sizes));
 	}
+
+	stop = false;
+	m_dump_stats = std::thread(std::bind(&cache_manager::dump_stats, this));
 }
 
 cache_manager::~cache_manager() {
@@ -44,6 +49,8 @@ cache_manager::~cache_manager() {
 	for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it) {
 		(*it)->stop(); //Sets cache as stopped
 	}
+	stop = true;
+	m_dump_stats.join();
 }
 
 int cache_manager::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
@@ -80,6 +87,12 @@ int cache_manager::indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request
 	return -ENOTSUP;
 }
 
+void cache_manager::clear() {
+	for (size_t i = 0; i < m_caches.size(); ++i) {
+		m_caches[i]->clear();
+	}
+}
+
 size_t cache_manager::cache_size() const
 {
 	return m_max_cache_size;
@@ -101,6 +114,13 @@ cache_stats cache_manager::get_total_cache_stats() const {
 		stats.size_of_objects_marked_for_deletion += page_stats.size_of_objects_marked_for_deletion;
 		stats.size_of_objects += page_stats.size_of_objects;
 
+		stats.total_lifecheck_time += page_stats.total_lifecheck_time;
+		stats.total_write_time += page_stats.total_write_time;
+		stats.total_read_time += page_stats.total_read_time;
+		stats.total_remove_time += page_stats.total_remove_time;
+		stats.total_lookup_time += page_stats.total_lookup_time;
+		stats.total_resize_time += page_stats.total_resize_time;
+
 		for (size_t j = 0; j < m_cache_pages_number; ++j) {
 			stats.pages_sizes[j] += page_stats.pages_sizes[j];
 			stats.pages_max_sizes[j] += page_stats.pages_max_sizes[j];
@@ -116,6 +136,49 @@ std::vector<cache_stats> cache_manager::get_caches_stats() const
 		caches_stats.push_back(m_caches[i]->get_cache_stats());
 	}
 	return caches_stats;
+}
+
+void cache_manager::dump_stats() const
+{
+	while (!stop) {
+		std::ofstream os("cache.stat");
+		std::vector<cache_stats> stats = get_caches_stats();
+
+		{
+			cache_stats stat = get_total_cache_stats();
+			os << "TOTAL" << "\n"
+				<< "number_of_objects " << stat.number_of_objects << "\n"
+				<< "size_of_objects " << stat.size_of_objects << "\n"
+				<< "number_of_objects_marked_for_deletion " << stat.number_of_objects_marked_for_deletion << "\n"
+				<< "size_of_objects_marked_for_deletion " << stat.size_of_objects_marked_for_deletion << "\n"
+				<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
+				<< "total_write_time " << stat.total_write_time << "\n"
+				<< "total_read_time " << stat.total_read_time << "\n"
+				<< "total_remove_time " << stat.total_remove_time << "\n"
+				<< "total_lookup_time " << stat.total_lookup_time << "\n"
+				<< "total_resize_time " << stat.total_resize_time << "\n";
+			os << "\n";
+		}
+
+		for (size_t i = 0; i < stats.size(); ++i) {
+			cache_stats stat = stats[i];
+
+			os << "CACHE " << i << "\n"
+				<< "number_of_objects " << stat.number_of_objects << "\n"
+				<< "size_of_objects " << stat.size_of_objects << "\n"
+				<< "number_of_objects_marked_for_deletion " << stat.number_of_objects_marked_for_deletion << "\n"
+				<< "size_of_objects_marked_for_deletion " << stat.size_of_objects_marked_for_deletion << "\n"
+				<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
+				<< "total_write_time " << stat.total_write_time << "\n"
+				<< "total_read_time " << stat.total_read_time << "\n"
+				<< "total_remove_time " << stat.total_remove_time << "\n"
+				<< "total_lookup_time " << stat.total_lookup_time << "\n"
+				<< "total_resize_time " << stat.total_resize_time << "\n";
+			os << "\n";
+		}
+		os.close();
+		sleep(1);
+	}
 }
 
 size_t cache_manager::idx(const unsigned char *id) {
@@ -142,9 +205,6 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 	cache_manager *cache = (cache_manager *)n->cache;
 	std::shared_ptr<raw_data_t> d;
-
-//	cache_stats stats = cache->get_cache_stats();
-//	dnet_log(n, DNET_LOG_INFO, "CACHE_INFO: objects: %zd\n", stats.number_of_objects);
 
 	try {
 		switch (cmd->cmd) {
