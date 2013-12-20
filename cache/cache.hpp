@@ -212,10 +212,6 @@ struct atomic_cache_stats {
 		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
 		total_lifecheck_time(0),
 		total_write_time(0),
-		total_write_find_time(0),
-		total_write_create_data_time(0),
-		total_write_resize_page_time(0),
-		total_write_populate_from_disk_time(0),
 		total_read_time(0),
 		total_remove_time(0), total_lookup_time(0), total_resize_time(0) {}
 
@@ -226,13 +222,7 @@ struct atomic_cache_stats {
 
 	std::atomic_size_t total_lifecheck_time;
 	std::atomic_size_t total_write_time;
-	std::atomic_size_t total_write_find_time;
-	std::atomic_size_t total_write_create_data_time;
-	std::atomic_size_t total_write_resize_page_time;
-	std::atomic_size_t total_write_populate_from_disk_time;
-
 	std::atomic_size_t total_read_time;
-
 	std::atomic_size_t total_remove_time;
 	std::atomic_size_t total_lookup_time;
 	std::atomic_size_t total_resize_time;
@@ -246,10 +236,6 @@ struct cache_stats {
 		size_of_objects_marked_for_deletion(stats.size_of_objects_marked_for_deletion),
 		total_lifecheck_time(stats.total_lifecheck_time),
 		total_write_time(stats.total_write_time),
-		total_write_find_time(stats.total_write_find_time),
-		total_write_create_data_time(stats.total_write_create_data_time),
-		total_write_resize_page_time(stats.total_write_resize_page_time),
-		total_write_populate_from_disk_time(stats.total_write_populate_from_disk_time),
 		total_read_time(stats.total_read_time),
 		total_remove_time(stats.total_remove_time),
 		total_lookup_time(stats.total_lookup_time),
@@ -269,11 +255,6 @@ struct cache_stats {
 
 	size_t total_lifecheck_time;
 	size_t total_write_time;
-	size_t total_write_find_time;
-	size_t total_write_create_data_time;
-	size_t total_write_resize_page_time;
-	size_t total_write_populate_from_disk_time;
-
 	size_t total_read_time;
 	size_t total_remove_time;
 	size_t total_lookup_time;

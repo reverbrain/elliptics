@@ -62,7 +62,7 @@ static void test_cache_records_sizes(session &sess)
 		BOOST_REQUIRE_EQUAL(stats.number_of_objects, 1);
 	}
 
-	size_t records_number = cache_size / cache_pages_number / record_size;
+	size_t records_number = cache_size / cache_pages_number / record_size - 5;
 	for (size_t id = 1; id < records_number; ++id) {
 		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(id)), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();
@@ -93,7 +93,7 @@ static void test_cache_overflow(session &sess)
 		record_size = stats.size_of_objects;
 	}
 
-	size_t records_number = (cache_size / cache_pages_number / record_size) * 100;
+	size_t records_number = (cache_size / cache_pages_number / record_size) * 10;
 	for (size_t id = 1; id < records_number; ++id) {
 		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(id)), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();

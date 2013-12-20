@@ -118,7 +118,6 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	timer.lock = timer.restart();
 
 	data_t* it = m_treap.find(id);
-	m_cache_stats.total_write_find_time += timer.restart<std::chrono::microseconds>();
 
 	timer.find = timer.restart();
 	if (!it && !cache) {
@@ -145,7 +144,6 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 				if (previous_eventtime != it->eventtime()) {
 					m_treap.decrease_key(it);
 				}
-				m_cache_stats.total_write_create_data_time += timer.restart<std::chrono::microseconds>();
 			}
 
 			auto &raw = it->data()->data();
@@ -161,7 +159,6 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 
 			remove_data_from_page(id, page_number, &*it);
 			resize_page(id, new_page_number, 2 * new_size);
-			m_cache_stats.total_write_resize_page_time += timer.restart<std::chrono::microseconds>();
 
 			m_cache_stats.size_of_objects -= it->size();
 			raw.insert(raw.end(), data, data + io->size);
@@ -188,7 +185,6 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 			timer.write_after_append = timer.restart();
 
 			it = populate_from_disk(guard, id, false, &err);
-			m_cache_stats.total_write_populate_from_disk_time += timer.restart<std::chrono::microseconds>();
 
 			timer.populate = timer.restart();
 			cmd->flags &= ~DNET_FLAGS_NEED_ACK;
@@ -203,7 +199,6 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 		if (!cache_only && io->offset != 0) {
 			int err = 0;
 			it = populate_from_disk(guard, id, remove_from_disk, &err);
-			m_cache_stats.total_write_populate_from_disk_time += timer.restart<std::chrono::microseconds>();
 			timer.populate = timer.restart();
 			new_page = true;
 
@@ -214,7 +209,6 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 		// Create empty data for code simplifyng
 		if (!it) {
 			it = create_data(id, 0, 0, remove_from_disk);
-			m_cache_stats.total_write_create_data_time += timer.restart<std::chrono::microseconds>();
 			new_page = true;
 			timer.create = timer.restart();
 		}
@@ -260,8 +254,7 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 
 	remove_data_from_page(id, page_number, &*it);
 	timer.restart();
-	resize_page(id, new_page_number, new_size);
-	m_cache_stats.total_write_resize_page_time += timer.restart<std::chrono::microseconds>();
+	resize_page(id, new_page_number, 2 * new_size);
 
 	m_cache_stats.size_of_objects -= it->size();
 	if (append) {
