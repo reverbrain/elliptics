@@ -17,22 +17,22 @@ public:
 
 struct data_t;
 
-template<typename NodeType>
-class Treap {
+template<typename node_type>
+class treap {
 
 public:
-	typedef NodeType* PNodeType;
-	typedef const unsigned char * KeyType;
-	typedef size_t PriorityType;
+	typedef node_type* p_node_type;
+	typedef const unsigned char * key_type;
+	typedef size_t priority_type;
 
-	Treap(): root(NULL) {
+	treap(): root(NULL) {
 	}
 
-	~Treap() {
+	~treap() {
 		cleanup(root);
 	}
 
-	void insert(PNodeType node) {
+	void insert(p_node_type node) {
 		if (!node) {
 			throw std::logic_error("insert: can't insert NULL");
 		}
@@ -44,33 +44,33 @@ public:
 			insert(root, node);
 	}
 
-	PNodeType find(const KeyType& key) const {
+	p_node_type find(const key_type& key) const {
 		if (empty()) {
 			return NULL;
 		}
 		return find(root, key);
 	}
 
-	void erase(const KeyType& key) {
+	void erase(const key_type& key) {
 		if (empty()) {
 			throw std::logic_error("erase: element does not exist");
 		}
 		erase(root, key);
 	}
 
-	void erase(PNodeType node) {
+	void erase(p_node_type node) {
 		if (empty()) {
 			throw std::logic_error("erase: element does not exist");
 		}
-		erase(getKey(node));
+		erase(get_key(node));
 	}
 
-	void decrease_key(PNodeType node) {
+	void decrease_key(p_node_type node) {
 		erase(node);
 		insert(node);
 	}
 
-	PNodeType top() const {
+	p_node_type top() const {
 		return root;
 	}
 
@@ -80,25 +80,25 @@ public:
 
 private:
 
-	KeyType getKey(PNodeType node) const {
+	key_type get_key(p_node_type node) const {
 		if (!node) {
 			throw std::logic_error("getKey: node is NULL");
 		}
 		return node->id().id;
 	}
 
-	PriorityType getPriority(PNodeType node) const {
+	priority_type get_priority(p_node_type node) const {
 		if (!node) {
 			throw std::logic_error("getPriority: node is NULL");
 		}
 		return node->eventtime();
 	}
 
-	inline int keyCompare(const KeyType& lhs, const KeyType& rhs) const {
+	inline int key_compare(const key_type& lhs, const key_type& rhs) const {
 		return dnet_id_cmp_str(lhs, rhs);
 	}
 
-	inline int priorityCompare(const PriorityType& lhs, const PriorityType& rhs) const {
+	inline int priority_compare(const priority_type& lhs, const priority_type& rhs) const {
 		if (lhs < rhs) {
 			return 1;
 		}
@@ -110,7 +110,7 @@ private:
 		return 0;
 	}
 
-	void cleanup(PNodeType t) {
+	void cleanup(p_node_type t) {
 		if (t) {
 			cleanup(t->l);
 			cleanup(t->r);
@@ -118,12 +118,12 @@ private:
 		}
 	}
 
-	void split(PNodeType t, KeyType key, PNodeType & l, PNodeType & r) {
+	void split(p_node_type t, key_type key, p_node_type & l, p_node_type & r) {
 		if (!t) {
 			l = NULL;
 			r = NULL;
 		}
-		else if (keyCompare(key, getKey(t)) < 0) {
+		else if (key_compare(key, get_key(t)) < 0) {
 			split(t->l, key, l, t->l);
 			r = t;
 		}
@@ -133,31 +133,31 @@ private:
 		}
 	}
 
-	void insert(PNodeType & t, PNodeType it) {
+	void insert(p_node_type & t, p_node_type it) {
 		if (!t) {
 			t = it;
 		}
 		else {
-			int cmp_result = priorityCompare(getPriority(it), getPriority(t));
+			int cmp_result = priority_compare(get_priority(it), get_priority(t));
 			if (cmp_result == 0) {
 				cmp_result = rand() & 1 ? 1 : -1;
 			}
 			if (cmp_result > 0) {
-				split(t, getKey(it), it->l, it->r);
+				split(t, get_key(it), it->l, it->r);
 				t = it;
 			}
 			else {
-				insert((keyCompare(getKey(it), getKey(t)) < 0) ? t->l : t->r, it);
+				insert((key_compare(get_key(it), get_key(t)) < 0) ? t->l : t->r, it);
 			}
 		}
 	}
 
-	void merge(PNodeType & t, PNodeType l, PNodeType r) {
+	void merge(p_node_type & t, p_node_type l, p_node_type r) {
 		if (!l || !r) {
 			t = l ? l : r;
 		}
 		else {
-			int cmp_result = priorityCompare(getPriority(l), getPriority(r));
+			int cmp_result = priority_compare(get_priority(l), get_priority(r));
 			if (cmp_result == 0) {
 				cmp_result = rand() & 1 ? 1 : -1;
 			}
@@ -173,12 +173,12 @@ private:
 		}
 	}
 
-	void erase (PNodeType & t, const KeyType& key) {
+	void erase (p_node_type & t, const key_type& key) {
 		if (!t) {
 			throw std::logic_error("erase: element does not exist");
 		}
 
-		int cmp_result = keyCompare(getKey(t), key);
+		int cmp_result = key_compare(get_key(t), key);
 		if (cmp_result == 0) {
 			merge(t, t->l, t->r);
 		}
@@ -187,12 +187,12 @@ private:
 		}
 	}
 
-	PNodeType find(PNodeType t, const KeyType& key, int depth = 0) const {
+	p_node_type find(p_node_type t, const key_type& key, int depth = 0) const {
 		if (!t) {
 			return NULL;
 		}
 
-		int cmp_result = keyCompare(getKey(t), key);
+		int cmp_result = key_compare(get_key(t), key);
 		if (cmp_result == 0) {
 			return t;
 		}
@@ -205,7 +205,7 @@ private:
 		}
 	}
 
-	PNodeType root;
+	p_node_type root;
 };
 
 }}

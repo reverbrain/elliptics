@@ -204,7 +204,7 @@ struct eventtime_less {
 	}
 };
 
-typedef Treap<data_t> treap_t;
+typedef treap<data_t> treap_t;
 
 struct atomic_cache_stats {
 	atomic_cache_stats():

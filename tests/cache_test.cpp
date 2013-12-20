@@ -104,10 +104,9 @@ static void test_cache_overflow(session &sess)
 
 //			BOOST_REQUIRE_LE(stats.pages_sizes[i], stats.pages_max_sizes[i]);
 		}
-//		DB(stats.size_of_objects_marked_for_deletion);
 
 //		BOOST_REQUIRE_LE(stats.size_of_objects, cache_size);
-//		BOOST_REQUIRE_LE(stats.size_of_objects, total_pages_sizes);
+//		BOOST_REQUIRE_EQUAL(stats.size_of_objects, total_pages_sizes);
 	}
 }
 
