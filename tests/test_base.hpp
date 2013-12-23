@@ -151,6 +151,7 @@ struct nodes_data
 #ifndef NO_SERVER
 	std::vector<server_node> nodes;
 	directory_handler directory;
+	int locator_port;
 #endif // NO_SERVER
 
 	std::unique_ptr<ioremap::elliptics::node> node;

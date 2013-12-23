@@ -44,7 +44,7 @@ static void upload_application(const std::string &app_name)
 {
 	using namespace cocaine::framework;
 
-	service_manager_t::endpoint_t endpoint("127.0.0.1", 10053);
+	service_manager_t::endpoint_t endpoint("127.0.0.1", global_data->locator_port);
 	auto manager = service_manager_t::create(endpoint);
 
 	auto storage = manager->get_service<storage_service_t>("storage");
