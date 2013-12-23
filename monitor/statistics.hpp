@@ -30,6 +30,8 @@
 
 #include "../library/elliptics.h"
 
+#include "histogram.hpp"
+
 namespace ioremap { namespace monitor {
 
 class monitor;
@@ -62,88 +64,19 @@ struct command_stat_info {
 	bool			cache;
 };
 
-struct hist_counter {
-	uint_fast64_t	cache;
-	uint_fast64_t	cache_internal;
-	uint_fast64_t	disk;
-	uint_fast64_t	disk_internal;
-};
+struct command_histograms {
+	command_histograms(const std::vector<std::pair<uint64_t, std::string>> &xs,
+	                   const std::vector<std::pair<uint64_t, std::string>> &ys)
+	: cache(xs, ys)
+	, disk(xs, ys)
+	, cache_internal(xs, ys)
+	, disk_internal(xs, ys)
+	{}
 
-struct command_stat_info;
-
-struct histograms {
-	histograms() {
-		clear();
-	}
-	void clear() {
-		memset(read_counters.c_array(), 0, sizeof(hist_counter) * read_counters.size());
-		memset(write_counters.c_array(), 0, sizeof(hist_counter) * write_counters.size());
-		memset(indx_update_counters.c_array(), 0, sizeof(hist_counter) * indx_update_counters.size());
-		memset(indx_internal_counters.c_array(), 0, sizeof(hist_counter) * indx_internal_counters.size());
-	}
-	boost::array<hist_counter, 16>	read_counters;
-	boost::array<hist_counter, 16>	write_counters;
-	boost::array<hist_counter, 16>	indx_update_counters;
-	boost::array<hist_counter, 16>	indx_internal_counters;
-	struct timeval					start;
-
-	int get_indx(const uint32_t size, const unsigned long time) {
-		uint32_t sz_ind = 0;
-		uint32_t tm_ind = 0;
-		if (size > 10000)
-			sz_ind = 3;
-		else if (size > 1000)
-			sz_ind = 2;
-		else if (size > 500)
-			sz_ind = 1;
-
-		if (time > 1000000)
-			tm_ind = 3;
-		else if (time > 100000)
-			tm_ind = 2;
-		else if (time > 5000)
-			tm_ind = 1;
-
-		return 4 * sz_ind + tm_ind;
-	}
-
-	void command_counter(int cmd, const int trans, const int cache,
-	                     const uint32_t size, const unsigned long time) {
-		boost::array<hist_counter, 16> *counters = NULL;
-		switch(cmd) {
-			case DNET_CMD_READ:
-				counters = &read_counters;
-				break;
-			case DNET_CMD_WRITE:
-				counters = &write_counters;
-				break;
-			case DNET_CMD_INDEXES_UPDATE:
-				counters = &indx_update_counters;
-				break;
-			case DNET_CMD_INDEXES_INTERNAL:
-				counters = &indx_internal_counters;
-				break;
-		}
-
-		if (counters == NULL)
-			return;
-
-		hist_counter &counter = (*counters)[get_indx(size, time)];
-
-		if (cache) {
-			if (trans) {
-				++counter.cache;
-			} else {
-				++counter.cache_internal;
-			}
-		} else {
-			if (trans) {
-				++counter.disk;
-			} else {
-				++counter.disk_internal;
-			}
-		}
-	}
+	histogram	cache;
+	histogram	disk;
+	histogram	cache_internal;
+	histogram	disk_internal;
 };
 
 class statistics {
@@ -163,7 +96,6 @@ private:
 	rapidjson::Value& histogram_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
 
 	int cmd_index(int cmd, const int err);
-	histograms prepare_fivesec_histogram();
 	void print_stacktraces(std::ostringstream &stream);
 
 	std::atomic_uint_fast64_t	m_io_queue_size;
@@ -181,11 +113,13 @@ private:
 	mutable std::mutex				m_cmd_info_previous_mutex;
 	std::vector<command_stat_info>	m_cmd_info_previous;
 
-	mutable std::mutex				m_histograms_mutex;
-	std::vector<histograms>			m_histograms;
-	std::vector<histograms>			m_histograms_previous;
-	histograms						m_last_histograms;
 	monitor							&m_monitor;
+
+	mutable std::mutex				m_histograms_mutex;
+	command_histograms				m_read_histograms;
+	command_histograms				m_write_histograms;
+	command_histograms				m_indx_update_histograms;
+	command_histograms				m_indx_internal_histograms;
 };
 
 }} /* namespace ioremap::monitor */

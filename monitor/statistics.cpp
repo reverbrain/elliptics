@@ -29,8 +29,13 @@
 #include "rapidjson/stringbuffer.h"
 
 namespace ioremap { namespace monitor {
+
 statistics::statistics(monitor& mon)
-: m_monitor(mon) {
+: m_monitor(mon)
+, m_read_histograms(default_xs(), default_ys())
+, m_write_histograms(default_xs(), default_ys())
+, m_indx_update_histograms(default_xs(), default_ys())
+, m_indx_internal_histograms(default_xs(), default_ys()) {
 	memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
 	gettimeofday(&m_start_time, NULL);
 }
@@ -83,30 +88,37 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 		m_cmd_info_current.swap(m_cmd_info_previous);
 	}
 
-	struct timeval current;
-	gettimeofday(&current, NULL);
-
-	histograms *hist = NULL;
-
 	std::unique_lock<std::mutex> hist_guard(m_histograms_mutex);
-	if (m_histograms.empty()) {
-		m_histograms.emplace_back(histograms());
-		hist = &m_histograms.back();
-	} else {
-		if (current.tv_sec - m_histograms.back().start.tv_sec < 1) {
-			hist = &m_histograms.back();
-		} else {
-			if (m_histograms.size() == 5) {
-				m_histograms_previous.clear();
-				m_histograms_previous.swap(m_histograms);
-			}
-			m_histograms.emplace_back(histograms());
-			hist = &m_histograms.back();
-		}
+	command_histograms *hist = NULL;
+
+	switch (cmd) {
+		case DNET_CMD_READ:
+			hist = &m_read_histograms;
+			break;
+		case DNET_CMD_WRITE:
+			hist = &m_write_histograms;
+			break;
+		case DNET_CMD_INDEXES_UPDATE:
+			hist = &m_indx_update_histograms;
+			break;
+		case DNET_CMD_INDEXES_INTERNAL:
+			hist = &m_indx_internal_histograms;
+			break;
+		default:
+			return;
 	}
 
-	hist->command_counter(cmd, trans, cache, size, time);
-	m_last_histograms.command_counter(cmd, trans, cache, size, time);
+	if (cache) {
+		if (trans)
+			hist->cache.update(time, size);
+		else
+			hist->cache_internal.update(time, size);
+	} else {
+		if (trans)
+			hist->disk.update(time, size);
+		else
+			hist->disk_internal.update(time, size);
+	}
 }
 
 void statistics::io_queue_stat(const uint64_t current_size,
@@ -282,143 +294,50 @@ rapidjson::Value& statistics::history_report(rapidjson::Value &stat_value, rapid
 	return stat_value;
 }
 
-histograms statistics::prepare_fivesec_histogram() {
-	histograms ret;
-	if (!m_histograms.empty()) {
-		ret.start = m_histograms.front().start;
-		for (auto it = m_histograms.begin(), itEnd = m_histograms.end(); it != itEnd; ++it) {
-			auto begin = it->read_counters.begin(), end = it->read_counters.end();
-			for (auto i = begin; i != end; ++i) {
-				ret.read_counters[i-begin].cache += i->cache;
-				ret.read_counters[i-begin].disk += i->disk;
-				ret.read_counters[i-begin].cache_internal += i->cache_internal;
-				ret.read_counters[i-begin].disk_internal += i->disk_internal;
-			}
-			begin = it->write_counters.begin();
-			end = it->write_counters.end();
-			for (auto i = begin; i != end; ++i) {
-				ret.write_counters[i-begin].cache += i->cache;
-				ret.write_counters[i-begin].disk += i->disk;
-				ret.write_counters[i-begin].cache_internal += i->cache_internal;
-				ret.write_counters[i-begin].disk_internal += i->disk_internal;
-			}
-			begin = it->indx_update_counters.begin();
-			end = it->indx_update_counters.end();
-			for (auto i = begin; i != end; ++i) {
-				ret.indx_update_counters[i-begin].cache += i->cache;
-				ret.indx_update_counters[i-begin].disk += i->disk;
-				ret.indx_update_counters[i-begin].cache_internal += i->cache_internal;
-				ret.indx_update_counters[i-begin].disk_internal += i->disk_internal;
-			}
-			begin = it->indx_internal_counters.begin();
-			end = it->indx_internal_counters.end();
-			for (auto i = begin; i != end; ++i) {
-				ret.indx_internal_counters[i-begin].cache += i->cache;
-				ret.indx_internal_counters[i-begin].disk += i->disk;
-				ret.indx_internal_counters[i-begin].cache_internal += i->cache_internal;
-				ret.indx_internal_counters[i-begin].disk_internal += i->disk_internal;
-			}
-		}
-	}
-	auto left = 5 - m_histograms.size();
-	if (!m_histograms_previous.empty() && left > 0) {
-		for (auto it = m_histograms_previous.rbegin(),
-		     itEnd = m_histograms_previous.rbegin() + left;
-		     it != itEnd; ++it) {
-			auto begin = it->read_counters.begin(), end = it->read_counters.end();
-			for (auto i = begin; i != end; ++i) {
-				ret.read_counters[i-begin].cache += i->cache;
-				ret.read_counters[i-begin].disk += i->disk;
-				ret.read_counters[i-begin].cache_internal += i->cache_internal;
-				ret.read_counters[i-begin].disk_internal += i->disk_internal;
-			}
-			begin = it->write_counters.begin();
-			end = it->write_counters.end();
-			for (auto i = begin; i != end; ++i) {
-				ret.write_counters[i-begin].cache += i->cache;
-				ret.write_counters[i-begin].disk += i->disk;
-				ret.write_counters[i-begin].cache_internal += i->cache_internal;
-				ret.write_counters[i-begin].disk_internal += i->disk_internal;
-			}
-			begin = it->indx_update_counters.begin();
-			end = it->indx_update_counters.end();
-			for (auto i = begin; i != end; ++i) {
-				ret.indx_update_counters[i-begin].cache += i->cache;
-				ret.indx_update_counters[i-begin].disk += i->disk;
-				ret.indx_update_counters[i-begin].cache_internal += i->cache_internal;
-				ret.indx_update_counters[i-begin].disk_internal += i->disk_internal;
-			}
-			begin = it->indx_internal_counters.begin();
-			end = it->indx_internal_counters.end();
-			for (auto i = begin; i != end; ++i) {
-				ret.indx_internal_counters[i-begin].cache += i->cache;
-				ret.indx_internal_counters[i-begin].disk += i->disk;
-				ret.indx_internal_counters[i-begin].cache_internal += i->cache_internal;
-				ret.indx_internal_counters[i-begin].disk_internal += i->disk_internal;
-			}
-		}
-	}
-	return ret;
-}
-
-inline uint_fast64_t get_stat(const boost::array<hist_counter, 16> &hist, size_t i, int place) {
-	switch (place) {
-		case 0:
-			return hist[i].cache;
-		case 1:
-			return hist[i].disk;
-		case 2:
-			return hist[i].cache_internal;
-		case 3:
-			return hist[i].disk_internal;
-		default:
-			return hist[i].cache;
-	}
-}
-
-inline void add_stat(rapidjson::Value &value,
-                     rapidjson::Document::AllocatorType &allocator,
-                     const char* name, const boost::array<hist_counter, 16> &hist,
-                     int place) {
-	size_t i = 0;
-	rapidjson::Value stat(rapidjson::kObjectType);
-	const char* tags_size[] = {"0 bytes", "501 bytes", "1001 bytes", "10001 bytes"};
-	const char* tags_time[] = {"0 usecs", "5001 usecs", "100001 usecs", "1000001 usecs"};
-	for (size_t j = 0, j_end = sizeof(tags_size) / sizeof(tags_size[0]); j < j_end; ++j) {
-		rapidjson::Value time(rapidjson::kObjectType);
-		for (size_t t = 0, t_end = sizeof(tags_time) / sizeof(tags_time[0]); t < t_end; ++t) {
-			time.AddMember(tags_time[t], get_stat(hist, i++, place), allocator);
-		}
-		stat.AddMember(tags_size[j], time, allocator);
-	}
-	value.AddMember(name, stat, allocator);
-}
-
-inline void histogram_print(rapidjson::Value &stat_value,
+inline rapidjson::Value& command_histograms_print(rapidjson::Value &stat_value,
                             rapidjson::Document::AllocatorType &allocator,
-                            const boost::array<hist_counter, 16> &hist,
-                            const char *name) {
-	rapidjson::Value value(rapidjson::kObjectType);
-	add_stat(value, allocator, "cache", hist, 0);
-	add_stat(value, allocator, "disk", hist, 1);
-	add_stat(value, allocator, "cache_internal", hist, 2);
-	add_stat(value, allocator, "disk_internal", hist, 3);
-	stat_value.AddMember(name, value, allocator);
+                            command_histograms &histograms) {
+	rapidjson::Value cache(rapidjson::kObjectType);
+	rapidjson::Value cache_internal(rapidjson::kObjectType);
+	rapidjson::Value disk(rapidjson::kObjectType);
+	rapidjson::Value disk_internal(rapidjson::kObjectType);
+
+	stat_value.AddMember("cache",
+	                     histograms.cache.report(cache, allocator),
+	                     allocator)
+	          .AddMember("cache_internal",
+	                     histograms.cache_internal.report(cache_internal, allocator),
+	                     allocator)
+	          .AddMember("disk",
+	                     histograms.disk.report(disk, allocator),
+	                     allocator)
+	          .AddMember("disk_internal",
+	                     histograms.disk_internal.report(disk_internal, allocator),
+	                     allocator);
+
+	return stat_value;
 }
 
 rapidjson::Value& statistics::histogram_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
 	std::unique_lock<std::mutex> guard(m_histograms_mutex);
-	auto fivesec_hist = prepare_fivesec_histogram();
-	histogram_print(stat_value, allocator, m_last_histograms.read_counters, "last_reads");
-	histogram_print(stat_value, allocator, m_last_histograms.write_counters, "last_writes");
-	histogram_print(stat_value, allocator, m_last_histograms.indx_update_counters, "last_indx_updates");
-	histogram_print(stat_value, allocator, m_last_histograms.indx_internal_counters, "last_indx_internals");
-	histogram_print(stat_value, allocator, fivesec_hist.read_counters, "5sec_reads");
-	histogram_print(stat_value, allocator, fivesec_hist.write_counters, "5sec_writes");
-	histogram_print(stat_value, allocator, fivesec_hist.indx_update_counters, "5sec_indx_updates");
-	histogram_print(stat_value, allocator, fivesec_hist.indx_internal_counters, "5sec_indx_internals");
 
-	m_last_histograms.clear();
+	rapidjson::Value read_stat(rapidjson::kObjectType);
+	rapidjson::Value write_stat(rapidjson::kObjectType);
+	rapidjson::Value indx_update(rapidjson::kObjectType);
+	rapidjson::Value indx_internal(rapidjson::kObjectType);
+
+	stat_value.AddMember("read",
+	                     command_histograms_print(read_stat, allocator, m_read_histograms),
+	                     allocator)
+	          .AddMember("write",
+	                     command_histograms_print(write_stat, allocator, m_write_histograms),
+	                     allocator)
+	          .AddMember("indx_update",
+	                     command_histograms_print(indx_update, allocator, m_indx_update_histograms),
+	                     allocator)
+	          .AddMember("indx_internal",
+	                     command_histograms_print(indx_internal, allocator, m_indx_internal_histograms),
+	                     allocator);
 	return stat_value;
 }
 
