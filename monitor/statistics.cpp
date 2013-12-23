@@ -18,51 +18,21 @@
  */
 
 #include "statistics.hpp"
-#include "monitor.hpp"
-#include "../cache/cache.hpp"
+
 #include <libunwind.h>
 #include <libunwind-ptrace.h>
+
+#include "monitor.hpp"
+#include "../cache/cache.hpp"
+
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
 
 namespace ioremap { namespace monitor {
 statistics::statistics(monitor& mon)
 : m_monitor(mon) {
 	memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
 	gettimeofday(&m_start_time, NULL);
-}
-
-std::string statistics::report() {
-	std::ostringstream out;
-	out << "{";
-	cache_stat(out);
-	struct timeval end_time;
-	gettimeofday(&end_time, NULL);
-	long diff = (end_time.tv_sec - m_start_time.tv_sec) * 1000000 + (end_time.tv_usec - m_start_time.tv_usec);
-	m_start_time = end_time;
-	stat_report(out);
-	cmd_report(out);
-	hist_report(out);
-	print_stacktraces(out);
-	out << ",\"time\":" << diff;
-	out << "}";
-	return std::move(out.str());
-}
-
-void statistics::cache_stat(std::ostringstream &stream) {
-	if (!m_monitor.node()->cache)
-		return;
-
-	auto cache = static_cast<ioremap::cache::cache_manager*>(m_monitor.node()->cache);
-	auto stat = cache->get_total_cache_stats();
-	stream << "\"cache_stat\":{"
-	       << "\"size\":" << stat.size_of_objects << ","
-	       << "\"removing size\":" << stat.size_of_objects_marked_for_deletion << ","
-	       << "\"objects\":" << stat.number_of_objects << ","
-	       << "\"removing objects\":" << stat.number_of_objects_marked_for_deletion
-	       << "}";
-}
-
-void statistics::log() {
-	dnet_log(m_monitor.node(), DNET_LOG_ERROR, "%s", report().c_str());
 }
 
 void statistics::command_counter(int cmd, const int trans, const int err, const int cache,
@@ -157,67 +127,159 @@ int statistics::cmd_index(int cmd, const int err) {
 	return cmd;
 }
 
-void statistics::stat_report(std::ostringstream &stream) {
-	stream << ",\"command_stat\":{";
+inline std::string convert_report(const rapidjson::Document &report) {
+	rapidjson::StringBuffer buffer;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+	report.Accept(writer);
+	return buffer.GetString();
+}
+
+std::string statistics::report() {
+	rapidjson::Document report;
+	report.SetObject();
+	auto &allocator = report.GetAllocator();
+
+	struct timeval end_time;
+	gettimeofday(&end_time, NULL);
+	auto time = (end_time.tv_sec - m_start_time.tv_sec) * 1000000 +
+	                      (end_time.tv_usec - m_start_time.tv_usec);
+	m_start_time = end_time;
+	report.AddMember("time", time, allocator);
+
+	rapidjson::Value cache_value(rapidjson::kObjectType);
+	report.AddMember("cache_stat", cache_stat(cache_value, allocator), allocator);
+	rapidjson::Value commands_value(rapidjson::kObjectType);
+	report.AddMember("commands_stat", commands_stat(commands_value, allocator), allocator);
+	rapidjson::Value history_value(rapidjson::kArrayType);
+	report.AddMember("history_stat", history_report(history_value, allocator), allocator);
+	rapidjson::Value histogram_value(rapidjson::kObjectType);
+	report.AddMember("histogram", histogram_report(histogram_value, allocator), allocator);
+
+	return convert_report(report);
+}
+
+rapidjson::Value& statistics::cache_stat(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	if (!m_monitor.node()->cache)
+		return stat_value;
+
+	auto cache = static_cast<ioremap::cache::cache_manager*>(m_monitor.node()->cache);
+	auto stat = cache->get_total_cache_stats();
+
+	stat_value.AddMember("size", stat.size_of_objects, allocator)
+	          .AddMember("removing size", stat.size_of_objects_marked_for_deletion, allocator)
+	          .AddMember("objects", stat.number_of_objects, allocator)
+	          .AddMember("removing objects", stat.number_of_objects_marked_for_deletion, allocator);
+
+	rapidjson::Value pages_sizes(rapidjson::kArrayType);
+	for (auto it = stat.pages_sizes.begin(), end = stat.pages_sizes.end(); it != end; ++it) {
+		pages_sizes.PushBack(*it, allocator);
+	}
+	stat_value.AddMember("pages sizes", pages_sizes, allocator);
+
+	rapidjson::Value pages_max_sizes(rapidjson::kArrayType);
+	for (auto it = stat.pages_max_sizes.begin(), end = stat.pages_max_sizes.end(); it != end; ++it) {
+		pages_max_sizes.PushBack(*it, allocator);
+	}
+	stat_value.AddMember("pages max sizes", pages_max_sizes, allocator);
+
+	return stat_value;
+}
+
+void statistics::log() {
+	dnet_log(m_monitor.node(), DNET_LOG_ERROR, "%s", report().c_str());
+}
+
+rapidjson::Value& statistics::commands_stat(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
 	std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
 	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
-		stream << "\"" << dnet_cmd_string(i) << "\":{"
-		<< "\"cache\":{\"successes\":" << m_cmd_stats[i].cache_successes
-		<< ",\"failures\":" << m_cmd_stats[i].cache_failures << "},"
-		<< "\"cache_internal\":{\"successes\":" << m_cmd_stats[i].cache_internal_successes
-		<< ",\"failures\": " << m_cmd_stats[i].cache_internal_failures << "},"
-		<< "\"disk\":{\"successes\":" << m_cmd_stats[i].disk_successes
-		<< ",\"failures\":" << m_cmd_stats[i].disk_failures << "},"
-		<< "\"disk_internal\":{\"successes\":" << m_cmd_stats[i].disk_internal_successes
-		<< ",\"failures\":" << m_cmd_stats[i].disk_internal_failures << "},"
-		<< "\"cache_size\":" << m_cmd_stats[i].cache_size << ","
-		<< "\"cache_intenal_size\":" << m_cmd_stats[i].cache_internal_size << ","
-		<< "\"disk_size\": " << m_cmd_stats[i].disk_size << ","
-		<< "\"disk_internal_size\":" << m_cmd_stats[i].disk_internal_size << ","
-		<< "\"cache_time\":" << m_cmd_stats[i].cache_time << ","
-		<< "\"cache_internal_time\":" << m_cmd_stats[i].cache_internal_time << ","
-		<< "\"disk_time\":" << m_cmd_stats[i].disk_time << ","
-		<< "\"disk_internal_time\":" << m_cmd_stats[i].disk_internal_time << "}";
-		if (i < __DNET_CMD_MAX - 1)
-			stream << ",";
+		auto &cmd_stat = m_cmd_stats[i];
+		stat_value.AddMember(dnet_cmd_string(i),
+		                     rapidjson::Value(rapidjson::kObjectType)
+		                     .AddMember("cache",
+		                                rapidjson::Value(rapidjson::kObjectType)
+		                                .AddMember("successes", cmd_stat.cache_successes, allocator)
+		                                .AddMember("failures",  cmd_stat.cache_failures, allocator),
+		                                allocator)
+		                     .AddMember("cache_internal",
+		                                rapidjson::Value(rapidjson::kObjectType)
+		                                .AddMember("successes", cmd_stat.cache_internal_successes, allocator)
+		                                .AddMember("failures",  cmd_stat.cache_internal_failures, allocator),
+		                                allocator)
+		                     .AddMember("disk",
+		                                rapidjson::Value(rapidjson::kObjectType)
+		                                .AddMember("successes", cmd_stat.disk_successes, allocator)
+		                                .AddMember("failures",  cmd_stat.disk_failures, allocator),
+		                                allocator)
+		                     .AddMember("disk_internal",
+		                                rapidjson::Value(rapidjson::kObjectType)
+		                                .AddMember("successes", cmd_stat.disk_internal_successes, allocator)
+		                                .AddMember("failures",  cmd_stat.disk_internal_failures, allocator),
+		                                allocator)
+		                     .AddMember("cache_size",
+		                                cmd_stat.cache_size,
+		                                allocator)
+		                     .AddMember("cache_intenal_size",
+		                                cmd_stat.cache_internal_size,
+		                                allocator)
+		                     .AddMember("disk_size",
+		                                cmd_stat.disk_size,
+		                                allocator)
+		                     .AddMember("disk_internal_size",
+		                                cmd_stat.disk_internal_size,
+		                                allocator)
+		                     .AddMember("cache_time",
+		                                cmd_stat.cache_time,
+		                                allocator)
+		                     .AddMember("cache_internal_time",
+		                                cmd_stat.cache_internal_time,
+		                                allocator)
+		                     .AddMember("disk_time",
+		                                cmd_stat.disk_time,
+		                                allocator)
+		                     .AddMember("disk_internal_time",
+		                                cmd_stat.disk_internal_time,
+		                                allocator),
+		                     allocator);
 	}
-	stream << "}";
-	memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
+	return stat_value;
 }
 
-void statistics::print(std::ostringstream &stream, const command_stat_info &info, bool comma) {
-	if (comma)
-		stream << ",";
-	stream << "{\"" << dnet_cmd_string(info.cmd) << "\":{"
-	<< "\"internal\":" << (info.internal ? "true" : "false") << ","
-	<< "\"cache\":" << (info.cache ? "true" : "false") << ","
-	<< "\"size\":" << info.size << ","
-	<< "\"time\":" << info.time << "}}";
+inline rapidjson::Value& history_print(rapidjson::Value &stat_value,
+                                       rapidjson::Document::AllocatorType &allocator,
+                                       const command_stat_info &info) {
+	stat_value.AddMember(dnet_cmd_string(info.cmd),
+	                     rapidjson::Value(rapidjson::kObjectType)
+	                     .AddMember("internal", (info.internal ? "true" : "false"), allocator)
+	                     .AddMember("cache", (info.cache ? "true" : "false"), allocator)
+	                     .AddMember("size", info.size, allocator)
+	                     .AddMember("time", info.time, allocator),
+	                     allocator);
+	return stat_value;
 }
 
-void statistics::cmd_report(std::ostringstream &stream) {
+rapidjson::Value& statistics::history_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
 	if(m_cmd_info_previous.empty() && m_cmd_info_current.empty())
-		return;
+		return stat_value;
 
-	stream << ",\"history\":[";
-	bool first_comma = false;
 	{
 		std::unique_lock<std::mutex> guard(m_cmd_info_previous_mutex);
 		const auto begin = m_cmd_info_previous.begin(), end = m_cmd_info_previous.end();
 		for (auto it = begin; it != end; ++it) {
-			print(stream, *it, it != begin);
+			rapidjson::Value cmd_value(rapidjson::kObjectType);
+			stat_value.PushBack(history_print(cmd_value, allocator, *it), allocator);
 		}
-		first_comma = !m_cmd_info_previous.empty();
 		m_cmd_info_previous.clear();
 	} {
 		std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
 		const auto begin = m_cmd_info_current.begin(), end = m_cmd_info_current.end();
 		for (auto it = begin; it != end; ++it) {
-			print(stream, *it, it != begin || first_comma);
+			rapidjson::Value cmd_value(rapidjson::kObjectType);
+			stat_value.PushBack(history_print(cmd_value, allocator, *it), allocator);
 		}
 		m_cmd_info_current.clear();
 	}
-	stream << "]";
+
+	return stat_value;
 }
 
 histograms statistics::prepare_fivesec_histogram() {
@@ -299,146 +361,65 @@ histograms statistics::prepare_fivesec_histogram() {
 	return ret;
 }
 
-void statistics::print_hist(std::ostringstream &stream, const boost::array<hist_counter, 16> &hist, const char *name) {
-	auto cache = false, disk = false, cache_internal = false, disk_internal = false, comma = false;
-	for (int i = 0; i < 16; ++i) {
-		if(hist[i].cache)
-			cache = true;
-		if(hist[i].disk)
-			disk = true;
-		if(hist[i].cache_internal)
-			cache_internal = true;
-		if(hist[i].disk_internal)
-			disk_internal = true;
-
-		if(cache && disk && cache_internal && disk_internal)
-			break;
-	}
-
-	if (cache || disk || cache_internal || disk_internal)
-		stream << ",";
-
-	if (cache) {
-		stream << "\n\"" << name << "_cache\":{";
-		stream << "\n\"0-500 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[0].cache << ","
-		       << "\"5001-100000 usecs\":" << hist[1].cache << ","
-		       << "\"100001-1000000 usecs\":" << hist[2].cache << ","
-		       << "\">1000001 usecs\":" << hist[3].cache
-		       << "},\n\"501-1000 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[4].cache << ","
-		       << "\"5001-100000 usecs\":" << hist[5].cache << ","
-		       << "\"100001-1000000 usecs\":" << hist[6].cache << ","
-		       << "\">1000001 usecs\":" << hist[7].cache
-		       << "},\n\"1001-10000 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[8].cache << ","
-		       << "\"5001-100000 usecs\":" << hist[9].cache << ","
-		       << "\"100001-1000000 usecs\":" << hist[10].cache << ","
-		       << "\">1000001 usecs\":" << hist[11].cache
-		       << "},\n\">10001 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[12].cache << ","
-		       << "\"5001-100000 usecs\":" << hist[13].cache << ","
-		       << "\"100001-1000000 usecs\":" << hist[14].cache << ","
-		       << "\">1000001 usecs\":" << hist[15].cache << "}}";
-		comma = true;
-	}
-
-	if (disk) {
-		if(comma)
-			stream << ",";
-		stream << "\n\"" << name << "_disk\":{"
-		       << "\n\"0-500 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[0].disk << ","
-		       << "\"5001-100000 usecs\":" << hist[1].disk << ","
-		       << "\"100001-1000000 usecs\":" << hist[2].disk << ","
-		       << "\">1000001 usecs\":" << hist[3].disk
-		       << "},\n\"501-1000 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[4].disk << ","
-		       << "\"5001-100000 usecs\":" << hist[5].disk << ","
-		       << "\"100001-1000000 usecs\":" << hist[6].disk << ","
-		       << "\">1000001 usecs\":" << hist[7].disk
-		       << "},\n\"1001-10000 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[8].disk << ","
-		       << "\"5001-100000 usecs\":" << hist[9].disk << ","
-		       << "\"100001-1000000 usecs\":" << hist[10].disk << ","
-		       << "\">1000001 usecs\":" << hist[11].disk
-		       << "},\n\">10001 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[12].disk << ","
-		       << "\"5001-100000 usecs\":" << hist[13].disk << ","
-		       << "\"100001-1000000 usecs\":" << hist[14].disk << ","
-		       << "\">1000001 usecs\":" << hist[15].disk << "}}";
-		comma = true;
-	}
-
-	if(cache_internal) {
-		if (comma)
-			stream << ",";
-		stream << "\n\"" << name << "_cache_internal\":{"
-		       << "\n\"0-500 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[0].cache_internal << ","
-		       << "\"5001-100000 usecs\":" << hist[1].cache_internal << ","
-		       << "\"100001-1000000 usecs\":" << hist[2].cache_internal << ","
-		       << "\">1000001 usecs\":" << hist[3].cache_internal
-		       << "},\n\"501-1000 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[4].cache_internal << ","
-		       << "\"5001-100000 usecs\":" << hist[5].cache_internal << ","
-		       << "\"100001-1000000 usecs\":" << hist[6].cache_internal << ","
-		       << "\">1000001 usecs\":" << hist[7].cache_internal
-		       << "},\n\"1001-10000 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[8].cache_internal << ","
-		       << "\"5001-100000 usecs\":" << hist[9].cache_internal << ","
-		       << "\"100001-1000000 usecs\":" << hist[10].cache_internal << ","
-		       << "\">1000001 usecs\":" << hist[11].cache_internal
-		       << "},\n\">10001 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[12].cache_internal << ","
-		       << "\"5001-100000 usecs\":" << hist[13].cache_internal << ","
-		       << "\"100001-1000000 usecs\":" << hist[14].cache_internal << ","
-		       << "\">1000001 usecs\":" << hist[15].cache_internal << "}}";
-		comma = true;
-	}
-
-
-	if (disk_internal) {
-		if (comma)
-			stream << ",";
-		stream << "\n\"" << name << "_disk_internal\":{"
-		       << "\n\"0-500 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[0].disk_internal << ","
-		       << "\"5001-100000 usecs\":" << hist[1].disk_internal << ","
-		       << "\"100001-1000000 usecs\":" << hist[2].disk_internal << ","
-		       << "\">1000001 usecs\":" << hist[3].disk_internal
-		       << "},\n\"501-1000 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[4].disk_internal << ","
-		       << "\"5001-100000 usecs\":" << hist[5].disk_internal << ","
-		       << "\"100001-1000000 usecs\":" << hist[6].disk_internal << ","
-		       << "\">1000001 usecs\":" << hist[7].disk_internal
-		       << "},\n\"1001-10000 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[8].disk_internal << ","
-		       << "\"5001-100000 usecs\":" << hist[9].disk_internal << ","
-		       << "\"100001-1000000 usecs\":" << hist[10].disk_internal << ","
-		       << "\">1000001 usecs\":" << hist[11].disk_internal
-		       << "},\n\">10001 bytes\":{"
-		       << "\"0-5000 usecs\":" << hist[12].disk_internal << ","
-		       << "\"5001-100000 usecs\":" << hist[13].disk_internal << ","
-		       << "\"100001-1000000 usecs\":" << hist[14].disk_internal << ","
-		       << "\">1000001 usecs\":" << hist[15].disk_internal
-		       << "}}";
+inline uint_fast64_t get_stat(const boost::array<hist_counter, 16> &hist, size_t i, int place) {
+	switch (place) {
+		case 0:
+			return hist[i].cache;
+		case 1:
+			return hist[i].disk;
+		case 2:
+			return hist[i].cache_internal;
+		case 3:
+			return hist[i].disk_internal;
+		default:
+			return hist[i].cache;
 	}
 }
 
-void statistics::hist_report(std::ostringstream &stream) {
+inline void add_stat(rapidjson::Value &value,
+                     rapidjson::Document::AllocatorType &allocator,
+                     const char* name, const boost::array<hist_counter, 16> &hist,
+                     int place) {
+	size_t i = 0;
+	rapidjson::Value stat(rapidjson::kObjectType);
+	const char* tags_size[] = {"0 bytes", "501 bytes", "1001 bytes", "10001 bytes"};
+	const char* tags_time[] = {"0 usecs", "5001 usecs", "100001 usecs", "1000001 usecs"};
+	for (size_t j = 0, j_end = sizeof(tags_size) / sizeof(tags_size[0]); j < j_end; ++j) {
+		rapidjson::Value time(rapidjson::kObjectType);
+		for (size_t t = 0, t_end = sizeof(tags_time) / sizeof(tags_time[0]); t < t_end; ++t) {
+			time.AddMember(tags_time[t], get_stat(hist, i++, place), allocator);
+		}
+		stat.AddMember(tags_size[j], time, allocator);
+	}
+	value.AddMember(name, stat, allocator);
+}
+
+inline void histogram_print(rapidjson::Value &stat_value,
+                            rapidjson::Document::AllocatorType &allocator,
+                            const boost::array<hist_counter, 16> &hist,
+                            const char *name) {
+	rapidjson::Value value(rapidjson::kObjectType);
+	add_stat(value, allocator, "cache", hist, 0);
+	add_stat(value, allocator, "disk", hist, 1);
+	add_stat(value, allocator, "cache_internal", hist, 2);
+	add_stat(value, allocator, "disk_internal", hist, 3);
+	stat_value.AddMember(name, value, allocator);
+}
+
+rapidjson::Value& statistics::histogram_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
 	std::unique_lock<std::mutex> guard(m_histograms_mutex);
 	auto fivesec_hist = prepare_fivesec_histogram();
-	print_hist(stream, m_last_histograms.read_counters, "last_reads");
-	print_hist(stream, m_last_histograms.write_counters, "last_writes");
-	print_hist(stream, m_last_histograms.indx_update_counters, "last_indx_updates");
-	print_hist(stream, m_last_histograms.indx_internal_counters, "last_indx_internals");
-	print_hist(stream, fivesec_hist.read_counters, "5sec_reads");
-	print_hist(stream, fivesec_hist.write_counters, "5sec_writes");
-	print_hist(stream, fivesec_hist.indx_update_counters, "5sec_indx_updates");
-	print_hist(stream, fivesec_hist.indx_internal_counters, "5sec_indx_internals");
+	histogram_print(stat_value, allocator, m_last_histograms.read_counters, "last_reads");
+	histogram_print(stat_value, allocator, m_last_histograms.write_counters, "last_writes");
+	histogram_print(stat_value, allocator, m_last_histograms.indx_update_counters, "last_indx_updates");
+	histogram_print(stat_value, allocator, m_last_histograms.indx_internal_counters, "last_indx_internals");
+	histogram_print(stat_value, allocator, fivesec_hist.read_counters, "5sec_reads");
+	histogram_print(stat_value, allocator, fivesec_hist.write_counters, "5sec_writes");
+	histogram_print(stat_value, allocator, fivesec_hist.indx_update_counters, "5sec_indx_updates");
+	histogram_print(stat_value, allocator, fivesec_hist.indx_internal_counters, "5sec_indx_internals");
 
 	m_last_histograms.clear();
+	return stat_value;
 }
 
 void statistics::print_stacktraces(std::ostringstream &/*stream*/) {

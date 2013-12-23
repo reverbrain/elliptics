@@ -26,6 +26,8 @@
 
 #include <boost/array.hpp>
 
+#include "rapidjson/document.h"
+
 #include "../library/elliptics.h"
 
 namespace ioremap { namespace monitor {
@@ -148,7 +150,6 @@ class statistics {
 public:
 	statistics(monitor& mon);
 	std::string report();
-	void cache_stat(std::ostringstream &stream);
 	void log();
 	void command_counter(int cmd, const int trans, const int err, const int cache,
 	                     const uint32_t size, const unsigned long time);
@@ -156,13 +157,13 @@ public:
 	                   const uint64_t min_size, const uint64_t max_size,
 	                   const uint64_t volume, const uint64_t time);
 private:
+	rapidjson::Value& cache_stat(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
+	rapidjson::Value& commands_stat(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
+	rapidjson::Value& history_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
+	rapidjson::Value& histogram_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
+
 	int cmd_index(int cmd, const int err);
-	void stat_report(std::ostringstream &stream);
-	void print(std::ostringstream &stream, const command_stat_info &info, bool comma);
-	void cmd_report(std::ostringstream &stream);
 	histograms prepare_fivesec_histogram();
-	void print_hist(std::ostringstream &stream, const boost::array<hist_counter, 16> &hist, const char *name);
-	void hist_report(std::ostringstream &stream);
 	void print_stacktraces(std::ostringstream &stream);
 
 	std::atomic_uint_fast64_t	m_io_queue_size;
