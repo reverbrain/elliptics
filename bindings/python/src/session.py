@@ -97,7 +97,7 @@ class Session(Session):
         """
         if type(indexes) is dict:
             datas = indexes.values()
-            indexes = indexes.values()
+            indexes = indexes.keys()
 
         return super(Session, self).update_indexes(id, indexes, datas)
 
@@ -126,6 +126,6 @@ class Session(Session):
         """
         if type(indexes) is dict:
             datas = indexes.values()
-            indexes = indexes.values()
+            indexes = indexes.keys()
 
         return super(Session, self).update_indexes_internal(id, indexes, datas)
