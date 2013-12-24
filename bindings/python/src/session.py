@@ -69,7 +69,7 @@ class Session(Session):
         """
         if type(indexes) is dict:
             datas = indexes.values()
-            indexes = indexes.values()
+            indexes = indexes.keys()
 
         return super(Session, self).set_indexes(id, indexes, datas)
 
