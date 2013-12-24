@@ -31,16 +31,16 @@ namespace ioremap { namespace monitor {
 class histogram {
 public:
 	histogram(const std::vector<std::pair<uint64_t, std::string>> &xs,
-	          const std::vector<std::pair<uint64_t, std::string>> &ys);
+	          const std::vector<std::pair<uint64_t, std::string>> &ys,
+	          size_t history_depth = 5);
 
 	void update(uint64_t x, uint64_t y);
 
 	rapidjson::Value& report(rapidjson::Value &stat_value,
 	                         rapidjson::Document::AllocatorType &allocator);
-	void clear_last();
 
 	struct data {
-		data(size_t size);
+		data(size_t size, const struct timeval *time = NULL);
 		std::vector<uint_fast64_t>	counters;
 		struct timeval				timestamp;
 	};
@@ -50,11 +50,14 @@ private:
 	                             rapidjson::Document::AllocatorType &allocator,
 	                             histogram::data &data);
 	size_t get_indx(uint64_t x, uint64_t y);
+	void clear_last();
+	void validate_snapshots();
 
 	std::vector<std::pair<uint64_t, std::string>>	m_xs;
 	std::vector<std::pair<uint64_t, std::string>>	m_ys;
 	std::list<data>									m_snapshots;
 	data											m_last_data;
+	size_t											m_history_depth;
 };
 
 std::vector<std::pair<uint64_t, std::string>> default_xs();

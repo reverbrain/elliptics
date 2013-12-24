@@ -29,34 +29,30 @@ bool cmp(const std::pair<uint64_t, std::string> &lh,
 	return (lh.first < rh.first);
 }
 
-histogram::data::data(size_t size)
+histogram::data::data(size_t size, const struct timeval *time)
 : counters(size, 0) {
-	gettimeofday(&timestamp, NULL);
+	if (time == NULL)
+		gettimeofday(&timestamp, NULL);
+	else
+		timestamp = *time;
 }
 
 histogram::histogram(const std::vector<std::pair<uint64_t, std::string>> &xs,
-                     const std::vector<std::pair<uint64_t, std::string>> &ys)
+                     const std::vector<std::pair<uint64_t, std::string>> &ys,
+                     size_t history_depth)
 : m_xs(xs)
 , m_ys(ys)
-, m_last_data(xs.size() * ys.size()) {
+, m_last_data(xs.size() * ys.size())
+, m_history_depth(history_depth) {
 	std::sort(m_xs.begin(), m_xs.end(), cmp);
 	std::sort(m_ys.begin(), m_ys.end(), cmp);
 	m_snapshots.emplace_back(xs.size() * ys.size());
 }
 
 void histogram::update(uint64_t x, uint64_t y) {
-	struct timeval current;
-	gettimeofday(&current, NULL);
-
-	if (current.tv_sec - m_snapshots.rbegin()->timestamp.tv_sec > 1) {
-		m_snapshots.emplace_back(m_xs.size() * m_ys.size());
-		if (m_snapshots.size() > 5) {
-			m_snapshots.erase(m_snapshots.begin());
-		}
-	}
+	validate_snapshots();
 
 	auto indx = get_indx(x, y);
-
 	m_snapshots.rbegin()->counters[indx] += 1;
 	m_last_data.counters[indx] += 1;
 }
@@ -90,19 +86,18 @@ rapidjson::Value& histogram::print_data(rapidjson::Value &stat_value,
 
 	stat_value.AddMember(m_ys.rbegin()->second.c_str(), data_value, allocator);
 
-	struct timeval current;
-	gettimeofday(&current, NULL);
-
-	auto time = (current.tv_sec - data.timestamp.tv_sec) * 1000000 +
-	            (current.tv_usec - data.timestamp.tv_usec);
-
-	stat_value.AddMember("time", time, allocator);
+	stat_value.AddMember("time",
+	                     rapidjson::Value(rapidjson::kObjectType)
+	                         .AddMember("tv_sec", data.timestamp.tv_sec, allocator)
+	                         .AddMember("tv_usec", data.timestamp.tv_usec, allocator),
+	                     allocator);
 
 	return stat_value;
 }
 
 rapidjson::Value& histogram::report(rapidjson::Value &stat_value,
                                     rapidjson::Document::AllocatorType &allocator) {
+	validate_snapshots();
 
 	rapidjson::Value snapshots(rapidjson::kArrayType);
 	snapshots.Reserve(m_snapshots.size(), allocator);
@@ -126,6 +121,25 @@ rapidjson::Value& histogram::report(rapidjson::Value &stat_value,
 
 void histogram::clear_last() {
 	memset(m_last_data.counters.data(), 0, m_last_data.counters.size() * sizeof(m_last_data.counters.front()));
+}
+
+void histogram::validate_snapshots() {
+	struct timeval timestamp;
+	gettimeofday(&timestamp, NULL);
+
+	auto delta_sec = std::min(size_t(timestamp.tv_sec - m_snapshots.rbegin()->timestamp.tv_sec),
+	                          m_history_depth);
+
+	if (delta_sec >= 1) {
+		timestamp.tv_sec -= delta_sec - 1;
+		for (int i = 0; i < delta_sec; ++i, ++timestamp.tv_sec) {
+			m_snapshots.emplace_back(m_xs.size() * m_ys.size(), &timestamp);
+		}
+
+		for (auto size = m_snapshots.size(); size > m_history_depth; --size) {
+			m_snapshots.erase(m_snapshots.begin());
+		}
+	}
 }
 
 std::vector<std::pair<uint64_t, std::string>> default_xs() {

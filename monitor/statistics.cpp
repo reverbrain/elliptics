@@ -297,22 +297,22 @@ rapidjson::Value& statistics::history_report(rapidjson::Value &stat_value, rapid
 inline rapidjson::Value& command_histograms_print(rapidjson::Value &stat_value,
                             rapidjson::Document::AllocatorType &allocator,
                             command_histograms &histograms) {
-	rapidjson::Value cache(rapidjson::kObjectType);
-	rapidjson::Value cache_internal(rapidjson::kObjectType);
 	rapidjson::Value disk(rapidjson::kObjectType);
+	rapidjson::Value cache(rapidjson::kObjectType);
 	rapidjson::Value disk_internal(rapidjson::kObjectType);
+	rapidjson::Value cache_internal(rapidjson::kObjectType);
 
-	stat_value.AddMember("cache",
-	                     histograms.cache.report(cache, allocator),
-	                     allocator)
-	          .AddMember("cache_internal",
-	                     histograms.cache_internal.report(cache_internal, allocator),
-	                     allocator)
-	          .AddMember("disk",
+	stat_value.AddMember("disk",
 	                     histograms.disk.report(disk, allocator),
+	                     allocator)
+	          .AddMember("cache",
+	                     histograms.cache.report(cache, allocator),
 	                     allocator)
 	          .AddMember("disk_internal",
 	                     histograms.disk_internal.report(disk_internal, allocator),
+	                     allocator)
+	          .AddMember("cache_internal",
+	                     histograms.cache_internal.report(cache_internal, allocator),
 	                     allocator);
 
 	return stat_value;
