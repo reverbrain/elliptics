@@ -14,6 +14,7 @@
  */
 
 #include "cache.hpp"
+#include "../monitor/monitor.h"
 #include "slru_cache.hpp"
 
 #include <fstream>

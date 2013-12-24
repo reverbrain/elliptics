@@ -635,7 +635,7 @@ data_t* slru_cache_t::create_data(const unsigned char *id, const char *data, siz
 
 	insert_data_into_page(id, last_page_number, raw);
 
-	m_cache_stats.number_of_objects++;
+	++m_cache_stats.number_of_objects;
 	m_cache_stats.size_of_objects += raw->size();
 	m_treap.insert(raw);
 	return raw;

@@ -2,17 +2,17 @@
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
  * This file is part of Elliptics.
- * 
+ *
  * Elliptics is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -36,6 +36,7 @@
 #include <unistd.h>
 
 #include "elliptics.h"
+#include "../monitor/monitor.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -1053,9 +1054,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 {
 	int err = 0;
 	unsigned long long size = cmd->size;
+	unsigned long long data_size = 0;
 	struct dnet_node *n = st->n;
 	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
-	struct dnet_io_attr *io;
+	struct dnet_io_attr *io = NULL;
 #if 0
 	struct dnet_indexes_request *indexes_request;
 #endif
@@ -1067,6 +1069,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 #define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
 
 	long diff;
+	int handled_in_cache = 0;
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
 		dnet_oplock(n, &cmd->id);
@@ -1184,8 +1187,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (!(io->flags & DNET_IO_FLAGS_NOCACHE)) {
 				err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
 
-				if (err != -ENOTSUP)
+				if (err != -ENOTSUP) {
+					handled_in_cache = 1;
 					break;
+				}
 			}
 
 			if ((io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) && (cmd->cmd == DNET_CMD_WRITE)) {
@@ -1200,8 +1205,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (cmd->cmd == DNET_CMD_LOOKUP && !(cmd->flags & DNET_FLAGS_NOCACHE)) {
 				err = dnet_cmd_cache_lookup(st, cmd);
 
-				if (err != -ENOTSUP)
+				if (err != -ENOTSUP) {
+					handled_in_cache = 1;
 					break;
+				}
 			}
 
 			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command
@@ -1234,6 +1241,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	gettimeofday(&end, NULL);
 
 	diff = DIFF(start, end);
+	monitor_command_counter(n->monitor, cmd->cmd, tid, err, handled_in_cache, io ? io->size : 0, diff);
 	dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), tid,
 			(unsigned long long)cmd->flags, diff, err);

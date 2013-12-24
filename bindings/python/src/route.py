@@ -29,7 +29,7 @@ class Address(object):
     # Allowed families, 0 means any
     ALLOWED_FAMILIES = (0, AF_INET, AF_INET6)
 
-    def __init__(self, host, port, family=0, group_id=0):
+    def __init__(self, host, port=None, family=0, group_id=0):
         """
         Initializes Address from host, port and optional family, group_id\n
         address = elliptics.Address(host='host.com', port=1025,
