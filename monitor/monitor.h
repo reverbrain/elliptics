@@ -38,9 +38,6 @@ void dnet_monitor_exit(struct dnet_node *n);
 void monitor_command_counter(void *monitor, const int cmd, const int trans,
                              const int err, const int cache,
                              const uint32_t size, const unsigned long time);
-void monitor_io_queue_stat(void *monitor, const uint64_t current_size,
-                           const uint64_t min_size, const uint64_t max_size,
-                           const uint64_t volume, const unsigned long time);
 
 #ifdef __cplusplus
 }

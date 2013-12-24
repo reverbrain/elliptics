@@ -132,7 +132,7 @@ void histogram::validate_snapshots() {
 
 	if (delta_sec >= 1) {
 		timestamp.tv_sec -= delta_sec - 1;
-		for (int i = 0; i < delta_sec; ++i, ++timestamp.tv_sec) {
+		for (size_t i = 0; i < delta_sec; ++i, ++timestamp.tv_sec) {
 			m_snapshots.emplace_back(m_xs.size() * m_ys.size(), &timestamp);
 		}
 

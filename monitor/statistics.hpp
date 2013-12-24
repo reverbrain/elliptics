@@ -86,23 +86,12 @@ public:
 	void log();
 	void command_counter(int cmd, const int trans, const int err, const int cache,
 	                     const uint32_t size, const unsigned long time);
-	void io_queue_stat(const uint64_t current_size,
-	                   const uint64_t min_size, const uint64_t max_size,
-	                   const uint64_t volume, const uint64_t time);
 private:
-	rapidjson::Value& cache_stat(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
-	rapidjson::Value& commands_stat(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
+	rapidjson::Value& io_queue_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
+	rapidjson::Value& cache_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
+	rapidjson::Value& commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
 	rapidjson::Value& history_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
 	rapidjson::Value& histogram_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
-
-	int cmd_index(int cmd, const int err);
-	void print_stacktraces(std::ostringstream &stream);
-
-	std::atomic_uint_fast64_t	m_io_queue_size;
-	std::atomic_uint_fast64_t	m_io_queue_volume;
-	std::atomic_uint_fast64_t	m_io_queue_max;
-	std::atomic_uint_fast64_t	m_io_queue_min;
-	std::atomic_uint_fast64_t	m_io_queue_time;
 
 	mutable std::mutex				m_cmd_info_mutex;
 	boost::array<command_counters, __DNET_CMD_MAX> m_cmd_stats;

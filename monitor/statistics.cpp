@@ -19,9 +19,6 @@
 
 #include "statistics.hpp"
 
-#include <libunwind.h>
-#include <libunwind-ptrace.h>
-
 #include "monitor.hpp"
 #include "../cache/cache.hpp"
 
@@ -121,24 +118,6 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 	}
 }
 
-void statistics::io_queue_stat(const uint64_t current_size,
-                   const uint64_t min_size, const uint64_t max_size,
-                   const uint64_t volume, const uint64_t time) {
-	m_io_queue_size = current_size;
-	m_io_queue_volume = volume;
-	m_io_queue_max = max_size;
-	m_io_queue_min = min_size;
-	m_io_queue_time = time;
-}
-
-int statistics::cmd_index(int cmd, const int err) {
-	if (cmd >= __DNET_CMD_MAX || cmd <= 0)
-		cmd = DNET_CMD_UNKNOWN;
-
-	cmd = cmd * 2 + (err ? 1 : 0);
-	return cmd;
-}
-
 inline std::string convert_report(const rapidjson::Document &report) {
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -158,10 +137,12 @@ std::string statistics::report() {
 	m_start_time = end_time;
 	report.AddMember("time", time, allocator);
 
+	rapidjson::Value io_queue_value(rapidjson::kObjectType);
+	report.AddMember("io_queue_stat", io_queue_report(io_queue_value, allocator), allocator);
 	rapidjson::Value cache_value(rapidjson::kObjectType);
-	report.AddMember("cache_stat", cache_stat(cache_value, allocator), allocator);
+	report.AddMember("cache_stat", cache_report(cache_value, allocator), allocator);
 	rapidjson::Value commands_value(rapidjson::kObjectType);
-	report.AddMember("commands_stat", commands_stat(commands_value, allocator), allocator);
+	report.AddMember("commands_stat", commands_report(commands_value, allocator), allocator);
 	rapidjson::Value history_value(rapidjson::kArrayType);
 	report.AddMember("history_stat", history_report(history_value, allocator), allocator);
 	rapidjson::Value histogram_value(rapidjson::kObjectType);
@@ -170,7 +151,25 @@ std::string statistics::report() {
 	return convert_report(report);
 }
 
-rapidjson::Value& statistics::cache_stat(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+rapidjson::Value& statistics::io_queue_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	auto st = m_monitor.node()->io->recv_pool->list_stats;
+	auto elapsed_seconds = (m_start_time.tv_sec - st.time_base.tv_sec) * 1000000 +
+	                       (m_start_time.tv_usec - st.time_base.tv_usec);
+
+	auto min = st.min_list_size;
+	if (min == ~0ULL)
+		min = 0ULL;
+
+
+	stat_value.AddMember("size", st.list_size, allocator)
+	          .AddMember("volume", st.volume, allocator)
+	          .AddMember("min", min, allocator)
+	          .AddMember("max", st.max_list_size, allocator)
+	          .AddMember("time", elapsed_seconds, allocator);
+	return stat_value;
+}
+
+rapidjson::Value& statistics::cache_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
 	if (!m_monitor.node()->cache)
 		return stat_value;
 
@@ -201,7 +200,7 @@ void statistics::log() {
 	dnet_log(m_monitor.node(), DNET_LOG_ERROR, "%s", report().c_str());
 }
 
-rapidjson::Value& statistics::commands_stat(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
 	std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
 	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
 		auto &cmd_stat = m_cmd_stats[i];
@@ -339,33 +338,6 @@ rapidjson::Value& statistics::histogram_report(rapidjson::Value &stat_value, rap
 	                     command_histograms_print(indx_internal, allocator, m_indx_internal_histograms),
 	                     allocator);
 	return stat_value;
-}
-
-void statistics::print_stacktraces(std::ostringstream &/*stream*/) {
-	auto pid = getpid();
-	printf("PID: %d\n", pid);
-	unw_cursor_t cursor;
-	unw_context_t uc;
-	unw_word_t ip, sp, off;
-	unw_proc_info_t pi;
-	int n = 0, ret;
-	unw_addr_space_t as;
-	as = unw_create_addr_space(&_UPT_accessors, 0);
-	unw_accessors_t *ui = (unw_accessors_t*)_UPT_create (pid);
-
-	ret = unw_init_remote(&cursor, as, &pid);
-
-	unw_getcontext(&uc);
-	unw_init_local(&cursor, &uc);
-	char buff[1024];
-	while (unw_step(&cursor) > 0) {
-		unw_get_proc_name(&cursor, buff, 1024, &off);
-		unw_get_reg(&cursor, UNW_REG_IP, &ip);
-		unw_get_reg(&cursor, UNW_REG_SP, &sp);
-		printf ("ip = %lx, sp = %lx: %s\n", (long) ip, (long) sp, buff);
-	}
-
-	_UPT_destroy(ui);
 }
 
 }} /* namespace ioremap::monitor */

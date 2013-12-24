@@ -82,12 +82,3 @@ void monitor_command_counter(void *monitor, const int cmd, const int trans,
 		real_monitor->get_statistics().command_counter(cmd, trans, err, cache, size, time);
 	}
 }
-
-void monitor_io_queue_stat(void *monitor, const uint64_t current_size,
-                           const uint64_t min_size, const uint64_t max_size,
-                           const uint64_t volume, const uint64_t time) {
-	auto real_monitor = monitor_cast(monitor);
-	if (real_monitor) {
-		real_monitor->get_statistics().io_queue_stat(current_size, min_size, max_size, volume, time);
-	}
-}
