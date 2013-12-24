@@ -857,7 +857,15 @@ int dnet_digest_auth_transform_raw(const void *src, uint64_t size, const void *k
  */
 void dnet_indexes_transform_object_id(struct dnet_node *node, const struct dnet_id *src, struct dnet_id *id);
 /*
- * Transform index id to id where to store secondary index's objects table
+ * Transform index id to id where to store secondary index's objects table.
+ * _prepare method makes initial transformation generic for every shard.
+ * _id_raw method makes shard-specific changes.
+ */
+void dnet_indexes_transform_index_prepare(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id);
+void dnet_indexes_transform_index_id_raw(struct dnet_node *node, struct dnet_raw_id *id, int shard_id);
+/*
+ * Transform index id to id where to store secondary index's objects table.
+ * It's equal to iterative calls of _prepare and _id_raw method.
  */
 void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id, int shard_id);
 int dnet_indexes_get_shard_id(struct dnet_node *node, const struct dnet_raw_id *object_id);

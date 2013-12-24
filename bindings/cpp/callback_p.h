@@ -840,15 +840,22 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 			 * to certain shard for all indexes. This logical requests may be joined to one
 			 * transaction if some of shards are situated on one elliptics node.
 			 */
-			for (int shard_id = 0; shard_id < shard_count; ++shard_id) {
-				for (size_t j = 0; j < indexes.size(); ++j) {
-					dnet_raw_id &id = id_precalc[shard_id * indexes.size() + j];
+			dnet_raw_id tmp;
 
-					dnet_indexes_transform_index_id(node, &indexes[j], &id, shard_id);
+			for (size_t index = 0; index < indexes.size(); ++index) {
+				dnet_indexes_transform_index_prepare(node, &indexes[index], &tmp);
 
-					convert_map[id] = indexes[j];
+				for (int shard_id = 0; shard_id < shard_count; ++shard_id) {
+					dnet_raw_id &id = id_precalc[shard_id * indexes.size() + index];
+
+					memcpy(&id, &tmp, sizeof(dnet_raw_id));
+					dnet_indexes_transform_index_id_raw(node, &id, shard_id);
+
+					convert_map[id] = indexes[index];
 				}
+			}
 
+			for (int shard_id = 0; shard_id < shard_count; ++shard_id) {
 				index_requests_set.insert(index_id(id_precalc[shard_id * indexes.size()], shard_id));
 			}
 
