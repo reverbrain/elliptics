@@ -21,12 +21,22 @@ public:
 
 	int lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd);
 
+	void clear();
+
 	cache_stats get_cache_stats() const;
 
 private:
+
+	int write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data);
+
+	std::shared_ptr<raw_data_t> read_(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io);
+
+	int remove_(const unsigned char *id, dnet_io_attr *io);
+
+	int lookup_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd);
+
 	bool m_need_exit;
 	struct dnet_node *m_node;
-	size_t m_cache_size, m_max_cache_size;
 	std::mutex m_lock;
 	size_t m_cache_pages_number;
 	std::vector<size_t> m_cache_pages_max_sizes;
@@ -34,7 +44,9 @@ private:
 	std::unique_ptr<lru_list_t[]> m_cache_pages_lru;
 	std::thread m_lifecheck;
 	treap_t m_treap;
-	mutable cache_stats m_cache_stats;
+	std::size_t finds_number;
+	std::size_t total_find_time;
+	mutable atomic_cache_stats m_cache_stats;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 
@@ -61,6 +73,8 @@ private:
 	data_t* create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk);
 
 	data_t* populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err);
+
+	bool have_enough_space(const unsigned char *id, size_t page_number, size_t reserve);
 
 	void resize_page(const unsigned char *id, size_t page_number, size_t reserve);
 
