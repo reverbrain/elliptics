@@ -48,14 +48,17 @@ void histogram::update(uint64_t x, uint64_t y) {
 	struct timeval current;
 	gettimeofday(&current, NULL);
 
-	if(current.tv_sec - m_snapshots.rbegin()->timestamp.tv_sec < 1) {
+	if (current.tv_sec - m_snapshots.rbegin()->timestamp.tv_sec > 1) {
 		m_snapshots.emplace_back(m_xs.size() * m_ys.size());
-		if (m_snapshots.size() > 5)
+		if (m_snapshots.size() > 5) {
 			m_snapshots.erase(m_snapshots.begin());
+		}
 	}
 
-	m_snapshots.rbegin()->counters[get_indx(x, y)] += 1;
+	auto indx = get_indx(x, y);
 
+	m_snapshots.rbegin()->counters[indx] += 1;
+	m_last_data.counters[indx] += 1;
 }
 
 struct lower_cmp {
@@ -65,7 +68,7 @@ struct lower_cmp {
 	}
 };
 
-int histogram::get_indx(uint64_t x, uint64_t y) {
+size_t histogram::get_indx(uint64_t x, uint64_t y) {
 	auto indx_x = std::lower_bound(m_xs.begin(),m_xs.end(), x, lower_cmp());
 	auto indx_y = std::lower_bound(m_ys.begin(), m_ys.end(), y, lower_cmp());
 	return std::distance(m_ys.begin(), indx_y) * m_xs.size() + (indx_x - m_xs.begin());
@@ -79,7 +82,7 @@ rapidjson::Value& histogram::print_data(rapidjson::Value &stat_value,
 		auto x = i % m_xs.size();
 		auto y = i / m_xs.size();
 		if (x == 0 && i != 0) {
-			stat_value.AddMember(m_ys[y].second.c_str(), data_value, allocator);
+			stat_value.AddMember(m_ys[y - 1].second.c_str(), data_value, allocator);
 			data_value.SetObject();
 		}
 		data_value.AddMember(m_xs[x].second.c_str(), data.counters[i], allocator);
@@ -102,6 +105,7 @@ rapidjson::Value& histogram::report(rapidjson::Value &stat_value,
                                     rapidjson::Document::AllocatorType &allocator) {
 
 	rapidjson::Value snapshots(rapidjson::kArrayType);
+	snapshots.Reserve(m_snapshots.size(), allocator);
 	for (auto it =  m_snapshots.begin(), end = m_snapshots.end(); it != end; ++it) {
 		rapidjson::Value snapshot_value(rapidjson::kObjectType);
 		snapshots.PushBack(print_data(snapshot_value, allocator, *it),
@@ -111,7 +115,7 @@ rapidjson::Value& histogram::report(rapidjson::Value &stat_value,
 	stat_value.AddMember("snapshots", snapshots, allocator);
 
 	rapidjson::Value last_value(rapidjson::kObjectType);
-	stat_value.AddMember("snapshots",
+	stat_value.AddMember("last_snapshot",
 	                     print_data(last_value, allocator, m_last_data),
 	                     allocator);
 
@@ -126,19 +130,19 @@ void histogram::clear_last() {
 
 std::vector<std::pair<uint64_t, std::string>> default_xs() {
 	static std::vector<std::pair<uint64_t, std::string>> ret =
-	{ std::make_pair<uint64_t, std::string>(0, "0 usecs"),
-      std::make_pair<uint64_t, std::string>(5001, "5001 usecs"),
-      std::make_pair<uint64_t, std::string>(100001, "100001 usecs"),
-      std::make_pair<uint64_t, std::string>(1000001, "1000001 usecs")};
+	{ std::make_pair<uint64_t, std::string>(500, "<500 usecs"),
+	  std::make_pair<uint64_t, std::string>(5000, "<5000 usecs"),
+	  std::make_pair<uint64_t, std::string>(100000, "<100000 usecs"),
+	  std::make_pair<uint64_t, std::string>(100001, ">100000 usecs")};
 	return ret;
 }
 
 std::vector<std::pair<uint64_t, std::string>> default_ys() {
 	static std::vector<std::pair<uint64_t, std::string>> ret =
-	{ std::make_pair<uint64_t, std::string>(0, "0 bytes"),
-	  std::make_pair<uint64_t, std::string>(501, "501 bytes"),
-	  std::make_pair<uint64_t, std::string>(1001, "1001 bytes"),
-	  std::make_pair<uint64_t, std::string>(10001, "10001 bytes")};
+	{ std::make_pair<uint64_t, std::string>(100, "<100 bytes"),
+	  std::make_pair<uint64_t, std::string>(500, "<500 bytes"),
+	  std::make_pair<uint64_t, std::string>(1000, "<1000 bytes"),
+	  std::make_pair<uint64_t, std::string>(1001, ">1000 bytes")};
 	return ret;
 }
 

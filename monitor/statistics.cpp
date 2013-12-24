@@ -48,14 +48,14 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 	std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
 	if (cache) {
 		if (trans) {
-			if(!err)
+			if (!err)
 				m_cmd_stats[cmd].cache_successes++;
 			else
 				m_cmd_stats[cmd].cache_failures++;
 			m_cmd_stats[cmd].cache_size += size;
 			m_cmd_stats[cmd].cache_time += time;
 		} else {
-			if(!err)
+			if (!err)
 				m_cmd_stats[cmd].cache_internal_successes++;
 			else
 				m_cmd_stats[cmd].cache_internal_failures++;
@@ -64,14 +64,14 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 		}
 	} else {
 		if (trans) {
-			if(!err)
+			if (!err)
 				m_cmd_stats[cmd].disk_successes++;
 			else
 				m_cmd_stats[cmd].disk_failures++;
 			m_cmd_stats[cmd].disk_size += size;
 			m_cmd_stats[cmd].disk_time += time;
 		} else {
-			if(!err)
+			if (!err)
 				m_cmd_stats[cmd].disk_internal_successes++;
 			else
 				m_cmd_stats[cmd].disk_internal_failures++;
@@ -270,7 +270,7 @@ inline rapidjson::Value& history_print(rapidjson::Value &stat_value,
 }
 
 rapidjson::Value& statistics::history_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	if(m_cmd_info_previous.empty() && m_cmd_info_current.empty())
+	if (m_cmd_info_previous.empty() && m_cmd_info_current.empty())
 		return stat_value;
 
 	{

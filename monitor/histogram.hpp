@@ -49,7 +49,7 @@ private:
 	rapidjson::Value& print_data(rapidjson::Value &stat_value,
 	                             rapidjson::Document::AllocatorType &allocator,
 	                             histogram::data &data);
-	int get_indx(uint64_t x, uint64_t y);
+	size_t get_indx(uint64_t x, uint64_t y);
 
 	std::vector<std::pair<uint64_t, std::string>>	m_xs;
 	std::vector<std::pair<uint64_t, std::string>>	m_ys;
