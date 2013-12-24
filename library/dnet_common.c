@@ -89,18 +89,27 @@ void dnet_indexes_transform_object_id(struct dnet_node *node, const struct dnet_
       (((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24))
 #endif
 
-void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id, int shard_id)
+void dnet_indexes_transform_index_prepare(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id)
 {
 	char suffix[] = "\0index_table";
 
 	dnet_indexes_transform_id(node, src->id, id->id, suffix, sizeof(suffix));
 
 	memset(id->id, 0, DNET_ID_SIZE / 2);
+}
 
+void dnet_indexes_transform_index_id_raw(struct dnet_node *node, struct dnet_raw_id *id, int shard_id)
+{
 	unsigned shard_int = (1ull << 32) * shard_id / node->indexes_shard_count;
 
 	// Convert to Big-Endian to set less-significant bytes to the begin
 	*(unsigned *)id->id = dnet_swap32_to_be(shard_int);
+}
+
+void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id, int shard_id)
+{
+	dnet_indexes_transform_index_prepare(node, src, id);
+	dnet_indexes_transform_index_id_raw(node, id, shard_id);
 }
 
 int dnet_indexes_get_shard_id(struct dnet_node *node, const struct dnet_raw_id *object_id)
