@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.36
+Version:	2.24.15.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Dec 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.0
+- cache: treap implementation, cache distribution changes
+- monitor: initial implementation
+- python: filters and checkers
+- index: remove implementation
+- tests: new srw test, moved to new testing framework
+
 * Thu Dec 19 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.14.36
 - cache: Improved hash function in cache
 - * Use last 8 bytes in addition to first one. Otherwise all keys for specific shard comes to single cache object.

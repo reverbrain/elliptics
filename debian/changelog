@@ -1,3 +1,13 @@
+elliptics (2.24.15.0) unstable; urgency=low
+
+  * cache: treap implementation, cache distribution changes
+  * monitor: initial implementation
+  * python: filters and checkers
+  * index: remove implementation
+  * tests: new srw test, moved to new testing framework
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 25 Dec 2013 23:53:20 +0400
+
 elliptics (2.24.14.36) unstable; urgency=low
 
   * cache: Improved hash function in cache
