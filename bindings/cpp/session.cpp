@@ -1825,15 +1825,7 @@ async_iterator_result session::cancel_iterator(const key &id, uint64_t iterator_
 
 async_exec_result session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
 {
-	exec_context context = exec_context_data::create(event, data);
-
-	sph *s = context.m_data->sph.data<sph>();
-	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
-
-	if (id)
-		memcpy(s->src.id, id->id, sizeof(s->src.id));
-
-	return request(id, context);
+	return exec(id, -1, event, data);
 }
 
 async_exec_result session::exec(struct dnet_id *id, int src_key, const std::string &event, const data_pointer &data)
