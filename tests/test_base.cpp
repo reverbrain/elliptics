@@ -269,13 +269,34 @@ static std::string create_remote(const std::string &port)
 	return "localhost:" + port + ":2";
 }
 
+typedef std::map<std::string, std::string> substitute_context;
+static void create_cocaine_config(const std::string &config_path, const std::string& template_text, const substitute_context& vars)
+{
+	std::string config_text = template_text;
+
+	for (auto it = vars.begin(); it != vars.end(); ++it) {
+		auto position = config_text.find(it->first);
+		if (position != std::string::npos)
+			config_text.replace(position, it->first.size(), it->second);
+	}
+
+	std::ofstream out;
+	out.open(config_path.c_str());
+
+	if (!out) {
+		throw std::runtime_error("Can not open file \"" + config_path + "\" for writing");
+	}
+
+	out.write(config_text.c_str(), config_text.size());
+}
+
 nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs)
 {
 	nodes_data::ptr data = std::make_shared<nodes_data>();
 
 	std::string base_path;
 	std::string auth_cookie;
-	std::string cocaine_config = read_file(COCAINE_CONFIG_PATH);
+	std::string cocaine_config_template = read_file(COCAINE_CONFIG_PATH);
 
 	{
 		char buffer[1024];
@@ -304,34 +325,9 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		cocaine_remotes += "\"localhost\": " + ports[j];
 	}
 
-	create_directory(base_path + "/run");
-
-	const std::map<std::string, std::string> cocaine_variables = {
-		{ "COCAINE_PLUGINS_PATH", COCAINE_PLUGINS_PATH },
-		{ "ELLIPTICS_REMOTES", cocaine_remotes },
-		{ "ELLIPTICS_GROUPS", "1" },
-		{ "COCAINE_LOG_PATH", base_path + "/log.txt" },
-		{ "COCAINE_RUN_PATH", base_path + "/run" }
-	};
-
-	for (auto it = cocaine_variables.begin(); it != cocaine_variables.end(); ++it) {
-		auto position = cocaine_config.find(it->first);
-		if (position != std::string::npos)
-			cocaine_config.replace(position, it->first.size(), it->second);
-	}
-
-	std::string cocaine_config_path = base_path + "/cocaine.conf";
-
-	{
-		std::ofstream out;
-		out.open(cocaine_config_path.c_str());
-
-		if (!out) {
-			throw std::runtime_error("Can not open file \"" + cocaine_config_path + "\" for writing");
-		}
-
-		out.write(cocaine_config.c_str(), cocaine_config.size());
-	}
+	const auto cocaine_locator_ports = generate_ports(configs.size());
+	// client only needs connection to one (any) locator service
+	data->locator_port = std::stoul(cocaine_locator_ports[0]);
 
 	debug_stream << "Starting " << configs.size() << " servers" << std::endl;
 
@@ -358,8 +354,21 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		else
 			config("remote", remotes);
 
-		if (config.has_value("srw_config"))
-			config("srw_config", cocaine_config_path);
+		if (config.has_value("srw_config")) {
+			create_directory(server_path + "/run");
+
+			const substitute_context cocaine_variables = {
+				{ "COCAINE_LOCATOR_PORT", cocaine_locator_ports[i] },
+				{ "COCAINE_PLUGINS_PATH", COCAINE_PLUGINS_PATH },
+				{ "ELLIPTICS_REMOTES", cocaine_remotes },
+				{ "ELLIPTICS_GROUPS", "1" },
+				{ "COCAINE_LOG_PATH", server_path + "/cocaine.log" },
+				{ "COCAINE_RUN_PATH", server_path + "/run" }
+			};
+			create_cocaine_config(server_path + "/cocaine.conf", cocaine_config_template, cocaine_variables);
+
+			config("srw_config", server_path + "/cocaine.conf");
+		}
 
 		create_config(config, server_path + "/ioserv.conf")
 				("auth_cookie", auth_cookie)
