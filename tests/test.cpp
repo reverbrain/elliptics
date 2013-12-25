@@ -29,17 +29,20 @@ namespace tests {
 
 static std::shared_ptr<nodes_data> global_data;
 
-static void configure_server_nodes()
+static void configure_nodes(const std::vector<std::string> &remotes, const std::string &path)
 {
 #ifndef NO_SERVER
-	global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
-		config_data::default_value()
-			("group", 1),
+	if (remotes.empty()) {
+		global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
+			config_data::default_value()
+				("group", 1),
 
-		config_data::default_value()
-			("group", 2)
-	}));
+			config_data::default_value()
+				("group", 2)
+		}), path);
+	} else
 #endif // NO_SERVER
+		global_data = start_nodes(results_reporter::get_stream(), remotes, path);
 }
 
 static void test_cache_write(session &sess, int num)
@@ -965,11 +968,13 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 	bpo::variables_map vm;
 	bpo::options_description generic("Test options");
 
-	std::vector<std::string> remote;
+	std::vector<std::string> remotes;
+	std::string path;
 
 	generic.add_options()
 		("help", "This help message")
-		("remote", bpo::value<std::vector<std::string>>(&remote), "Remote elliptics server address")
+		("remote", bpo::value(&remotes), "Remote elliptics server address")
+		("path", bpo::value(&path), "Path where to store everything")
 		 ;
 
 	bpo::store(bpo::parse_command_line(argc, argv, generic), vm);
@@ -986,19 +991,7 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 
 	test_suite *suite = new test_suite("Local Test Suite");
 
-	if (remote.empty()) {
-		configure_server_nodes();
-	} else {
-		dnet_config config;
-		memset(&config, 0, sizeof(config));
-
-		logger log(NULL);
-
-		global_data = std::make_shared<nodes_data>();
-		global_data->node.reset(new node(log, config));
-		for (auto it = remote.begin(); it != remote.end(); ++it)
-			global_data->node->add_remote(it->c_str());
-	}
+	configure_nodes(remotes, path);
 
 	register_tests(suite, *global_data->node);
 
