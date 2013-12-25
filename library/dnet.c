@@ -1054,7 +1054,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 {
 	int err = 0;
 	unsigned long long size = cmd->size;
-	unsigned long long data_size = 0;
 	struct dnet_node *n = st->n;
 	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 	struct dnet_io_attr *io = NULL;
