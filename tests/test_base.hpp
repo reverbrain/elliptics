@@ -54,7 +54,7 @@ class directory_handler
 {
 public:
 	directory_handler();
-	directory_handler(const std::string &path);
+	directory_handler(const std::string &path, bool remove);
 	directory_handler(directory_handler &&other);
 	~directory_handler();
 
@@ -67,6 +67,7 @@ public:
 
 private:
 	std::string m_path;
+	bool m_remove;
 };
 
 void create_directory(const std::string &path);
@@ -159,9 +160,11 @@ struct nodes_data
 
 #ifndef NO_SERVER
 
-nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs);
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs, const std::string &path);
 
 #endif // NO_SERVER
+
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<std::string> &remotes, const std::string &path);
 
 std::string read_file(const char *file_path);
 

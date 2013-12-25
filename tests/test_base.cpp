@@ -23,15 +23,15 @@ ioremap::elliptics::session create_session(ioremap::elliptics::node n, std::init
 }
 
 
-directory_handler::directory_handler()
+directory_handler::directory_handler() : m_remove(false)
 {
 }
 
-directory_handler::directory_handler(const std::string &path) : m_path(path)
+directory_handler::directory_handler(const std::string &path, bool remove) : m_path(path), m_remove(remove)
 {
 }
 
-directory_handler::directory_handler(directory_handler &&other) : m_path(other.m_path)
+directory_handler::directory_handler(directory_handler &&other) : m_path(other.m_path), m_remove(other.m_remove)
 {
 	other.m_path.clear();
 }
@@ -39,6 +39,7 @@ directory_handler::directory_handler(directory_handler &&other) : m_path(other.m
 directory_handler &directory_handler::operator=(directory_handler &&other)
 {
 	std::swap(m_path, other.m_path);
+	std::swap(m_remove, other.m_remove);
 
 	return *this;
 }
@@ -50,7 +51,7 @@ std::string directory_handler::path() const
 
 directory_handler::~directory_handler()
 {
-	if (!m_path.empty())
+	if (!m_path.empty() && m_remove)
 		boost::filesystem::remove_all(m_path);
 }
 
@@ -290,7 +291,9 @@ static void create_cocaine_config(const std::string &config_path, const std::str
 	out.write(config_text.c_str(), config_text.size());
 }
 
-nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs)
+static void start_client_nodes(const nodes_data::ptr &data, std::ostream &debug_stream, const std::vector<std::string> &remotes);
+
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs, const std::string &path)
 {
 	nodes_data::ptr data = std::make_shared<nodes_data>();
 
@@ -301,10 +304,6 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 	{
 		char buffer[1024];
 
-		snprintf(buffer, sizeof(buffer), "/tmp/elliptics-test-%04x/", rand());
-		buffer[sizeof(buffer) - 1] = 0;
-		base_path = buffer;
-
 		snprintf(buffer, sizeof(buffer), "%04x%04x", rand(), rand());
 		buffer[sizeof(buffer) - 1] = 0;
 		auth_cookie = buffer;
@@ -312,9 +311,21 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 
 	const auto ports = generate_ports(configs.size());
 
-	create_directory(base_path);
+	if (path.empty()) {
+		char buffer[1024];
 
-	data->directory = directory_handler(base_path);
+		snprintf(buffer, sizeof(buffer), "/tmp/elliptics-test-%04x/", rand());
+		buffer[sizeof(buffer) - 1] = 0;
+		base_path = buffer;
+
+		create_directory(base_path);
+		data->directory = directory_handler(base_path, true);
+	} else {
+		base_path = path;
+
+		create_directory(base_path);
+		data->directory = directory_handler(base_path, false);
+	}
 
 	debug_stream << "Set base directory: \"" << base_path << "\"" << std::endl;
 
@@ -387,20 +398,49 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 	}
 
 	{
-		dnet_config config;
-		memset(&config, 0, sizeof(config));
-
-		logger log(NULL);
-		data->node.reset(new node(log));
+		std::vector<std::string> remotes;
 		for (size_t i = 0; i < data->nodes.size(); ++i) {
-			data->node->add_remote(data->nodes[i].remote().c_str());
+			remotes.push_back(data->nodes[i].remote());
 		}
+
+		start_client_nodes(data, debug_stream, remotes);
 	}
 
 	return data;
 }
 
 #endif // NO_SERVER
+
+static void start_client_nodes(const nodes_data::ptr &data, std::ostream &debug_stream, const std::vector<std::string> &remotes)
+{
+	(void) debug_stream;
+
+	dnet_config config;
+	memset(&config, 0, sizeof(config));
+
+	logger log;
+	if (!data->directory.path().empty()) {
+		const std::string path = data->directory.path() + "/client.log";
+		log = file_logger(path.c_str(), DNET_LOG_DEBUG);
+	}
+
+	data->node.reset(new node(log));
+	for (size_t i = 0; i < remotes.size(); ++i) {
+		data->node->add_remote(remotes[i].c_str());
+	}
+}
+
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<std::string> &remotes, const std::string &path)
+{
+	if (remotes.empty()) {
+		throw std::runtime_error("Remotes list is empty");
+	}
+
+	nodes_data::ptr data = std::make_shared<nodes_data>();
+	data->directory = directory_handler(path, false);
+	start_client_nodes(data, debug_stream, remotes);
+	return data;
+}
 
 std::string read_file(const char *file_path)
 {
@@ -409,7 +449,7 @@ std::string read_file(const char *file_path)
 
 	std::ifstream config_in(file_path);
 	if (!config_in)
-		throw std::runtime_error(std::string("can not open for read: ") + file_path);
+		throw std::runtime_error(std::string("can not open file for read: ") + file_path);
 
 	while (config_in) {
 		std::streamsize read = config_in.readsome(buffer, sizeof(buffer));

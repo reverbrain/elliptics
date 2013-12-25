@@ -64,7 +64,6 @@ public:
 	T* Bottom() { return (T*)stack_; }
 
 	Allocator& GetAllocator() { return *allocator_; }
-	bool Empty() const { return stack_top_ == stack_; }
 	size_t GetSize() const { return stack_top_ - stack_; }
 	size_t GetCapacity() const { return stack_capacity_; }
 

@@ -46,7 +46,9 @@ void app_context::init(const std::string &, const std::vector<std::string> &chun
 	tests::node_info info;
 	info.unpack(context.data().to_string());
 
-	logger.reset(new elliptics::file_logger("/dev/stderr", DNET_LOG_DEBUG));
+	const std::string log_path = info.path + "/app.log";
+
+	logger.reset(new elliptics::file_logger(log_path.c_str(), DNET_LOG_DEBUG));
 	node.reset(new elliptics::node(*logger));
 
 	for (auto it = info.remotes.begin(); it != info.remotes.end(); ++it) {

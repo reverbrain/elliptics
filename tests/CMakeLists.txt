@@ -31,6 +31,8 @@ add_executable(dnet_cpp_cache_test cache_test.cpp)
 set_target_properties(dnet_cpp_cache_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_cache_test ${TEST_LIBRARIES})
 
+set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test)
+
 if(WITH_COCAINE)
 	include(../cmake/Modules/locate_library.cmake)
 	LOCATE_LIBRARY(LIBEV "ev++.h" "ev" "libev")
@@ -50,16 +52,14 @@ if(WITH_COCAINE)
 	    POST_BUILD
 	    COMMAND tar -cf dnet_cpp_srw_test_app.tar dnet_cpp_srw_test_app
 	    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+
+        list(APPEND TESTS_LIST dnet_cpp_srw_test dnet_cpp_srw_test_app)
 endif()
 
-enable_testing()
-#set(TEST_ARGUMENTS --report_level=detailed --report_sink=stderr --log_level=warning  --log_sink=stderr)
-add_test(NAME generic_test COMMAND dnet_cpp_test ${TEST_ARGUMENTS})
-add_test(NAME cache_test COMMAND dnet_cpp_cache_test ${TEST_ARGUMENTS})
-
-if(WITH_COCAINE)
-add_test(NAME srw_test COMMAND dnet_cpp_srw_test ${TEST_ARGUMENTS})
-endif()
+add_custom_target(test
+    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
+    DEPENDS ${TESTS_LIST}
+    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py")
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)

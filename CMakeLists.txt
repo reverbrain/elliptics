@@ -163,5 +163,3 @@ install(EXPORT EllipticsTargets DESTINATION share/elliptics/cmake)
 
 FILE(GLOB man_pages "man/*")
 install(FILES ${man_pages} DESTINATION share/man/man1)
-
-enable_testing()
