@@ -228,18 +228,11 @@ public:
 	//! Set this value as an empty object.
 	GenericValue& SetObject() { this->~GenericValue(); new (this) GenericValue(kObjectType); return *this; }
 
-	//! Get the value associated with the name.
-	/*!
-		\note In version 0.1x, if the member is not found, this function returns a null value. This makes issue 7.
-		Since 0.2, if the name is not correct, it will assert.
-		If user is unsure whether a member exists, user should use HasMember() first.
-		A better approach is to use the now public FindMember().
-	*/
+	//! Get the value associated with the object's name.
 	GenericValue& operator[](const Ch* name) {
 		if (Member* member = FindMember(name))
 			return member->value;
 		else {
-			RAPIDJSON_ASSERT(false);	// see above note
 			static GenericValue NullValue;
 			return NullValue;
 		}
@@ -253,27 +246,7 @@ public:
 	MemberIterator MemberEnd()				{ RAPIDJSON_ASSERT(IsObject()); return data_.o.members + data_.o.size; }
 
 	//! Check whether a member exists in the object.
-	/*!
-		\note It is better to use FindMember() directly if you need the obtain the value as well.
-	*/
 	bool HasMember(const Ch* name) const { return FindMember(name) != 0; }
-
-	//! Find member by name.
-	/*!
-		\return Return the member if exists. Otherwise returns null pointer.
-	*/
-	Member* FindMember(const Ch* name) {
-		RAPIDJSON_ASSERT(name);
-		RAPIDJSON_ASSERT(IsObject());
-
-		Object& o = data_.o;
-		for (Member* member = o.members; member != data_.o.members + data_.o.size; ++member)
-			if (name[member->name.data_.s.length] == '\0' && memcmp(member->name.data_.s.str, name, member->name.data_.s.length * sizeof(Ch)) == 0)
-				return member;
-
-		return 0;
-	}
-	const Member* FindMember(const Ch* name) const { return const_cast<GenericValue&>(*this).FindMember(name); }
 
 	//! Add a member (name-value pair) to the object.
 	/*! \param name A string value as name of member.
@@ -641,6 +614,22 @@ private:
 		Array a;
 	};	// 12 bytes in 32-bit mode, 16 bytes in 64-bit mode
 
+	//! Find member by name.
+	Member* FindMember(const Ch* name) {
+		RAPIDJSON_ASSERT(name);
+		RAPIDJSON_ASSERT(IsObject());
+
+		SizeType length = internal::StrLen(name);
+
+		Object& o = data_.o;
+		for (Member* member = o.members; member != data_.o.members + data_.o.size; ++member)
+			if (length == member->name.data_.s.length && memcmp(member->name.data_.s.str, name, length * sizeof(Ch)) == 0)
+				return member;
+
+		return 0;
+	}
+	const Member* FindMember(const Ch* name) const { return const_cast<GenericValue&>(*this).FindMember(name); }
+
 	// Initialize this value as array with initial data, without calling destructor.
 	void SetArrayRaw(GenericValue* values, SizeType count, Allocator& alloctaor) {
 		flags_ = kArrayFlag;
@@ -716,11 +705,11 @@ public:
 		\param stream Input stream to be parsed.
 		\return The document itself for fluent API.
 	*/
-	template <unsigned parseFlags, typename SourceEncoding, typename InputStream>
-	GenericDocument& ParseStream(InputStream& is) {
+	template <unsigned parseFlags, typename Stream>
+	GenericDocument& ParseStream(Stream& stream) {
 		ValueType::SetNull(); // Remove existing root if exist
-		GenericReader<SourceEncoding, Encoding, Allocator> reader;
-		if (reader.template Parse<parseFlags>(is, *this)) {
+		GenericReader<Encoding, Allocator> reader;
+		if (reader.template Parse<parseFlags>(stream, *this)) {
 			RAPIDJSON_ASSERT(stack_.GetSize() == sizeof(ValueType)); // Got one and only one root object
 			this->RawAssign(*stack_.template Pop<ValueType>(1));	// Add this-> to prevent issue 13.
 			parseError_ = 0;
@@ -739,31 +728,21 @@ public:
 		\param str Mutable zero-terminated string to be parsed.
 		\return The document itself for fluent API.
 	*/
-	template <unsigned parseFlags, typename SourceEncoding>
-	GenericDocument& ParseInsitu(Ch* str) {
-		GenericInsituStringStream<Encoding> s(str);
-		return ParseStream<parseFlags | kParseInsituFlag, SourceEncoding>(s);
-	}
-
 	template <unsigned parseFlags>
 	GenericDocument& ParseInsitu(Ch* str) {
-		return ParseInsitu<parseFlags, Encoding>(str);
+		GenericInsituStringStream<Encoding> s(str);
+		return ParseStream<parseFlags | kParseInsituFlag>(s);
 	}
 
 	//! Parse JSON text from a read-only string.
 	/*! \tparam parseFlags Combination of ParseFlag (must not contain kParseInsituFlag).
 		\param str Read-only zero-terminated string to be parsed.
 	*/
-	template <unsigned parseFlags, typename SourceEncoding>
-	GenericDocument& Parse(const Ch* str) {
-		RAPIDJSON_ASSERT(!(parseFlags & kParseInsituFlag));
-		GenericStringStream<SourceEncoding> s(str);
-		return ParseStream<parseFlags, SourceEncoding>(s);
-	}
-
 	template <unsigned parseFlags>
 	GenericDocument& Parse(const Ch* str) {
-		return Parse<parseFlags, Encoding>(str);
+		RAPIDJSON_ASSERT(!(parseFlags & kParseInsituFlag));
+		GenericStringStream<Encoding> s(str);
+		return ParseStream<parseFlags>(s);
 	}
 
 	//! Whether a parse error was occured in the last parsing.
@@ -781,8 +760,11 @@ public:
 	//! Get the capacity of stack in bytes.
 	size_t GetStackCapacity() const { return stack_.GetCapacity(); }
 
-//private:
-	//friend class GenericReader<Encoding>;	// for Reader to call the following private handler functions
+private:
+	// Prohibit assignment
+	GenericDocument& operator=(const GenericDocument&);
+
+	friend class GenericReader<Encoding, Allocator>;	// for Reader to call the following private handler functions
 
 	// Implementation of Handler
 	void Null()	{ new (stack_.template Push<ValueType>()) ValueType(); }
@@ -813,10 +795,6 @@ public:
 		ValueType* elements = stack_.template Pop<ValueType>(elementCount);
 		stack_.template Top<ValueType>()->SetArrayRaw(elements, elementCount, GetAllocator());
 	}
-
-private:
-	// Prohibit assignment
-	GenericDocument& operator=(const GenericDocument&);
 
 	void ClearStack() {
 		if (Allocator::kNeedFree)
