@@ -69,11 +69,7 @@ class Session(Session):
         """
         if type(indexes) is dict:
             datas = indexes.values()
-<<<<<<< HEAD
             indexes = indexes.keys()
-=======
-            indexes = indexes.values()
->>>>>>> cc8b225e920f5b3b2c07ee4e2a343ceaa5ff9365
 
         return super(Session, self).set_indexes(id, indexes, datas)
 
@@ -101,11 +97,7 @@ class Session(Session):
         """
         if type(indexes) is dict:
             datas = indexes.values()
-<<<<<<< HEAD
             indexes = indexes.keys()
-=======
-            indexes = indexes.values()
->>>>>>> cc8b225e920f5b3b2c07ee4e2a343ceaa5ff9365
 
         return super(Session, self).update_indexes(id, indexes, datas)
 
@@ -134,10 +126,6 @@ class Session(Session):
         """
         if type(indexes) is dict:
             datas = indexes.values()
-<<<<<<< HEAD
             indexes = indexes.keys()
-=======
-            indexes = indexes.values()
->>>>>>> cc8b225e920f5b3b2c07ee4e2a343ceaa5ff9365
 
         return super(Session, self).update_indexes_internal(id, indexes, datas)
