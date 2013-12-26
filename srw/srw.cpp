@@ -249,12 +249,27 @@ class dnet_app_t : public cocaine::app_t {
 		dnet_app_t(cocaine::context_t& context, const std::string& name, const std::string& profile) :
 		cocaine::app_t(context, name, profile),
 		m_pool_size(-1),
-		m_id("default")	{
-		atomic_set(&m_sph_index, 1);
+		m_id("default"),
+		m_started(false) {
+			atomic_set(&m_sph_index, 1);
 		}
 
 		~dnet_app_t() {
 			stop();
+		}
+
+		void start() {
+			if (!m_started) {
+				cocaine::app_t::start();
+				m_started = true;
+			}
+		}
+
+		void stop() {
+			if (m_started) {
+				m_started = false;
+				cocaine::app_t::stop();
+			}
 		}
 
 		Json::Value counters(void) {
@@ -313,6 +328,7 @@ class dnet_app_t : public cocaine::app_t {
 		int		m_pool_size;
 		atomic_t	m_sph_index;
 		std::string	m_id;
+		bool		m_started;
 };
 
 typedef std::map<std::string, std::shared_ptr<dnet_app_t> > eng_map_t;
