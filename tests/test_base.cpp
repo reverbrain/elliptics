@@ -300,6 +300,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 	std::string base_path;
 	std::string auth_cookie;
 	std::string cocaine_config_template = read_file(COCAINE_CONFIG_PATH);
+	std::string run_path;
 
 	{
 		char buffer[1024];
@@ -307,6 +308,10 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		snprintf(buffer, sizeof(buffer), "%04x%04x", rand(), rand());
 		buffer[sizeof(buffer) - 1] = 0;
 		auth_cookie = buffer;
+
+		snprintf(buffer, sizeof(buffer), "/tmp/elliptics-test-run-%04x/", rand());
+		buffer[sizeof(buffer) - 1] = 0;
+		run_path = buffer;
 	}
 
 	const auto ports = generate_ports(configs.size());
@@ -328,6 +333,10 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 	}
 
 	debug_stream << "Set base directory: \"" << base_path << "\"" << std::endl;
+
+	create_directory(run_path);
+	data->run_directory = directory_handler(run_path, true);
+	debug_stream << "Set cocaine run directory: \"" << run_path << "\"" << std::endl;
 
 	std::string cocaine_remotes;
 	for (size_t j = 0; j < configs.size(); ++j) {
@@ -374,7 +383,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 				{ "ELLIPTICS_REMOTES", cocaine_remotes },
 				{ "ELLIPTICS_GROUPS", "1" },
 				{ "COCAINE_LOG_PATH", server_path + "/cocaine.log" },
-				{ "COCAINE_RUN_PATH", server_path + "/run" }
+				{ "COCAINE_RUN_PATH", run_path }
 			};
 			create_cocaine_config(server_path + "/cocaine.conf", cocaine_config_template, cocaine_variables);
 

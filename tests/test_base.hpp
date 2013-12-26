@@ -154,6 +154,7 @@ struct nodes_data
 	directory_handler directory;
 	int locator_port;
 #endif // NO_SERVER
+	directory_handler run_directory;
 
 	std::unique_ptr<ioremap::elliptics::node> node;
 };
