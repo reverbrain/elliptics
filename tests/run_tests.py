@@ -17,6 +17,14 @@ def run_test(path, test):
     return p.returncode
 
 
+def force_mkdir(path):
+    if os.path.exists(path):
+        print('Removing path: {0}'.format(path))
+        shutil.rmtree(path)
+
+    os.mkdir(path)
+
+
 def main():
     source_dir = sys.argv[1]
     binary_dir = sys.argv[2]
@@ -29,12 +37,10 @@ def main():
     print('Running {0} tests'.format(len(tests)))
 
     tests_base_dir = binary_dir + '/result'
+    force_mkdir(tests_base_dir)
 
-    if os.path.exists(tests_base_dir):
-        print('Removing path: {0}'.format(tests_base_dir))
-        shutil.rmtree(tests_base_dir)
-
-    os.mkdir(tests_base_dir)
+    artifacts_dir = source_dir + '/artifacts'
+    force_mkdir(artifacts_dir)
 
     all_ok = True
     for i in xrange(0, len(tests)):
@@ -49,8 +55,9 @@ def main():
 
         all_ok &= result == 0
 
-        with tarfile.TarFile.open(tests_base_dir + '/' + test[1] + '.tar.bz2', 'w:bz2') as file:
-            file.add(tests_base_dir + '/' + test[1], test[1])
+        file = tarfile.TarFile.open(artifacts_dir + '/' + test[1] + '.tar.bz2', 'w:bz2')
+        file.add(tests_base_dir + '/' + test[1], test[1])
+        file.close()
 
     print('Tests are finised')
 

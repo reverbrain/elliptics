@@ -12,6 +12,7 @@
 *.tar.gz
 *~
 .*
+tests/artifacts/*
 CMakeCache.txt
 CMakeFiles/
 Makefile
