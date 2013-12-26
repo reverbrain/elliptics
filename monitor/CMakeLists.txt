@@ -3,3 +3,7 @@ ADD_LIBRARY(elliptics_monitor STATIC
             server.cpp
             statistics.cpp
             histogram.cpp)
+
+if(UNIX OR MINGW)
+    set_target_properties(elliptics_monitor PROPERTIES COMPILE_FLAGS "-fPIC")
+endif()

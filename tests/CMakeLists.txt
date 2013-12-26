@@ -1,8 +1,8 @@
 find_package(Boost REQUIRED COMPONENTS iostreams thread regex program_options system filesystem)
 
-set(TEST_LINK_FLAGS "-Wl,-rpath,${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_CURRENT_BINARY_DIR}/../:${CMAKE_CURRENT_BINARY_DIR}/../library:${CMAKE_CURRENT_BINARY_DIR}/../srw:${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp")
+set(TEST_LINK_FLAGS "-Wl,-rpath,${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_CURRENT_BINARY_DIR}/../:${CMAKE_CURRENT_BINARY_DIR}/../library:${CMAKE_CURRENT_BINARY_DIR}/../srw:${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp:${CMAKE_CURRENT_BINARY_DIR}/../monitor")
 set(TEST_PROPERTIES PROPERTIES LINK_FLAGS "${TEST_LINK_FLAGS}" LINKER_LANGUAGE CXX)
-set(TEST_LIBRARIES  elliptics_cpp test_common elliptics elliptics_monitor ${Boost_LIBRARIES})
+set(TEST_LIBRARIES  test_common elliptics elliptics_cpp ${Boost_LIBRARIES})
 
 add_definitions(
     -DCOCAINE_CONFIG_PATH="${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf"
