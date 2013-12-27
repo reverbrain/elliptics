@@ -67,6 +67,14 @@ void dnet_monitor_exit(struct dnet_node *n) {
 	}
 }
 
+void dnet_monitor_add_provider(void* monitor, struct stat_provider_raw stat, const char *name) {
+	auto real_monitor = monitor_cast(monitor);
+	if (real_monitor) {
+		auto provider = new ioremap::monitor::raw_provider(stat);
+		real_monitor->get_statistics().add_provider(provider, std::string(name));
+	}
+}
+
 void dnet_monitor_log(void *monitor) {
 	auto real_monitor = monitor_cast(monitor);
 	if (real_monitor) {
