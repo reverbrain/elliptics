@@ -27,11 +27,15 @@ add_executable(dnet_cpp_test test.cpp)
 set_target_properties(dnet_cpp_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_test ${TEST_LIBRARIES})
 
+add_executable(dnet_cpp_api_test api_test.cpp)
+set_target_properties(dnet_cpp_api_test ${TEST_PROPERTIES})
+target_link_libraries(dnet_cpp_api_test ${TEST_LIBRARIES})
+
 add_executable(dnet_cpp_cache_test cache_test.cpp)
 set_target_properties(dnet_cpp_cache_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_cache_test ${TEST_LIBRARIES})
 
-set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test)
+set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_api_test)
 
 if(WITH_COCAINE)
 	include(../cmake/Modules/locate_library.cmake)
