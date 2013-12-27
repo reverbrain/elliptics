@@ -49,7 +49,7 @@ static void test_cache_records_sizes(session &sess)
 	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[0].get_native()->cache;
 	const size_t cache_size = cache->cache_size();
 	const size_t cache_pages_number = cache->cache_pages_number();
-	data_pointer data("0");
+	argument_data data("0");
 
 	cache->clear();
 	size_t record_size = 0;
@@ -81,7 +81,7 @@ static void test_cache_overflow(session &sess)
 	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[0].get_native()->cache;
 	const size_t cache_size = cache->cache_size();
 	const size_t cache_pages_number = cache->cache_pages_number();
-	data_pointer data("0");
+	argument_data data("0");
 
 	cache->clear();
 	size_t record_size = 0;
