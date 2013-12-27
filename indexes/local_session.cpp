@@ -266,17 +266,11 @@ int local_session::remove(const dnet_id &id)
 
 int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const data_pointer &data, uint32_t action)
 {
-	raw_data_pointer tmp = { data.data(), data.size() };
-	return update_index_internal(id, index, tmp, action);
-}
-
-int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const raw_data_pointer &data, uint32_t action)
-{
 	struct timeval start, end;
 
 	gettimeofday(&start, NULL);
 
-	data_buffer buffer(sizeof(dnet_indexes_request) + sizeof(dnet_indexes_request_entry) + data.size);
+	data_buffer buffer(sizeof(dnet_indexes_request) + sizeof(dnet_indexes_request_entry) + data.size());
 
 	dnet_indexes_request request;
 	dnet_indexes_request_entry entry;
@@ -289,12 +283,12 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 	buffer.write(request);
 
 	entry.id = index;
-	entry.size = data.size;
+	entry.size = data.size();
 	entry.flags |= action;
 
 	buffer.write(entry);
-	if (data.size > 0) {
-		buffer.write(static_cast<const char *>(data.data), data.size);
+	if (data.size() > 0) {
+		buffer.write(data.data(), data.size());
 	}
 
 	data_pointer datap = std::move(buffer);
@@ -320,7 +314,7 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 
 		dnet_log(m_state->n, DNET_LOG_INFO, "%s: updating internal index: %s, data-size: %zd, action: %s, "
 				"time: %ld usecs\n",
-				dnet_dump_id(&id), index_str, data.size, update_index_action_strings[action], diff);
+				dnet_dump_id(&id), index_str, data.size(), update_index_action_strings[action], diff);
 	}
 
 	return err;

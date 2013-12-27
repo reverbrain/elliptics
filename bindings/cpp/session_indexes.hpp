@@ -38,89 +38,6 @@ struct dnet_indexes
 	std::vector<index_entry> indexes;
 };
 
-struct raw_data_pointer
-{
-	const void *data;
-	size_t size;
-
-	bool operator ==(const raw_data_pointer &o) const
-	{
-		return size == o.size && (size == 0 || data == o.data || memcmp(data, o.data, size) == 0);
-	}
-
-	static raw_data_pointer copy(const void *data, size_t size)
-	{
-		raw_data_pointer tmp = { data, size };
-		return tmp;
-	}
-};
-
-struct raw_index_entry
-{
-	dnet_raw_id index;
-	raw_data_pointer data;
-
-	bool operator <(const raw_index_entry &o) const
-	{
-		return memcmp(index.id, o.index.id, sizeof(index.id)) < 0;
-	}
-};
-
-struct raw_dnet_indexes
-{
-	int shard_id;
-	int shard_count;
-	std::vector<raw_index_entry> indexes;
-};
-
-struct raw_find_indexes_result_entry
-{
-	dnet_raw_id id;
-	std::vector<raw_index_entry> indexes;
-};
-
-inline std::ostream &operator <<(std::ostream &out, const raw_index_entry &v)
-{
-	out << "index{" << dnet_dump_id_str(v.index.id) << ",\"";
-	out.write(reinterpret_cast<const char *>(v.data.data), v.data.size);
-	out << "\"}";
-	return out;
-}
-
-template <int CompareData = compare_data>
-struct raw_dnet_raw_id_less_than : public dnet_raw_id_less_than<CompareData>
-{
-	using dnet_raw_id_less_than<CompareData>::operator ();
-
-	inline bool operator() (const raw_index_entry &a, const dnet_raw_id &b) const
-	{
-		return operator() (a.index, b);
-	}
-	inline bool operator() (const dnet_raw_id &a, const raw_index_entry &b) const
-	{
-		return operator() (a, b.index);
-	}
-	inline bool operator() (const raw_index_entry &a, const raw_index_entry &b) const
-	{
-		ssize_t cmp = memcmp(a.index.id, b.index.id, sizeof(b.index.id));
-		if (CompareData && cmp == 0) {
-			cmp = a.data.size - b.data.size;
-			if (cmp == 0) {
-				cmp = memcmp(a.data.data, b.data.data, a.data.size);
-			}
-		}
-		return cmp < 0;
-	}
-	inline bool operator() (const raw_index_entry &a, const raw_find_indexes_result_entry &b) const
-	{
-		return operator() (a.index, b.id);
-	}
-	inline bool operator() (const raw_find_indexes_result_entry &a, const raw_index_entry &b) const
-	{
-		return operator() (a.id, b.index);
-	}
-};
-
 struct update_request
 {
 	dnet_id id;
@@ -267,28 +184,6 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const da
 	return o;
 }
 
-inline raw_data_pointer &operator >>(msgpack::object o, raw_data_pointer &v)
-{
-	if (o.type != msgpack::type::RAW)
-		throw msgpack::type_error();
-	if (o.via.raw.size) {
-		v.data = o.via.raw.ptr;
-		v.size = o.via.raw.size;
-	} else {
-		v.data = NULL;
-		v.size = 0;
-	}
-	return v;
-}
-
-template <typename Stream>
-inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const raw_data_pointer &v)
-{
-	o.pack_raw(v.size);
-	o.pack_raw_body(reinterpret_cast<const char *>(v.data), v.size);
-	return o;
-}
-
 inline index_entry &operator >>(msgpack::object o, index_entry &v)
 {
 	if (o.type != msgpack::type::ARRAY || o.via.array.size != 2)
@@ -301,25 +196,6 @@ inline index_entry &operator >>(msgpack::object o, index_entry &v)
 
 template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const index_entry &v)
-{
-	o.pack_array(2);
-	o.pack(v.index);
-	o.pack(v.data);
-	return o;
-}
-
-inline raw_index_entry &operator >>(msgpack::object o, raw_index_entry &v)
-{
-	if (o.type != msgpack::type::ARRAY || o.via.array.size != 2)
-		throw msgpack::type_error();
-	object *p = o.via.array.ptr;
-	p[0].convert(&v.index);
-	p[1].convert(&v.data);
-	return v;
-}
-
-template <typename Stream>
-inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const raw_index_entry &v)
 {
 	o.pack_array(2);
 	o.pack(v.index);
@@ -346,7 +222,6 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const up
 	return o;
 }
 
-// Keep it in sync with raw_dnet_indexes
 inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 {
 	if (o.type != msgpack::type::ARRAY || o.via.array.size < 1)
@@ -375,44 +250,6 @@ inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 
 template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dnet_indexes &v)
-{
-	o.pack_array(4);
-	o.pack(uint16_t(dnet_indexes_version_second));
-	o.pack(v.indexes);
-	o.pack(v.shard_id);
-	o.pack(v.shard_count);
-	return o;
-}
-
-// Keep it in sync with dnet_indexes
-inline raw_dnet_indexes &operator >>(msgpack::object o, raw_dnet_indexes &v)
-{
-	if (o.type != msgpack::type::ARRAY || o.via.array.size < 1)
-		throw msgpack::type_error();
-
-	object *p = o.via.array.ptr;
-	const uint32_t size = o.via.array.size;
-	uint16_t version = 0;
-	p[0].convert(&version);
-	switch (version) {
-	case dnet_indexes_version_second: {
-		if (size != 4)
-			throw msgpack::type_error();
-
-		p[1].convert(&v.indexes);
-		p[2].convert(&v.shard_id);
-		p[3].convert(&v.shard_count);
-		break;
-	}
-	default:
-		throw msgpack::type_error();
-	}
-
-	return v;
-}
-
-template <typename Stream>
-inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const raw_dnet_indexes &v)
 {
 	o.pack_array(4);
 	o.pack(uint16_t(dnet_indexes_version_second));
@@ -541,42 +378,6 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const fi
 }
 
 inline find_indexes_result_entry &operator >>(msgpack::object obj, find_indexes_result_entry &result)
-{
-	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
-		throw msgpack::type_error();
-
-	object *array = obj.via.array.ptr;
-	const uint32_t size = obj.via.array.size;
-
-	uint16_t version = 0;
-	array[0].convert(&version);
-	switch (version) {
-	case find_indexes_result_entry_version_first: {
-		if (size != 3)
-			throw msgpack::type_error();
-
-		array[1].convert(&result.id);
-		array[2].convert(&result.indexes);
-		break;
-	}
-	default:
-		throw msgpack::type_error();
-	}
-
-	return result;
-}
-
-template <typename Stream>
-inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const raw_find_indexes_result_entry &result)
-{
-	o.pack_array(3);
-	o.pack(uint16_t(find_indexes_result_entry_version_first));
-	o.pack(result.id);
-	o.pack(result.indexes);
-	return o;
-}
-
-inline raw_find_indexes_result_entry &operator >>(msgpack::object obj, raw_find_indexes_result_entry &result)
 {
 	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
 		throw msgpack::type_error();

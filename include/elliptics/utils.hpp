@@ -89,7 +89,7 @@ class data_buffer_base
 			write(reinterpret_cast<const char*>(&ob), sizeof(T));
 		}
 
-		void write(const char *buf, size_t len)
+		void write(const void *buf, size_t len)
 		{
 			check(len);
 			std::memcpy(m_data + sizeof(atomic_type) + m_size, buf, len);
