@@ -44,8 +44,10 @@ using namespace ioremap::elliptics;
 
 #ifdef USE_MASTER_SUITE
 #  define ELLIPTICS_TEST_CASE(M, C...) do { framework::master_test_suite().add(BOOST_TEST_CASE(std::bind( M, ##C ))); } while (false)
+#  define ELLIPTICS_TEST_CASE_NOARGS(M) do { framework::master_test_suite().add(BOOST_TEST_CASE(std::bind( M ))); } while (false)
 #else
 #  define ELLIPTICS_TEST_CASE(M, C...) do { suite->add(BOOST_TEST_CASE(std::bind( M, ##C ))); } while (false)
+#  define ELLIPTICS_TEST_CASE_NOARGS(M) do { suite->add(BOOST_TEST_CASE(std::bind( M ))); } while (false)
 #endif
 
 session create_session(node n, std::initializer_list<int> groups, uint64_t cflags, uint32_t ioflags);

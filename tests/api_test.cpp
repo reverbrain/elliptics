@@ -76,17 +76,42 @@ static bool test_error_null_message_check_exception_2(const not_found_error &e)
 			!= std::string::npos;
 }
 
-static void test_error_null_message(session &)
+static void test_error_null_message()
 {
 	read_result_entry entry;
 	BOOST_REQUIRE_EXCEPTION(entry.command(), not_found_error, test_error_null_message_check_exception_1);
 	BOOST_REQUIRE_EXCEPTION(entry.io_attribute(), not_found_error, test_error_null_message_check_exception_2);
 }
 
+static void test_data_buffer()
+{
+	const std::string str = "some long or not very long string";
+
+	data_buffer buffer;
+	buffer.write(str.c_str(), str.size());
+
+	BOOST_REQUIRE_EQUAL(buffer.size(), str.size());
+
+	data_pointer data = std::move(buffer);
+	BOOST_REQUIRE_EQUAL(data.size(), str.size());
+	BOOST_REQUIRE_EQUAL(data.to_string(), str);
+
+
+	buffer.write(str.c_str(), str.size());
+	BOOST_REQUIRE_EQUAL(buffer.size(), str.size());
+	buffer.write(str.c_str(), str.size());
+	BOOST_REQUIRE_EQUAL(buffer.size(), 2 * str.size());
+
+	data_pointer data2 = std::move(buffer);
+	BOOST_REQUIRE_EQUAL(data2.size(), 2 * str.size());
+	BOOST_REQUIRE_EQUAL(data2.to_string(), str + str);
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_error_message, create_session(n, {1, 2}, 0, 0), "non-existen-key", -ENOENT);
-	ELLIPTICS_TEST_CASE(test_error_null_message, create_session(n, {}, 0, 0));
+	ELLIPTICS_TEST_CASE_NOARGS(test_error_null_message);
+	ELLIPTICS_TEST_CASE_NOARGS(test_data_buffer);
 
 	return true;
 }
