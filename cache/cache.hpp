@@ -302,6 +302,8 @@ class cache_manager {
 
 		void dump_stats() const;
 
+		std::string stat_json() const;
+
 	private:
 		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
 		size_t m_max_cache_size;
