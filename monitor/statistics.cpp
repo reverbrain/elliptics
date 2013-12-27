@@ -118,6 +118,11 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 	}
 }
 
+void statistics::add_provider(stat_provider *stat, const std::string &name) {
+	std::unique_lock<std::mutex> guard(m_provider_mutex);
+	m_stat_providers.emplace_back(std::unique_ptr<stat_provider>(stat), name);
+}
+
 inline std::string convert_report(const rapidjson::Document &report) {
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -139,14 +144,22 @@ std::string statistics::report() {
 
 	rapidjson::Value io_queue_value(rapidjson::kObjectType);
 	report.AddMember("io_queue_stat", io_queue_report(io_queue_value, allocator), allocator);
-	rapidjson::Value cache_value(rapidjson::kObjectType);
-	report.AddMember("cache_stat", cache_report(cache_value, allocator), allocator);
 	rapidjson::Value commands_value(rapidjson::kObjectType);
 	report.AddMember("commands_stat", commands_report(commands_value, allocator), allocator);
 	rapidjson::Value history_value(rapidjson::kArrayType);
 	report.AddMember("history_stat", history_report(history_value, allocator), allocator);
 	rapidjson::Value histogram_value(rapidjson::kObjectType);
 	report.AddMember("histogram", histogram_report(histogram_value, allocator), allocator);
+
+	std::unique_lock<std::mutex> guard(m_provider_mutex);
+	for (auto it = m_stat_providers.cbegin(), end = m_stat_providers.cend(); it != end; ++it) {
+		rapidjson::Document value_doc;
+		value_doc.Parse<0>(it->first->json().c_str());
+		report.AddMember(it->second.c_str(),
+		                 static_cast<rapidjson::Value&>(value_doc),
+		                 allocator);
+	}
+
 
 	return convert_report(report);
 }
@@ -166,33 +179,6 @@ rapidjson::Value& statistics::io_queue_report(rapidjson::Value &stat_value, rapi
 	          .AddMember("min", min, allocator)
 	          .AddMember("max", st.max_list_size, allocator)
 	          .AddMember("time", elapsed_seconds, allocator);
-	return stat_value;
-}
-
-rapidjson::Value& statistics::cache_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	if (!m_monitor.node()->cache)
-		return stat_value;
-
-	auto cache = static_cast<ioremap::cache::cache_manager*>(m_monitor.node()->cache);
-	auto stat = cache->get_total_cache_stats();
-
-	stat_value.AddMember("size", stat.size_of_objects, allocator)
-	          .AddMember("removing size", stat.size_of_objects_marked_for_deletion, allocator)
-	          .AddMember("objects", stat.number_of_objects, allocator)
-	          .AddMember("removing objects", stat.number_of_objects_marked_for_deletion, allocator);
-
-	rapidjson::Value pages_sizes(rapidjson::kArrayType);
-	for (auto it = stat.pages_sizes.begin(), end = stat.pages_sizes.end(); it != end; ++it) {
-		pages_sizes.PushBack(*it, allocator);
-	}
-	stat_value.AddMember("pages sizes", pages_sizes, allocator);
-
-	rapidjson::Value pages_max_sizes(rapidjson::kArrayType);
-	for (auto it = stat.pages_max_sizes.begin(), end = stat.pages_max_sizes.end(); it != end; ++it) {
-		pages_max_sizes.PushBack(*it, allocator);
-	}
-	stat_value.AddMember("pages max sizes", pages_max_sizes, allocator);
-
 	return stat_value;
 }
 
