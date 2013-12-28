@@ -1,3 +1,19 @@
+/*
+* 2013+ Copyright (c) Ruslan Nigmatullin <euroelessar@yandex.ru>
+* 2013+ Copyright (c) Andrey Kashin <kashin.andrej@gmail.com>
+* All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU Lesser General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU Lesser General Public License for more details.
+*/
+
 #include "slru_cache.hpp"
 #include <cassert>
 
@@ -105,6 +121,9 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 }
 
 int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
+	time_stats_updater_t time_stats_updater(m_time_stats);
+	time_stats_updater.start(ACTION_WRITE);
+
 	const size_t lifetime = io->start;
 	const size_t size = io->size;
 	const bool remove_from_disk = (io->flags & DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK);
@@ -343,6 +362,9 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 }
 
 std::shared_ptr<raw_data_t> slru_cache_t::read_(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
+	time_stats_updater_t time_stats_updater(m_time_stats);
+	time_stats_updater.start(ACTION_READ);
+
 	const bool cache = (io->flags & DNET_IO_FLAGS_CACHE);
 	const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
 	(void) cmd;

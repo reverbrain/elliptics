@@ -1,7 +1,24 @@
+/*
+* 2013+ Copyright (c) Ruslan Nigmatullin <euroelessar@yandex.ru>
+* 2013+ Copyright (c) Andrey Kashin <kashin.andrej@gmail.com>
+* All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU Lesser General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU Lesser General Public License for more details.
+*/
+
 #ifndef SLRU_CACHE_HPP
 #define SLRU_CACHE_HPP
 
 #include "cache.hpp"
+#include "time_stats.hpp"
 
 namespace ioremap { namespace cache {
 
@@ -45,8 +62,8 @@ private:
 	std::thread m_lifecheck;
 	treap_t m_treap;
 	std::size_t finds_number;
-	std::size_t total_find_time;
 	mutable atomic_cache_stats m_cache_stats;
+	mutable time_stats_tree_t m_time_stats;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 
