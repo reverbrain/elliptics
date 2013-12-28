@@ -17,9 +17,12 @@
 
 #include "cache.hpp"
 #include "../monitor/monitor.h"
+
 #include "slru_cache.hpp"
 
 #include <fstream>
+
+#include "boost/lexical_cast.hpp"
 
 namespace ioremap { namespace cache {
 
@@ -132,13 +135,39 @@ cache_stats cache_manager::get_total_cache_stats() const {
 	return stats;
 }
 
-std::vector<cache_stats> cache_manager::get_caches_stats() const
-{
+std::vector<cache_stats> cache_manager::get_caches_stats() const {
 	std::vector<cache_stats> caches_stats;
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		caches_stats.push_back(m_caches[i]->get_cache_stats());
 	}
 	return caches_stats;
+}
+
+rapidjson::Value &cache_manager::get_total_caches_size_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
+	cache_stats stats = get_total_cache_stats();
+	return stats.to_json(stat_value, allocator);
+}
+
+rapidjson::Value &cache_manager::get_caches_size_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
+	for (size_t i = 0; i < m_caches.size(); ++i) {
+		rapidjson::Value cache_time_stats(rapidjson::kObjectType);
+		std::string id = "cache_" + boost::lexical_cast<std::string>(i);
+		stat_value.AddMember(id.c_str(), allocator, m_caches[i]->get_cache_stats().to_json(cache_time_stats, allocator), allocator);
+	}
+	return stat_value;
+}
+
+rapidjson::Value &cache_manager::get_total_caches_time_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
+	return stat_value;
+}
+
+rapidjson::Value &cache_manager::get_caches_time_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
+	for (size_t i = 0; i < m_caches.size(); ++i) {
+		rapidjson::Value cache_time_stats(rapidjson::kObjectType);
+		std::string id = "cache_" + boost::lexical_cast<std::string>(i);
+		stat_value.AddMember(id.c_str(), allocator, m_caches[i]->get_time_stats(cache_time_stats, allocator), allocator);
+	}
+	return stat_value;
 }
 
 void cache_manager::dump_stats() const

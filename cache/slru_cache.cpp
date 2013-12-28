@@ -121,9 +121,6 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 }
 
 int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
-	time_stats_updater_t time_stats_updater(m_time_stats);
-	time_stats_updater.start(ACTION_WRITE);
-
 	const size_t lifetime = io->start;
 	const size_t size = io->size;
 	const bool remove_from_disk = (io->flags & DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK);
@@ -134,6 +131,11 @@ int slru_cache_t::write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	write_timer timer(m_node, id);
 
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE WRITE: %p", dnet_dump_id_str(id), this);
+	time_stats_updater_t time_stats_updater(m_time_stats);
+	time_stats_updater.start(ACTION_WRITE);
+
+	sync_if_required(id);
+
 	timer.lock = timer.restart();
 
 	data_t* it = m_treap.find(id);
@@ -362,9 +364,6 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 }
 
 std::shared_ptr<raw_data_t> slru_cache_t::read_(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
-	time_stats_updater_t time_stats_updater(m_time_stats);
-	time_stats_updater.start(ACTION_READ);
-
 	const bool cache = (io->flags & DNET_IO_FLAGS_CACHE);
 	const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
 	(void) cmd;
@@ -373,6 +372,10 @@ std::shared_ptr<raw_data_t> slru_cache_t::read_(const unsigned char *id, dnet_cm
 
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE READ: %p", dnet_dump_id_str(id), this);
 	timer.lock = timer.restart();
+	time_stats_updater_t time_stats_updater(m_time_stats);
+	time_stats_updater.start(ACTION_READ);
+
+	sync_if_required(id);
 
 	bool new_page = false;
 
@@ -467,7 +470,10 @@ int slru_cache_t::remove_(const unsigned char *id, dnet_io_attr *io) {
 	remove_timer timer(m_node, id);
 
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE REMOVE: %p", dnet_dump_id_str(id), this);
+	time_stats_updater_t time_stats_updater(m_time_stats);
+	time_stats_updater.start(ACTION_REMOVE);
 	timer.lock = timer.restart();
+	sync_if_required(id);
 
 	data_t* it = m_treap.find(id);
 	timer.find = timer.restart();
@@ -549,31 +555,16 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	return result;
 }
 
-void slru_cache_t::clear()
-{
-	std::vector<size_t> cache_pages_max_sizes = m_cache_pages_max_sizes;
-
-	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE CLEAR: %p", this);
-
-	for (size_t page_number = 0; page_number < m_cache_pages_number; ++page_number) {
-		m_cache_pages_max_sizes[page_number] = 0;
-		resize_page((unsigned char *) "", page_number, 0);
-	}
-
-	while (!m_treap.empty()) {
-		erase_element(m_treap.top());
-	}
-
-	m_cache_pages_max_sizes = cache_pages_max_sizes;
-}
-
 int slru_cache_t::lookup_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
 	int err = 0;
 
 	lookup_timer timer(m_node, id);
 
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE LOOKUP: %p", dnet_dump_id_str(id), this);
+	time_stats_updater_t time_stats_updater(m_time_stats);
+	time_stats_updater.start(ACTION_LOOKUP);
 	timer.lock = timer.restart();
+	sync_if_required(id);
 
 	data_t* it = m_treap.find(id);
 	timer.find = timer.restart();
@@ -608,12 +599,47 @@ int slru_cache_t::lookup_(const unsigned char *id, dnet_net_state *st, dnet_cmd 
 	return dnet_send_reply(st, cmd, data.data(), data.size(), 0);
 }
 
-cache_stats slru_cache_t::get_cache_stats() const
+void slru_cache_t::clear()
 {
-	cache_stats stats(m_cache_stats);
-	stats.pages_sizes = m_cache_pages_sizes;
-	stats.pages_max_sizes = m_cache_pages_max_sizes;
-	return stats;
+	std::vector<size_t> cache_pages_max_sizes = m_cache_pages_max_sizes;
+
+	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE CLEAR: %p", this);
+
+	for (size_t page_number = 0; page_number < m_cache_pages_number; ++page_number) {
+		m_cache_pages_max_sizes[page_number] = 0;
+		resize_page((unsigned char *) "", page_number, 0);
+	}
+
+	while (!m_treap.empty()) {
+		erase_element(m_treap.top());
+	}
+
+	m_cache_pages_max_sizes = cache_pages_max_sizes;
+}
+
+cache_stats slru_cache_t::get_cache_stats() const {
+	m_cache_stats.pages_sizes = m_cache_pages_sizes;
+	m_cache_stats.pages_max_sizes = m_cache_pages_max_sizes;
+	return m_cache_stats;
+}
+
+rapidjson::Value &slru_cache_t::get_time_stats(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
+	return m_time_stats.to_json(stat_value, allocator);
+}
+
+void slru_cache_t::sync_if_required(const unsigned char *id) {
+	auto it = std::lower_bound(elements_for_sync.begin(), elements_for_sync.end(), id, record_id_less());
+	if ((it != elements_for_sync.end()) && (dnet_id_cmp_str(it->id.id, id) == 0)) {
+		dnet_oplock(m_node, &it->id);
+
+		// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
+		if (!it->is_synced) {
+			sync_element(it->id, it->only_append, it->data, it->user_flags, it->timestamp);
+			it->is_synced = true;
+		}
+
+		dnet_opunlock(m_node, &it->id);
+	}
 }
 
 // private:
@@ -893,33 +919,16 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 			 dnet_dump_id_str(id.id), timer_prepare, timer_erase, timer_before_write, timer_after_write, timer_lock, err);
 }
 
-struct record_info {
-	record_info(data_t* obj)
-	{
-		only_append = obj->only_append();
-		memcpy(id.id, obj->id().id, DNET_ID_SIZE);
-		data = obj->data()->data();
-		user_flags = obj->user_flags();
-		timestamp = obj->timestamp();
-	}
-
-	bool only_append;
-	dnet_id id;
-	std::vector<char> data;
-	uint64_t user_flags;
-	dnet_time timestamp;
-};
-
 void slru_cache_t::life_check(void) {
 	elliptics_timer lifecheck_timer;
 	while (!m_need_exit) {
 		(void) lifecheck_timer.restart();
 		std::deque<struct dnet_id> remove;
-		std::deque<record_info> elements_for_sync;
 
 		{
 			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
 
+			elements_for_sync.clear();
 			while (!m_need_exit && !m_treap.empty()) {
 				size_t time = ::time(NULL);
 
@@ -954,12 +963,17 @@ void slru_cache_t::life_check(void) {
 					}
 				}
 			}
+			sort(elements_for_sync.begin(), elements_for_sync.end());
 		}
+
 		for (auto it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
 			dnet_oplock(m_node, &it->id);
 
 			// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
-			sync_element(it->id, it->only_append, it->data, it->user_flags, it->timestamp);
+			if (!it->is_synced) {
+				sync_element(it->id, it->only_append, it->data, it->user_flags, it->timestamp);
+				it->is_synced = true;
+			}
 
 			dnet_opunlock(m_node, &it->id);
 		}

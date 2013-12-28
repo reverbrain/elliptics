@@ -40,6 +40,10 @@
 
 #include "treap.hpp"
 
+#include "../monitor/rapidjson/document.h"
+#include "../monitor/rapidjson/writer.h"
+#include "../monitor/rapidjson/stringbuffer.h"
+
 namespace ioremap { namespace cache {
 
 class raw_data_t {
@@ -216,6 +220,34 @@ private:
 	std::shared_ptr<raw_data_t> m_data;
 };
 
+struct record_info {
+	record_info(data_t* obj) {
+		only_append = obj->only_append();
+		memcpy(id.id, obj->id().id, DNET_ID_SIZE);
+		data = obj->data()->data();
+		user_flags = obj->user_flags();
+		timestamp = obj->timestamp();
+		is_synced = false;
+	}
+
+	bool operator< (const record_info& other) const {
+		return dnet_id_cmp_str(id.id, other.id.id) < 0;
+	}
+
+	bool is_synced;
+	bool only_append;
+	dnet_id id;
+	std::vector<char> data;
+	uint64_t user_flags;
+	dnet_time timestamp;
+};
+
+struct record_id_less {
+	bool operator() (const record_info& lhs, const unsigned char* id) const {
+		return dnet_id_cmp_str(lhs.id.id, id);
+	}
+};
+
 typedef boost::intrusive::list<data_t, boost::intrusive::base_hook<lru_list_base_hook_t> > lru_list_t;
 
 struct eventtime_less {
@@ -227,8 +259,8 @@ struct eventtime_less {
 
 typedef treap<data_t> treap_t;
 
-struct atomic_cache_stats {
-	atomic_cache_stats():
+struct cache_stats {
+	cache_stats():
 		number_of_objects(0), size_of_objects(0),
 		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
 		total_lifecheck_time(0),
@@ -236,53 +268,40 @@ struct atomic_cache_stats {
 		total_read_time(0),
 		total_remove_time(0), total_lookup_time(0), total_resize_time(0) {}
 
-	std::atomic_size_t number_of_objects;
-	std::atomic_size_t size_of_objects;
-	std::atomic_size_t number_of_objects_marked_for_deletion;
-	std::atomic_size_t size_of_objects_marked_for_deletion;
+	std::size_t number_of_objects;
+	std::size_t size_of_objects;
+	std::size_t number_of_objects_marked_for_deletion;
+	std::size_t size_of_objects_marked_for_deletion;
 
-	std::atomic_size_t total_lifecheck_time;
-	std::atomic_size_t total_write_time;
-	std::atomic_size_t total_read_time;
-	std::atomic_size_t total_remove_time;
-	std::atomic_size_t total_lookup_time;
-	std::atomic_size_t total_resize_time;
-};
-
-struct cache_stats {
-	cache_stats(const atomic_cache_stats& stats):
-		number_of_objects(stats.number_of_objects),
-		size_of_objects(stats.size_of_objects),
-		number_of_objects_marked_for_deletion(stats.number_of_objects_marked_for_deletion),
-		size_of_objects_marked_for_deletion(stats.size_of_objects_marked_for_deletion),
-		total_lifecheck_time(stats.total_lifecheck_time),
-		total_write_time(stats.total_write_time),
-		total_read_time(stats.total_read_time),
-		total_remove_time(stats.total_remove_time),
-		total_lookup_time(stats.total_lookup_time),
-		total_resize_time(stats.total_resize_time)
-	{}
-
-	cache_stats():
-		number_of_objects(0), size_of_objects(0),
-		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
-		total_lifecheck_time(0), total_write_time(0), total_read_time(0),
-		total_remove_time(0), total_lookup_time(0), total_resize_time(0) {}
-
-	size_t number_of_objects;
-	size_t size_of_objects;
-	size_t number_of_objects_marked_for_deletion;
-	size_t size_of_objects_marked_for_deletion;
-
-	size_t total_lifecheck_time;
-	size_t total_write_time;
-	size_t total_read_time;
-	size_t total_remove_time;
-	size_t total_lookup_time;
-	size_t total_resize_time;
+	std::size_t total_lifecheck_time;
+	std::size_t total_write_time;
+	std::size_t total_read_time;
+	std::size_t total_remove_time;
+	std::size_t total_lookup_time;
+	std::size_t total_resize_time;
 
 	std::vector<size_t> pages_sizes;
 	std::vector<size_t> pages_max_sizes;
+
+	rapidjson::Value& to_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
+		stat_value.AddMember("size", size_of_objects, allocator)
+				  .AddMember("removing_size", size_of_objects_marked_for_deletion, allocator)
+				  .AddMember("objects", number_of_objects, allocator)
+				  .AddMember("removing_objects", number_of_objects_marked_for_deletion, allocator);
+
+		rapidjson::Value pages_sizes_stat(rapidjson::kArrayType);
+		for (auto it = pages_sizes.begin(), end = pages_sizes.end(); it != end; ++it) {
+			pages_sizes_stat.PushBack(*it, allocator);
+		}
+		stat_value.AddMember("pages_sizes", pages_sizes_stat, allocator);
+
+		rapidjson::Value pages_max_sizes_stat(rapidjson::kArrayType);
+		for (auto it = pages_max_sizes.begin(), end = pages_max_sizes.end(); it != end; ++it) {
+			pages_max_sizes_stat.PushBack(*it, allocator);
+		}
+		stat_value.AddMember("pages_max_sizes", pages_max_sizes_stat, allocator);
+		return stat_value;
+	}
 };
 
 class slru_cache_t;
@@ -316,6 +335,14 @@ class cache_manager {
 		cache_stats get_total_cache_stats() const;
 
 		std::vector<cache_stats> get_caches_stats() const;
+
+		rapidjson::Value& get_total_caches_size_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
+
+		rapidjson::Value& get_total_caches_time_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
+
+		rapidjson::Value& get_caches_size_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
+
+		rapidjson::Value& get_caches_time_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
 
 		void dump_stats() const;
 

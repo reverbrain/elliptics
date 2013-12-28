@@ -30,33 +30,60 @@ const char* get_action_name(const int action_code) {
 }
 
 time_stats_tree_t::time_stats_tree_t() {
-	root = new node_t(-1);
+	root = new_node(ACTION_CACHE);
 }
 
 time_stats_tree_t::~time_stats_tree_t() {
-	print();
-	erase(root);
 }
 
-void time_stats_tree_t::print() {
-	print(root);
+rapidjson::Value& time_stats_tree_t::to_json(rapidjson::Value &stat_value,
+											 rapidjson::Document::AllocatorType &allocator) {
+	return to_json(root, stat_value, allocator);
 }
 
-void time_stats_tree_t::print(node_t* current_node) {
-	std::cout << get_action_name(current_node->action_code) << " " << current_node->time << std::endl;
-	for (auto it = current_node->links.begin(); it != current_node->links.end(); ++it) {
-		print(it->second);
+int time_stats_tree_t::get_node_action_code(time_stats_tree_t::p_node_t node) const {
+	return nodes[node].action_code;
+}
+
+void time_stats_tree_t::set_node_time(time_stats_tree_t::p_node_t node, long long int time) {
+	nodes[node].time = time;
+}
+
+long long int time_stats_tree_t::get_node_time(time_stats_tree_t::p_node_t node) const {
+	return nodes[node].time;
+}
+
+bool time_stats_tree_t::node_has_link(time_stats_tree_t::p_node_t node, int action_code) const {
+	return nodes[node].links.find(action_code) != nodes[node].links.end();
+}
+
+time_stats_tree_t::p_node_t time_stats_tree_t::get_node_link(time_stats_tree_t::p_node_t node, int action_code) const {
+	return nodes[node].links.at(action_code);
+}
+
+void time_stats_tree_t::add_new_link(time_stats_tree_t::p_node_t node, int action_code) {
+	nodes[node].links.emplace(action_code, new_node(action_code));
+}
+
+rapidjson::Value &time_stats_tree_t::to_json(p_node_t current_node, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	stat_value.AddMember("time", (int64_t) get_node_time(current_node), allocator);
+
+	for (auto it = nodes[current_node].links.begin(); it != nodes[current_node].links.end(); ++it) {
+		p_node_t next_node = it->second;
+		rapidjson::Value subtree_value(rapidjson::kObjectType);
+		to_json(next_node, subtree_value, allocator);
+		stat_value.AddMember(get_action_name(get_node_action_code(next_node)), subtree_value, allocator);
 	}
+	return stat_value;
 }
 
-void time_stats_tree_t::erase(time_stats_tree_t::node_t *current_node) {
-	for (auto it = current_node->links.begin(); it != current_node->links.end(); ++it) {
-		erase(it->second);
-	}
-	delete current_node;
+time_stats_tree_t::p_node_t time_stats_tree_t::new_node(int action_code) {
+	nodes.emplace_back(action_code);
+	return nodes.size() - 1;
 }
 
-time_stats_updater_t::time_stats_updater_t(const time_stats_tree_t &t): current_node(t.root) {
+time_stats_updater_t::time_stats_updater_t(time_stats_tree_t &t): current_node(t.root), t(t) {
+	measurements.emplace(std::chrono::system_clock::now(), NULL);
 }
 
 time_stats_updater_t::~time_stats_updater_t() {
@@ -67,16 +94,16 @@ time_stats_updater_t::~time_stats_updater_t() {
 }
 
 void time_stats_updater_t::start(const int action_code) {
-	if (current_node->links.find(action_code) == current_node->links.end()) {
-		current_node->links.emplace(action_code, new node_t(action_code));
+	if (!t.node_has_link(current_node, action_code)) {
+		t.add_new_link(current_node, action_code);
 	}
-	node_t* next_node = current_node->links[action_code];
+	p_node_t next_node = t.get_node_link(current_node, action_code);
 	measurements.emplace(std::chrono::system_clock::now(), current_node);
 	current_node = next_node;
 }
 
 void time_stats_updater_t::stop(const int action_code) {
-	if (current_node->action_code != action_code) {
+	if (t.get_node_action_code(current_node) != action_code) {
 		throw std::logic_error("Stopping wrong action");
 	}
 	pop_measurement();
@@ -85,8 +112,7 @@ void time_stats_updater_t::stop(const int action_code) {
 void time_stats_updater_t::pop_measurement(const time_point_t& end_time) {
 	measurement previous_measurement = measurements.top();
 	measurements.pop();
-
-	current_node->time += delta(previous_measurement.start_time, end_time);
+	t.set_node_time(current_node, t.get_node_time(current_node) + delta(previous_measurement.start_time, end_time));
 	current_node = previous_measurement.previous_node;
 }
 

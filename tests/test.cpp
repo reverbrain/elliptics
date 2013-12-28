@@ -35,7 +35,8 @@ static void configure_nodes(const std::vector<std::string> &remotes, const std::
 	if (remotes.empty()) {
 		global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
 			config_data::default_value()
-				("group", 1),
+				("group", 1)
+				("monitor_port", 1028),
 
 			config_data::default_value()
 				("group", 2)

@@ -42,7 +42,11 @@ public:
 
 	cache_stats get_cache_stats() const;
 
+	rapidjson::Value& get_time_stats(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const;
+
 private:
+
+	void sync_if_required(const unsigned char *id);
 
 	int write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data);
 
@@ -62,8 +66,9 @@ private:
 	std::thread m_lifecheck;
 	treap_t m_treap;
 	std::size_t finds_number;
-	mutable atomic_cache_stats m_cache_stats;
+	mutable cache_stats m_cache_stats;
 	mutable time_stats_tree_t m_time_stats;
+	std::vector<record_info> elements_for_sync;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 

@@ -174,24 +174,11 @@ rapidjson::Value& statistics::cache_report(rapidjson::Value &stat_value, rapidjs
 		return stat_value;
 
 	auto cache = static_cast<ioremap::cache::cache_manager*>(m_monitor.node()->cache);
-	auto stat = cache->get_total_cache_stats();
 
-	stat_value.AddMember("size", stat.size_of_objects, allocator)
-	          .AddMember("removing size", stat.size_of_objects_marked_for_deletion, allocator)
-	          .AddMember("objects", stat.number_of_objects, allocator)
-	          .AddMember("removing objects", stat.number_of_objects_marked_for_deletion, allocator);
-
-	rapidjson::Value pages_sizes(rapidjson::kArrayType);
-	for (auto it = stat.pages_sizes.begin(), end = stat.pages_sizes.end(); it != end; ++it) {
-		pages_sizes.PushBack(*it, allocator);
-	}
-	stat_value.AddMember("pages sizes", pages_sizes, allocator);
-
-	rapidjson::Value pages_max_sizes(rapidjson::kArrayType);
-	for (auto it = stat.pages_max_sizes.begin(), end = stat.pages_max_sizes.end(); it != end; ++it) {
-		pages_max_sizes.PushBack(*it, allocator);
-	}
-	stat_value.AddMember("pages max sizes", pages_max_sizes, allocator);
+	rapidjson::Value size_stat(rapidjson::kObjectType);
+	stat_value.AddMember("size_stat", cache->get_caches_size_stats_json(size_stat, allocator), allocator);
+	rapidjson::Value time_stats(rapidjson::kObjectType);
+	stat_value.AddMember("time_stat", cache->get_caches_time_stats_json(time_stats, allocator), allocator);
 
 	return stat_value;
 }
