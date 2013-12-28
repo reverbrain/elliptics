@@ -402,7 +402,7 @@ struct dnet_config
 	int			cache_sync_timeout;
 
 	/* Caches number */
-	unsigned int	caches_number;
+	unsigned int		caches_number;
 
 	/* Cache pages number */
 	unsigned int	cache_pages_number;
@@ -410,8 +410,13 @@ struct dnet_config
 	/* Cache pages proportions */
 	unsigned int*	cache_pages_proportions;
 
+	/*
+	 * Monitor socket port
+	 */
+	unsigned int		monitor_port;
+
 	/* so that we do not change major version frequently */
-	int			reserved_for_future_use[9 - (sizeof(unsigned int*) / sizeof(int))];
+	int			reserved_for_future_use[8 - (sizeof(unsigned int*) / sizeof(int))];
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);

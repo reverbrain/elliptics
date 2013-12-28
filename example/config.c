@@ -2,12 +2,12 @@
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
  * This file is part of Elliptics.
- * 
+ *
  * Elliptics is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -114,6 +114,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cur_cfg_data->cfg_state.client_prio = value;
 	else if (!strcmp(key, "indexes_shard_count"))
 		dnet_cur_cfg_data->cfg_state.indexes_shard_count = value;
+	else if (!strcmp(key, "monitor_port"))
+		dnet_cur_cfg_data->cfg_state.monitor_port = value;
 	else
 		return -1;
 
@@ -415,6 +417,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"caches_number", dnet_set_caches_number},
 	{"cache_pages_proportions", dnet_set_cache_pages_proportions},
 	{"indexes_shard_count", dnet_simple_set},
+	{"monitor_port", dnet_simple_set},
 };
 
 static int dnet_set_backend(struct dnet_config_backend *current_backend __unused, char *key __unused, char *value)

@@ -31,20 +31,24 @@ namespace tests {
 
 static std::shared_ptr<nodes_data> global_data;
 
-static void configure_server_nodes()
+static void configure_nodes(const std::vector<std::string> &remotes, const std::string &path)
 {
-	global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
-		config_data::default_srw_value()
-			("group", 1)
-			("srw_config", "some_path")
-	}));
+	if (remotes.empty()) {
+		global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
+			config_data::default_srw_value()
+				("group", 1)
+				("srw_config", "some_path")
+		}), path);
+	} else {
+		global_data = start_nodes(results_reporter::get_stream(), remotes, path);
+	}
 }
 
 static void upload_application(const std::string &app_name)
 {
 	using namespace cocaine::framework;
 
-	service_manager_t::endpoint_t endpoint("127.0.0.1", 10053);
+	service_manager_t::endpoint_t endpoint("127.0.0.1", global_data->locator_port);
 	auto manager = service_manager_t::create(endpoint);
 
 	auto storage = manager->get_service<storage_service_t>("storage");
@@ -109,6 +113,7 @@ static void init_application(session &sess, const std::string &app_name)
 
 	node_info info;
 	info.groups = { 1 };
+	info.path = global_data->directory.path();
 
 	for (auto it = global_data->nodes.begin(); it != global_data->nodes.end(); ++it)
 		info.remotes.push_back(it->remote());
@@ -156,11 +161,13 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 	bpo::variables_map vm;
 	bpo::options_description generic("Test options");
 
-	std::vector<std::string> remote;
+	std::vector<std::string> remotes;
+	std::string path;
 
 	generic.add_options()
 			("help", "This help message")
-			("remote", bpo::value<std::vector<std::string>>(&remote), "Remote elliptics server address")
+			("remote", bpo::value(&remotes), "Remote elliptics server address")
+			("path", bpo::value(&path), "Path where to store everything")
 			;
 
 	bpo::store(bpo::parse_command_line(argc, argv, generic), vm);
@@ -173,19 +180,7 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 
 	test_suite *suite = new test_suite("Local Test Suite");
 
-	if (remote.empty()) {
-		configure_server_nodes();
-	} else {
-		dnet_config config;
-		memset(&config, 0, sizeof(config));
-
-		logger log(NULL);
-
-		global_data = std::make_shared<nodes_data>();
-		global_data->node.reset(new node(log, config));
-		for (auto it = remote.begin(); it != remote.end(); ++it)
-			global_data->node->add_remote(it->c_str());
-	}
+	configure_nodes(remotes, path);
 
 	register_tests(suite, *global_data->node);
 

@@ -290,8 +290,10 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state,
 		join = DNET_JOIN;
 
 	nst = dnet_state_create(n, group_id, ids, id_num, addr,	s, &err, join, connected_state->idx, dnet_state_net_process);
-	if (!nst)
-		goto err_out_close;
+	if (!nst) {
+		// socket is already closed
+		goto err_out_exit;
+	}
 
 	err = dnet_copy_addrs(nst, cnt->addrs, cnt->addr_num);
 	if (err)
@@ -307,8 +309,6 @@ err_out_put:
 	dnet_state_put(nst);
 	return err;
 
-err_out_close:
-	dnet_sock_close(s);
 err_out_exit:
 	return err;
 }
@@ -1412,7 +1412,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 			goto out_remove;
 		}
 
-		dnet_sock_close(s);
+		// otherwise socket is already closed
 
 		dnet_log(n, DNET_LOG_ERROR, "Failed to add state during reconnection to %s, can remove state from reconnection list due to error: %d\n",
 				dnet_server_convert_dnet_addr(&ast->addr), err);

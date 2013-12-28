@@ -44,8 +44,10 @@ using namespace ioremap::elliptics;
 
 #ifdef USE_MASTER_SUITE
 #  define ELLIPTICS_TEST_CASE(M, C...) do { framework::master_test_suite().add(BOOST_TEST_CASE(std::bind( M, ##C ))); } while (false)
+#  define ELLIPTICS_TEST_CASE_NOARGS(M) do { framework::master_test_suite().add(BOOST_TEST_CASE(std::bind( M ))); } while (false)
 #else
 #  define ELLIPTICS_TEST_CASE(M, C...) do { suite->add(BOOST_TEST_CASE(std::bind( M, ##C ))); } while (false)
+#  define ELLIPTICS_TEST_CASE_NOARGS(M) do { suite->add(BOOST_TEST_CASE(std::bind( M ))); } while (false)
 #endif
 
 session create_session(node n, std::initializer_list<int> groups, uint64_t cflags, uint32_t ioflags);
@@ -54,7 +56,7 @@ class directory_handler
 {
 public:
 	directory_handler();
-	directory_handler(const std::string &path);
+	directory_handler(const std::string &path, bool remove);
 	directory_handler(directory_handler &&other);
 	~directory_handler();
 
@@ -67,6 +69,7 @@ public:
 
 private:
 	std::string m_path;
+	bool m_remove;
 };
 
 void create_directory(const std::string &path);
@@ -151,16 +154,20 @@ struct nodes_data
 #ifndef NO_SERVER
 	std::vector<server_node> nodes;
 	directory_handler directory;
+	int locator_port;
 #endif // NO_SERVER
+	directory_handler run_directory;
 
 	std::unique_ptr<ioremap::elliptics::node> node;
 };
 
 #ifndef NO_SERVER
 
-nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs);
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs, const std::string &path);
 
 #endif // NO_SERVER
+
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<std::string> &remotes, const std::string &path);
 
 std::string read_file(const char *file_path);
 

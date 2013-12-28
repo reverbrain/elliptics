@@ -23,15 +23,15 @@ ioremap::elliptics::session create_session(ioremap::elliptics::node n, std::init
 }
 
 
-directory_handler::directory_handler()
+directory_handler::directory_handler() : m_remove(false)
 {
 }
 
-directory_handler::directory_handler(const std::string &path) : m_path(path)
+directory_handler::directory_handler(const std::string &path, bool remove) : m_path(path), m_remove(remove)
 {
 }
 
-directory_handler::directory_handler(directory_handler &&other) : m_path(other.m_path)
+directory_handler::directory_handler(directory_handler &&other) : m_path(other.m_path), m_remove(other.m_remove)
 {
 	other.m_path.clear();
 }
@@ -39,6 +39,7 @@ directory_handler::directory_handler(directory_handler &&other) : m_path(other.m
 directory_handler &directory_handler::operator=(directory_handler &&other)
 {
 	std::swap(m_path, other.m_path);
+	std::swap(m_remove, other.m_remove);
 
 	return *this;
 }
@@ -50,7 +51,7 @@ std::string directory_handler::path() const
 
 directory_handler::~directory_handler()
 {
-	if (!m_path.empty())
+	if (!m_path.empty() && m_remove)
 		boost::filesystem::remove_all(m_path);
 }
 
@@ -269,33 +270,73 @@ static std::string create_remote(const std::string &port)
 	return "localhost:" + port + ":2";
 }
 
-nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs)
+typedef std::map<std::string, std::string> substitute_context;
+static void create_cocaine_config(const std::string &config_path, const std::string& template_text, const substitute_context& vars)
+{
+	std::string config_text = template_text;
+
+	for (auto it = vars.begin(); it != vars.end(); ++it) {
+		auto position = config_text.find(it->first);
+		if (position != std::string::npos)
+			config_text.replace(position, it->first.size(), it->second);
+	}
+
+	std::ofstream out;
+	out.open(config_path.c_str());
+
+	if (!out) {
+		throw std::runtime_error("Can not open file \"" + config_path + "\" for writing");
+	}
+
+	out.write(config_text.c_str(), config_text.size());
+}
+
+static void start_client_nodes(const nodes_data::ptr &data, std::ostream &debug_stream, const std::vector<std::string> &remotes);
+
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs, const std::string &path)
 {
 	nodes_data::ptr data = std::make_shared<nodes_data>();
 
 	std::string base_path;
 	std::string auth_cookie;
-	std::string cocaine_config = read_file(COCAINE_CONFIG_PATH);
+	std::string cocaine_config_template = read_file(COCAINE_CONFIG_PATH);
+	std::string run_path;
 
 	{
+		char buffer[1024];
+
+		snprintf(buffer, sizeof(buffer), "%04x%04x", rand(), rand());
+		buffer[sizeof(buffer) - 1] = 0;
+		auth_cookie = buffer;
+
+		snprintf(buffer, sizeof(buffer), "/tmp/elliptics-test-run-%04x/", rand());
+		buffer[sizeof(buffer) - 1] = 0;
+		run_path = buffer;
+	}
+
+	const auto ports = generate_ports(configs.size());
+
+	if (path.empty()) {
 		char buffer[1024];
 
 		snprintf(buffer, sizeof(buffer), "/tmp/elliptics-test-%04x/", rand());
 		buffer[sizeof(buffer) - 1] = 0;
 		base_path = buffer;
 
-		snprintf(buffer, sizeof(buffer), "%04x%04x", rand(), rand());
-		buffer[sizeof(buffer) - 1] = 0;
-		auth_cookie = buffer;
+		create_directory(base_path);
+		data->directory = directory_handler(base_path, true);
+	} else {
+		base_path = path;
+
+		create_directory(base_path);
+		data->directory = directory_handler(base_path, false);
 	}
 
-	const auto ports = generate_ports(configs.size());
-
-	create_directory(base_path);
-
-	data->directory = directory_handler(base_path);
-
 	debug_stream << "Set base directory: \"" << base_path << "\"" << std::endl;
+
+	create_directory(run_path);
+	data->run_directory = directory_handler(run_path, true);
+	debug_stream << "Set cocaine run directory: \"" << run_path << "\"" << std::endl;
 
 	std::string cocaine_remotes;
 	for (size_t j = 0; j < configs.size(); ++j) {
@@ -304,34 +345,9 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		cocaine_remotes += "\"localhost\": " + ports[j];
 	}
 
-	create_directory(base_path + "/run");
-
-	const std::map<std::string, std::string> cocaine_variables = {
-		{ "COCAINE_PLUGINS_PATH", COCAINE_PLUGINS_PATH },
-		{ "ELLIPTICS_REMOTES", cocaine_remotes },
-		{ "ELLIPTICS_GROUPS", "1" },
-		{ "COCAINE_LOG_PATH", base_path + "/log.txt" },
-		{ "COCAINE_RUN_PATH", base_path + "/run" }
-	};
-
-	for (auto it = cocaine_variables.begin(); it != cocaine_variables.end(); ++it) {
-		auto position = cocaine_config.find(it->first);
-		if (position != std::string::npos)
-			cocaine_config.replace(position, it->first.size(), it->second);
-	}
-
-	std::string cocaine_config_path = base_path + "/cocaine.conf";
-
-	{
-		std::ofstream out;
-		out.open(cocaine_config_path.c_str());
-
-		if (!out) {
-			throw std::runtime_error("Can not open file \"" + cocaine_config_path + "\" for writing");
-		}
-
-		out.write(cocaine_config.c_str(), cocaine_config.size());
-	}
+	const auto cocaine_locator_ports = generate_ports(configs.size());
+	// client only needs connection to one (any) locator service
+	data->locator_port = std::stoul(cocaine_locator_ports[0]);
 
 	debug_stream << "Starting " << configs.size() << " servers" << std::endl;
 
@@ -358,8 +374,21 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		else
 			config("remote", remotes);
 
-		if (config.has_value("srw_config"))
-			config("srw_config", cocaine_config_path);
+		if (config.has_value("srw_config")) {
+			create_directory(server_path + "/run");
+
+			const substitute_context cocaine_variables = {
+				{ "COCAINE_LOCATOR_PORT", cocaine_locator_ports[i] },
+				{ "COCAINE_PLUGINS_PATH", COCAINE_PLUGINS_PATH },
+				{ "ELLIPTICS_REMOTES", cocaine_remotes },
+				{ "ELLIPTICS_GROUPS", "1" },
+				{ "COCAINE_LOG_PATH", server_path + "/cocaine.log" },
+				{ "COCAINE_RUN_PATH", run_path }
+			};
+			create_cocaine_config(server_path + "/cocaine.conf", cocaine_config_template, cocaine_variables);
+
+			config("srw_config", server_path + "/cocaine.conf");
+		}
 
 		create_config(config, server_path + "/ioserv.conf")
 				("auth_cookie", auth_cookie)
@@ -378,20 +407,49 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 	}
 
 	{
-		dnet_config config;
-		memset(&config, 0, sizeof(config));
-
-		logger log(NULL);
-		data->node.reset(new node(log));
+		std::vector<std::string> remotes;
 		for (size_t i = 0; i < data->nodes.size(); ++i) {
-			data->node->add_remote(data->nodes[i].remote().c_str());
+			remotes.push_back(data->nodes[i].remote());
 		}
+
+		start_client_nodes(data, debug_stream, remotes);
 	}
 
 	return data;
 }
 
 #endif // NO_SERVER
+
+static void start_client_nodes(const nodes_data::ptr &data, std::ostream &debug_stream, const std::vector<std::string> &remotes)
+{
+	(void) debug_stream;
+
+	dnet_config config;
+	memset(&config, 0, sizeof(config));
+
+	logger log;
+	if (!data->directory.path().empty()) {
+		const std::string path = data->directory.path() + "/client.log";
+		log = file_logger(path.c_str(), DNET_LOG_DEBUG);
+	}
+
+	data->node.reset(new node(log));
+	for (size_t i = 0; i < remotes.size(); ++i) {
+		data->node->add_remote(remotes[i].c_str());
+	}
+}
+
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<std::string> &remotes, const std::string &path)
+{
+	if (remotes.empty()) {
+		throw std::runtime_error("Remotes list is empty");
+	}
+
+	nodes_data::ptr data = std::make_shared<nodes_data>();
+	data->directory = directory_handler(path, false);
+	start_client_nodes(data, debug_stream, remotes);
+	return data;
+}
 
 std::string read_file(const char *file_path)
 {
@@ -400,7 +458,7 @@ std::string read_file(const char *file_path)
 
 	std::ifstream config_in(file_path);
 	if (!config_in)
-		throw std::runtime_error(std::string("can not open for read: ") + file_path);
+		throw std::runtime_error(std::string("can not open file for read: ") + file_path);
 
 	while (config_in) {
 		std::streamsize read = config_in.readsome(buffer, sizeof(buffer));

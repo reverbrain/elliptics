@@ -432,17 +432,20 @@ public:
 	}
 
 	python_exec_result exec_src(const bp::api::object &id, const int src_key, const std::string &event, const std::string &data) {
-		auto eid = elliptics_id::convert(id);
-		session::transform(eid);
+		dnet_id* raw_id = NULL;
+		dnet_id conv_id;
+		if (id != bp::api::object()) {
+			auto eid = elliptics_id::convert(id);
+			session::transform(eid);
+			conv_id = eid.id();
+			raw_id = &conv_id;
+		}
 
-		return create_result(std::move(session::exec(const_cast<dnet_id*>(&eid.id()), src_key, event, data_pointer::copy(data))));
+		return create_result(std::move(session::exec(raw_id, src_key, event, data_pointer::copy(data))));
 	}
 
 	python_exec_result exec(const bp::api::object &id, const std::string &event, const std::string &data) {
-		auto eid = elliptics_id::convert(id);
-		session::transform(eid);
-
-		return create_result(std::move(session::exec(const_cast<dnet_id*>(&eid.id()), event, data_pointer::copy(data))));
+		return exec_src(id, -1, event, data);
 	}
 
 	python_remove_result remove(const bp::api::object &id) {
@@ -1439,7 +1442,7 @@ void init_elliptics_session() {
 		    "    Finds intersection of indexes. Returns elliptics.AsyncResult.\n"
 		    "    -- indexes - iterable object which provides string indexes which ids should be intersected\n\n"
 		    "    try:\n"
-		    "        resut = session.find_all_indexes(['index1', 'index2'])\n"
+		    "        result = session.find_all_indexes(['index1', 'index2'])\n"
 		    "        id_results = result.get()\n"
 		    "        for id_result in id_result:\n"
 		    "            print 'Find id:', id_result.id\n"
@@ -1455,7 +1458,7 @@ void init_elliptics_session() {
 		    "    Finds intersection of indexes. Returns elliptics.AsyncResult.\n"
 		    "    -- indexes - iterable object which provides indexes as elliptics.Id which ids should be intersected\n\n"
 		    "    try:\n"
-		    "        resut = session.find_all_indexes_raw([elliptics.Id('index1'), elliptics.Id('index2')])\n"
+		    "        result = session.find_all_indexes_raw([elliptics.Id('index1'), elliptics.Id('index2')])\n"
 		    "        id_results = result.get()\n"
 		    "        for id_result in id_result:\n"
 		    "            print 'Find id:', id_result.id\n"
@@ -1471,7 +1474,7 @@ void init_elliptics_session() {
 		    "    Finds keys unioun from indexes. Returns elliptics.AsyncResult.\n"
 		    "    -- indexes - iterable object which provides string indexes which ids should be united\n\n"
 		    "    try:\n"
-		    "        resut = session.find_any_indexes(['index1', 'index2'])\n"
+		    "        result = session.find_any_indexes(['index1', 'index2'])\n"
 		    "        id_results = result.get()\n"
 		    "        for id_result in id_result:\n"
 		    "            print 'Find id:', id_result.id\n"
@@ -1487,7 +1490,7 @@ void init_elliptics_session() {
 		    "    Finds keys uninoun from indexes. Returns elliptics.AsyncResult.\n"
 		    "    -- indexes - iterable object which provides indexes as elliptics.Id which ids should be united\n\n"
 		    "    try:\n"
-		    "        resut = session.find_any_indexes_raw([elliptics.Id('index1'), elliptics.Id('index2')])\n"
+		    "        result = session.find_any_indexes_raw([elliptics.Id('index1'), elliptics.Id('index2')])\n"
 		    "        id_results = result.get()\n"
 		    "        for id_result in id_result:\n"
 		    "            print 'Find id:', id_result.id\n"
@@ -1584,9 +1587,9 @@ void init_elliptics_session() {
 
 		// Couldn't use "exec" as a method name because it's a reserved keyword in python
 
-		.def("exec_event", &elliptics_session::exec,
+		.def("exec_", &elliptics_session::exec,
 		      (bp::arg("id"), bp::arg("event"), bp::arg("data") = ""))
-		.def("exec_event", &elliptics_session::exec_src,
+		.def("exec_", &elliptics_session::exec_src,
 		      (bp::arg("id"), bp::arg("src_key"),
 		       bp::arg("event"), bp::arg("data") = ""))
 

@@ -1,8 +1,8 @@
 find_package(Boost REQUIRED COMPONENTS iostreams thread regex program_options system filesystem)
 
-set(TEST_LINK_FLAGS "-Wl,-rpath,${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_CURRENT_BINARY_DIR}/../:${CMAKE_CURRENT_BINARY_DIR}/../library:${CMAKE_CURRENT_BINARY_DIR}/../srw:${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp")
-set(TEST_PROPERTIES PROPERTIES LINK_FLAGS "${TEST_LINK_FLAGS}")
-set(TEST_LIBRARIES elliptics_cpp test_common ${Boost_LIBRARIES})
+set(TEST_LINK_FLAGS "-Wl,-rpath,${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_CURRENT_BINARY_DIR}/../:${CMAKE_CURRENT_BINARY_DIR}/../library:${CMAKE_CURRENT_BINARY_DIR}/../srw:${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp:${CMAKE_CURRENT_BINARY_DIR}/../monitor")
+set(TEST_PROPERTIES PROPERTIES LINK_FLAGS "${TEST_LINK_FLAGS}" LINKER_LANGUAGE CXX)
+set(TEST_LIBRARIES  test_common elliptics elliptics_cpp ${Boost_LIBRARIES})
 
 add_definitions(
     -DCOCAINE_CONFIG_PATH="${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf"
@@ -21,15 +21,21 @@ add_library(test_common SHARED
     test_base.hpp
     test_base.cpp)
 set_target_properties(test_common ${TEST_PROPERTIES})
-target_link_libraries(test_common elliptics elliptics_cocaine elliptics_cpp dl ${Boost_LIBRARIES})
+target_link_libraries(test_common elliptics_cocaine elliptics_cpp dl ${Boost_LIBRARIES})
 
 add_executable(dnet_cpp_test test.cpp)
 set_target_properties(dnet_cpp_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_test ${TEST_LIBRARIES})
 
+add_executable(dnet_cpp_api_test api_test.cpp)
+set_target_properties(dnet_cpp_api_test ${TEST_PROPERTIES})
+target_link_libraries(dnet_cpp_api_test ${TEST_LIBRARIES})
+
 add_executable(dnet_cpp_cache_test cache_test.cpp)
 set_target_properties(dnet_cpp_cache_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_cache_test ${TEST_LIBRARIES})
+
+set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_api_test)
 
 if(WITH_COCAINE)
 	include(../cmake/Modules/locate_library.cmake)
@@ -50,16 +56,14 @@ if(WITH_COCAINE)
 	    POST_BUILD
 	    COMMAND tar -cf dnet_cpp_srw_test_app.tar dnet_cpp_srw_test_app
 	    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+
+        list(APPEND TESTS_LIST dnet_cpp_srw_test dnet_cpp_srw_test_app)
 endif()
 
-enable_testing()
-#set(TEST_ARGUMENTS --report_level=detailed --report_sink=stderr --log_level=warning  --log_sink=stderr)
-add_test(NAME generic_test COMMAND dnet_cpp_test ${TEST_ARGUMENTS})
-add_test(NAME cache_test COMMAND dnet_cpp_cache_test ${TEST_ARGUMENTS})
-
-if(WITH_COCAINE)
-add_test(NAME srw_test COMMAND dnet_cpp_srw_test ${TEST_ARGUMENTS})
-endif()
+add_custom_target(test
+    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
+    DEPENDS ${TESTS_LIST}
+    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py")
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)

@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.31
+Version:	2.24.15.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,38 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Dec 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.0
+- cache: treap implementation, cache distribution changes
+- monitor: initial implementation
+- python: filters and checkers
+- index: remove implementation
+- tests: new srw test, moved to new testing framework
+
+* Thu Dec 19 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.14.36
+- cache: Improved hash function in cache
+- * Use last 8 bytes in addition to first one. Otherwise all keys for specific shard comes to single cache object.
+- Python: Fixed accepting IoAttr instead of Id in read/write operations. Fixed overriding write_data by write_data_by_chunks.
+- Python: Provided Error, NotFoundError and TimeoutError directly from elliptics module. Removed hiding elliptics.core module.
+
+* Wed Dec 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.35
+- socket: alot of debug and double-close checks
+
+* Wed Dec 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.34
+- python: Acquire GIL in python binding in async_result::get()
+- config: update reserved fields to maintain proper ABI structure size
+- Python: Updated docstrings for binding
+- Merge recovery: changed statistics name to clearly separate remote and local request counters
+- Recovery: fixed removed_bytes in statistics for keys which hasn't been copied because proper node already has newer keys datas
+- Recovery: fixed removed_bytes in statistics for key which hasn't been copied because proper node already has newer key data
+
+* Thu Dec 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.33
+- Recovery: Added -o option to merge which limits it to one node.
+- Recovery: Replaced merge by deep_merge with removing of the last. Used FileHandler without rotation for dnet_recovery logs.
+
+* Thu Dec 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.32
+- Filters: Fixed filters::all filter
+- IDS: Added config flag which turns on saving and recovering ids from elliptics cluster.
+
 * Wed Dec 04 2013 Kirill Smorodinnikov <shaitan@yandex-team.ru> - 2.24.14.31
 - Recovery: Added clearing AsyncResults in handlers to prevent cross-links to objects. Minimized sending statistics.
 - Python: fixed memory leak and GC problem with using connect to AsyncResult.

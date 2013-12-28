@@ -29,7 +29,7 @@ class Address(object):
     # Allowed families, 0 means any
     ALLOWED_FAMILIES = (0, AF_INET, AF_INET6)
 
-    def __init__(self, host, port, family=0, group_id=0):
+    def __init__(self, host, port=None, family=0, group_id=0):
         """
         Initializes Address from host, port and optional family, group_id\n
         address = elliptics.Address(host='host.com', port=1025,
@@ -189,14 +189,17 @@ class RouteList(object):
             sorted_routes.append(Route(key, address))
 
         # Merge adj. keys for same address
+        smallest_id = [0] * 64
+        biggest_id = [255] * 64
         merged_routes = []
         for group in cls(sorted_routes).groups():
             group_routes = cls(sorted_routes).filter_by_group_id(group).routes
             last_address = group_routes[-1].address
             merged_group = []
 
-            # Insert implicit first route
-            group_routes.insert(0, Route(Id([0] * 64, group), last_address))
+            # Insert implicit first route if needed
+            if group_routes[0].key.id != smallest_id:
+                group_routes.insert(0, Route(Id(smallest_id, group), last_address))
 
             # For each Route in list left only first one for each route
             for _, g in groupby(group_routes, attrgetter('address')):
@@ -206,8 +209,9 @@ class RouteList(object):
             assert(all(r1.key < r2.key
                        for r1, r2 in izip(merged_group, merged_group[1:])))
 
-            # Insert implicit last route
-            merged_group.append(Route(Id([255] * 64, group), last_address))
+            # Insert implicit last route if needed
+            if group_routes[-1].key.id != biggest_id:
+                merged_group.append(Route(Id(biggest_id, group), last_address))
 
             # Extend route list
             merged_routes.extend(merged_group)

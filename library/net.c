@@ -97,9 +97,9 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 
 	dnet_set_sockopt(s);
 
-	dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d.\n",
+	dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d, socket: %d.\n",
 		dnet_server_convert_addr(sa, salen),
-		dnet_server_convert_port(sa, salen));
+		dnet_server_convert_port(sa, salen), s);
 
 	err = 0;
 
@@ -810,8 +810,8 @@ static void dnet_state_remove_and_shutdown(struct dnet_net_state *st, int error)
 
 		st->__need_exit = error;
 
-		shutdown(st->read_s, 2);
-		shutdown(st->write_s, 2);
+		shutdown(st->read_s, SHUT_RDWR);
+		shutdown(st->write_s, SHUT_RDWR);
 	}
 
 	pthread_mutex_unlock(&st->send_lock);
@@ -841,7 +841,7 @@ void dnet_state_reset(struct dnet_net_state *st, int error)
 
 void dnet_sock_close(int s)
 {
-	shutdown(s, 2);
+	shutdown(s, SHUT_RDWR);
 	close(s);
 }
 
@@ -883,17 +883,18 @@ int dnet_setup_control_nolock(struct dnet_net_state *st)
 
 		pthread_mutex_lock(&st->send_lock);
 		err = dnet_schedule_recv(st);
+		if (err) {
+			dnet_unschedule_send(st);
+			dnet_unschedule_recv(st);
+		}
 		pthread_mutex_unlock(&st->send_lock);
 		if (err)
-			goto err_out_unschedule;
+			goto err_out_exit;
 	}
 
 	return 0;
 
-err_out_unschedule:
-	dnet_unschedule_send(st);
-	dnet_unschedule_recv(st);
-
+err_out_exit:
 	st->epoll_fd = -1;
 	list_del_init(&st->storage_state_entry);
 	return err;
@@ -1006,8 +1007,6 @@ err_out_send_destroy:
 err_out_trans_destroy:
 	pthread_mutex_destroy(&st->trans_lock);
 err_out:
-	dnet_sock_close(st->write_s);
-
 	return err;
 }
 
@@ -1044,6 +1043,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	}
 
 	fcntl(st->write_s, F_SETFD, FD_CLOEXEC);
+
+	dnet_log(n, DNET_LOG_DEBUG, "%s: sockets: %d/%d\n", dnet_server_convert_dnet_addr(addr), st->read_s, st->write_s);
 
 	err = dnet_state_micro_init(st, n, addr, join, process);
 	if (err)

@@ -426,7 +426,7 @@ class session
 		 *
 		 * Returns async_write_result
 		 */
-		async_write_result write_data(const dnet_io_attr& io, const data_pointer &file);
+		async_write_result write_data(const dnet_io_attr& io, const argument_data &file);
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
 		 *
@@ -435,7 +435,7 @@ class session
 		 * \note Calling this method is equal to consecutive calling
 		 * of write_prepare(), write_plain() and write_commit().
 		 */
-		async_write_result write_data(const key &id, const data_pointer &file, uint64_t remote_offset);
+		async_write_result write_data(const key &id, const argument_data &file, uint64_t remote_offset);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset chunk by chunk with a size \chunk_size.
@@ -469,7 +469,7 @@ class session
 		 *
 		 * Returns async_write_result.
 		 */
-		async_write_result write_cas(const key &id, const data_pointer &file, const struct dnet_id &old_csum, uint64_t remote_offset);
+		async_write_result write_cas(const key &id, const argument_data &file, const struct dnet_id &old_csum, uint64_t remote_offset);
 
 		/*!
 		 * Prepares \a psize bytes place to write data by \a id and writes data by \a file and by \a remote_offset
@@ -481,7 +481,7 @@ class session
 		 *       If you about to write data by offset, then psize should defines final size of full object
 		 *       rather then expecting that server reserves psize bytes after remote_offset of current object.
 		 */
-		async_write_result write_prepare(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize);
+		async_write_result write_prepare(const key &id, const argument_data &file, uint64_t remote_offset, uint64_t psize);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset in prepared place.
@@ -492,7 +492,7 @@ class session
 		 *       remains \a id as incomplete and inaccessible until write_commit is called.
 		 *       While write_plain data shouldn't go out of prepared place.
 		 */
-		async_write_result write_plain(const key &id, const data_pointer &file, uint64_t remote_offset);
+		async_write_result write_plain(const key &id, const argument_data &file, uint64_t remote_offset);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset and commit key \a id data by \a csize.
@@ -504,7 +504,7 @@ class session
 		 *       csize could be less then prepared place size. In this case object will be truncated by csize.
 		 *       But csize shouldn't be more then size of prepared place.
 		 */
-		async_write_result write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize);
+		async_write_result write_commit(const key &id, const argument_data &file, uint64_t remote_offset, uint64_t csize);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
@@ -515,7 +515,7 @@ class session
 		 *
 		 * Returns async_write_result.
 		 */
-		async_write_result write_cache(const key &id, const data_pointer &file, long timeout);
+		async_write_result write_cache(const key &id, const argument_data &file, long timeout);
 
 		/*!
 		 * Returns address (ip and port pair) of remote node where
@@ -622,7 +622,7 @@ class session
 		 * Returns async_exec_result.
 		 * Result contains all replies sent by nodes processing this event.
 		 */
-		async_exec_result exec(dnet_id *id, const std::string &event, const data_pointer &data);
+		async_exec_result exec(dnet_id *id, const std::string &event, const argument_data &data);
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data.
 		 * \a src_key used as sub-id to snap execution to a distinct worker,
@@ -634,7 +634,7 @@ class session
 		 * Returns async_exec_result.
 		 * Result contains all replies sent by nodes processing this event.
 		 */
-		async_exec_result exec(dnet_id *id, int src_key, const std::string &event, const data_pointer &data);
+		async_exec_result exec(dnet_id *id, int src_key, const std::string &event, const argument_data &data);
 		/*!
 		 * Sends execution request of the given \a event and \a data
 		 * to the party specified by a given \a context.
@@ -642,7 +642,7 @@ class session
 		 * Returns async_exec_result.
 		 * Result contains all replies sent by nodes processing this event.
 		 */
-		async_exec_result exec(const exec_context &context, const std::string &event, const data_pointer &data);
+		async_exec_result exec(const exec_context &context, const std::string &event, const argument_data &data);
 
 		/*!
 		 * Send an \a event with \a data to \a id continuing the process specified by \a context.
@@ -653,7 +653,7 @@ class session
 		 * Result contains only the information about starting of event procession, so there is no
 		 * information if it was finally processed successfully.
 		 */
-		async_push_result push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
+		async_push_result push(dnet_id *id, const exec_context &context, const std::string &event, const argument_data &data);
 		/*!
 		 * Reply \a data to initial starter of the process specified by \a context.
 		 *
@@ -662,7 +662,7 @@ class session
 		 * Returns async_reply_result.
 		 * Result contains information if starter received the reply.
 		 */
-		async_reply_result reply(const exec_context &context, const data_pointer &data, exec_context::final_state state);
+		async_reply_result reply(const exec_context &context, const argument_data &data, exec_context::final_state state);
 
 		/*!
 		 * Send reply back to blocked execution client
@@ -699,7 +699,7 @@ class session
 		 *
 		 * Returns async_write_result.
 		 */
-		async_write_result bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<data_pointer> &data);
+		async_write_result bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<argument_data> &data);
 		/*!
 		 * \overload bulk_read()
 		 *

@@ -2,17 +2,17 @@
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
  * This file is part of Elliptics.
- * 
+ *
  * Elliptics is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -521,8 +521,6 @@ struct dnet_node
 	pthread_t		reconnect_tid;
 	long			stall_count;
 
-	pthread_t		monitor_tid;
-	int			monitor_fd;
 
 	struct dnet_backend_callbacks	*cb;
 
@@ -564,6 +562,8 @@ struct dnet_node
 	size_t			cache_pages_number;
 	unsigned int	*cache_pages_proportions;
 	void			*cache;
+
+	void			*monitor;
 
 	struct dnet_config_data *config_data;
 };
@@ -740,9 +740,6 @@ struct dnet_addr_storage
 int dnet_check_thread_start(struct dnet_node *n);
 void dnet_check_thread_stop(struct dnet_node *n);
 int dnet_try_reconnect(struct dnet_node *n);
-
-void dnet_monitor_exit(struct dnet_node *n);
-int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 
 int dnet_set_name(char *name);
 int dnet_ioprio_set(long pid, int class_id, int prio);

@@ -1,3 +1,53 @@
+elliptics (2.24.15.0) unstable; urgency=low
+
+  * cache: treap implementation, cache distribution changes
+  * monitor: initial implementation
+  * python: filters and checkers
+  * index: remove implementation
+  * tests: new srw test, moved to new testing framework
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 25 Dec 2013 23:53:20 +0400
+
+elliptics (2.24.14.36) unstable; urgency=low
+
+  * cache: Improved hash function in cache
+  * * Use last 8 bytes in addition to first one. Otherwise all keys for specific shard comes to single cache object.
+  * Python: Fixed accepting IoAttr instead of Id in read/write operations. Fixed overriding write_data by write_data_by_chunks.
+  * Python: Provided Error, NotFoundError and TimeoutError directly from elliptics module. Removed hiding elliptics.core module.
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Thu, 19 Dec 2013 15:54:38 +0400
+
+elliptics (2.24.14.35) unstable; urgency=low
+
+  * socket: alot of debug and double-close checks
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 11 Dec 2013 06:31:09 +0400
+
+elliptics (2.24.14.34) unstable; urgency=low
+
+  * python: Acquire GIL in python binding in async_result::get()
+  * config: update reserved fields to maintain proper ABI structure size
+  * Python: Updated docstrings for binding
+  * Merge recovery: changed statistics name to clearly separate remote and local request counters
+  * Recovery: fixed removed_bytes in statistics for keys which hasn't been copied because proper node already has newer keys datas
+  * Recovery: fixed removed_bytes in statistics for key which hasn't been copied because proper node already has newer key data
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 11 Dec 2013 01:54:38 +0400
+
+elliptics (2.24.14.33) unstable; urgency=low
+
+  * Recovery: Added -o option to merge which limits it to one node.
+  * Recovery: Replaced merge by deep_merge with removing of the last. Used FileHandler without rotation for dnet_recovery logs.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 05 Dec 2013 19:11:17 +0400
+
+elliptics (2.24.14.32) unstable; urgency=low
+
+  * Filters: Fixed filters::all filter
+  * IDS: Added config flag which turns on saving and recovering ids from elliptics cluster.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 05 Dec 2013 02:50:18 +0400
+
 elliptics (2.24.14.31) unstable; urgency=low
 
   * Recovery: Added clearing AsyncResults in handlers to prevent cross-links to objects. Minimized sending statistics.

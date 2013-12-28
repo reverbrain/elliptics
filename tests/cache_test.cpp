@@ -14,12 +14,10 @@
  * GNU Lesser General Public License for more details.
  */
 
-#define USE_MASTER_SUITE
-#define BOOST_TEST_DYN_LINK
-
 #include "test_base.hpp"
 #include "../cache/cache.hpp"
 
+#define BOOST_TEST_NO_MAIN
 #include <boost/test/included/unit_test.hpp>
 
 #include <boost/program_options.hpp>
@@ -36,14 +34,14 @@ static void destroy_global_data()
 	global_data.reset();
 }
 
-static void configure_server_nodes()
+static void configure_nodes(const std::string &path)
 {
 	global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
 		config_data::default_value()
 			("group", 5)
 			("cache_size", 100000)
 			("caches_number", 1)
-	}));
+	}), path);
 }
 
 static void test_cache_records_sizes(session &sess)
@@ -51,7 +49,7 @@ static void test_cache_records_sizes(session &sess)
 	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[0].get_native()->cache;
 	const size_t cache_size = cache->cache_size();
 	const size_t cache_pages_number = cache->cache_pages_number();
-	data_pointer data("0");
+	argument_data data("0");
 
 	cache->clear();
 	size_t record_size = 0;
@@ -83,7 +81,7 @@ static void test_cache_overflow(session &sess)
 	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[0].get_native()->cache;
 	const size_t cache_size = cache->cache_size();
 	const size_t cache_pages_number = cache->cache_pages_number();
-	data_pointer data("0");
+	argument_data data("0");
 
 	cache->clear();
 	size_t record_size = 0;
@@ -120,16 +118,44 @@ std::string generate_data(size_t length)
 	return data;
 }
 
-bool register_tests()
+bool register_tests(test_suite *suite, node n)
 {
-	configure_server_nodes();
-	node n = *global_data->node;
-
 	ELLIPTICS_TEST_CASE(test_cache_records_sizes, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 	ELLIPTICS_TEST_CASE(test_cache_overflow, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 	ELLIPTICS_TEST_CASE(test_cache_overflow, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE));
 
 	return true;
+}
+
+boost::unit_test::test_suite *register_tests(int argc, char *argv[])
+{
+	namespace bpo = boost::program_options;
+
+	bpo::variables_map vm;
+	bpo::options_description generic("Test options");
+
+	std::string path;
+
+	generic.add_options()
+			("help", "This help message")
+			("path", bpo::value(&path), "Path where to store everything")
+			;
+
+	bpo::store(bpo::parse_command_line(argc, argv, generic), vm);
+	bpo::notify(vm);
+
+	if (vm.count("help")) {
+		std::cerr << generic;
+		return NULL;
+	}
+
+	test_suite *suite = new test_suite("Local Test Suite");
+
+	configure_nodes(path);
+
+	register_tests(suite, *global_data->node);
+
+	return suite;
 }
 
 }

@@ -29,17 +29,20 @@ namespace tests {
 
 static std::shared_ptr<nodes_data> global_data;
 
-static void configure_server_nodes()
+static void configure_nodes(const std::vector<std::string> &remotes, const std::string &path)
 {
 #ifndef NO_SERVER
-	global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
-		config_data::default_value()
-			("group", 1),
+	if (remotes.empty()) {
+		global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
+			config_data::default_value()
+				("group", 1),
 
-		config_data::default_value()
-			("group", 2)
-	}));
+			config_data::default_value()
+				("group", 2)
+		}), path);
+	} else
 #endif // NO_SERVER
+		global_data = start_nodes(results_reporter::get_stream(), remotes, path);
 }
 
 static void test_cache_write(session &sess, int num)
@@ -249,49 +252,6 @@ static void test_error(session &s, const std::string &id, int err)
 	ELLIPTICS_REQUIRE_ERROR(read_result, s.read_data(id, 0, 0), err);
 }
 
-static bool test_error_check_exception(const not_found_error &e)
-{
-	return e.error_message()
-			.find("entry::io_attribute(): data.size is too small, expected: 208, actual: 0, status: -2")
-			!= std::string::npos;
-}
-
-static void test_error_message(session &s, const std::string &id, int err)
-{
-	s.set_filter(filters::all);
-
-	ELLIPTICS_REQUIRE_ERROR(read_result, s.read_data(id, 0, 0), err);
-
-	sync_read_result sync_result = read_result.get();
-
-	BOOST_REQUIRE(sync_result.size() > 0);
-
-	read_result_entry entry = sync_result[0];
-
-	BOOST_REQUIRE_EXCEPTION(entry.io_attribute(), not_found_error, test_error_check_exception);
-}
-
-static bool test_error_null_message_check_exception_1(const not_found_error &e)
-{
-	return e.error_message()
-			.find("entry::command(): entry is null")
-			!= std::string::npos;
-}
-
-static bool test_error_null_message_check_exception_2(const not_found_error &e)
-{
-	return e.error_message()
-			.find("entry::io_attribute(): entry is null")
-			!= std::string::npos;
-}
-
-static void test_error_null_message(session &)
-{
-	read_result_entry entry;
-	BOOST_REQUIRE_EXCEPTION(entry.command(), not_found_error, test_error_null_message_check_exception_1);
-	BOOST_REQUIRE_EXCEPTION(entry.io_attribute(), not_found_error, test_error_null_message_check_exception_2);
-}
-
 static void test_remove(session &s, const std::string &id)
 {
 	ELLIPTICS_REQUIRE(remove_result, s.remove(id));
@@ -427,7 +387,7 @@ static void test_commit(session &s)
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
 
 	ctl.cflags = s.get_cflags();
-	ctl.data = data_pointer(data).data();
+	ctl.data = data.c_str();
 	ctl.io.flags = DNET_IO_FLAGS_COMMIT;
 	ctl.io.user_flags = 0;
 	ctl.io.offset = 0;
@@ -927,8 +887,6 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_more_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {99}, 0, 0), "non-existen-key", -ENXIO);
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {1, 2}, 0, 0), "non-existen-key", -ENOENT);
-	ELLIPTICS_TEST_CASE(test_error_message, create_session(n, {1, 2}, 0, 0), "non-existen-key", -ENOENT);
-	ELLIPTICS_TEST_CASE(test_error_null_message, create_session(n, {}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, 0), "2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "cache-2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_cas, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CHECKSUM));
@@ -965,11 +923,13 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 	bpo::variables_map vm;
 	bpo::options_description generic("Test options");
 
-	std::vector<std::string> remote;
+	std::vector<std::string> remotes;
+	std::string path;
 
 	generic.add_options()
 		("help", "This help message")
-		("remote", bpo::value<std::vector<std::string>>(&remote), "Remote elliptics server address")
+		("remote", bpo::value(&remotes), "Remote elliptics server address")
+		("path", bpo::value(&path), "Path where to store everything")
 		 ;
 
 	bpo::store(bpo::parse_command_line(argc, argv, generic), vm);
@@ -978,7 +938,7 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 #ifndef NO_SERVER
 	if (vm.count("help")) {
 #else
-	if (vm.count("help") || remote.empty()) {
+	if (vm.count("help") || remotes.empty()) {
 #endif
 		std::cerr << generic;
 		return NULL;
@@ -986,19 +946,7 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 
 	test_suite *suite = new test_suite("Local Test Suite");
 
-	if (remote.empty()) {
-		configure_server_nodes();
-	} else {
-		dnet_config config;
-		memset(&config, 0, sizeof(config));
-
-		logger log(NULL);
-
-		global_data = std::make_shared<nodes_data>();
-		global_data->node.reset(new node(log, config));
-		for (auto it = remote.begin(); it != remote.end(); ++it)
-			global_data->node->add_remote(it->c_str());
-	}
+	configure_nodes(remotes, path);
 
 	register_tests(suite, *global_data->node);
 

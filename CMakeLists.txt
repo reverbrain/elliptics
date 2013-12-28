@@ -112,6 +112,7 @@ add_subdirectory(cache)
 add_subdirectory(indexes)
 add_subdirectory(library)
 add_subdirectory(bindings)
+add_subdirectory(monitor)
 add_subdirectory(tests)
 if(WITH_EXAMPLES)
     add_subdirectory(example)
@@ -162,5 +163,3 @@ install(EXPORT EllipticsTargets DESTINATION share/elliptics/cmake)
 
 FILE(GLOB man_pages "man/*")
 install(FILES ${man_pages} DESTINATION share/man/man1)
-
-enable_testing()

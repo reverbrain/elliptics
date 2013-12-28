@@ -2,17 +2,17 @@
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
  * This file is part of Elliptics.
- * 
+ *
  * Elliptics is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -26,6 +26,8 @@
 #include <signal.h>
 
 #include "elliptics.h"
+#include "../monitor/monitor.h"
+
 #include "elliptics/interface.h"
 
 static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned long long storage_free)
@@ -244,9 +246,13 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, str
 	if (err)
 		goto err_out_notify_exit;
 
-	err = dnet_local_addr_add(n, addrs, addr_num);
+	err  = dnet_monitor_init(n, cfg);
 	if (err)
 		goto err_out_cache_cleanup;
+
+	err = dnet_local_addr_add(n, addrs, addr_num);
+	if (err)
+		goto err_out_monitor_exit;
 
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		struct dnet_addr la;
@@ -306,6 +312,8 @@ err_out_locks_destroy:
 	dnet_locks_destroy(n);
 err_out_addr_cleanup:
 	dnet_local_addr_cleanup(n);
+err_out_monitor_exit:
+	dnet_monitor_exit(n);
 err_out_cache_cleanup:
 	dnet_cache_cleanup(n);
 err_out_notify_exit:

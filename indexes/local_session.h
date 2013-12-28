@@ -45,7 +45,6 @@ class local_session
 		int remove(const dnet_id &id);
 
 		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::data_pointer &data, uint32_t action);
-		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::raw_data_pointer &data, uint32_t action);
 
 	private:
 		void clear_queue(int *errp = NULL);

@@ -56,16 +56,16 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		for (uint64_t i = 0; i < request->entries_count; ++i) {
 			const dnet_indexes_request_entry *request_entry = reinterpret_cast<const dnet_indexes_request_entry *>(data_start + data_offset);
 
-			raw_index_entry entry;
+			index_entry entry;
 			entry.index = request_entry->id;
-			entry.data = raw_data_pointer::copy(request_entry->data, request_entry->size);
+			entry.data = data_pointer::copy(request_entry->data, request_entry->size);
 
 			indexes.indexes.push_back(entry);
 
 			data_offset += sizeof(dnet_indexes_request_entry) + request_entry->size;
 		}
 
-		std::sort(indexes.indexes.begin(), indexes.indexes.end(), raw_dnet_raw_id_less_than<>());
+		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
 		indexes.shard_id = dnet_indexes_get_shard_id(state->n, reinterpret_cast<const dnet_raw_id*>(&cmd->id));
 		indexes.shard_count = state->n->indexes_shard_count;
 		if (!(flags & (DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_REMOVE_ONLY))) {
@@ -89,25 +89,25 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	dnet_cmd cmd;
 	dnet_id request_id;
 	// indexes to update
-	raw_dnet_indexes indexes;
+	dnet_indexes indexes;
 
 	msgpack::sbuffer buffer;
 	// already updated indexes - they are read from storage and changed
-	raw_dnet_indexes remote_indexes;
-	std::vector<raw_index_entry> inserted_ids;
-	std::vector<raw_index_entry> removed_ids;
+	dnet_indexes remote_indexes;
+	std::vector<index_entry> inserted_ids;
+	std::vector<index_entry> removed_ids;
 	std::vector<dnet_indexes_reply_entry> result;
 
 	std::atomic_int requests_in_progress;
 	uint32_t flags;
 	std::mutex requests_order_guard;
 
-	static bool index_entry_less_than(const raw_index_entry &first, const raw_index_entry &second)
+	static bool index_entry_less_than(const index_entry &first, const index_entry &second)
 	{
 		return memcmp(first.index.id, second.index.id, DNET_ID_SIZE) < 0;
 	}
 
-	static bool index_entry_equal(const raw_index_entry &first, const raw_index_entry &second)
+	static bool index_entry_equal(const index_entry &first, const index_entry &second)
 	{
 		return memcmp(first.index.id, second.index.id, DNET_ID_SIZE) == 0;
 	}
@@ -129,7 +129,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			// remove object from remote_indexes.indexes that exists in indexes.indexes
 			// and give it to the storage
 
-			raw_dnet_indexes result;
+			dnet_indexes result;
 			result.shard_count = indexes.shard_count;
 			result.shard_id = indexes.shard_id;
 
@@ -139,14 +139,14 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 				result.indexes.insert(result.indexes.end(), remote_indexes.indexes.begin(), remote_indexes.indexes.end());
 
 				std::inplace_merge(result.indexes.begin(), result.indexes.begin() + indexes.indexes.size(),
-					result.indexes.end(), raw_dnet_raw_id_less_than<skip_data>());
+					result.indexes.end(), dnet_raw_id_less_than<skip_data>());
 				auto it = std::unique(result.indexes.begin(), result.indexes.end(), index_entry_equal);
 				result.indexes.erase(it, result.indexes.end());
 			} else if (flags & DNET_INDEXES_FLAGS_REMOVE_ONLY) {
 				result.indexes.reserve(remote_indexes.indexes.size());
 				std::set_difference(remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
 					indexes.indexes.begin(), indexes.indexes.end(),
-					std::back_inserter(result.indexes), raw_dnet_raw_id_less_than<skip_data>());
+					std::back_inserter(result.indexes), dnet_raw_id_less_than<skip_data>());
 			}
 
 			msgpack::pack(buffer, result);
@@ -214,11 +214,11 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		// We "insert" items also to update their data
 		std::set_difference(indexes.indexes.begin(), indexes.indexes.end(),
 			remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
-			std::back_inserter(inserted_ids), raw_dnet_raw_id_less_than<>());
+			std::back_inserter(inserted_ids), dnet_raw_id_less_than<>());
 		// Remove index entries which are not present in the new list of indexes
 		std::set_difference(remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
 			indexes.indexes.begin(), indexes.indexes.end(),
-			std::back_inserter(removed_ids), raw_dnet_raw_id_less_than<skip_data>());
+			std::back_inserter(removed_ids), dnet_raw_id_less_than<skip_data>());
 
 		if (inserted_ids.empty() && removed_ids.empty()) {
 			return complete(0, finished);
@@ -344,9 +344,9 @@ err_out_complete:
 		ptr functor;
 	};
 
-	int send_remote(dnet_session *sess, const dnet_raw_id &index, const raw_data_pointer &data, uint32_t action)
+	int send_remote(dnet_session *sess, const dnet_raw_id &index, const data_pointer &data, uint32_t action)
 	{
-		data_buffer buffer(sizeof(dnet_indexes_request) + sizeof(dnet_indexes_request_entry) + data.size);
+		data_buffer buffer(sizeof(dnet_indexes_request) + sizeof(dnet_indexes_request_entry) + data.size());
 
 		dnet_indexes_request request;
 		memset(&request, 0, sizeof(request));
@@ -362,13 +362,13 @@ err_out_complete:
 		memset(&entry, 0, sizeof(entry));
 
 		entry.id = index;
-		entry.size = data.size;
+		entry.size = data.size();
 		entry.flags = action;
 
 		buffer.write(entry);
 
-		if (data.size > 0) {
-			buffer.write(static_cast<const char *>(data.data), data.size);
+		if (data.size() > 0) {
+			buffer.write(data.data(), data.size());
 		}
 
 		data_pointer datap = std::move(buffer);
@@ -467,19 +467,18 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_in
 {
 	elliptics_timer timer;
 
-	raw_dnet_indexes indexes;
+	dnet_indexes indexes;
 	if (!data.empty())
 		indexes_unpack(node, cmd_id, data, &indexes, "convert_index_table");
 
 	const int64_t timer_unpack = timer.restart();
 
 	// Construct index entry
-	raw_index_entry request_index;
+	index_entry request_index;
 	memcpy(request_index.index.id, request->id.id, sizeof(request_index.index.id));
-	request_index.data.data = index_data.data();
-	request_index.data.size = index_data.size();
+	request_index.data = index_data;
 
-	auto it = std::lower_bound(indexes.indexes.begin(), indexes.indexes.end(), request_index);
+	auto it = std::lower_bound(indexes.indexes.begin(), indexes.indexes.end(), request_index, dnet_raw_id_less_than<skip_data>());
 
 	const int64_t timer_lower_bound = timer.restart();
 
@@ -692,12 +691,12 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, const dnet_id &re
 		return -EINVAL;
 	}
 
-	std::vector<raw_find_indexes_result_entry> result;
+	std::vector<find_indexes_result_entry> result;
 	std::vector<data_pointer> data_cache;
 
-	std::map<dnet_raw_id, size_t, raw_dnet_raw_id_less_than<> > result_map;
+	std::map<dnet_raw_id, size_t, dnet_raw_id_less_than<> > result_map;
 
-	raw_dnet_indexes tmp;
+	dnet_indexes tmp;
 
 	int err = -1;
 	dnet_id id = request_id;
@@ -742,7 +741,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, const dnet_id &re
 					result.back().id = entry.index;
 				}
 
-				raw_index_entry result_entry = { request_entry.id, entry.data };
+				index_entry result_entry = { request_entry.id, entry.data };
 				result[it->second].indexes.push_back(result_entry);
 			}
 		} else if (intersection && i == 0) {
@@ -750,7 +749,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, const dnet_id &re
 			for (size_t j = 0; j < tmp.indexes.size(); ++j) {
 				auto &entry = result[j];
 				entry.id = tmp.indexes[j].index;
-				raw_index_entry result_entry = { request_entry.id, tmp.indexes[j].data };
+				index_entry result_entry = { request_entry.id, tmp.indexes[j].data };
 				entry.indexes.push_back(result_entry);
 			}
 		} else if (intersection) {
@@ -758,19 +757,19 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, const dnet_id &re
 			auto it = std::set_intersection(result.begin(), result.end(),
 				tmp.indexes.begin(), tmp.indexes.end(),
 				result.begin(),
-				raw_dnet_raw_id_less_than<skip_data>());
+				dnet_raw_id_less_than<skip_data>());
 			result.resize(it - result.begin());
 
 			// Remove all objects from this index, which are not presented in result
 			std::set_intersection(tmp.indexes.begin(), tmp.indexes.end(),
 				result.begin(), result.end(),
 				tmp.indexes.begin(),
-				raw_dnet_raw_id_less_than<skip_data>());
+				dnet_raw_id_less_than<skip_data>());
 
 			// As lists contain othe same objects - it's possible to add index data by one cycle
 			auto jt = tmp.indexes.begin();
 			for (auto kt = result.begin(); kt != result.end(); ++kt, ++jt) {
-				raw_index_entry result_entry = { request_entry.id, jt->data };
+				index_entry result_entry = { request_entry.id, jt->data };
 				kt->indexes.push_back(result_entry);
 			}
 		}
@@ -863,12 +862,12 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 					break;
 				}
 
-				char *raw_data = reinterpret_cast<char *>(request + 1);
+				char *data = reinterpret_cast<char *>(request + 1);
 				for (size_t i = 0; i < request->entries_count; ++i) {
-					auto entry = reinterpret_cast<dnet_indexes_request_entry *>(raw_data);
-					raw_data += sizeof(*entry) + entry->size;
+					auto entry = reinterpret_cast<dnet_indexes_request_entry *>(data);
+					data += sizeof(*entry) + entry->size;
 				}
-				request = reinterpret_cast<dnet_indexes_request *>(raw_data);
+				request = reinterpret_cast<dnet_indexes_request *>(data);
 			}
 			break;
 		}
