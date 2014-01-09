@@ -776,7 +776,19 @@ async_lookup_result session::prepare_latest(const key &id, const std::vector<int
 			session session_copy = clone();
 
 			session_copy.set_groups(std::vector<int>(1, groups[i]));
-			lookup_results.emplace_back(std::move(session_copy.lookup(raw)));
+			try {
+				auto lookup_result = session_copy.lookup(raw);
+				lookup_results.emplace_back(std::move(lookup_result));
+			} catch (error &e) {
+				raw.group_id = groups[i];
+				auto logger = get_node().get_log();
+				logger.print(DNET_LOG_ERROR, "%s: failed to lookup, err: %s", dnet_dump_id(&raw), e.error_message().c_str());
+			}
+		}
+
+		if (lookup_results.empty()) {
+			result_handler.complete(error_info());
+			return result;
 		}
 
 		auto tmp_result = aggregated(*this, lookup_results.begin(), lookup_results.end());
@@ -1740,7 +1752,7 @@ void session::mix_states(const key &id, std::vector<int> &groups)
 	dnet_id raw = id.id();
 	int num = dnet_mix_states(m_data->session_ptr, &raw, &groups_ptr.data());
 	if (num < 0)
-		throw_error(num, "could not fetch groups");
+		throw_error(num, id, "could not fetch groups");
 	groups.assign(groups_ptr.data(), groups_ptr.data() + num);
 }
 void session::mix_states(std::vector<int> &groups)
