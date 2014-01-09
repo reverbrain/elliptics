@@ -9,10 +9,8 @@ import shutil
 
 def run_test(path, test):
     os.mkdir(path)
-    p = subprocess.Popen([test, '--path', path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=path)
+    p = subprocess.Popen([test, '--path', path], stdout=sys.stdout, stderr=subprocess.STDOUT, cwd=path)
     result = p.communicate()
-    print(result[0])
-    print(result[1])
 
     return p.returncode
 
@@ -32,7 +30,8 @@ def main():
     tests = [
         (binary_dir, 'dnet_cpp_test'),
         (binary_dir, 'dnet_cpp_cache_test'),
-        (binary_dir, 'dnet_cpp_srw_test')
+        (binary_dir, 'dnet_cpp_srw_test'),
+        (binary_dir, 'dnet_cpp_api_test')
     ]
     print('Running {0} tests'.format(len(tests)))
 
