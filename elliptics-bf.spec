@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.0
+Version:	2.24.15.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jan 09 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.1
+- prepare_latest fix
+- tests: set stdout to sys.stdout instead of PIPE
+- Monitor: Added ability to extend monitor statistics via custom statistics providers.
+- Python: Fixed rebase conflicts.
+- srw: Don't call cocaine::app_t::stop on stopped apps
+- tests: Write artifacts to source directory
+- tests: Fixed path to cocaine runtime
+- Monitor: fixed losing elliptics_monitor.so via making elliptics_monitor static library with -fPIC
+- Python: downgraded checking python objec on None for boost 1.40 which doesn't support is_none() method
+- Monitor: Made elliptics_monitor as shared library
+
 * Wed Dec 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.0
 - cache: treap implementation, cache distribution changes
 - monitor: initial implementation
