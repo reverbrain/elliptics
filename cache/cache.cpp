@@ -14,12 +14,32 @@
  */
 
 #include "cache.hpp"
-#include "../monitor/monitor.h"
 #include "slru_cache.hpp"
 
 #include <fstream>
 
+#include "../monitor/monitor.h"
+#include "../monitor/monitor.hpp"
+#include "../monitor/statistics.hpp"
+#include "../monitor/rapidjson/document.h"
+#include "../monitor/rapidjson/writer.h"
+#include "../monitor/rapidjson/stringbuffer.h"
+
 namespace ioremap { namespace cache {
+
+class cache_stat_provider : public ioremap::monitor::stat_provider {
+public:
+	cache_stat_provider(const cache_manager &manager)
+	: m_manager(manager)
+	{}
+
+	virtual std::string json() const {
+		return m_manager.stat_json();
+	}
+
+private:
+	const cache_manager	&m_manager;
+};
 
 cache_manager::cache_manager(struct dnet_node *n) {
 	size_t caches_number = n->caches_number;
@@ -43,6 +63,10 @@ cache_manager::cache_manager(struct dnet_node *n) {
 
 	stop = false;
 	m_dump_stats = std::thread(std::bind(&cache_manager::dump_stats, this));
+
+	auto real_monitor = static_cast<ioremap::monitor::monitor*>(n->monitor);
+	if (real_monitor)
+		real_monitor->get_statistics().add_provider(new cache_stat_provider(*this), "cache");
 }
 
 cache_manager::~cache_manager() {
@@ -182,13 +206,50 @@ void cache_manager::dump_stats() const
 	}
 }
 
+inline void dump_cache_stat(rapidjson::Value &value, rapidjson::Document::AllocatorType &allocator, const cache_stats &stats) {
+	value.AddMember("number_of_objects", stats.number_of_objects, allocator)
+	     .AddMember("size_of_objects", stats.size_of_objects, allocator)
+	     .AddMember("number_of_objects_marked_for_deletion ", stats.number_of_objects_marked_for_deletion, allocator)
+	     .AddMember("size_of_objects_marked_for_deletion ", stats.size_of_objects_marked_for_deletion, allocator)
+	     .AddMember("total_lifecheck_time ", stats.total_lifecheck_time, allocator)
+	     .AddMember("total_write_time ", stats.total_write_time, allocator)
+	     .AddMember("total_read_time ", stats.total_read_time, allocator)
+	     .AddMember("total_remove_time ", stats.total_remove_time, allocator)
+	     .AddMember("total_lookup_time ", stats.total_lookup_time, allocator)
+	     .AddMember("total_resize_time ", stats.total_resize_time, allocator);
+}
+
+std::string cache_manager::stat_json() const {
+	rapidjson::Document doc;
+	doc.SetObject();
+	auto &allocator = doc.GetAllocator();
+
+	auto stat = get_total_cache_stats();
+	dump_cache_stat(doc, allocator, stat);
+
+	auto stats = get_caches_stats();
+	rapidjson::Value caches(rapidjson::kArrayType);
+	for (auto it = stats.begin(), end = stats.end(); it != end; ++it) {
+		rapidjson::Value cache_value(rapidjson::kObjectType);
+		dump_cache_stat(cache_value, allocator, *it);
+		caches.PushBack(cache_value, allocator);
+	}
+
+	doc.AddMember("caches", caches, allocator);
+
+	rapidjson::StringBuffer buffer;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+	doc.Accept(writer);
+	return buffer.GetString();
+}
+
 size_t cache_manager::idx(const unsigned char *id) {
 	size_t i = *(size_t *)id;
 	size_t j = *(size_t *)(id + DNET_ID_SIZE - sizeof(size_t));
 	return (i ^ j) % m_caches.size();
 }
 
-}}
+}} /* namespace ioremap::cache */
 
 using namespace ioremap::cache;
 

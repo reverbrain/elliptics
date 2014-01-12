@@ -69,11 +69,7 @@ class Session(Session):
         """
         if type(indexes) is dict:
             datas = indexes.values()
-<<<<<<< HEAD
             indexes = indexes.keys()
-=======
-            indexes = indexes.values()
->>>>>>> cc8b225e920f5b3b2c07ee4e2a343ceaa5ff9365
 
         return super(Session, self).set_indexes(id, indexes, datas)
 
@@ -91,21 +87,17 @@ class Session(Session):
                                             ['index3_key_data', 'index4_key_data'])
             indexes_result = result.get()
         except Exception as e:
-            print 'Set indexes has been failed:', e\n
+            print 'Update indexes has been failed:', e\n
         try:
             result = session.update_indexes('key', {'index3':'index3_key_data',
                                                     'index4':'index4_key_data'})
             indexes_result = result.get()
         except Exception as e:
-            print 'Set indexes has been failed:', e
+            print 'Update indexes has been failed:', e
         """
         if type(indexes) is dict:
             datas = indexes.values()
-<<<<<<< HEAD
             indexes = indexes.keys()
-=======
-            indexes = indexes.values()
->>>>>>> cc8b225e920f5b3b2c07ee4e2a343ceaa5ff9365
 
         return super(Session, self).update_indexes(id, indexes, datas)
 
@@ -123,21 +115,17 @@ class Session(Session):
                                                      ['index5_key_data', 'index6_key_data'])
             indexes_result = result.get()
         except Exception as e:
-            print 'Set indexes has been failed:', e\n
+            print 'Update indexes has been failed:', e\n
         indexes_result = []
         try:
             result = session.update_indexes_internal('key', {'index5':'index5_key_data',
                                                              'index6':'index6_key_data'})
             indexes_result = result.get()
         except Exception as e:
-            print 'Set indexes has been failed:', e
+            print 'Update indexes internal has been failed:', e
         """
         if type(indexes) is dict:
             datas = indexes.values()
-<<<<<<< HEAD
             indexes = indexes.keys()
-=======
-            indexes = indexes.values()
->>>>>>> cc8b225e920f5b3b2c07ee4e2a343ceaa5ff9365
 
         return super(Session, self).update_indexes_internal(id, indexes, datas)

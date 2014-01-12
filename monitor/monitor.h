@@ -30,10 +30,18 @@ extern "C" {
 struct dnet_node;
 struct dnet_config;
 
+struct stat_provider_raw {
+	void		*stat_private;
+	const char*	(* json) (void *priv);
+	void		(* stop) (void *priv);
+};
+
 void dnet_monitor_log(void *monitor);
 
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_monitor_exit(struct dnet_node *n);
+
+void dnet_monitor_add_provider(void* monitor, struct stat_provider_raw stat, const char *name);
 
 void monitor_command_counter(void *monitor, const int cmd, const int trans,
                              const int err, const int cache,
