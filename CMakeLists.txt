@@ -88,6 +88,13 @@ if (HAVE_MODULE_BACKEND_SUPPORT)
     add_definitions(-DHAVE_MODULE_BACKEND_SUPPORT=1)
 endif()
 
+option(WITH_DOXYGEN "Generate documentation by Doxygen" ON)
+
+if(WITH_DOXYGEN)
+    message("-- Checking for Doxygen...")
+    find_package(Doxygen)
+endif()
+
 # GoLD does no overlinking
 find_package(Boost REQUIRED COMPONENTS thread system)
 message(STATUS "Boost information:")
@@ -163,3 +170,21 @@ install(EXPORT EllipticsTargets DESTINATION share/elliptics/cmake)
 
 FILE(GLOB man_pages "man/*")
 install(FILES ${man_pages} DESTINATION share/man/man1)
+
+if(DOXYGEN_FOUND)
+    add_subdirectory(doc)
+    set(DOC_TARGET "doc")
+    configure_file(doc/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
+    configure_file(doc/DoxygenLayout.xml.in ${CMAKE_CURRENT_BINARY_DIR}/DoxygenLayout.xml @ONLY)
+    add_custom_target(${DOC_TARGET} ALL
+        ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+        COMMENT "Building documentation"
+        SOURCE doc/Doxyfile.in doc/DoxygenLayout.xml)
+
+	install( DIRECTORY
+		${CMAKE_CURRENT_BINARY_DIR}/doc/html
+		${CMAKE_CURRENT_BINARY_DIR}/doc/qch
+		DESTINATION share/elliptics/doc
+        )
+endif()
+
