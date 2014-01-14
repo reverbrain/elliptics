@@ -298,9 +298,11 @@ async_set_indexes_result session::update_indexes_internal(const key &id,
 
 async_generic_result session::remove_index_internal(const dnet_raw_id &id)
 {
+	DNET_SESSION_GET_GROUPS(async_generic_result);
+
 	async_generic_result result(*this);
 	auto cb = createCallback<remove_index_callback>(*this, result, id);
-	mix_states(cb->groups);
+	cb->groups = std::move(groups);
 
 	startCallback(cb);
 	return result;
@@ -510,6 +512,10 @@ async_find_indexes_result session::find_indexes_internal(const std::vector<dnet_
 		return result;
 	}
 
+	auto &id = indexes[0];
+
+	DNET_SESSION_GET_GROUPS(async_find_indexes_result);
+
 	session sess = clone();
 	sess.set_filter(filters::positive);
 	sess.set_checker(checkers::no_check);
@@ -519,7 +525,7 @@ async_find_indexes_result session::find_indexes_internal(const std::vector<dnet_
 
 	auto cb = createCallback<find_indexes_callback>(sess, indexes, intersect, raw_result);
 	auto convert_map = std::make_shared<find_indexes_callback::id_map>(/*std::move(*/cb->convert_map/*)*/);
-	mix_states(indexes[0], cb->groups);
+	cb->groups = std::move(groups);
 	startCallback(cb);
 
 	using namespace std::placeholders;

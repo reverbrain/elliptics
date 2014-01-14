@@ -679,9 +679,9 @@ async_read_result session::read_data(const key &id, const std::vector<int> &grou
 
 async_read_result session::read_data(const key &id, uint64_t offset, uint64_t size)
 {
-	transform(id);
+	DNET_SESSION_GET_GROUPS(async_read_result);
 
-	return read_data(id, mix_states(id), offset, size);
+	return read_data(id, std::move(groups), offset, size);
 }
 
 struct prepare_latest_functor
@@ -815,15 +815,15 @@ struct read_latest_callback
 
 async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t size)
 {
-	async_read_result result(*this);
-	{
-		session sess = clone();
-		sess.set_filter(filters::positive);
-		sess.set_checker(checkers::no_check);
+	DNET_SESSION_GET_GROUPS(async_read_result);
 
-		read_latest_callback callback = { sess, id, offset, size, result, mix_states(id) };
-		prepare_latest(id, callback.groups).connect(callback);
-	}
+	session sess = clone();
+	sess.set_filter(filters::positive);
+	sess.set_checker(checkers::no_check);
+
+	async_read_result result(*this);
+	read_latest_callback callback = { sess, id, offset, size, result, std::move(groups) };
+	prepare_latest(id, callback.groups).connect(callback);
 	return result;
 }
 
@@ -1141,11 +1141,11 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 async_write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
 		uint64_t remote_offset, int count)
 {
-	transform(id);
+	DNET_SESSION_GET_GROUPS(async_write_result);
 
 	async_write_result result(*this);
 
-	auto functor = std::make_shared<cas_functor>(*this, result, converter, id, remote_offset, count, mix_states(id));
+	auto functor = std::make_shared<cas_functor>(*this, result, converter, id, remote_offset, count, std::move(groups));
 	functor->next_iteration();
 
 	return result;
@@ -1325,13 +1325,12 @@ void session::transform(const key &id) const
 
 async_lookup_result session::lookup(const key &id)
 {
-	transform(id);
+	DNET_SESSION_GET_GROUPS(async_lookup_result);
 
 	async_lookup_result result(*this);
 	auto cb = createCallback<lookup_callback>(*this, result);
 	cb->kid = id;
-
-	mix_states(id, cb->groups);
+	cb->groups = std::move(groups);
 
 	startCallback(cb);
 	return result;
@@ -1732,40 +1731,21 @@ async_iterator_result session::iterator(const key &id, const data_pointer& reque
 	return result;
 }
 
-void session::mix_states(const key &id, std::vector<int> &groups)
+error_info session::mix_states(const key &id, std::vector<int> &groups)
 {
 	transform(id);
+
 	cstyle_scoped_pointer<int> groups_ptr;
 
 	dnet_id raw = id.id();
+
 	int num = dnet_mix_states(m_data->session_ptr, &raw, &groups_ptr.data());
 	if (num < 0)
-		throw_error(num, "could not fetch groups");
-	groups.assign(groups_ptr.data(), groups_ptr.data() + num);
-}
-void session::mix_states(std::vector<int> &groups)
-{
-	cstyle_scoped_pointer<int> groups_ptr;
-
-	int num = dnet_mix_states(m_data->session_ptr, NULL, &groups_ptr.data());
-	if (num < 0)
-		throw std::runtime_error("could not fetch groups: " + std::string(strerror(num)));
+		return create_error(num, "could not fetch groups");
 
 	groups.assign(groups_ptr.data(), groups_ptr.data() + num);
-}
 
-std::vector<int> session::mix_states(const key &id)
-{
-	std::vector<int> result;
-	mix_states(id, result);
-	return result;
-}
-
-std::vector<int> session::mix_states()
-{
-	std::vector<int> result;
-	mix_states(result);
-	return result;
+	return error_info();
 }
 
 async_iterator_result session::start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
@@ -1905,6 +1885,12 @@ async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios
 			return result;
 		}
 	}
+
+	dnet_raw_id id;
+	memcpy(id.id, ios_vector[0].id, DNET_ID_SIZE);
+
+	DNET_SESSION_GET_GROUPS(async_read_result);
+
 	io_attr_set ios(ios_vector.begin(), ios_vector.end());
 
 	struct dnet_io_control control;
@@ -1918,12 +1904,9 @@ async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios
 	memset(&control.io, 0, sizeof(struct dnet_io_attr));
 	control.io.flags = get_ioflags();
 
-	dnet_raw_id tmp_id;
-	memcpy(tmp_id.id, ios_vector[0].id, DNET_ID_SIZE);
-
 	async_read_result result(*this);
 	auto cb = createCallback<read_bulk_callback>(*this, result, ios, control);
-	cb->groups = mix_states(key(tmp_id));
+	cb->groups = std::move(groups);
 
 	startCallback(cb);
 	return result;

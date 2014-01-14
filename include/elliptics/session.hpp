@@ -748,10 +748,7 @@ class session
 		async_iterator_result iterator(const key &id, const data_pointer& request);
 		async_find_indexes_result find_indexes_internal(const std::vector<dnet_raw_id> &indexes, bool intersect);
 
-		void			mix_states(const key &id, std::vector<int> &groups);
-		void			mix_states(std::vector<int> &groups);
-		std::vector<int>	mix_states(const key &id);
-		std::vector<int>	mix_states();
+		error_info mix_states(const key &id, std::vector<int> &groups) __attribute__((warn_unused_result));
 };
 
 }} /* namespace ioremap::elliptics */

@@ -49,4 +49,15 @@ class session_data
 
 }} // namespace ioremap::elliptics
 
+// mix_states calls transform, so there is no need to call it twice
+#define DNET_SESSION_GET_GROUPS(RESULT_TYPE) \
+	std::vector<int> groups; \
+	if (error_info error = mix_states(id, groups)) { \
+		RESULT_TYPE result(*this); \
+		async_result_handler<RESULT_TYPE::entry_type> handler(result); \
+		handler.complete(error); \
+		return result; \
+	} else do {} while (false)
+
+
 #endif // IOREMAP_ELLIPTICS_NODE_P_HPP
