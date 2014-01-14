@@ -1440,7 +1440,7 @@ class exec_callback
 		typedef std::shared_ptr<exec_callback> ptr;
 
 		exec_callback(const session &sess, const async_exec_result &result)
-			: sess(sess), id(NULL), sph(NULL), cb(sess, result)
+			: sess(sess), id(NULL), srw_data(NULL), cb(sess, result)
 		{
 		}
 
@@ -1448,10 +1448,10 @@ class exec_callback
 		{
 			cb.set_count(unlimited);
 
-			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph);
+			int err = dnet_send_cmd(sess.get_native(), id, func, priv, srw_data);
 			if (err < 0) {
 				*error = create_error(err, "failed to execute cmd: event: %.*s, data-size: %llu",
-						sph->event_size, sph->data, (unsigned long long)sph->data_size);
+						srw_data->event_size, srw_data->data, (unsigned long long)srw_data->data_size);
 				return true;
 			}
 
@@ -1471,7 +1471,7 @@ class exec_callback
 
 		session sess;
 		struct dnet_id *id;
-		struct sph *sph;
+		struct sph *srw_data;
 		default_callback<exec_result_entry> cb;
 };
 

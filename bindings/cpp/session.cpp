@@ -57,7 +57,7 @@ transport_control::transport_control()
 	memset(&m_data, 0, sizeof(m_data));
 }
 
-transport_control::transport_control(const struct dnet_id &id, unsigned int cmd, uint64_t cflags)
+transport_control::transport_control(const dnet_id &id, unsigned int cmd, uint64_t cflags)
 {
 	memset(&m_data, 0, sizeof(m_data));
 	memcpy(&m_data.id, &id, sizeof(id));
@@ -65,7 +65,7 @@ transport_control::transport_control(const struct dnet_id &id, unsigned int cmd,
 	m_data.cflags = cflags;
 }
 
-void transport_control::set_key(const struct dnet_id &id)
+void transport_control::set_key(const dnet_id &id)
 {
 	m_data.id = id;
 }
@@ -93,7 +93,7 @@ struct dnet_trans_control transport_control::get_native() const
 
 struct exec_context_data
 {
-	data_pointer sph;
+	data_pointer srw_data;
 	std::string event;
 	data_pointer data;
 
@@ -101,13 +101,13 @@ struct exec_context_data
 	{
 		std::shared_ptr<exec_context_data> p = std::make_shared<exec_context_data>();
 
-		p->sph = data_pointer::allocate(sizeof(struct sph) + event.size() + data.size());
+		p->srw_data = data_pointer::allocate(sizeof(sph) + event.size() + data.size());
 
-		struct sph *raw_sph = p->sph.data<struct sph>();
+		sph *raw_sph = p->srw_data.data<sph>();
 		if (other) {
-			memcpy(p->sph.data<struct sph>(), other->m_data->sph.data<struct sph>(), sizeof(struct sph));
+			memcpy(p->srw_data.data<sph>(), other->m_data->srw_data.data<sph>(), sizeof(sph));
 		} else {
-			memset(raw_sph, 0, sizeof(struct sph));
+			memset(raw_sph, 0, sizeof(sph));
 			raw_sph->src_key = -1;
 		}
 
@@ -135,9 +135,9 @@ struct exec_context_data
 		return create_raw(&other, event, data);
 	}
 
-	static exec_context copy(const struct sph &other, const std::string &event, const argument_data &data)
+	static exec_context copy(const sph &other, const std::string &event, const argument_data &data)
 	{
-		struct sph tmp = other;
+		sph tmp = other;
 		tmp.event_size = 0;
 		tmp.data_size = 0;
 		return copy(exec_context::from_raw(&tmp, sizeof(tmp)), event, data);
@@ -198,7 +198,7 @@ exec_context exec_context::parse(const data_pointer &data, error_info *error)
 	char *event = reinterpret_cast<char *>(s + 1);
 
 	auto priv = std::make_shared<exec_context_data>();
-	priv->sph = data;
+	priv->srw_data = data;
 	priv->event.assign(event, event + s->event_size);
 	priv->data = data.skip<sph>().skip(s->event_size);
 	return exec_context(priv);
@@ -216,34 +216,34 @@ data_pointer exec_context::data() const
 
 dnet_addr *exec_context::address() const
 {
-	return m_data ? &m_data->sph.data<sph>()->addr : NULL;
+	return m_data ? &m_data->srw_data.data<sph>()->addr : NULL;
 }
 
 dnet_raw_id *exec_context::src_id() const
 {
-	return m_data ? &m_data->sph.data<sph>()->src : NULL;
+	return m_data ? &m_data->srw_data.data<sph>()->src : NULL;
 }
 
 int exec_context::src_key() const
 {
-	return m_data ? m_data->sph.data<sph>()->src_key : 0;
+	return m_data ? m_data->srw_data.data<sph>()->src_key : 0;
 }
 
 void exec_context::set_src_key(int src_key) const
 {
 	if (m_data) {
-		m_data->sph.data<sph>()->src_key = src_key;
+		m_data->srw_data.data<sph>()->src_key = src_key;
 	}
 }
 
 data_pointer exec_context::native_data() const
 {
-	return m_data ? m_data->sph : data_pointer();
+	return m_data ? m_data->srw_data : data_pointer();
 }
 
 bool exec_context::is_final() const
 {
-	return m_data ? (m_data->sph.data<sph>()->flags & DNET_SPH_FLAGS_FINISH) : false;
+	return m_data ? (m_data->srw_data.data<sph>()->flags & DNET_SPH_FLAGS_FINISH) : false;
 }
 
 bool exec_context::is_null() const
@@ -481,7 +481,7 @@ dnet_id session::get_direct_id()
 
 void session::set_direct_id(dnet_addr remote_addr)
 {
-	std::vector<std::pair<struct dnet_id, struct dnet_addr> > routes = get_routes();
+	std::vector<std::pair<struct dnet_id, dnet_addr> > routes = get_routes();
 
 	if (routes.empty())
 		throw ioremap::elliptics::error(-ENXIO, "Route list is empty");
@@ -554,12 +554,12 @@ uint64_t session::get_user_flags() const
 	return dnet_session_get_user_flags(m_data->session_ptr);
 }
 
-void session::set_timestamp(struct dnet_time *ts)
+void session::set_timestamp(dnet_time *ts)
 {
 	dnet_session_set_timestamp(m_data->session_ptr, ts);
 }
 
-void session::get_timestamp(struct dnet_time *ts)
+void session::get_timestamp(dnet_time *ts)
 {
 	dnet_session_get_timestamp(m_data->session_ptr, ts);
 }
@@ -571,7 +571,7 @@ void session::set_timeout(unsigned int timeout)
 
 long session::get_timeout(void) const
 {
-	struct timespec *tm = dnet_session_get_timeout(m_data->session_ptr);
+	timespec *tm = dnet_session_get_timeout(m_data->session_ptr);
 	return tm->tv_sec;
 }
 
@@ -637,14 +637,14 @@ async_read_result session::read_data(const key &id, const std::vector<int> &grou
 	transform(id);
 
 	async_read_result result(*this);
-	struct dnet_io_control control;
+	dnet_io_control control;
 	memset(&control, 0, sizeof(control));
 
 	control.fd = -1;
 	control.cmd = cmd;
 	control.cflags = DNET_FLAGS_NEED_ACK | get_cflags();
 
-	memcpy(&control.io, &io, sizeof(struct dnet_io_attr));
+	memcpy(&control.io, &io, sizeof(dnet_io_attr));
 
 	auto cb = createCallback<read_callback>(*this, result, control);
 	cb->kid = id;
@@ -664,7 +664,7 @@ async_read_result session::read_data(const key &id, const std::vector<int> &grou
 {
 	transform(id);
 
-	struct dnet_io_attr io;
+	dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 
 	io.size   = size;
@@ -843,7 +843,7 @@ async_write_result session::write_data(const dnet_io_control &ctl)
 
 async_write_result session::write_data(const dnet_io_attr &io, const argument_data &file)
 {
-	struct dnet_io_control ctl;
+	dnet_io_control ctl;
 	memset(&ctl, 0, sizeof(ctl));
 	dnet_empty_time(&ctl.io.timestamp);
 
@@ -869,7 +869,7 @@ async_write_result session::write_data(const key &id, const argument_data &file,
 	transform(id);
 	dnet_id raw = id.id();
 
-	struct dnet_io_control ctl;
+	dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 	dnet_empty_time(&ctl.io.timestamp);
@@ -882,7 +882,7 @@ async_write_result session::write_data(const key &id, const argument_data &file,
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 
-	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
+	memcpy(&ctl.id, &raw, sizeof(dnet_id));
 
 	ctl.fd = -1;
 
@@ -1136,7 +1136,7 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 			handler.complete(create_error(-EBADFD, id, "write_cas: too many attemps: %d", count));
 		}
 	}
-}; /* struct write_entry */
+}; /* write_entry */
 
 async_write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
 		uint64_t remote_offset, int count)
@@ -1156,7 +1156,7 @@ async_write_result session::write_cas(const key &id, const argument_data &file, 
 	transform(id);
 	dnet_id raw = id.id();
 
-	struct dnet_io_control ctl;
+	dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 	dnet_empty_time(&ctl.io.timestamp);
@@ -1170,7 +1170,7 @@ async_write_result session::write_cas(const key &id, const argument_data &file, 
 	ctl.io.size = file.size();
 	ctl.io.num = file.size() + remote_offset;
 
-	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
+	memcpy(&ctl.id, &raw, sizeof(dnet_id));
 	memcpy(&ctl.io.parent, &old_csum.id, DNET_ID_SIZE);
 
 	ctl.fd = -1;
@@ -1182,7 +1182,7 @@ async_write_result session::write_prepare(const key &id, const argument_data &fi
 {
 	transform(id);
 
-	struct dnet_io_control ctl;
+	dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 	dnet_empty_time(&ctl.io.timestamp);
@@ -1207,7 +1207,7 @@ async_write_result session::write_plain(const key &id, const argument_data &file
 {
 	transform(id);
 
-	struct dnet_io_control ctl;
+	dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 	dnet_empty_time(&ctl.io.timestamp);
@@ -1233,7 +1233,7 @@ async_write_result session::write_commit(const key &id, const argument_data &fil
 {
 	transform(id);
 
-	struct dnet_io_control ctl;
+	dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 	dnet_empty_time(&ctl.io.timestamp);
@@ -1258,7 +1258,7 @@ async_write_result session::write_cache(const key &id, const argument_data &file
 	transform(id);
 	dnet_id raw = id.id();
 
-	struct dnet_io_control ctl;
+	dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 	dnet_empty_time(&ctl.io.timestamp);
@@ -1271,7 +1271,7 @@ async_write_result session::write_cache(const key &id, const argument_data &file
 	ctl.io.start = timeout;
 	ctl.io.size = file.size();
 
-	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
+	memcpy(&ctl.id, &raw, sizeof(dnet_id));
 
 	ctl.fd = -1;
 
@@ -1285,7 +1285,7 @@ std::string session::lookup_address(const key &id, int group_id)
 	int err = dnet_lookup_addr(m_data->session_ptr,
 		id.by_id() ? NULL : id.remote().c_str(),
 		id.by_id() ? 0 : id.remote().size(),
-		id.by_id() ? const_cast<struct dnet_id*>(&id.id()) : NULL,
+		id.by_id() ? const_cast<dnet_id*>(&id.id()) : NULL,
 		group_id, buf, sizeof(buf));
 	if (err < 0) {
 		if (id.by_id()) {
@@ -1299,14 +1299,14 @@ std::string session::lookup_address(const key &id, int group_id)
 	return std::string(buf, strlen(buf));
 }
 
-void session::transform(const std::string &data, struct dnet_id &id) const
+void session::transform(const std::string &data, dnet_id &id) const
 {
 	dnet_transform(m_data->session_ptr, (void *)data.data(), data.size(), &id);
 	id.trace_id = m_data->trace_id;
 	trace_id = m_data->trace_id;
 }
 
-void session::transform(const std::string &data, struct dnet_raw_id &id) const
+void session::transform(const std::string &data, dnet_raw_id &id) const
 {
 	dnet_transform_raw(m_data->session_ptr, (void *)data.data(), data.size(), (char *)id.id, sizeof(id.id));
 }
@@ -1392,10 +1392,10 @@ async_generic_result session::request_cmd(const transport_control &ctl)
 	return result;
 }
 
-void session::update_status(const char *saddr, const int port, const int family, struct dnet_node_status *status)
+void session::update_status(const char *saddr, const int port, const int family, dnet_node_status *status)
 {
 	int err;
-	struct dnet_addr addr;
+	dnet_addr addr;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.addr_len = sizeof(addr.addr);
@@ -1410,7 +1410,7 @@ void session::update_status(const char *saddr, const int port, const int family,
 	}
 }
 
-void session::update_status(const key &id, struct dnet_node_status *status)
+void session::update_status(const key &id, dnet_node_status *status)
 {
 	transform(id);
 	dnet_id raw = id.id();
@@ -1432,8 +1432,8 @@ class read_data_range_callback
 				: sess(sess), handler(handler) {}
 
 			session sess;
-			struct dnet_io_attr io;
-			struct dnet_id id;
+			dnet_io_attr io;
+			dnet_id id;
 			int group_id;
 			unsigned int cmd;
 			bool need_exit;
@@ -1444,8 +1444,8 @@ class read_data_range_callback
 			async_result_handler<read_result_entry> handler;
 			std::function<void (const read_result_entry &)> me_entry;
 			std::function<void (const error_info &)> me_final;
-			struct dnet_raw_id start, next;
-			struct dnet_raw_id end;
+			dnet_raw_id start, next;
+			dnet_raw_id end;
 			uint64_t size;
 			std::vector<read_result_entry> result;
 			error_info last_exception;
@@ -1454,7 +1454,7 @@ class read_data_range_callback
 		std::shared_ptr<scope> data;
 
 		read_data_range_callback(const session &sess,
-			const struct dnet_io_attr &io, int group_id,
+			const dnet_io_attr &io, int group_id,
 			const async_result_handler<read_result_entry> &handler)
 			: data(std::make_shared<scope>(sess, handler))
 		{
@@ -1477,7 +1477,7 @@ class read_data_range_callback
 		void do_next(error_info *error)
 		{
 			scope *d = data.get();
-			struct dnet_node * const node = d->sess.get_node().get_native();
+			dnet_node * const node = d->sess.get_node().get_native();
 			d->has_any = false;
 
 			if (d->need_exit) {
@@ -1552,7 +1552,7 @@ class read_data_range_callback
 			if (error) {
 				d->last_exception = error;
 			} else {
-				struct dnet_io_attr *rep = &d->rep;
+				dnet_io_attr *rep = &d->rep;
 
 				dnet_log_raw(d->sess.get_node().get_native(),
 					DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
@@ -1588,7 +1588,7 @@ class remove_data_range_callback : public read_data_range_callback
 {
 	public:
 		remove_data_range_callback(const session &sess,
-			const struct dnet_io_attr &io, int group_id,
+			const dnet_io_attr &io, int group_id,
 			const async_result_handler<read_result_entry> &handler)
 		: read_data_range_callback(sess, io, group_id, handler)
 		{
@@ -1636,7 +1636,7 @@ class remove_data_range_callback : public read_data_range_callback
 		}
 };
 
-async_read_result session::read_data_range(const struct dnet_io_attr &io, int group_id)
+async_read_result session::read_data_range(const dnet_io_attr &io, int group_id)
 {
 	async_read_result result(*this);
 	async_result_handler<read_result_entry> handler(result);
@@ -1683,11 +1683,11 @@ async_read_result session::remove_data_range(const dnet_io_attr &io, int group_i
 	return result;
 }
 
-std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
+std::vector<std::pair<struct dnet_id, dnet_addr> > session::get_routes()
 {
-	std::vector<std::pair<struct dnet_id, struct dnet_addr> > res;
-	struct dnet_id *ids = NULL;
-	struct dnet_addr *addrs = NULL;
+	std::vector<std::pair<struct dnet_id, dnet_addr> > res;
+	dnet_id *ids = NULL;
+	dnet_addr *addrs = NULL;
 
 	int count = 0;
 
@@ -1713,7 +1713,7 @@ async_exec_result session::request(dnet_id *id, const exec_context &context)
 	async_exec_result result(*this);
 	auto cb = createCallback<exec_callback>(*this, result);
 	cb->id = id;
-	cb->sph = context.m_data->sph.data<sph>();
+	cb->srw_data = context.m_data->srw_data.data<sph>();
 
 	startCallback(cb);
 	return result;
@@ -1808,11 +1808,11 @@ async_exec_result session::exec(dnet_id *id, const std::string &event, const arg
 	return exec(id, -1, event, data);
 }
 
-async_exec_result session::exec(struct dnet_id *id, int src_key, const std::string &event, const argument_data &data)
+async_exec_result session::exec(dnet_id *id, int src_key, const std::string &event, const argument_data &data)
 {
 	exec_context context = exec_context_data::create(event, data);
 
-	sph *s = context.m_data->sph.data<sph>();
+	sph *s = context.m_data->srw_data.data<sph>();
 	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
 	s->src_key = src_key;
 
@@ -1826,10 +1826,10 @@ async_exec_result session::exec(const exec_context &tmp_context, const std::stri
 {
 	exec_context context = exec_context_data::copy(tmp_context, event, data);
 
-	sph *s = context.m_data->sph.data<sph>();
+	sph *s = context.m_data->srw_data.data<sph>();
 	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
 
-	struct dnet_id id;
+	dnet_id id;
 	dnet_setup_id(&id, 0, s->src.id);
 
 	return request(&id, context);
@@ -1839,7 +1839,7 @@ async_push_result session::push(dnet_id *id, const exec_context &tmp_context, co
 {
 	exec_context context = exec_context_data::copy(tmp_context, event, data);
 
-	sph *s = context.m_data->sph.data<sph>();
+	sph *s = context.m_data->srw_data.data<sph>();
 	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
 	s->flags &= ~(DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH);
 
@@ -1850,7 +1850,7 @@ async_reply_result session::reply(const exec_context &tmp_context, const argumen
 {
 	exec_context context = exec_context_data::copy(tmp_context, tmp_context.event(), data);
 
-	sph *s = context.m_data->sph.data<sph>();
+	sph *s = context.m_data->srw_data.data<sph>();
 
 	s->flags |= DNET_SPH_FLAGS_REPLY;
 	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
@@ -1860,19 +1860,19 @@ async_reply_result session::reply(const exec_context &tmp_context, const argumen
 	else
 		s->flags &= ~DNET_SPH_FLAGS_FINISH;
 
-	struct dnet_id id;
+	dnet_id id;
 	dnet_setup_id(&id, 0, s->src.id);
 
 	return request(&id, context);
 }
 
-void session::reply(const struct sph &sph, const std::string &event, const std::string &data, const std::string &)
+void session::reply(const sph &sph, const std::string &event, const std::string &data, const std::string &)
 {
 	exec_context context = exec_context_data::copy(sph, event, data);
 	reply(context, data, (sph.flags & DNET_SPH_FLAGS_FINISH) ? exec_context::final : exec_context::progressive).wait();
 }
 
-async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios_vector)
+async_read_result session::bulk_read(const std::vector<dnet_io_attr> &ios_vector)
 {
 	if (ios_vector.empty()) {
 		error_info error = create_error(-EINVAL, "bulk_read failed: ios list is empty");
@@ -1893,7 +1893,7 @@ async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios
 
 	io_attr_set ios(ios_vector.begin(), ios_vector.end());
 
-	struct dnet_io_control control;
+	dnet_io_control control;
 	memset(&control, 0, sizeof(control));
 
 	control.fd = -1;
@@ -1901,7 +1901,7 @@ async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios
 	control.cmd = DNET_CMD_BULK_READ;
 	control.cflags = DNET_FLAGS_NEED_ACK | get_cflags();
 
-	memset(&control.io, 0, sizeof(struct dnet_io_attr));
+	memset(&control.io, 0, sizeof(dnet_io_attr));
 	control.io.flags = get_ioflags();
 
 	async_read_result result(*this);
@@ -1913,7 +1913,7 @@ async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios
 }
 
 namespace {
-bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const struct dnet_io_attr &io2) {
+bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const dnet_io_attr &io2) {
 	int cmp;
 
 	cmp = dnet_id_cmp_str(io1.id, io2.id);
@@ -1923,8 +1923,8 @@ bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const struct dnet_io_a
 
 async_read_result session::bulk_read(const std::vector<std::string> &keys)
 {
-	std::vector<struct dnet_io_attr> ios;
-	struct dnet_io_attr io;
+	std::vector<dnet_io_attr> ios;
+	dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 
 	io.flags = get_ioflags();
@@ -1932,7 +1932,7 @@ async_read_result session::bulk_read(const std::vector<std::string> &keys)
 	ios.reserve(keys.size());
 
 	for (size_t i = 0; i < keys.size(); ++i) {
-		struct dnet_id id;
+		dnet_id id;
 
 		transform(keys[i], id);
 		memcpy(io.id, id.id, sizeof(io.id));
@@ -1944,8 +1944,8 @@ async_read_result session::bulk_read(const std::vector<std::string> &keys)
 
 async_read_result session::bulk_read(const std::vector<key> &keys)
 {
-	std::vector<struct dnet_io_attr> ios;
-	struct dnet_io_attr io;
+	std::vector<dnet_io_attr> ios;
+	dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 
 	io.flags = get_ioflags();
