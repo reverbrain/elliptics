@@ -49,7 +49,11 @@ def main():
         result = run_test(tests_base_dir + '/' + test[1], test[0] + '/' + test[1])
         timer_end = time.time()
 
-        print('# Result: {0}\t{1} sec\n'.format('Passed' if result == 0 else 'Failed ({0})'.format(result), timer_end - timer_begin))
+		result_str = 'Passed'
+		if result != 0:
+			result_str = 'Failed ({0})'.format(result), timer_end - timer_begin)
+
+        print('# Result: {0}\t{1} sec\n'.format(result_str, timer_end - timer_begin))
 
         all_ok &= result == 0
 
