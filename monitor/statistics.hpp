@@ -45,6 +45,7 @@ class monitor;
 class stat_provider {
 public:
 	virtual std::string json() const = 0;
+	virtual bool check_category(int category) const = 0;
 	virtual ~stat_provider() {}
 };
 
@@ -60,6 +61,10 @@ public:
 
 	virtual std::string json() const {
 		return std::string(m_stat.json(m_stat.stat_private));
+	}
+
+	virtual bool check_category(int category) const {
+		return m_stat.check_category(m_stat.stat_private, category);
 	}
 
 private:
@@ -112,7 +117,7 @@ struct command_histograms {
 class statistics {
 public:
 	statistics(monitor& mon);
-	std::string report();
+	std::string report(int category);
 	void log();
 	void command_counter(int cmd, const int trans, const int err, const int cache,
 	                     const uint32_t size, const unsigned long time);
