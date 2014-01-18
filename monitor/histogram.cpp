@@ -65,9 +65,14 @@ struct lower_cmp {
 };
 
 size_t histogram::get_indx(uint64_t x, uint64_t y) {
-	auto indx_x = std::lower_bound(m_xs.begin(),m_xs.end(), x, lower_cmp());
+	auto indx_x = std::lower_bound(m_xs.begin(), m_xs.end(), x, lower_cmp());
 	auto indx_y = std::lower_bound(m_ys.begin(), m_ys.end(), y, lower_cmp());
-	return std::distance(m_ys.begin(), indx_y) * m_xs.size() + (indx_x - m_xs.begin());
+
+	auto x_coord = std::distance(m_xs.begin(), indx_x);
+	auto y_coord = std::distance(m_ys.begin(), indx_y);
+	auto line_size = m_xs.size() - 1;
+
+	return x_coord * line_size + y_coord;
 }
 
 rapidjson::Value& histogram::print_data(rapidjson::Value &stat_value,
