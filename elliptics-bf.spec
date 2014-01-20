@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.1
+Version:	2.24.15.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jan 20 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.2
+- trans: randomize route table update: select 5 random groups and read table from one random node from each selected group
+- tests: fixed python formatting
+- tests: fixed pyton indent
+- test: Don't use inline if/else syntax
+- Python: Fixed copy-paste in session.py docstrings
+- Python: fixed writting out of memory
+- Python: fixed None usage as Id in session.exec_()
+- Monitor: Added REST-like api for getting monitor statistics
+
 * Thu Jan 09 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.1
 - prepare_latest fix
 - tests: set stdout to sys.stdout instead of PIPE
