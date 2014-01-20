@@ -398,24 +398,41 @@ static void dnet_check_all_states(struct dnet_node *n)
 
 static int dnet_check_route_table(struct dnet_node *n)
 {
-	int rnd = rand();
+	int rnd;
 	struct dnet_id id;
-	int groups[128];
-	int group_num = 0, i;
+	int *groups;
+	int group_num = 0, i, err;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
-		groups[group_num++] = g->group_id;
-
-		if (group_num > (int)ARRAY_SIZE(groups))
-			break;
+		group_num++;
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	for (i = 0; i < group_num; ++i) {
-		id.group_id = groups[i];
+	groups = malloc(group_num);
+	if (!groups) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	i = 0;
+	pthread_mutex_lock(&n->state_lock);
+	list_for_each_entry(g, &n->group_list, group_entry) {
+		groups[i++] = g->group_id;
+
+		if (i >= group_num) {
+			group_num = i;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&n->state_lock);
+
+	for (i = 0; i < (5 < group_num ? 5 : group_num); ++i) {
+		rnd = rand() % group_num;
+
+		id.group_id = groups[rnd];
 		memcpy(id.id, &rnd, sizeof(rnd));
 
 		st = dnet_state_get_first(n, &id);
@@ -425,7 +442,10 @@ static int dnet_check_route_table(struct dnet_node *n)
 		}
 	}
 
-	return 0;
+	free(groups);
+
+err_out_exit:
+	return err;
 }
 
 static void *dnet_reconnect_process(void *data)
