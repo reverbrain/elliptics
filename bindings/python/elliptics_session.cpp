@@ -434,7 +434,7 @@ public:
 	python_exec_result exec_src(const bp::api::object &id, const int src_key, const std::string &event, const std::string &data) {
 		dnet_id* raw_id = NULL;
 		dnet_id conv_id;
-		if (id != bp::api::object()) {
+		if (id.ptr() != Py_None) {
 			auto eid = elliptics_id::convert(id);
 			session::transform(eid);
 			conv_id = eid.id();

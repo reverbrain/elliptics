@@ -27,6 +27,18 @@
 extern "C" {
 #endif
 
+// Reserved monitor categories for bad and list requests
+#define DNET_MONITOR_BAD			-3
+#define DNET_MONITOR_NOT_FOUND		-2
+#define DNET_MONITOR_LIST			-1
+
+// Real monitor categories
+#define DNET_MONITOR_ALL			0
+#define DNET_MONITOR_CACHE			1
+#define DNET_MONITOR_IO_QUEUE		2
+#define DNET_MONITOR_COMMANDS		3
+#define DNET_MONITOR_IO_HISTOGRAMS	4
+
 struct dnet_node;
 struct dnet_config;
 
@@ -34,6 +46,7 @@ struct stat_provider_raw {
 	void		*stat_private;
 	const char*	(* json) (void *priv);
 	void		(* stop) (void *priv);
+	int		(* check_category) (void *priv, int category);
 };
 
 void dnet_monitor_log(void *monitor);
