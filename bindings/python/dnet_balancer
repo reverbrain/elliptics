@@ -1,0 +1,329 @@
+#!/usr/bin/env python
+
+# =============================================================================
+# 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
+# All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# =============================================================================
+'''
+dnet_balancer - tool for rebalancing ranges in route list. It doesn't create
+new ranges. Instead of this it splits large range into 2 equal range by moving
+route which specifies small range. It continues doing this until all range
+will be between min and max deviation or we will get situation when smallest
+range is located in largest range.
+
+dnet_balancer can be used as executable script and be configurated via command
+line or as module then you should use balance() method and pass custom options
+to it.
+'''
+
+import sys
+import logging
+import logging.handlers
+
+import elliptics
+
+#initializing logger
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
+formatter = logging.Formatter(fmt='%(asctime)-15s %(processName)s '
+                              '%(levelname)s %(message)s',
+                              datefmt='%d %b %y %H:%M:%S')
+#initializing stderr stream handler for logs
+ch = logging.StreamHandler(sys.stderr)
+ch.setFormatter(formatter)
+ch.setLevel(logging.INFO)
+log.addHandler(ch)
+
+#total size of DHT ring
+total = int(str(elliptics.Id([255] * 64, 0)), 16)
+
+
+def convert_to_id(value, group):
+    '''
+    Converts big int value from DHT ring into elliptics.Id
+    '''
+    id = []
+    while value and len(id) <= 64:
+        id.insert(0, value % 256)
+        value /= 256
+
+    if len(id) < 64:
+        id = [0] * (len(id) - 64) + id
+
+    return elliptics.Id(id, group)
+
+
+def compute_ranges(routes, middle_size):
+    '''
+    Computes length of each range from route list
+    '''
+    ranges = []
+    for index, route in enumerate(routes):
+        position = int(str(route.key), 16)
+        if index == len(routes) - 1:
+            length = total - position + int(str(routes.routes[0].key), 16)
+        else:
+            length = int(str(routes[index + 1].key), 16) - position
+        log.debug("Range #{0} has length: {1}"
+                  .format(index, length * 1. / middle_size))
+        ranges.append(length)
+    return ranges
+
+
+def find_ranges(routes, middle_size):
+    '''
+    Finds maximum and minimum range
+    Returns them along with their indices in route list
+    '''
+    from operator import itemgetter
+    ranges = compute_ranges(routes, middle_size)  # compute length of ranges
+
+    min_range = min(enumerate(ranges), key=itemgetter(1))  # find smallest one
+    max_range = max(enumerate(ranges), key=itemgetter(1))  # find largest one
+
+    #calculate size of range which will be without minimum range
+    length_without_min = min_range[1] + ranges[min_range[0] - 1]
+
+    #if smallest range is located in the biggest range
+    #change largest range to range which is obtained
+    #after removing smallest range
+    if max_range[1] < length_without_min:
+        index = min_range[0] - 1
+        if index == -1:
+            index = len(ranges) - 1
+        max_range = (index, length_without_min)
+
+    return min_range, max_range
+
+
+def log_spread(message, spread):
+    '''
+    Outputs into log spread values
+    @message - messsage which will be preceded by the spread
+    '''
+    spread_str = '{0} spread:\n'.format(message)
+    for address in spread:
+        spread_str += '\tHost {0} {1:.2f}\n'.format(address, spread[address])
+    log.info(spread_str[:-2])
+
+
+def save_ids(routes, addresses):
+    '''
+    For each address from @addresses creates ids file based on @routes
+    Returns [(ids_filename, address)]
+    '''
+    mapping = []
+    from struct import pack
+    for addr in addresses:
+        addr_routes = routes.filter_by_address(addr)
+        log.debug("Address {0} routes:\n{1}".format(addr, addr_routes))
+        filename = 'ids.' + str(hash(addr))
+        with open(filename, 'w') as f:
+            for r in addr_routes:
+                data = pack('B' * 64, *r.key.id)
+                f.write(data)
+        log.debug("IDS file '{0}' should be copied to node: {1}"
+                  .format(filename, addr))
+        mapping.append((filename, addr))
+    return mapping
+
+
+def balance_group(group, routes, min_deviation, max_deviation):
+    '''
+    Balance the ranges in group route list.
+    It finds smallest and largest ranges and moves route
+    which specifies smallest range to center of largest one.
+    So largest range is splitted into 2 equal ranges
+    And smallest range is added to previous non-largest range.
+    '''
+    log.info("Processing group #{0}".format(group))
+    updated_addresses = set()
+    log_spread("Origin", routes.spread()[group])
+
+    #removes route with key 0x00..0 if it is fake
+    if routes.routes[0].address == routes.routes[-1].address:
+        del routes.routes[0]
+    #removes route with key 0xff..f if it is fake
+    if routes.routes[-1].address == routes.routes[-2].address:
+        del routes.routes[-1]
+
+    log.debug("Origin routes:\n{0}".format(routes))
+
+    ranges_count = len(routes)
+    middle_size = total / ranges_count  # calculates middle size of range
+
+    #calculates deviation with respect to middle size
+    max_size = middle_size * max_deviation
+    min_size = middle_size * min_deviation
+    log.debug("Ranges count: {0}".format(ranges_count))
+    log.debug("Middle_size: {0} ".format(middle_size))
+    log.debug("Max deviation: {0}, size: {1}".format(max_deviation, max_size))
+    log.debug("Min deviation: {0}, size: {1}".format(min_deviation, min_size))
+
+    iterations = 0
+
+    while True:
+        #finds smallest and largest ranges
+        min_range, max_range = find_ranges(routes, middle_size)
+
+        log.debug("Min range has #{0} and length: {1}"
+                  .format(min_range[0], min_range[1] * 1. / middle_size))
+        log.debug("Max range has #{0} and length: {1}"
+                  .format(max_range[0], max_range[1] * 1. / middle_size))
+
+        #stops if both smallest and largest ranges satisfy deviation
+        if min_range[1] >= min_size and max_range[1] <= max_size:
+            break
+
+        min_route = routes.routes[min_range[0]]
+        max_route = routes.routes[max_range[0]]
+
+        #position of smallest range
+        min_position = int(str(min_route.key), 16)
+        #position of largest range
+        max_position = int(str(max_route.key), 16)
+
+        #shift from max_position where route for smallest range should be moved
+        shift = max_range[1] / 2
+        #new position for smallest range route
+        id_val = max_position + shift
+        #deviation of new postion with respect to current position
+        deviation = abs(id_val - min_position) * 1. / middle_size
+
+        #stops if deviation is too small
+        #it means that we shift route of smallest range on very small value
+        #which doesn't affect to spread.
+        if deviation < options.accuracy:
+            break
+
+        #converts new position to elliptics.Id
+        eid = convert_to_id(id_val, group)
+        iterations += 1
+
+        log.debug("Routes befor:\n{0}".format(routes))
+        log.debug("Old id: {0}".format(min_route.key))
+        log.debug("New id: {0}".format(eid))
+        #replaces elliptics.Id in route list for smallest range
+        routes.routes[min_range[0]].key = eid
+        #sorts route list by ids
+        routes.routes = sorted(routes.routes, key=lambda x: x.key)
+        #adds address of changed route to set for futher creation of ids file
+        updated_addresses.add(min_route.address)
+        log.debug("Routes after:\n{0}".format(routes))
+
+    #after all calculates resulting length of ranges
+    compute_ranges(routes, middle_size)
+
+    #creates ids file for each address whose routes were changed
+    ids_mapping = save_ids(routes, updated_addresses)
+
+    log.debug('Final routes:\n{0}'.format(routes))
+    #Adds fake 0x00..0 route for calculating spread
+    if routes.routes[0] != elliptics.Id([0] * 64, group):
+        routes.routes.insert(0, elliptics.Route(elliptics.Id([0] * 64, group),
+                                                routes.routes[-1].address))
+    #Adds fake 0xff..f route for calculating spread value
+    if routes.routes[-1] != elliptics.Id([255] * 64, group):
+        routes.routes.append(elliptics.Route(elliptics.Id([255] * 64, group),
+                                             routes.routes[-1].address))
+    #outputs spread final spread value
+    log_spread("Final", routes.spread()[group])
+
+    log.info("Took {0} iterations".format(iterations))
+
+    for filename, address in ids_mapping:
+        print("IDS file '{0}' should be copied to node: {1}".format(filename,
+                                                                    address))
+
+
+def balance(options):
+    '''
+    Balances ranges in route list
+    '''
+    log.debug("Creating logger")
+    logger = elliptics.Logger(options.log,
+                              int(options.log_level))
+    log.debug("Creating node")
+    node = elliptics.Node(logger)
+    log.debug("Adding remote: %s", options.remote)
+    node.add_remote(options.remote)
+
+    log.debug("Creating session")
+    session = elliptics.Session(node)
+
+    routes = session.routes
+    session = None
+
+    groups = routes.groups()
+
+    if options.groups:
+        groups = [g for g in groups if g in options.groups]
+
+    for g in groups:
+        balance_group(g, routes.filter_by_group_id(g),
+                      options.min_deviation,
+                      options.max_deviation)
+
+
+if __name__ == '__main__':
+    from optparse import OptionParser
+    parser = OptionParser()
+    parser.usage = "%prog [options]"
+    parser.description = __doc__
+    parser.add_option("-g", "--groups", action="store", type="string",
+                      dest="groups", default=None,
+                      help="Comma separated list of groups [default: all]")
+    parser.add_option("-l", "--log", dest="log", type="string",
+                      default='dnet_balancer.log', metavar="FILE",
+                      help="Output log messages from library to file "
+                           "[default: %default]")
+    parser.add_option("-L", "--log-level", action="store", type="int",
+                      dest="log_level", default="1",
+                      help="Elliptics client verbosity [default: %default]")
+    parser.add_option("-r", "--remote", action="store", type="string",
+                      dest="remote", default=None,
+                      help="Elliptics node address [default: %default]")
+    parser.add_option("-m", "--min-deviation", action='store',
+                      dest="min_deviation", default=0.8, type="float",
+                      help='Minimum deviation from middle range size')
+    parser.add_option("-M", "--max-deviation", action='store',
+                      dest="max_deviation", default=1.2, type="float",
+                      help='Maximum deviation from middle range size')
+    parser.add_option("-a", "--accuracy", action='store', type="float",
+                      dest='accuracy', default=10 ** -10,
+                      help='Sets accuracy with which route will be considered'
+                      'as fixed while shifting it')
+    parser.add_option("-d", "--debug", action="store_true",
+                      dest="debug", default=False,
+                      help="Enable debug output [default: %default]")
+
+    (options, args) = parser.parse_args()
+
+    try:
+        ch.setLevel(logging.INFO)
+        if options.debug:
+            ch.setLevel(logging.DEBUG)
+
+        fh = logging.FileHandler(options.log)
+        fh.setFormatter(formatter)
+        fh.setLevel(logging.DEBUG)
+        log.addHandler(fh)
+    except Exception as e:
+        raise ValueError("Can't parse log_level: '{0}': {1}"
+                         .format(options.log_level, repr(e)))
+
+    if options.groups:
+        options.groups = map(int, options.groups.split(','))
+
+    log.info("Start balancing")
+    balance(options)
