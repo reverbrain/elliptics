@@ -20,6 +20,9 @@ from elliptics.log import logged_class
 
 @logged_class
 class Session(Session):
+    def __init__(self, node):
+        super(Session, self).__init__(node)
+        self._node = node
 
     @property
     def routes(self):
