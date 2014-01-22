@@ -37,6 +37,10 @@ public:
 		return m_manager.stat_json();
 	}
 
+	virtual bool check_category(int category) const {
+		return category == DNET_MONITOR_CACHE || category == DNET_MONITOR_ALL;
+	}
+
 private:
 	const cache_manager	&m_manager;
 };
