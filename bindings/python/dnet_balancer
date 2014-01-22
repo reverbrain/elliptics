@@ -138,6 +138,32 @@ def save_ids(routes, addresses):
     return mapping
 
 
+def remove_fake_routes(routes):
+    '''
+    Removes fake 0x00..0 and 0xff..f routes from route list
+    '''
+    #removes route with key 0x00..0 if it is fake
+    if routes.routes[0].address == routes.routes[-1].address:
+        del routes.routes[0]
+    #removes route with key 0xff..f if it is fake
+    if routes.routes[-1].address == routes.routes[-2].address:
+        del routes.routes[-1]
+
+
+def restore_fake_routes(routes, group):
+    '''
+    Adds fake 0x00..0 and 0xff..f routes to route list
+    '''
+    #Adds fake 0x00..0 route for calculating spread
+    if routes.routes[0].key != elliptics.Id([0] * 64, group):
+        routes.routes.insert(0, elliptics.Route(elliptics.Id([0] * 64, group),
+                                                routes.routes[-1].address))
+    #Adds fake 0xff..f route for calculating spread value
+    if routes.routes[-1].key != elliptics.Id([255] * 64, group):
+        routes.routes.append(elliptics.Route(elliptics.Id([255] * 64, group),
+                                             routes.routes[-1].address))
+
+
 def balance_group(group, routes, min_deviation, max_deviation):
     '''
     Balance the ranges in group route list.
@@ -150,12 +176,7 @@ def balance_group(group, routes, min_deviation, max_deviation):
     updated_addresses = set()
     log_spread("Origin", routes.spread()[group])
 
-    #removes route with key 0x00..0 if it is fake
-    if routes.routes[0].address == routes.routes[-1].address:
-        del routes.routes[0]
-    #removes route with key 0xff..f if it is fake
-    if routes.routes[-1].address == routes.routes[-2].address:
-        del routes.routes[-1]
+    remove_fake_routes(routes)
 
     log.debug("Origin routes:\n{0}".format(routes))
 
@@ -228,27 +249,21 @@ def balance_group(group, routes, min_deviation, max_deviation):
     ids_mapping = save_ids(routes, updated_addresses)
 
     log.debug('Final routes:\n{0}'.format(routes))
-    #Adds fake 0x00..0 route for calculating spread
-    if routes.routes[0] != elliptics.Id([0] * 64, group):
-        routes.routes.insert(0, elliptics.Route(elliptics.Id([0] * 64, group),
-                                                routes.routes[-1].address))
-    #Adds fake 0xff..f route for calculating spread value
-    if routes.routes[-1] != elliptics.Id([255] * 64, group):
-        routes.routes.append(elliptics.Route(elliptics.Id([255] * 64, group),
-                                             routes.routes[-1].address))
+    restore_fake_routes(routes, group)
     #outputs spread final spread value
     log_spread("Final", routes.spread()[group])
 
     log.info("Took {0} iterations".format(iterations))
 
     for filename, address in ids_mapping:
-        print("IDS file '{0}' should be copied to node: {1}".format(filename,
-                                                                    address))
+        log.info("IDS file '{0}' should be copied to node: {1}"
+                 .format(filename, address))
+    return ids_mapping
 
 
-def balance(options):
+def get_routes(options):
     '''
-    Balances ranges in route list
+    Connects to elliptics, gets route list and returns it
     '''
     log.debug("Creating logger")
     logger = elliptics.Logger(options.log,
@@ -263,16 +278,61 @@ def balance(options):
 
     routes = session.routes
     session = None
+    return routes
 
+
+def filter_groups(routes, options):
     groups = routes.groups()
-
     if options.groups:
         groups = [g for g in groups if g in options.groups]
+    return groups
+
+
+def balance(options):
+    '''
+    Balances ranges in route list
+    '''
+    log.info("Start balancing")
+    routes = get_routes(options)
+
+    groups = filter_groups(routes, options)
+
+    ids_mapping = []
 
     for g in groups:
-        balance_group(g, routes.filter_by_group_id(g),
-                      options.min_deviation,
-                      options.max_deviation)
+        ids_mapping += balance_group(g, routes.filter_by_group_id(g),
+                                     options.min_deviation,
+                                     options.max_deviation)
+
+    for filename, address in ids_mapping:
+        print("IDS file '{0}' should be copied to node: {1}".format(filename,
+                                                                    address))
+
+
+def check(options):
+    '''
+    Prints current route list state (spread, ranges length etc.) and exits
+    '''
+    log.info("Checking current route list")
+    routes = get_routes(options)
+
+    groups = filter_groups(routes, options)
+
+    for group in groups:
+        log.info("Group #{0} state".format(group))
+        group_routes = routes.filter_by_group_id(group)
+        remove_fake_routes(group_routes)
+        ranges_count = len(group_routes)
+        middle_size = total / ranges_count  # calculates middle size of range
+        ranges = compute_ranges(group_routes, middle_size)
+        log.info("Middle length: {0}%".format(middle_size * 100. / total))
+        for index, length in enumerate(ranges):
+            log.info("{0} has length: {1} -> {2}%"
+                     .format(group_routes.routes[index],
+                             length * 1. / middle_size,
+                             length * 100. / total,))
+        restore_fake_routes(group_routes, group)
+        log_spread("", group_routes.spread()[group])
 
 
 if __name__ == '__main__':
@@ -306,6 +366,10 @@ if __name__ == '__main__':
     parser.add_option("-d", "--debug", action="store_true",
                       dest="debug", default=False,
                       help="Enable debug output [default: %default]")
+    parser.add_option('-c', '--check-mode', action='store_true',
+                      dest='check_mode', default=False,
+                      help='Prints current route list state '
+                      '(spread, ranges length etc.) and exits')
 
     (options, args) = parser.parse_args()
 
@@ -325,5 +389,7 @@ if __name__ == '__main__':
     if options.groups:
         options.groups = map(int, options.groups.split(','))
 
-    log.info("Start balancing")
-    balance(options)
+    if options.check_mode:
+        check(options)
+    else:
+        balance(options)
