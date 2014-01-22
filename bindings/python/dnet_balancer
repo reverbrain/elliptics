@@ -214,12 +214,16 @@ def balance_group(group, routes, min_deviation, max_deviation):
         #position of largest range
         max_position = int(str(max_route.key), 16)
 
+        log.debug("Max range route #{0}: {1}".format(max_range[0], max_route))
+        log.debug("Max position: {0}".format(max_position))
+
         #shift from max_position where route for smallest range should be moved
         shift = max_range[1] / 2
         #new position for smallest range route
-        id_val = max_position + shift
+        new_position = max_position + shift
+        log.debug("New position: {0}".format(new_position))
         #deviation of new postion with respect to current position
-        deviation = abs(id_val - min_position) * 1. / middle_size
+        deviation = abs(new_position - min_position) * 1. / middle_size
 
         #stops if deviation is too small
         #it means that we shift route of smallest range on very small value
@@ -228,14 +232,15 @@ def balance_group(group, routes, min_deviation, max_deviation):
             break
 
         #converts new position to elliptics.Id
-        eid = convert_to_id(id_val, group)
+        new_id = convert_to_id(new_position, group)
         iterations += 1
 
-        log.debug("Routes befor:\n{0}".format(routes))
+        log.debug("deviation with previous: {0}".format(deviation))
+        log.debug("Routes before:\n{0}".format(routes))
         log.debug("Old id: {0}".format(min_route.key))
-        log.debug("New id: {0}".format(eid))
+        log.debug("New id: {0}".format(new_id))
         #replaces elliptics.Id in route list for smallest range
-        routes.routes[min_range[0]].key = eid
+        routes.routes[min_range[0]].key = new_id
         #sorts route list by ids
         routes.routes = sorted(routes.routes, key=lambda x: x.key)
         #adds address of changed route to set for futher creation of ids file
