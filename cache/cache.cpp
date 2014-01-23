@@ -120,9 +120,12 @@ int cache_manager::indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request
 }
 
 void cache_manager::clear() {
+	time_stats_updater_t time_stats_updater;
+	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		m_caches[i]->clear();
 	}
+	ioremap::cache::local::thread_time_stats_updater = nullptr;
 }
 
 size_t cache_manager::cache_size() const {
