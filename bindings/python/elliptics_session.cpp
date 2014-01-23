@@ -686,7 +686,7 @@ void init_elliptics_session() {
 		.def("clone", &elliptics_session::clone,
 		     bp::return_value_policy<bp::manage_new_object>(),
 		     "clone()\n"
-		     "    Creates and returns session which is equal to currnet\n"
+		     "    Creates and returns session which is equal to current\n"
 		     "    but complitely independent from it.\n\n"
 		     "    cloned_session = session.clone()\n")
 		.def("transform", &elliptics_session::transform, (bp::args("data")),

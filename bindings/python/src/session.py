@@ -31,7 +31,7 @@ class Session(Session):
 
     def clone(self):
         '''
-        Creates and returns session which is equal to currnet"
+        Creates and returns session which is equal to current"
         but complitely independent from it."
 
         cloned_session = session.clone()
