@@ -115,4 +115,4 @@ int parse(const char* begin, size_t size) {
 
 }} /* namespace ioremap::monitor */
 
-#endif __DNET_MONITOR_HTTP_MISCS_H
+#endif /* __DNET_MONITOR_HTTP_MISCS_H */

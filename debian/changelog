@@ -1,3 +1,16 @@
+elliptics (2.24.15.2) unstable; urgency=low
+
+  * trans: randomize route table update: select 5 random groups and read table from one random node from each selected group
+  * tests: fixed python formatting
+  * tests: fixed pyton indent
+  * test: Don't use inline if/else syntax
+  * Python: Fixed copy-paste in session.py docstrings
+  * Python: fixed writting out of memory
+  * Python: fixed None usage as Id in session.exec_()
+  * Monitor: Added REST-like api for getting monitor statistics
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 20 Jan 2014 22:07:17 +0400
+
 elliptics (2.24.15.1) unstable; urgency=low
 
   * prepare_latest fix
