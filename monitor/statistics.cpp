@@ -118,6 +118,11 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 	}
 }
 
+void statistics::add_provider(stat_provider *stat, const std::string &name) {
+	std::unique_lock<std::mutex> guard(m_provider_mutex);
+	m_stat_providers.emplace_back(std::unique_ptr<stat_provider>(stat), name);
+}
+
 inline std::string convert_report(const rapidjson::Document &report) {
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -125,7 +130,7 @@ inline std::string convert_report(const rapidjson::Document &report) {
 	return buffer.GetString();
 }
 
-std::string statistics::report() {
+std::string statistics::report(int category) {
 	rapidjson::Document report;
 	report.SetObject();
 	auto &allocator = report.GetAllocator();
@@ -137,16 +142,37 @@ std::string statistics::report() {
 	m_start_time = end_time;
 	report.AddMember("time", time, allocator);
 
-	rapidjson::Value io_queue_value(rapidjson::kObjectType);
-	report.AddMember("io_queue_stat", io_queue_report(io_queue_value, allocator), allocator);
-	rapidjson::Value cache_value(rapidjson::kObjectType);
-	report.AddMember("cache_stat", cache_report(cache_value, allocator), allocator);
-	rapidjson::Value commands_value(rapidjson::kObjectType);
-	report.AddMember("commands_stat", commands_report(commands_value, allocator), allocator);
-	rapidjson::Value history_value(rapidjson::kArrayType);
-	report.AddMember("history_stat", history_report(history_value, allocator), allocator);
-	rapidjson::Value histogram_value(rapidjson::kObjectType);
-	report.AddMember("histogram", histogram_report(histogram_value, allocator), allocator);
+	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_IO_QUEUE) {
+		rapidjson::Value io_queue_value(rapidjson::kObjectType);
+		report.AddMember("io_queue_stat", io_queue_report(io_queue_value, allocator), allocator);
+	}
+
+	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_COMMANDS) {
+		rapidjson::Value commands_value(rapidjson::kObjectType);
+		report.AddMember("commands_stat", commands_report(commands_value, allocator), allocator);
+	}
+
+	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_COMMANDS) {
+		rapidjson::Value history_value(rapidjson::kArrayType);
+		report.AddMember("history_stat", history_report(history_value, allocator), allocator);
+	}
+
+	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_IO_HISTOGRAMS) {
+		rapidjson::Value histogram_value(rapidjson::kObjectType);
+		report.AddMember("histogram", histogram_report(histogram_value, allocator), allocator);
+	}
+
+	std::unique_lock<std::mutex> guard(m_provider_mutex);
+	for (auto it = m_stat_providers.cbegin(), end = m_stat_providers.cend(); it != end; ++it) {
+		if (!it->first->check_category(category))
+			continue;
+		rapidjson::Document value_doc;
+		value_doc.Parse<0>(it->first->json().c_str());
+		report.AddMember(it->second.c_str(),
+		                 static_cast<rapidjson::Value&>(value_doc),
+		                 allocator);
+	}
+
 
 	return convert_report(report);
 }
@@ -169,22 +195,8 @@ rapidjson::Value& statistics::io_queue_report(rapidjson::Value &stat_value, rapi
 	return stat_value;
 }
 
-rapidjson::Value& statistics::cache_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	if (!m_monitor.node()->cache)
-		return stat_value;
-
-	auto cache = static_cast<ioremap::cache::cache_manager*>(m_monitor.node()->cache);
-
-	rapidjson::Value size_stat(rapidjson::kObjectType);
-	stat_value.AddMember("size_stat", cache->get_caches_size_stats_json(size_stat, allocator), allocator);
-	rapidjson::Value time_stats(rapidjson::kObjectType);
-	stat_value.AddMember("time_stat", cache->get_caches_time_stats_json(time_stats, allocator), allocator);
-
-	return stat_value;
-}
-
 void statistics::log() {
-	dnet_log(m_monitor.node(), DNET_LOG_ERROR, "%s", report().c_str());
+	dnet_log(m_monitor.node(), DNET_LOG_ERROR, "%s", report(DNET_MONITOR_ALL).c_str());
 }
 
 rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {

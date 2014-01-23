@@ -41,7 +41,6 @@ static void configure_nodes(const std::string &path)
 			("group", 5)
 			("cache_size", 100000)
 			("caches_number", 1)
-			("monitor_port", 1027)
 	}), path);
 }
 

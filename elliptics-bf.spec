@@ -87,6 +87,8 @@ CXXFLAGS="-pthread -I/usr/include/boost%{boost_ver}" LDFLAGS="-L/usr/lib64/boost
 
 make %{?_smp_mflags}
 
+make test
+
 %install
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}

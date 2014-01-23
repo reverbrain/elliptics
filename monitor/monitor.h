@@ -27,13 +27,34 @@
 extern "C" {
 #endif
 
+// Reserved monitor categories for bad and list requests
+#define DNET_MONITOR_BAD			-3
+#define DNET_MONITOR_NOT_FOUND		-2
+#define DNET_MONITOR_LIST			-1
+
+// Real monitor categories
+#define DNET_MONITOR_ALL			0
+#define DNET_MONITOR_CACHE			1
+#define DNET_MONITOR_IO_QUEUE		2
+#define DNET_MONITOR_COMMANDS		3
+#define DNET_MONITOR_IO_HISTOGRAMS	4
+
 struct dnet_node;
 struct dnet_config;
+
+struct stat_provider_raw {
+	void		*stat_private;
+	const char*	(* json) (void *priv);
+	void		(* stop) (void *priv);
+	int		(* check_category) (void *priv, int category);
+};
 
 void dnet_monitor_log(void *monitor);
 
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_monitor_exit(struct dnet_node *n);
+
+void dnet_monitor_add_provider(void* monitor, struct stat_provider_raw stat, const char *name);
 
 void monitor_command_counter(void *monitor, const int cmd, const int trans,
                              const int err, const int cache,

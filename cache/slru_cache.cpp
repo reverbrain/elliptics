@@ -34,12 +34,12 @@ slru_cache_t::slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache
 }
 
 slru_cache_t::~slru_cache_t() {
+	time_stats_updater_t time_stats_updater;
+	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 	stop();
 	m_lifecheck.join();
 	clear();
-//	if (thread_time_stats_updater) {
-//		delete thread_time_stats_updater;
-//	}
+	ioremap::cache::local::thread_time_stats_updater = nullptr;
 }
 
 void slru_cache_t::stop() {
@@ -584,7 +584,7 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 }
 
 void slru_cache_t::clear() {
-//	action_guard clear_guard(get_time_stats_updater(), ACTION_CLEAR);
+	action_guard clear_guard(get_time_stats_updater(), ACTION_CLEAR);
 
 	std::vector<size_t> cache_pages_max_sizes = m_cache_pages_max_sizes;
 
@@ -608,13 +608,11 @@ cache_stats slru_cache_t::get_cache_stats() const {
 	return m_cache_stats;
 }
 
-rapidjson::Value &slru_cache_t::get_time_stats(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
-	return m_time_stats.to_json(stat_value, allocator);
-}
-
-time_stats_tree_t &slru_cache_t::time_stats() {
+const time_stats_tree_t &slru_cache_t::get_time_stats() const {
 	return m_time_stats;
 }
+
+// private:
 
 void slru_cache_t::start_action(const int action_code) {
 	get_time_stats_updater()->start(action_code);
@@ -622,6 +620,13 @@ void slru_cache_t::start_action(const int action_code) {
 
 void slru_cache_t::stop_action(const int action_code) {
 	get_time_stats_updater()->stop(action_code);
+}
+
+time_stats_updater_t *slru_cache_t::get_time_stats_updater() {
+	if (!ioremap::cache::local::thread_time_stats_updater->has_time_stats_tree()) {
+		ioremap::cache::local::thread_time_stats_updater->set_time_stats_tree(m_time_stats);
+	}
+	return ioremap::cache::local::thread_time_stats_updater;
 }
 
 void slru_cache_t::sync_if_required(data_t* it, elliptics_unique_lock<std::mutex> &guard) {
@@ -643,15 +648,6 @@ void slru_cache_t::sync_if_required(data_t* it, elliptics_unique_lock<std::mutex
 		guard.lock();
 	}
 }
-
-time_stats_updater_t *slru_cache_t::get_time_stats_updater() {
-	if (!ioremap::cache::local::thread_time_stats_updater->has_time_stats_tree()) {
-		ioremap::cache::local::thread_time_stats_updater->set_time_stats_tree(m_time_stats);
-	}
-	return ioremap::cache::local::thread_time_stats_updater;
-}
-
-// private:
 
 void slru_cache_t::insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data) {
 	action_guard add_to_page_guard(get_time_stats_updater(), ACTION_ADD_TO_PAGE);
@@ -776,7 +772,7 @@ bool slru_cache_t::have_enough_space(const unsigned char *id, size_t page_number
 }
 
 void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size_t reserve) {
-//	action_guard resize_page_guard(get_time_stats_updater(), ACTION_RESIZE_PAGE);
+	action_guard resize_page_guard(get_time_stats_updater(), ACTION_RESIZE_PAGE);
 	elliptics_timer timer;
 	elliptics_timer total_timer;
 
@@ -827,7 +823,6 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 			}
 		}
 	}
-	m_cache_stats.total_resize_time += timer.elapsed<std::chrono::microseconds>();
 
 	auto total = total_timer.elapsed();
 	int level = total > 100 ? DNET_LOG_ERROR : DNET_LOG_DEBUG;
@@ -852,8 +847,7 @@ void slru_cache_t::erase_element(data_t *obj) {
 		}
 	}
 
-	if (obj->remove_from_cache())
-	{
+	if (obj->remove_from_cache()) {
 		m_cache_stats.number_of_objects_marked_for_deletion--;
 		m_cache_stats.size_of_objects_marked_for_deletion -= obj->size();
 	}
@@ -930,9 +924,12 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 }
 
 void slru_cache_t::life_check(void) {
-	elliptics_timer lifecheck_timer;
+	time_stats_updater_t time_stats_updater;
+	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
+
 	while (!m_need_exit) {
-		(void) lifecheck_timer.restart();
+		start_action(ACTION_LIFECHECK);
+
 		std::deque<struct dnet_id> remove;
 		std::deque<data_t*> elements_for_sync;
 		size_t last_time;
@@ -1003,10 +1000,12 @@ void slru_cache_t::life_check(void) {
 				}
 			}
 		}
+		stop_action(ACTION_LIFECHECK);
 
-		m_cache_stats.total_lifecheck_time += lifecheck_timer.elapsed<std::chrono::microseconds>();
 		sleep(1);
 	}
+
+	ioremap::cache::local::thread_time_stats_updater = nullptr;
 }
 
 }}

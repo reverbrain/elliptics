@@ -32,6 +32,7 @@ const char* actions_names[]{
 	"ACTION_WRITE_AFTER_APPEND_ONLY",
 	"ACTION_POPULATE_FROM_DISK",
 	"ACTION_CLEAR",
+	"ACTION_LIFECHECK",
 };
 
 const char* get_action_name(const int action_code) {
@@ -46,7 +47,7 @@ time_stats_tree_t::~time_stats_tree_t() {
 }
 
 rapidjson::Value& time_stats_tree_t::to_json(rapidjson::Value &stat_value,
-											 rapidjson::Document::AllocatorType &allocator) {
+											 rapidjson::Document::AllocatorType &allocator) const {
 	return to_json(root, stat_value, allocator);
 }
 
@@ -81,11 +82,11 @@ void time_stats_tree_t::add_new_link(time_stats_tree_t::p_node_t node, int actio
 	nodes[node].links.emplace(action_code, action_node);
 }
 
-void time_stats_tree_t::merge_into(time_stats_tree_t &another_tree) {
+void time_stats_tree_t::merge_into(time_stats_tree_t &another_tree) const {
 	merge_into(root, another_tree.root, another_tree);
 }
 
-rapidjson::Value &time_stats_tree_t::to_json(p_node_t current_node, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+rapidjson::Value &time_stats_tree_t::to_json(p_node_t current_node, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
 	stat_value.AddMember("time", (int64_t) get_node_time(current_node), allocator);
 
 	for (auto it = nodes[current_node].links.begin(); it != nodes[current_node].links.end(); ++it) {
@@ -103,7 +104,8 @@ time_stats_tree_t::p_node_t time_stats_tree_t::new_node(int action_code) {
 	return nodes.size() - 1;
 }
 
-void time_stats_tree_t::merge_into(time_stats_tree_t::p_node_t lhs_node, time_stats_tree_t::p_node_t rhs_node, time_stats_tree_t &rhs_tree) {
+void time_stats_tree_t::merge_into(time_stats_tree_t::p_node_t lhs_node,
+								   time_stats_tree_t::p_node_t rhs_node, time_stats_tree_t &rhs_tree) const {
 	rhs_tree.set_node_time(rhs_node, rhs_tree.get_node_time(rhs_node) + get_node_time(lhs_node));
 
 	for (auto it = nodes[lhs_node].links.begin(); it != nodes[lhs_node].links.end(); ++it) {
@@ -129,6 +131,9 @@ time_stats_updater_t::time_stats_updater_t(time_stats_tree_t &t) {
 time_stats_updater_t::~time_stats_updater_t() {
 	if (depth != 0) {
 		throw std::logic_error("~time_stats_updater(): extra measurements");
+	}
+	while (!measurements.empty()) {
+		pop_measurement();
 	}
 }
 

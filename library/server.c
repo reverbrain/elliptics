@@ -242,17 +242,17 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, str
 				n->notify_hash_size);
 	}
 
-	err = dnet_cache_init(n);
+	err  = dnet_monitor_init(n, cfg);
 	if (err)
 		goto err_out_notify_exit;
 
-	err  = dnet_monitor_init(n, cfg);
+	err = dnet_cache_init(n);
 	if (err)
-		goto err_out_cache_cleanup;
+		goto err_out_monitor_exit;
 
 	err = dnet_local_addr_add(n, addrs, addr_num);
 	if (err)
-		goto err_out_monitor_exit;
+		goto err_out_cache_cleanup;
 
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		struct dnet_addr la;
@@ -312,10 +312,10 @@ err_out_locks_destroy:
 	dnet_locks_destroy(n);
 err_out_addr_cleanup:
 	dnet_local_addr_cleanup(n);
-err_out_monitor_exit:
-	dnet_monitor_exit(n);
 err_out_cache_cleanup:
 	dnet_cache_cleanup(n);
+err_out_monitor_exit:
+	dnet_monitor_exit(n);
 err_out_notify_exit:
 	dnet_notify_exit(n);
 err_out_node_destroy:
@@ -336,6 +336,7 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	 *
 	 * After all of them finish destroying the node, all it's counters and so on.
 	 */
+	dnet_monitor_exit(n);
 	dnet_node_cleanup_common_resources(n);
 
 	dnet_srw_cleanup(n);

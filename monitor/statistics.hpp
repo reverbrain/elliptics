@@ -36,10 +36,40 @@
 #include "../library/elliptics.h"
 
 #include "histogram.hpp"
+#include "monitor.h"
 
 namespace ioremap { namespace monitor {
 
 class monitor;
+
+class stat_provider {
+public:
+	virtual std::string json() const = 0;
+	virtual bool check_category(int category) const = 0;
+	virtual ~stat_provider() {}
+};
+
+class raw_provider : public stat_provider {
+public:
+	raw_provider(stat_provider_raw stat)
+	: m_stat(stat)
+	{}
+
+	virtual ~raw_provider() {
+		m_stat.stop(m_stat.stat_private);
+	}
+
+	virtual std::string json() const {
+		return std::string(m_stat.json(m_stat.stat_private));
+	}
+
+	virtual bool check_category(int category) const {
+		return m_stat.check_category(m_stat.stat_private, category);
+	}
+
+private:
+	stat_provider_raw	m_stat;
+};
 
 struct command_counters {
 	uint_fast64_t	cache_successes;
@@ -87,13 +117,13 @@ struct command_histograms {
 class statistics {
 public:
 	statistics(monitor& mon);
-	std::string report();
+	std::string report(int category);
 	void log();
 	void command_counter(int cmd, const int trans, const int err, const int cache,
 	                     const uint32_t size, const unsigned long time);
+	void add_provider(stat_provider *stat, const std::string &name);
 private:
 	rapidjson::Value& io_queue_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
-	rapidjson::Value& cache_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
 	rapidjson::Value& commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
 	rapidjson::Value& history_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
 	rapidjson::Value& histogram_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator);
@@ -114,6 +144,9 @@ private:
 	command_histograms				m_write_histograms;
 	command_histograms				m_indx_update_histograms;
 	command_histograms				m_indx_internal_histograms;
+
+	mutable std::mutex							m_provider_mutex;
+	std::vector<std::pair<std::unique_ptr<stat_provider>, std::string>>	m_stat_providers;
 };
 
 }} /* namespace ioremap::monitor */

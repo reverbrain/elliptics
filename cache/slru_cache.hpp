@@ -42,17 +42,13 @@ public:
 
 	cache_stats get_cache_stats() const;
 
-	rapidjson::Value& get_time_stats(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const;
-
-	time_stats_tree_t& time_stats();
+	const time_stats_tree_t &get_time_stats() const;
 
 private:
 
 	void start_action(const int action_code);
 
 	void stop_action(const int action_code);
-
-	void sync_if_required(data_t* it, elliptics_unique_lock<std::mutex> &guard);
 
 	time_stats_updater_t *get_time_stats_updater();
 
@@ -80,6 +76,8 @@ private:
 	size_t get_previous_page_number(size_t page_number) const {
 		return page_number + 1;
 	}
+
+	void sync_if_required(data_t* it, elliptics_unique_lock<std::mutex> &guard);
 
 	void insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data);
 

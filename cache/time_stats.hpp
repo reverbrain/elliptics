@@ -46,6 +46,7 @@ enum actions {
 	ACTION_WRITE_AFTER_APPEND_ONLY,
 	ACTION_POPULATE_FROM_DISK,
 	ACTION_CLEAR,
+	ACTION_LIFECHECK,
 };
 
 class time_stats_tree_t {
@@ -54,7 +55,7 @@ public:
 	~time_stats_tree_t();
 
 	rapidjson::Value& to_json(rapidjson::Value &stat_value,
-							  rapidjson::Document::AllocatorType &allocator);
+							  rapidjson::Document::AllocatorType &allocator) const;
 
 	struct node_t;
 	typedef size_t p_node_t;
@@ -74,17 +75,17 @@ public:
 	p_node_t get_node_link(p_node_t node, int action_code) const;
 	void add_new_link(p_node_t node, int action_code);
 
-	void merge_into(time_stats_tree_t& another_tree);
+	void merge_into(time_stats_tree_t& another_tree) const;
 
 	p_node_t root;
 
 private:
 	rapidjson::Value& to_json(p_node_t current_node, rapidjson::Value &stat_value,
-							  rapidjson::Document::AllocatorType &allocator);
+							  rapidjson::Document::AllocatorType &allocator) const;
 
 	p_node_t new_node(int action_code);
 
-	void merge_into(p_node_t lhs_node, p_node_t rhs_node, time_stats_tree_t& rhs_tree);
+	void merge_into(p_node_t lhs_node, p_node_t rhs_node, time_stats_tree_t& rhs_tree) const;
 
 	std::vector<node_t> nodes;
 

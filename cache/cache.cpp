@@ -16,15 +16,38 @@
 */
 
 #include "cache.hpp"
-#include "../monitor/monitor.h"
-
 #include "slru_cache.hpp"
 
 #include <fstream>
 
 #include "boost/lexical_cast.hpp"
 
+#include "../monitor/monitor.h"
+#include "../monitor/monitor.hpp"
+#include "../monitor/statistics.hpp"
+#include "../monitor/rapidjson/document.h"
+#include "../monitor/rapidjson/writer.h"
+#include "../monitor/rapidjson/stringbuffer.h"
+
 namespace ioremap { namespace cache {
+
+class cache_stat_provider : public ioremap::monitor::stat_provider {
+public:
+	cache_stat_provider(const cache_manager &manager)
+	: m_manager(manager)
+	{}
+
+	virtual std::string json() const {
+		return m_manager.stat_json();
+	}
+
+	virtual bool check_category(int category) const {
+		return category == DNET_MONITOR_CACHE || category == DNET_MONITOR_ALL;
+	}
+
+private:
+	const cache_manager	&m_manager;
+};
 
 cache_manager::cache_manager(struct dnet_node *n) {
 	size_t caches_number = n->caches_number;
@@ -47,6 +70,10 @@ cache_manager::cache_manager(struct dnet_node *n) {
 	}
 
 	stop = false;
+
+	auto real_monitor = static_cast<ioremap::monitor::monitor*>(n->monitor);
+	if (real_monitor)
+		real_monitor->get_statistics().add_provider(new cache_stat_provider(*this), "cache");
 }
 
 cache_manager::~cache_manager() {
@@ -98,13 +125,11 @@ void cache_manager::clear() {
 	}
 }
 
-size_t cache_manager::cache_size() const
-{
+size_t cache_manager::cache_size() const {
 	return m_max_cache_size;
 }
 
-size_t cache_manager::cache_pages_number() const
-{
+size_t cache_manager::cache_pages_number() const {
 	return m_cache_pages_number;
 }
 
@@ -118,13 +143,6 @@ cache_stats cache_manager::get_total_cache_stats() const {
 		stats.number_of_objects_marked_for_deletion += page_stats.number_of_objects_marked_for_deletion;
 		stats.size_of_objects_marked_for_deletion += page_stats.size_of_objects_marked_for_deletion;
 		stats.size_of_objects += page_stats.size_of_objects;
-
-		stats.total_lifecheck_time += page_stats.total_lifecheck_time;
-		stats.total_write_time += page_stats.total_write_time;
-		stats.total_read_time += page_stats.total_read_time;
-		stats.total_remove_time += page_stats.total_remove_time;
-		stats.total_lookup_time += page_stats.total_lookup_time;
-		stats.total_resize_time += page_stats.total_resize_time;
 
 		for (size_t j = 0; j < m_cache_pages_number; ++j) {
 			stats.pages_sizes[j] += page_stats.pages_sizes[j];
@@ -150,23 +168,53 @@ rapidjson::Value &cache_manager::get_total_caches_size_stats_json(rapidjson::Val
 rapidjson::Value &cache_manager::get_caches_size_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		rapidjson::Value cache_time_stats(rapidjson::kObjectType);
-		std::string id = "cache_" + boost::lexical_cast<std::string>(i);
-		stat_value.AddMember(id.c_str(), allocator, m_caches[i]->get_cache_stats().to_json(cache_time_stats, allocator), allocator);
+		stat_value.PushBack(m_caches[i]->get_cache_stats().to_json(cache_time_stats, allocator), allocator);
 	}
 	return stat_value;
 }
 
 rapidjson::Value &cache_manager::get_total_caches_time_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
+	time_stats_tree_t total_caches_time_stats;
+	for (size_t i = 0; i < m_caches.size(); ++i) {
+		m_caches[i]->get_time_stats().merge_into(total_caches_time_stats);
+	}
+	total_caches_time_stats.to_json(stat_value, allocator);
 	return stat_value;
 }
 
 rapidjson::Value &cache_manager::get_caches_time_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		rapidjson::Value cache_time_stats(rapidjson::kObjectType);
-		std::string id = "cache_" + boost::lexical_cast<std::string>(i);
-		stat_value.AddMember(id.c_str(), allocator, m_caches[i]->get_time_stats(cache_time_stats, allocator), allocator);
+		stat_value.PushBack(m_caches[i]->get_time_stats().to_json(cache_time_stats, allocator), allocator);
 	}
 	return stat_value;
+}
+
+std::string cache_manager::stat_json() const {
+	rapidjson::Document doc;
+	doc.SetObject();
+	auto &allocator = doc.GetAllocator();
+
+	rapidjson::Value total_cache(rapidjson::kObjectType);
+
+	rapidjson::Value size_stats(rapidjson::kObjectType);
+	get_total_caches_size_stats_json(size_stats, allocator);
+
+	rapidjson::Value time_stats(rapidjson::kObjectType);
+	get_total_caches_time_stats_json(time_stats, allocator);
+
+	total_cache.AddMember("size_stats", size_stats, allocator);
+	total_cache.AddMember("time_stats", time_stats, allocator);
+	doc.AddMember("total_cache", total_cache, allocator);
+
+	rapidjson::Value caches(rapidjson::kArrayType);
+	get_caches_size_stats_json(caches, allocator);
+	doc.AddMember("caches", caches, allocator);
+
+	rapidjson::StringBuffer buffer;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+	doc.Accept(writer);
+	return buffer.GetString();
 }
 
 size_t cache_manager::idx(const unsigned char *id) {
@@ -175,7 +223,7 @@ size_t cache_manager::idx(const unsigned char *id) {
 	return (i ^ j) % m_caches.size();
 }
 
-}}
+}} /* namespace ioremap::cache */
 
 namespace ioremap { namespace cache { namespace local {
 	thread_local time_stats_updater_t *thread_time_stats_updater = nullptr;
@@ -326,9 +374,6 @@ int dnet_cache_init(struct dnet_node *n)
 void dnet_cache_cleanup(struct dnet_node *n)
 {
 	if (n->cache) {
-		time_stats_updater_t time_stats_updater;
-		ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 		delete (cache_manager *)n->cache;
-		ioremap::cache::local::thread_time_stats_updater = nullptr;
 	}
 }

@@ -273,23 +273,12 @@ typedef treap<data_t> treap_t;
 struct cache_stats {
 	cache_stats():
 		number_of_objects(0), size_of_objects(0),
-		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
-		total_lifecheck_time(0),
-		total_write_time(0),
-		total_read_time(0),
-		total_remove_time(0), total_lookup_time(0), total_resize_time(0) {}
+		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0) {}
 
 	std::size_t number_of_objects;
 	std::size_t size_of_objects;
 	std::size_t number_of_objects_marked_for_deletion;
 	std::size_t size_of_objects_marked_for_deletion;
-
-	std::size_t total_lifecheck_time;
-	std::size_t total_write_time;
-	std::size_t total_read_time;
-	std::size_t total_remove_time;
-	std::size_t total_lookup_time;
-	std::size_t total_resize_time;
 
 	std::vector<size_t> pages_sizes;
 	std::vector<size_t> pages_max_sizes;
@@ -354,6 +343,8 @@ class cache_manager {
 		rapidjson::Value& get_caches_size_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
 
 		rapidjson::Value& get_caches_time_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
+
+		std::string stat_json() const;
 
 	private:
 		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
@@ -435,9 +426,6 @@ private:
 namespace ioremap { namespace cache { namespace local {
 
 extern thread_local time_stats_updater_t *thread_time_stats_updater;
-
-void start_action(const int action_code);
-void stop_action(const int action_code);
 
 }}}
 
