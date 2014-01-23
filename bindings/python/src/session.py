@@ -20,6 +20,25 @@ from elliptics.log import logged_class
 
 @logged_class
 class Session(Session):
+    def __init__(self, node):
+        '''
+        Initializes session by the node"
+
+        session = elliptics.Session(node)"
+        '''
+        super(Session, self).__init__(node)
+        self._node = node
+
+    def clone(self):
+        '''
+        Creates and returns session which is equal to current"
+        but complitely independent from it."
+
+        cloned_session = session.clone()
+        '''
+        session = super(Session, self).clone()
+        session._node = self._node
+        return session
 
     @property
     def routes(self):
