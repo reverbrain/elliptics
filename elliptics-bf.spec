@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.2
+Version:	2.24.15.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jan 24 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.3
+- Python: Fixed typo in docstrings.
+- Python: added ability to clone session.
+- Python: added keeping node inside python elliptics.Session to insure that session will be deleted after node.
+
 * Mon Jan 20 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.2
 - trans: randomize route table update: select 5 random groups and read table from one random node from each selected group
 - tests: fixed python formatting
