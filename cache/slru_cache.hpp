@@ -44,17 +44,17 @@ public:
 
 	rapidjson::Value& get_time_stats(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const;
 
+	time_stats_tree_t& time_stats();
+
 private:
 
-	void sync_if_required(const unsigned char *id);
+	void start_action(const int action_code);
 
-	int write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data);
+	void stop_action(const int action_code);
 
-	std::shared_ptr<raw_data_t> read_(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io);
+	void sync_if_required(data_t* it, elliptics_unique_lock<std::mutex> &guard);
 
-	int remove_(const unsigned char *id, dnet_io_attr *io);
-
-	int lookup_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd);
+	time_stats_updater_t *get_time_stats_updater();
 
 	bool m_need_exit;
 	struct dnet_node *m_node;
@@ -65,10 +65,8 @@ private:
 	std::unique_ptr<lru_list_t[]> m_cache_pages_lru;
 	std::thread m_lifecheck;
 	treap_t m_treap;
-	std::size_t finds_number;
 	mutable cache_stats m_cache_stats;
 	mutable time_stats_tree_t m_time_stats;
-	std::vector<record_info> elements_for_sync;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 

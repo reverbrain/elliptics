@@ -18,11 +18,20 @@
 namespace ioremap { namespace cache {
 
 const char* actions_names[]{
-	"CACHE_ACTION",
-	"WRITE_ACTION",
-	"READ_ACTION",
-	"ERASE_ACTION",
-	"LOOKUP_ACTION",
+	"ACTION_CACHE",
+	"ACTION_WRITE",
+	"ACTION_READ",
+	"ACTION_REMOVE",
+	"ACTION_LOOKUP",
+	"ACTION_LOCK",
+	"ACTION_FIND",
+	"ACTION_ADD_TO_PAGE",
+	"ACTION_RESIZE_PAGE",
+	"ACTION_SYNC_AFTER_APPEND",
+	"ACTION_WRITE_APPEND_ONLY",
+	"ACTION_WRITE_AFTER_APPEND_ONLY",
+	"ACTION_POPULATE_FROM_DISK",
+	"ACTION_CLEAR",
 };
 
 const char* get_action_name(const int action_code) {
@@ -42,27 +51,38 @@ rapidjson::Value& time_stats_tree_t::to_json(rapidjson::Value &stat_value,
 }
 
 int time_stats_tree_t::get_node_action_code(time_stats_tree_t::p_node_t node) const {
+	std::lock_guard<std::mutex> guard(lock);
 	return nodes[node].action_code;
 }
 
 void time_stats_tree_t::set_node_time(time_stats_tree_t::p_node_t node, long long int time) {
+	std::lock_guard<std::mutex> guard(lock);
 	nodes[node].time = time;
 }
 
 long long int time_stats_tree_t::get_node_time(time_stats_tree_t::p_node_t node) const {
+	std::lock_guard<std::mutex> guard(lock);
 	return nodes[node].time;
 }
 
 bool time_stats_tree_t::node_has_link(time_stats_tree_t::p_node_t node, int action_code) const {
+	std::lock_guard<std::mutex> guard(lock);
 	return nodes[node].links.find(action_code) != nodes[node].links.end();
 }
 
 time_stats_tree_t::p_node_t time_stats_tree_t::get_node_link(time_stats_tree_t::p_node_t node, int action_code) const {
+	std::lock_guard<std::mutex> guard(lock);
 	return nodes[node].links.at(action_code);
 }
 
 void time_stats_tree_t::add_new_link(time_stats_tree_t::p_node_t node, int action_code) {
-	nodes[node].links.emplace(action_code, new_node(action_code));
+	p_node_t action_node = new_node(action_code);
+	std::lock_guard<std::mutex> guard(lock);
+	nodes[node].links.emplace(action_code, action_node);
+}
+
+void time_stats_tree_t::merge_into(time_stats_tree_t &another_tree) {
+	merge_into(root, another_tree.root, another_tree);
 }
 
 rapidjson::Value &time_stats_tree_t::to_json(p_node_t current_node, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
@@ -78,42 +98,90 @@ rapidjson::Value &time_stats_tree_t::to_json(p_node_t current_node, rapidjson::V
 }
 
 time_stats_tree_t::p_node_t time_stats_tree_t::new_node(int action_code) {
+	std::lock_guard<std::mutex> guard(lock);
 	nodes.emplace_back(action_code);
 	return nodes.size() - 1;
 }
 
-time_stats_updater_t::time_stats_updater_t(time_stats_tree_t &t): current_node(t.root), t(t) {
+void time_stats_tree_t::merge_into(time_stats_tree_t::p_node_t lhs_node, time_stats_tree_t::p_node_t rhs_node, time_stats_tree_t &rhs_tree) {
+	rhs_tree.set_node_time(rhs_node, rhs_tree.get_node_time(rhs_node) + get_node_time(lhs_node));
+
+	for (auto it = nodes[lhs_node].links.begin(); it != nodes[lhs_node].links.end(); ++it) {
+		int action_code = it->first;
+		p_node_t lhs_next_node = it->second;
+		if (!rhs_tree.node_has_link(rhs_node, action_code)) {
+			rhs_tree.add_new_link(rhs_node, action_code);
+		}
+		p_node_t rhs_next_node = rhs_tree.get_node_link(rhs_node, action_code);
+		merge_into(lhs_next_node, rhs_next_node, rhs_tree);
+	}
+}
+
+time_stats_updater_t::time_stats_updater_t(): t(nullptr), depth(0) {
+	measurements.emplace(std::chrono::system_clock::now(), NULL);
+}
+
+time_stats_updater_t::time_stats_updater_t(time_stats_tree_t &t) {
+	set_time_stats_tree(t);
 	measurements.emplace(std::chrono::system_clock::now(), NULL);
 }
 
 time_stats_updater_t::~time_stats_updater_t() {
-	time_point_t now = std::chrono::system_clock::now();
-	while (!measurements.empty()) {
-		pop_measurement(now);
+	if (depth != 0) {
+		throw std::logic_error("~time_stats_updater(): extra measurements");
 	}
+}
+
+void time_stats_updater_t::set_time_stats_tree(time_stats_tree_t &t) {
+	current_node = t.root;
+	this->t = &t;
+	depth = 0;
+}
+
+bool time_stats_updater_t::has_time_stats_tree() const {
+	return (t != nullptr);
 }
 
 void time_stats_updater_t::start(const int action_code) {
-	if (!t.node_has_link(current_node, action_code)) {
-		t.add_new_link(current_node, action_code);
+	start(action_code, std::chrono::system_clock::now());
+}
+
+void time_stats_updater_t::start(const int action_code, const time_stats_updater_t::time_point_t& start_time) {
+	if (!t->node_has_link(current_node, action_code)) {
+		t->add_new_link(current_node, action_code);
 	}
-	p_node_t next_node = t.get_node_link(current_node, action_code);
-	measurements.emplace(std::chrono::system_clock::now(), current_node);
+	p_node_t next_node = t->get_node_link(current_node, action_code);
+	measurements.emplace(start_time, current_node);
+
 	current_node = next_node;
+	++depth;
 }
 
 void time_stats_updater_t::stop(const int action_code) {
-	if (t.get_node_action_code(current_node) != action_code) {
+	if (t->get_node_action_code(current_node) != action_code) {
 		throw std::logic_error("Stopping wrong action");
 	}
 	pop_measurement();
 }
 
+size_t time_stats_updater_t::get_depth() const {
+	return depth;
+}
+
 void time_stats_updater_t::pop_measurement(const time_point_t& end_time) {
 	measurement previous_measurement = measurements.top();
 	measurements.pop();
-	t.set_node_time(current_node, t.get_node_time(current_node) + delta(previous_measurement.start_time, end_time));
+	t->set_node_time(current_node, t->get_node_time(current_node) + delta(previous_measurement.start_time, end_time));
 	current_node = previous_measurement.previous_node;
+	--depth;
+}
+
+action_guard::action_guard(time_stats_updater_t *updater, int action_code): updater(updater), action_code(action_code) {
+	updater->start(action_code);
+}
+
+action_guard::~action_guard() {
+	updater->stop(action_code);
 }
 
 }}

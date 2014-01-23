@@ -19,6 +19,7 @@
 #include <stack>
 #include <chrono>
 #include <unordered_map>
+#include <map>
 #include <stdexcept>
 #include <iostream>
 #include <vector>
@@ -36,6 +37,15 @@ enum actions {
 	ACTION_READ,
 	ACTION_REMOVE,
 	ACTION_LOOKUP,
+	ACTION_LOCK,
+	ACTION_FIND,
+	ACTION_ADD_TO_PAGE,
+	ACTION_RESIZE_PAGE,
+	ACTION_SYNC_AFTER_APPEND,
+	ACTION_WRITE_APPEND_ONLY,
+	ACTION_WRITE_AFTER_APPEND_ONLY,
+	ACTION_POPULATE_FROM_DISK,
+	ACTION_CLEAR,
 };
 
 class time_stats_tree_t {
@@ -64,6 +74,8 @@ public:
 	p_node_t get_node_link(p_node_t node, int action_code) const;
 	void add_new_link(p_node_t node, int action_code);
 
+	void merge_into(time_stats_tree_t& another_tree);
+
 	p_node_t root;
 
 private:
@@ -72,7 +84,11 @@ private:
 
 	p_node_t new_node(int action_code);
 
+	void merge_into(p_node_t lhs_node, p_node_t rhs_node, time_stats_tree_t& rhs_tree);
+
 	std::vector<node_t> nodes;
+
+	mutable std::mutex lock;
 };
 
 class time_stats_updater_t {
@@ -81,11 +97,18 @@ public:
 	typedef time_stats_tree_t::p_node_t p_node_t;
 	typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
 
+	time_stats_updater_t();
 	time_stats_updater_t(time_stats_tree_t &t);
 	~time_stats_updater_t();
 
+	void set_time_stats_tree(time_stats_tree_t &t);
+	bool has_time_stats_tree() const;
+
 	void start(const int action_code);
+	void start(const int action_code, const time_point_t& start_time);
 	void stop(const int action_code);
+
+	size_t get_depth() const;
 
 private:
 	template<class Period = std::chrono::microseconds>
@@ -106,7 +129,18 @@ private:
 
 	p_node_t current_node;
 	std::stack<measurement> measurements;
-	time_stats_tree_t& t;
+	time_stats_tree_t* t;
+	size_t depth;
+};
+
+class action_guard {
+public:
+	action_guard(time_stats_updater_t *updater, const int action_code);
+	~action_guard();
+
+private:
+	time_stats_updater_t *updater;
+	const int action_code;
 };
 
 }}

@@ -39,6 +39,7 @@
 #include "elliptics/interface.h"
 
 #include "treap.hpp"
+#include "time_stats.hpp"
 
 #include "../monitor/rapidjson/document.h"
 #include "../monitor/rapidjson/writer.h"
@@ -78,7 +79,8 @@ public:
 
 	data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
 		m_lifetime(0), m_synctime(0), m_user_flags(0),
-		m_remove_from_disk(remove_from_disk), m_remove_from_cache(false), m_only_append(false) {
+		m_remove_from_disk(remove_from_disk), m_remove_from_cache(false),
+		m_only_append(false), m_is_syncing(0) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
 		dnet_empty_time(&m_timestamp);
 
@@ -119,10 +121,10 @@ public:
 	}
 
 	size_t eventtime() const {
-        size_t time = 0;
+		size_t time = 0;
 		if (!time || (lifetime() && time > lifetime()))
 		{
-            time = lifetime();
+			time = lifetime();
 		}
 		if (!time || (synctime() && time > synctime()))
 		{
@@ -171,6 +173,14 @@ public:
 		return m_remove_from_cache;
 	}
 
+	bool is_syncing() {
+		return m_is_syncing;
+	}
+
+	void set_is_syncing(bool is_syncing) {
+		m_is_syncing = is_syncing;
+	}
+
 	void set_remove_from_cache(bool remove_from_cache) {
 		m_remove_from_cache = remove_from_cache;
 	}
@@ -215,6 +225,7 @@ private:
 	bool m_remove_from_disk;
 	bool m_remove_from_cache;
 	bool m_only_append;
+	bool m_is_syncing;
 	char m_cache_page_number;
 	struct dnet_raw_id m_id;
 	std::shared_ptr<raw_data_t> m_data;
@@ -344,13 +355,10 @@ class cache_manager {
 
 		rapidjson::Value& get_caches_time_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
 
-		void dump_stats() const;
-
 	private:
 		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
 		size_t m_max_cache_size;
 		size_t m_cache_pages_number;
-		std::thread m_dump_stats;
 		bool stop;
 
 		size_t idx(const unsigned char *id);
@@ -423,5 +431,15 @@ private:
 };
 
 }}
+
+namespace ioremap { namespace cache { namespace local {
+
+extern thread_local time_stats_updater_t *thread_time_stats_updater;
+
+void start_action(const int action_code);
+void stop_action(const int action_code);
+
+}}}
+
 
 #endif // CACHE_HPP

@@ -47,16 +47,15 @@ cache_manager::cache_manager(struct dnet_node *n) {
 	}
 
 	stop = false;
-	m_dump_stats = std::thread(std::bind(&cache_manager::dump_stats, this));
 }
 
 cache_manager::~cache_manager() {
 	//Stops all caches in parallel. Avoids sleeping in all cache distructors
-	for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it) {
+	size_t id = 0;
+	for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it, ++id) {
 		(*it)->stop(); //Sets cache as stopped
 	}
 	stop = true;
-	m_dump_stats.join();
 }
 
 int cache_manager::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
@@ -170,49 +169,6 @@ rapidjson::Value &cache_manager::get_caches_time_stats_json(rapidjson::Value &st
 	return stat_value;
 }
 
-void cache_manager::dump_stats() const
-{
-	while (!stop) {
-		std::ofstream os("cache.stat");
-		std::vector<cache_stats> stats = get_caches_stats();
-
-		{
-			cache_stats stat = get_total_cache_stats();
-			os << "TOTAL" << "\n"
-				<< "number_of_objects " << stat.number_of_objects << "\n"
-				<< "size_of_objects " << stat.size_of_objects << "\n"
-				<< "number_of_objects_marked_for_deletion " << stat.number_of_objects_marked_for_deletion << "\n"
-				<< "size_of_objects_marked_for_deletion " << stat.size_of_objects_marked_for_deletion << "\n"
-				<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
-				<< "total_write_time " << stat.total_write_time << "\n"
-				<< "total_read_time " << stat.total_read_time << "\n"
-				<< "total_remove_time " << stat.total_remove_time << "\n"
-				<< "total_lookup_time " << stat.total_lookup_time << "\n"
-				<< "total_resize_time " << stat.total_resize_time << "\n";
-			os << "\n";
-		}
-
-		for (size_t i = 0; i < stats.size(); ++i) {
-			cache_stats stat = stats[i];
-
-			os << "CACHE " << i << "\n"
-				<< "number_of_objects " << stat.number_of_objects << "\n"
-				<< "size_of_objects " << stat.size_of_objects << "\n"
-				<< "number_of_objects_marked_for_deletion " << stat.number_of_objects_marked_for_deletion << "\n"
-				<< "size_of_objects_marked_for_deletion " << stat.size_of_objects_marked_for_deletion << "\n"
-				<< "total_lifecheck_time " << stat.total_lifecheck_time << "\n"
-				<< "total_write_time " << stat.total_write_time << "\n"
-				<< "total_read_time " << stat.total_read_time << "\n"
-				<< "total_remove_time " << stat.total_remove_time << "\n"
-				<< "total_lookup_time " << stat.total_lookup_time << "\n"
-				<< "total_resize_time " << stat.total_resize_time << "\n";
-			os << "\n";
-		}
-		os.close();
-		sleep(1);
-	}
-}
-
 size_t cache_manager::idx(const unsigned char *id) {
 	size_t i = *(size_t *)id;
 	size_t j = *(size_t *)(id + DNET_ID_SIZE - sizeof(size_t));
@@ -220,6 +176,10 @@ size_t cache_manager::idx(const unsigned char *id) {
 }
 
 }}
+
+namespace ioremap { namespace cache { namespace local {
+	thread_local time_stats_updater_t *thread_time_stats_updater = nullptr;
+}}}
 
 using namespace ioremap::cache;
 
@@ -237,6 +197,8 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 	cache_manager *cache = (cache_manager *)n->cache;
 	std::shared_ptr<raw_data_t> d;
+	time_stats_updater_t time_stats_updater;
+	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 
 	try {
 		switch (cmd->cmd) {
@@ -280,6 +242,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		err = -ENOENT;
 	}
 
+	ioremap::cache::local::thread_time_stats_updater = nullptr;
 	return err;
 }
 
@@ -294,6 +257,8 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 	}
 
 	cache_manager *cache = (cache_manager *)n->cache;
+	time_stats_updater_t time_stats_updater;
+	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 
 	try {
 		switch (cmd->cmd) {
@@ -313,6 +278,7 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 		err = -ENOENT;
 	}
 
+	ioremap::cache::local::thread_time_stats_updater = nullptr;
 	return err;
 }
 
@@ -327,6 +293,8 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	}
 
 	cache_manager *cache = (cache_manager *)n->cache;
+	time_stats_updater_t time_stats_updater;
+	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 
 	try {
 		cache->lookup(cmd->id.id, st, cmd);
@@ -336,6 +304,7 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 		err = -ENOENT;
 	}
 
+	ioremap::cache::local::thread_time_stats_updater = nullptr;
 	return err;
 }
 
@@ -356,6 +325,10 @@ int dnet_cache_init(struct dnet_node *n)
 
 void dnet_cache_cleanup(struct dnet_node *n)
 {
-	if (n->cache)
+	if (n->cache) {
+		time_stats_updater_t time_stats_updater;
+		ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 		delete (cache_manager *)n->cache;
+		ioremap::cache::local::thread_time_stats_updater = nullptr;
+	}
 }
