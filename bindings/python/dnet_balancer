@@ -29,6 +29,7 @@ to it.
 import sys
 import logging
 import logging.handlers
+from operator import itemgetter, attrgetter
 
 import elliptics
 
@@ -44,6 +45,7 @@ ch.setFormatter(formatter)
 ch.setLevel(logging.INFO)
 log.addHandler(ch)
 
+
 #total size of DHT ring
 total = int(str(elliptics.Id([255] * 64, 0)), 16)
 
@@ -58,12 +60,12 @@ def convert_to_id(value, group):
         value /= 256
 
     if len(id) < 64:
-        id = [0] * (len(id) - 64) + id
+        id = [0] * (64 - len(id)) + id
 
     return elliptics.Id(id, group)
 
 
-def compute_ranges(routes, middle_size):
+def compute_ranges(routes):
     '''
     Computes length of each range from route list
     '''
@@ -74,21 +76,20 @@ def compute_ranges(routes, middle_size):
             length = total - position + int(str(routes.routes[0].key), 16)
         else:
             length = int(str(routes[index + 1].key), 16) - position
-        log.debug("Range #{0} has length: {1}"
-                  .format(index, length * 1. / middle_size))
         ranges.append(length)
     return ranges
 
 
-def find_ranges(routes, middle_size):
+def find_min_max_ranges(ranges, middle_size):
     '''
     Finds maximum and minimum range
     Returns them along with their indices in route list
     '''
-    from operator import itemgetter
-    ranges = compute_ranges(routes, middle_size)  # compute length of ranges
-
-    min_range = min(enumerate(ranges), key=itemgetter(1))  # find smallest one
+    min_candidate = [(i, l) for i, l in enumerate(ranges)
+                     if ranges[i - 1] != middle_size and l < middle_size]
+    if not min_candidate:
+        return None, None
+    min_range = min(min_candidate, key=itemgetter(1))  # find smallest one
     max_range = max(enumerate(ranges), key=itemgetter(1))  # find largest one
 
     #calculate size of range which will be without minimum range
@@ -106,15 +107,16 @@ def find_ranges(routes, middle_size):
     return min_range, max_range
 
 
-def log_spread(message, spread):
+def log_spread(spread):
     '''
-    Outputs into log spread values
-    @message - messsage which will be preceded by the spread
+    Creates spread string
     '''
-    spread_str = '{0} spread:\n'.format(message)
-    for address in spread:
-        spread_str += '\tHost {0} {1:.2f}\n'.format(address, spread[address])
-    log.info(spread_str[:-2])
+    spread_str = ''
+    spread = spread.items()
+    spread.sort(key=itemgetter(1))
+    for address, part in spread:
+        spread_str += '\tHost {0} {1:.2f}\n'.format(address, part)
+    return spread_str
 
 
 def save_ids(routes, addresses):
@@ -126,14 +128,11 @@ def save_ids(routes, addresses):
     from struct import pack
     for addr in addresses:
         addr_routes = routes.filter_by_address(addr)
-        log.debug("Address {0} routes:\n{1}".format(addr, addr_routes))
         filename = 'ids.' + str(hash(addr))
         with open(filename, 'w') as f:
             for r in addr_routes:
                 data = pack('B' * 64, *r.key.id)
                 f.write(data)
-        log.debug("IDS file '{0}' should be copied to node: {1}"
-                  .format(filename, addr))
         mapping.append((filename, addr))
     return mapping
 
@@ -172,13 +171,11 @@ def balance_group(group, routes, min_deviation, max_deviation):
     So largest range is splitted into 2 equal ranges
     And smallest range is added to previous non-largest range.
     '''
-    log.info("Processing group #{0}".format(group))
     updated_addresses = set()
-    log_spread("Origin", routes.spread()[group])
+    log.debug("Origin routes:\n{0}".format(routes))
+    log.debug("Origin spread:\n{0}".format(log_spread(routes.spread()[group])))
 
     remove_fake_routes(routes)
-
-    log.debug("Origin routes:\n{0}".format(routes))
 
     ranges_count = len(routes)
     middle_size = total / ranges_count  # calculates middle size of range
@@ -186,21 +183,17 @@ def balance_group(group, routes, min_deviation, max_deviation):
     #calculates deviation with respect to middle size
     max_size = middle_size * max_deviation
     min_size = middle_size * min_deviation
-    log.debug("Ranges count: {0}".format(ranges_count))
-    log.debug("Middle_size: {0} ".format(middle_size))
-    log.debug("Max deviation: {0}, size: {1}".format(max_deviation, max_size))
-    log.debug("Min deviation: {0}, size: {1}".format(min_deviation, min_size))
 
     iterations = 0
 
+    ranges = compute_ranges(routes)  # compute length of all ranges
+
     while True:
         #finds smallest and largest ranges
-        min_range, max_range = find_ranges(routes, middle_size)
+        min_range, max_range = find_min_max_ranges(ranges, middle_size)
 
-        log.debug("Min range has #{0} and length: {1}"
-                  .format(min_range[0], min_range[1] * 1. / middle_size))
-        log.debug("Max range has #{0} and length: {1}"
-                  .format(max_range[0], max_range[1] * 1. / middle_size))
+        if not min_range or not max_range:
+            break
 
         #stops if both smallest and largest ranges satisfy deviation
         if min_range[1] >= min_size and max_range[1] <= max_size:
@@ -214,14 +207,45 @@ def balance_group(group, routes, min_deviation, max_deviation):
         #position of largest range
         max_position = int(str(max_route.key), 16)
 
-        log.debug("Max range route #{0}: {1}".format(max_range[0], max_route))
-        log.debug("Max position: {0}".format(max_position))
-
         #shift from max_position where route for smallest range should be moved
-        shift = max_range[1] / 2
+        shift = middle_size
         #new position for smallest range route
         new_position = max_position + shift
-        log.debug("New position: {0}".format(new_position))
+        log.debug("Old pos: {0}".format(min_position))
+        log.debug("New pos: {0}".format(new_position))
+
+        #add length of removing range to previous range
+        ranges[min_range[0] - 1] += ranges[min_range[0]]
+
+        #calc length of max_range after splitting it into 2
+        new_length = shift
+
+        #updates max_range length to new value
+        ranges[max_range[0]] = new_length
+
+        #the rest part of max_range should go to new range
+        new_length = max_range[1] - new_length
+
+        #if min_range locates after max_range it could be deleted
+        #because its removing doesn't shift max_range in ranges
+        if min_range[0] > max_range[0]:
+            del ranges[min_range[0]]
+
+        #if min_route new position should be at the begining of route list
+        if new_position > total:
+            new_position -= total
+            #if min_range wasn't removed then we should make it there
+            if min_range[0] < max_range[0]:
+                del ranges[min_range[0]]
+            #adds new range
+            ranges.insert(0, new_length)
+        else:
+            #adds new range
+            ranges.insert(max_range[0] + 1, new_length)
+            #if min_range wasn't removed then we should make it there
+            if min_range[0] < max_range[0]:
+                del ranges[min_range[0]]
+
         #deviation of new postion with respect to current position
         deviation = abs(new_position - min_position) * 1. / middle_size
 
@@ -229,40 +253,42 @@ def balance_group(group, routes, min_deviation, max_deviation):
         #it means that we shift route of smallest range on very small value
         #which doesn't affect to spread.
         if deviation < options.accuracy:
+            log.debug("break because of accuracy : {0}, {1}"
+                      .format(deviation, options.accuracy))
             break
 
         #converts new position to elliptics.Id
         new_id = convert_to_id(new_position, group)
         iterations += 1
 
-        log.debug("deviation with previous: {0}".format(deviation))
-        log.debug("Routes before:\n{0}".format(routes))
-        log.debug("Old id: {0}".format(min_route.key))
-        log.debug("New id: {0}".format(new_id))
+        log.debug("Old id:{0}".format(routes.routes[min_range[0]].key))
+        log.debug("New id:{0}".format(new_id))
+
         #replaces elliptics.Id in route list for smallest range
         routes.routes[min_range[0]].key = new_id
         #sorts route list by ids
-        routes.routes = sorted(routes.routes, key=lambda x: x.key)
+        routes.routes.sort(key=attrgetter('key'))
+
         #adds address of changed route to set for futher creation of ids file
         updated_addresses.add(min_route.address)
-        log.debug("Routes after:\n{0}".format(routes))
 
-    #after all calculates resulting length of ranges
-    compute_ranges(routes, middle_size)
+    for index, length in enumerate(ranges):
+        log.debug("Route #{0} length {1}"
+                  .format(index, length * 1. / middle_size))
+
+    log.debug("Total iterations: {0}".format(iterations))
 
     #creates ids file for each address whose routes were changed
     ids_mapping = save_ids(routes, updated_addresses)
 
-    log.debug('Final routes:\n{0}'.format(routes))
+    for index, length in enumerate(ranges):
+        print("Range #{0} - {1}".format(index,
+                                        length * 1. / middle_size))
+
     restore_fake_routes(routes, group)
-    #outputs spread final spread value
-    log_spread("Final", routes.spread()[group])
+    log.debug("Final routes:\n{0}".format(routes))
+    log.debug("Final spread:\n{0}".format(log_spread(routes.spread()[group])))
 
-    log.info("Took {0} iterations".format(iterations))
-
-    for filename, address in ids_mapping:
-        log.info("IDS file '{0}' should be copied to node: {1}"
-                 .format(filename, address))
     return ids_mapping
 
 
@@ -270,15 +296,11 @@ def get_routes(options):
     '''
     Connects to elliptics, gets route list and returns it
     '''
-    log.debug("Creating logger")
     logger = elliptics.Logger(options.log,
                               int(options.log_level))
-    log.debug("Creating node")
     node = elliptics.Node(logger)
-    log.debug("Adding remote: %s", options.remote)
     node.add_remote(options.remote)
 
-    log.debug("Creating session")
     session = elliptics.Session(node)
 
     routes = session.routes
@@ -297,7 +319,6 @@ def balance(options):
     '''
     Balances ranges in route list
     '''
-    log.info("Start balancing")
     routes = get_routes(options)
 
     groups = filter_groups(routes, options)
@@ -310,34 +331,34 @@ def balance(options):
                                      options.max_deviation)
 
     for filename, address in ids_mapping:
-        print("IDS file '{0}' should be copied to node: {1}".format(filename,
-                                                                    address))
+        line = "IDS file '{0}' should be copied to node: {1}".format(filename,
+                                                                     address)
+        log.debug(line)
+        print(line)
 
 
 def check(options):
     '''
     Prints current route list state (spread, ranges length etc.) and exits
     '''
-    log.info("Checking current route list")
     routes = get_routes(options)
 
     groups = filter_groups(routes, options)
 
     for group in groups:
-        log.info("Group #{0} state".format(group))
+        print("Group #{0} route list info".format(group))
         group_routes = routes.filter_by_group_id(group)
         remove_fake_routes(group_routes)
         ranges_count = len(group_routes)
         middle_size = total / ranges_count  # calculates middle size of range
-        ranges = compute_ranges(group_routes, middle_size)
-        log.info("Middle length: {0}%".format(middle_size * 100. / total))
+        ranges = compute_ranges(group_routes)
         for index, length in enumerate(ranges):
-            log.info("{0} has length: {1} -> {2}%"
-                     .format(group_routes.routes[index],
-                             length * 1. / middle_size,
-                             length * 100. / total,))
+            print("{0} length {1} -> {2}%"
+                  .format(group_routes.routes[index],
+                          length * 1. / middle_size,
+                          length * 100. / total))
         restore_fake_routes(group_routes, group)
-        log_spread("", group_routes.spread()[group])
+        print log_spread(group_routes.spread()[group])
 
 
 if __name__ == '__main__':
@@ -368,9 +389,6 @@ if __name__ == '__main__':
                       dest='accuracy', default=10 ** -10,
                       help='Sets accuracy with which route will be considered'
                       'as fixed while shifting it')
-    parser.add_option("-d", "--debug", action="store_true",
-                      dest="debug", default=False,
-                      help="Enable debug output [default: %default]")
     parser.add_option('-c', '--check-mode', action='store_true',
                       dest='check_mode', default=False,
                       help='Prints current route list state '
@@ -379,10 +397,6 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
 
     try:
-        ch.setLevel(logging.INFO)
-        if options.debug:
-            ch.setLevel(logging.DEBUG)
-
         fh = logging.FileHandler(options.log)
         fh.setFormatter(formatter)
         fh.setLevel(logging.DEBUG)
