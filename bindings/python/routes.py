@@ -24,11 +24,14 @@ import argparse
 
 
 def percentage(routes):
+    from operator import itemgetter
     percentages = routes.percentages()
-    for g in percentages:
-        print 'Group: {0}'.format(g)
-        for h in percentages[g]:
-            print 'host {0} {1:.2f}'.format(h, percentages[g][h])
+    for group in percentages:
+        print 'Group: {0}'.format(group)
+        items = percentages[group].items()
+        items.sort(key=itemgetter(1))
+        for host, percent in items:
+            print 'host {0} {1:.2f}'.format(host, percent)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Get remote route table and print its statistics.')

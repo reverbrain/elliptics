@@ -20,7 +20,7 @@ from elliptics.core import iterator_types, command_flags, io_flags, log_level
 from elliptics.core import exceptions_policy, config_flags, IteratorResultContainer
 from elliptics.core import Id, Time, IoAttr, status_flags, Range, IteratorRange
 from elliptics.core import Error, NotFoundError, TimeoutError, filters, checkers
-from elliptics.route import Address
+from elliptics.route import Address, Route, RouteList
 from elliptics.session import Session
 from elliptics.node import Node
 from elliptics.misc import create_node
