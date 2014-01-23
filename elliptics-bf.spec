@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.0
+Version:	2.25.0.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,24 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jan 24 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.0.0
+- Python: Fixed typo in docstrings.
+- Python: added ability to clone session.
+- Python: Fixed pep8 warnings in setup.py. Added dnet_balancer to elliptics-client package.
+- Python: added keeping node inside python elliptics.Session to insure that session will be deleted after node.
+- Python: added (re)balancing ids script
+- trans: randomize route table update: select 5 random groups and read table from one random node from each selected group
+- Python: bugfixes
+- rpm: added make test
+- doc: Added documentation generation by doxygen
+- Utils: Introduce argument_data
+- tests: Add data_buffer test case
+- Utils: Optimized data_pointer behaviour
+- tests: Moved API checks to external test file
+- Monitor: Added ability to extend monitor statistics via custom statistics providers.
+- srw: Don't call cocaine::app_t::stop on stopped apps
+- Monitor: Made elliptics_monitor as shared library.
+
 * Wed Dec 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.0
 - cache: treap implementation, cache distribution changes
 - monitor: initial implementation
