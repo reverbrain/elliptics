@@ -425,7 +425,7 @@ private:
 
 namespace ioremap { namespace cache { namespace local {
 
-extern thread_local time_stats_updater_t *thread_time_stats_updater;
+extern __thread time_stats_updater_t *thread_time_stats_updater;
 
 }}}
 

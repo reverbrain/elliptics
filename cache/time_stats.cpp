@@ -91,7 +91,7 @@ time_stats_tree_t::p_node_t time_stats_tree_t::get_node_link(time_stats_tree_t::
 void time_stats_tree_t::add_new_link(time_stats_tree_t::p_node_t node, int action_code) {
 	p_node_t action_node = new_node(action_code);
 	std::lock_guard<std::mutex> guard(lock);
-	nodes[node].links.emplace(action_code, action_node);
+	nodes[node].links.insert(std::make_pair(action_code, action_node));
 }
 
 void time_stats_tree_t::merge_into(time_stats_tree_t &another_tree) const {

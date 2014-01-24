@@ -229,7 +229,7 @@ size_t cache_manager::idx(const unsigned char *id) {
 }} /* namespace ioremap::cache */
 
 namespace ioremap { namespace cache { namespace local {
-	thread_local time_stats_updater_t *thread_time_stats_updater = nullptr;
+	__thread time_stats_updater_t *thread_time_stats_updater = nullptr;
 }}}
 
 using namespace ioremap::cache;
