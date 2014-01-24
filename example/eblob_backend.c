@@ -319,6 +319,8 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 		goto err_out_exit;
 	}
 
+	io->total_size = size;
+
 	if (io->offset) {
 		if (io->offset >= size) {
 			err = -E2BIG;
