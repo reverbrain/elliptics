@@ -323,7 +323,7 @@ void none(const error_info &, const std::vector<dnet_cmd> &)
 }
 
 void remove_on_fail_impl(session &sess, const error_info &error, const std::vector<dnet_cmd> &statuses) {
-	logger log = sess.get_node().get_log();
+	logger log = sess.get_logger();
 
 	if (statuses.size() == 0) {
 		log.log(DNET_LOG_ERROR, "Unexpected empty statuses list at remove_on_fail_impl");
@@ -359,7 +359,7 @@ result_error_handler remove_on_fail(const session &sess)
 
 } // namespace error_handlers
 
-session_data::session_data(const node &n) : node_guard(n.m_data)
+session_data::session_data(const node &n) : node_guard(n.m_data), logger(n.get_log())
 {
 	session_ptr = dnet_session_create(n.get_native());
 	if (!session_ptr)
@@ -374,6 +374,7 @@ session_data::session_data(const node &n) : node_guard(n.m_data)
 
 session_data::session_data(const session_data &other)
 	: node_guard(other.node_guard),
+	  logger(other.logger),
 	  filter(other.filter),
 	  checker(other.checker),
 	  error_handler(other.error_handler),
@@ -1477,7 +1478,7 @@ class read_data_range_callback
 		void do_next(error_info *error)
 		{
 			scope *d = data.get();
-			dnet_node * const node = d->sess.get_node().get_native();
+			dnet_node * const node = d->sess.get_native_node();
 			d->has_any = false;
 
 			if (d->need_exit) {
@@ -1501,7 +1502,7 @@ class read_data_range_callback
 				d->need_exit = true;
 			}
 
-			logger log = d->sess.get_node().get_log();
+			logger log = d->sess.get_logger();
 
 			if (log.get_log_level() > DNET_LOG_NOTICE) {
 				int len = 6;
@@ -1554,7 +1555,7 @@ class read_data_range_callback
 			} else {
 				dnet_io_attr *rep = &d->rep;
 
-				dnet_log_raw(d->sess.get_node().get_native(),
+				dnet_log_raw(d->sess.get_native_node(),
 					DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
 					dnet_dump_id(&d->id), (unsigned long long)rep->num, (unsigned long long)d->io.start,
 					(unsigned long long)d->io.num, (unsigned long long)d->io.size);
@@ -1617,7 +1618,7 @@ class remove_data_range_callback : public read_data_range_callback
 				d->last_exception = error;
 			} else {
 				if (d->has_any) {
-					dnet_log_raw(d->sess.get_node().get_native(), DNET_LOG_NOTICE,
+					dnet_log_raw(d->sess.get_native_node(), DNET_LOG_NOTICE,
 							"%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
 							dnet_dump_id(&d->id), (unsigned long long)d->rep.num, (unsigned long long)d->io.start,
 							(unsigned long long)d->io.num, (unsigned long long)d->io.size);
@@ -2004,11 +2005,21 @@ async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, con
 	return bulk_write(ios, pointer_data);
 }
 
+logger session::get_logger() const
+{
+	return m_data->logger;
+}
+
 ioremap::elliptics::node session::get_node() const
 {
 	if (auto node_guard = m_data->node_guard.lock())
 		return node(node_guard);
 	return node();
+}
+
+dnet_node *ioremap::elliptics::session::get_native_node() const
+{
+	return dnet_session_get_node(m_data->session_ptr);
 }
 
 dnet_session *session::get_native()

@@ -40,6 +40,7 @@ class session_data
 
 		struct dnet_session	*session_ptr;
 		std::weak_ptr<node_data>node_guard;
+		elliptics::logger logger;
 		result_filter		filter;
 		result_checker		checker;
 		result_error_handler	error_handler;

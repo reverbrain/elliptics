@@ -733,9 +733,17 @@ class session
 		async_list_indexes_result list_indexes(const key &id);
 
 		/*!
+		 * Returns logger object.
+		 */
+		logger get_logger() const;
+		/*!
 		 * Returns reference to parent node.
 		 */
 		node	get_node() const;
+		/*!
+		 * Returns reference to parent node.
+		 */
+		dnet_node *get_native_node() const;
 		/*!
 		 * Returns pointer to dnet_session.
 		 */
