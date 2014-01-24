@@ -400,7 +400,7 @@ static int dnet_check_route_table(struct dnet_node *n)
 {
 	int rnd;
 	struct dnet_id id;
-	int *groups;
+	unsigned int *groups;
 	int group_num = 0, i, err;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
@@ -411,7 +411,7 @@ static int dnet_check_route_table(struct dnet_node *n)
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	groups = malloc(group_num);
+	groups = calloc(group_num, sizeof(unsigned int));
 	if (!groups) {
 		err = -ENOMEM;
 		goto err_out_exit;

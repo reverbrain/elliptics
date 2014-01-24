@@ -45,6 +45,9 @@ const char* actions_names[]{
 	"ACTION_LOCAL_READ",
 	"ACTION_PREPARE",
 	"ACTION_LOCAL_WRITE",
+	"ACTION_PREPARE_SYNC",
+	"ACTION_SYNC",
+	"ACTION_SYNC_BEFORE_OPERATION",
 };
 
 const char* get_action_name(const int action_code) {
@@ -64,33 +67,27 @@ rapidjson::Value& time_stats_tree_t::to_json(rapidjson::Value &stat_value,
 }
 
 int time_stats_tree_t::get_node_action_code(time_stats_tree_t::p_node_t node) const {
-	std::lock_guard<std::mutex> guard(lock);
 	return nodes[node].action_code;
 }
 
 void time_stats_tree_t::set_node_time(time_stats_tree_t::p_node_t node, long long int time) {
-	std::lock_guard<std::mutex> guard(lock);
 	nodes[node].time = time;
 }
 
 long long int time_stats_tree_t::get_node_time(time_stats_tree_t::p_node_t node) const {
-	std::lock_guard<std::mutex> guard(lock);
 	return nodes[node].time;
 }
 
 bool time_stats_tree_t::node_has_link(time_stats_tree_t::p_node_t node, int action_code) const {
-	std::lock_guard<std::mutex> guard(lock);
 	return nodes[node].links.find(action_code) != nodes[node].links.end();
 }
 
 time_stats_tree_t::p_node_t time_stats_tree_t::get_node_link(time_stats_tree_t::p_node_t node, int action_code) const {
-	std::lock_guard<std::mutex> guard(lock);
 	return nodes[node].links.at(action_code);
 }
 
 void time_stats_tree_t::add_new_link(time_stats_tree_t::p_node_t node, int action_code) {
 	p_node_t action_node = new_node(action_code);
-	std::lock_guard<std::mutex> guard(lock);
 	nodes[node].links.insert(std::make_pair(action_code, action_node));
 }
 
@@ -111,7 +108,6 @@ rapidjson::Value &time_stats_tree_t::to_json(p_node_t current_node, rapidjson::V
 }
 
 time_stats_tree_t::p_node_t time_stats_tree_t::new_node(int action_code) {
-	std::lock_guard<std::mutex> guard(lock);
 	nodes.emplace_back(action_code);
 	return nodes.size() - 1;
 }
@@ -144,6 +140,8 @@ time_stats_updater_t::~time_stats_updater_t() {
 	if (depth != 0) {
 		throw std::logic_error("~time_stats_updater(): extra measurements");
 	}
+	std::lock_guard<std::mutex> guard(t->lock);
+
 	while (!measurements.empty()) {
 		pop_measurement();
 	}
@@ -164,17 +162,21 @@ void time_stats_updater_t::start(const int action_code) {
 }
 
 void time_stats_updater_t::start(const int action_code, const time_stats_updater_t::time_point_t& start_time) {
+	t->lock.lock();
 	if (!t->node_has_link(current_node, action_code)) {
 		t->add_new_link(current_node, action_code);
 	}
 	p_node_t next_node = t->get_node_link(current_node, action_code);
-	measurements.emplace(start_time, current_node);
+	t->lock.unlock();
 
+	measurements.emplace(start_time, current_node);
 	current_node = next_node;
 	++depth;
 }
 
 void time_stats_updater_t::stop(const int action_code) {
+	std::lock_guard<std::mutex> guard(t->lock);
+
 	if (t->get_node_action_code(current_node) != action_code) {
 		throw std::logic_error("Stopping wrong action");
 	}

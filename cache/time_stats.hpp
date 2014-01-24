@@ -59,6 +59,9 @@ enum actions {
 	ACTION_LOCAL_READ,
 	ACTION_PREPARE,
 	ACTION_LOCAL_WRITE,
+	ACTION_PREPARE_SYNC,
+	ACTION_SYNC,
+	ACTION_SYNC_BEFORE_OPERATION,
 };
 
 class time_stats_tree_t {
@@ -91,6 +94,8 @@ public:
 
 	p_node_t root;
 
+	mutable std::mutex lock;
+
 private:
 	rapidjson::Value& to_json(p_node_t current_node, rapidjson::Value &stat_value,
 							  rapidjson::Document::AllocatorType &allocator) const;
@@ -100,8 +105,6 @@ private:
 	void merge_into(p_node_t lhs_node, p_node_t rhs_node, time_stats_tree_t& rhs_tree) const;
 
 	std::vector<node_t> nodes;
-
-	mutable std::mutex lock;
 };
 
 class time_stats_updater_t {

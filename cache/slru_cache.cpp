@@ -425,6 +425,7 @@ time_stats_updater_t *slru_cache_t::get_time_stats_updater() {
 }
 
 void slru_cache_t::sync_if_required(data_t* it, elliptics_unique_lock<std::mutex> &guard) {
+	action_guard(get_time_stats_updater(), ACTION_SYNC_BEFORE_OPERATION);
 
 	if (it && it->is_syncing()) {
 		dnet_id id;
@@ -546,12 +547,16 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 	size_t &max_cache_size = m_cache_pages_max_sizes[page_number];
 	size_t previous_page_number = get_previous_page_number(page_number);
 
-	for (auto it = m_cache_pages_lru[page_number].begin(); it != m_cache_pages_lru[page_number].end();) {
+	for (auto it = m_cache_pages_lru[page_number].begin(), end = m_cache_pages_lru[page_number].end(); it != end;) {
 		if (max_cache_size + removed_size >= cache_size + reserve)
 			break;
 
 		data_t *raw = &*it;
 		++it;
+
+		if (raw->is_syncing()) {
+			continue;
+		}
 
 		// If page is not last move object to previous page
 		if (previous_page_number < m_cache_pages_number) {
@@ -606,6 +611,8 @@ void slru_cache_t::erase_element(data_t *obj) {
 }
 
 void slru_cache_t::sync_element(const dnet_id &raw, bool after_append, const std::vector<char> &data, uint64_t user_flags, const dnet_time &timestamp) {
+	action_guard(get_time_stats_updater(), ACTION_SYNC);
+
 	local_session sess(m_node);
 	sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | (after_append ? DNET_IO_FLAGS_APPEND : 0));
 
@@ -684,6 +691,7 @@ void slru_cache_t::life_check(void) {
 			stop_action(ACTION_LOCK);
 
 			elements_for_sync.clear();
+			start_action(ACTION_PREPARE_SYNC);
 			while (!m_need_exit && !m_treap.empty()) {
 				size_t time = ::time(NULL);
 				last_time = time;
@@ -706,15 +714,24 @@ void slru_cache_t::life_check(void) {
 						remove.push_back(id);
 					}
 
-					erase_element(&(*it));
+					erase_element(it);
 				}
 				else if (it->eventtime() == it->synctime())
 				{
-					elements_for_sync.push_back(&*it);
+					elements_for_sync.push_back(it);
+
+					size_t previous_eventtime = it->eventtime();
 					it->clear_synctime();
 					it->set_is_syncing(true);
+
+					if (previous_eventtime != it->eventtime()) {
+						start_action(ACTION_DECREASE_KEY);
+						m_treap.decrease_key(it);
+						stop_action(ACTION_DECREASE_KEY);
+					}
 				}
 			}
+			stop_action(ACTION_PREPARE_SYNC);
 		}
 
 		for (auto it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
@@ -730,10 +747,13 @@ void slru_cache_t::life_check(void) {
 
 			dnet_opunlock(m_node, &id);
 		}
+		start_action(ACTION_REMOVE_LOCAL);
 		for (std::deque<struct dnet_id>::iterator it = remove.begin(); it != remove.end(); ++it) {
 			dnet_remove_local(m_node, &(*it));
 		}
+		stop_action(ACTION_REMOVE_LOCAL);
 
+		int erased = 0;
 		{
 			start_action(ACTION_LOCK);
 			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE CLEAR PAGES: %p", this);
@@ -742,6 +762,7 @@ void slru_cache_t::life_check(void) {
 				data_t *elem = *it;
 				if (elem->synctime() <= last_time) {
 					if (elem->only_append() || elem->remove_from_cache()) {
+						++erased;
 						erase_element(elem);
 					}
 				}
