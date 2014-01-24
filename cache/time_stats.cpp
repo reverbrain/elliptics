@@ -127,7 +127,7 @@ void time_stats_tree_t::merge_into(time_stats_tree_t::p_node_t lhs_node,
 	}
 }
 
-time_stats_updater_t::time_stats_updater_t(): t(nullptr), depth(0) {
+time_stats_updater_t::time_stats_updater_t(): current_node(NULL), t(nullptr), depth(0) {
 	measurements.emplace(std::chrono::system_clock::now(), NULL);
 }
 

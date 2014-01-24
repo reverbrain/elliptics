@@ -682,8 +682,9 @@ void slru_cache_t::life_check(void) {
 
 		std::deque<struct dnet_id> remove;
 		std::deque<data_t*> elements_for_sync;
-		size_t last_time;
+		size_t last_time = 0;
 		dnet_id id;
+		memset(&id, 0, sizeof(id));
 
 		{
 			start_action(ACTION_LOCK);
@@ -706,11 +707,8 @@ void slru_cache_t::life_check(void) {
 				if (it->eventtime() == it->lifetime())
 				{
 					if (it->remove_from_disk()) {
-						struct dnet_id id;
 						memset(&id, 0, sizeof(struct dnet_id));
-
 						dnet_setup_id(&id, 0, (unsigned char *)it->id().id);
-
 						remove.push_back(id);
 					}
 
@@ -736,6 +734,7 @@ void slru_cache_t::life_check(void) {
 
 		for (auto it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
 			data_t *elem = *it;
+			id.group_id = id.trace_id = 0;
 			memcpy(id.id, elem->id().id, DNET_ID_SIZE);
 			dnet_oplock(m_node, &id);
 
@@ -753,7 +752,6 @@ void slru_cache_t::life_check(void) {
 		}
 		stop_action(ACTION_REMOVE_LOCAL);
 
-		int erased = 0;
 		{
 			start_action(ACTION_LOCK);
 			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE CLEAR PAGES: %p", this);
@@ -762,7 +760,6 @@ void slru_cache_t::life_check(void) {
 				data_t *elem = *it;
 				if (elem->synctime() <= last_time) {
 					if (elem->only_append() || elem->remove_from_cache()) {
-						++erased;
 						erase_element(elem);
 					}
 				}

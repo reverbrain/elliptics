@@ -73,14 +73,18 @@ boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::opti
 
 class data_t : public lru_list_base_hook_t, public treap_node_t<data_t> {
 public:
-	data_t(const unsigned char *id) {
+	data_t(const unsigned char *id) :
+		m_lifetime(0), m_synctime(0), m_user_flags(0),
+		m_remove_from_disk(false), m_remove_from_cache(false),
+		m_only_append(false), m_is_syncing(false) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
+		dnet_empty_time(&m_timestamp);
 	}
 
 	data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
 		m_lifetime(0), m_synctime(0), m_user_flags(0),
 		m_remove_from_disk(remove_from_disk), m_remove_from_cache(false),
-		m_only_append(false), m_is_syncing(0) {
+		m_only_append(false), m_is_syncing(false) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
 		dnet_empty_time(&m_timestamp);
 
