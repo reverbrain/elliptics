@@ -429,14 +429,25 @@ void slru_cache_t::sync_if_required(data_t* it, elliptics_unique_lock<std::mutex
 
 	if (it && it->is_syncing()) {
 		dnet_id id;
+		memset(&id, 0, sizeof(id));
 		memcpy(id.id, it->id().id, DNET_ID_SIZE);
+
+		std::vector<char> data;
+		uint64_t user_flags;
+		dnet_time timestamp;
+
+		bool only_append = it->only_append();
+		data = it->data()->data();
+		user_flags = it->user_flags();
+		timestamp = it->timestamp();
 
 		guard.unlock();
 		dnet_oplock(m_node, &id);
 
 		// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
 		if (it->is_syncing()) {
-			sync_element(id, it->only_append(), it->data()->data(), it->user_flags(), it->timestamp());
+//			sync_element(id, it->only_append(), it->data()->data(), it->user_flags(), it->timestamp());
+			sync_element(id, only_append, data, user_flags, timestamp);
 			it->set_is_syncing(false);
 		}
 
@@ -686,6 +697,10 @@ void slru_cache_t::life_check(void) {
 		dnet_id id;
 		memset(&id, 0, sizeof(id));
 
+		std::vector<char> data;
+		uint64_t user_flags;
+		dnet_time timestamp;
+
 		{
 			start_action(ACTION_LOCK);
 			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
@@ -734,13 +749,17 @@ void slru_cache_t::life_check(void) {
 
 		for (auto it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
 			data_t *elem = *it;
-			id.group_id = id.trace_id = 0;
 			memcpy(id.id, elem->id().id, DNET_ID_SIZE);
 			dnet_oplock(m_node, &id);
+			bool only_append = elem->only_append();
+			data = elem->data()->data();
+			user_flags = elem->user_flags();
+			timestamp = elem->timestamp();
 
 			// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
 			if (elem->is_syncing()) {
-				sync_element(id, elem->only_append(), elem->data()->data(), elem->user_flags(), elem->timestamp());
+//				sync_element(id, elem->only_append(), elem->data()->data(), elem->user_flags(), elem->timestamp());
+				sync_element(id, only_append, data, user_flags, timestamp);
 				elem->set_is_syncing(false);
 			}
 
