@@ -29,12 +29,30 @@ struct dnet_node;
 
 namespace ioremap { namespace monitor {
 
+/*!
+ * Main monitoring class which connects different parts of monitoring subsystem
+ */
 class monitor {
 public:
+
+	/*!
+	 * Constructor: initializes monitor by \a cfg configuration
+	 */
 	monitor(struct dnet_node *n, struct dnet_config *cfg);
 
+	/*!
+	 * Returns \a m_node - provides access to node that was used in monitor creation
+	 */
 	dnet_node *node() { return m_node; }
+
+	/*!
+	 * Stops monitor: stops listening incoming port, frees all providers etc.
+	 */
 	void stop();
+
+	/*!
+	 * Returns \a m_statistics - provides access to monitor statistics collector
+	 */
 	statistics& get_statistics() { return m_statistics; }
 
 private:
