@@ -73,10 +73,16 @@ boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::opti
 
 class data_t : public lru_list_base_hook_t, public treap_node_t<data_t> {
 public:
+	enum class sync_state_t : char {
+		NOT_SYNCING,
+		SYNC_PHASE,
+		ERASE_PHASE,
+	};
+
 	data_t(const unsigned char *id) :
 		m_lifetime(0), m_synctime(0), m_user_flags(0),
 		m_remove_from_disk(false), m_remove_from_cache(false),
-		m_only_append(false), m_is_syncing(false) {
+		m_only_append(false), m_sync_state(sync_state_t::NOT_SYNCING) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
 		dnet_empty_time(&m_timestamp);
 	}
@@ -84,7 +90,7 @@ public:
 	data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
 		m_lifetime(0), m_synctime(0), m_user_flags(0),
 		m_remove_from_disk(remove_from_disk), m_remove_from_cache(false),
-		m_only_append(false), m_is_syncing(false) {
+		m_only_append(false), m_sync_state(sync_state_t::NOT_SYNCING) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
 		dnet_empty_time(&m_timestamp);
 
@@ -177,12 +183,20 @@ public:
 		return m_remove_from_cache;
 	}
 
-	bool is_syncing() {
-		return m_is_syncing;
+	sync_state_t sync_state() const {
+		return m_sync_state;
 	}
 
-	void set_is_syncing(bool is_syncing) {
-		m_is_syncing = is_syncing;
+	void set_sync_state(sync_state_t sync_state) {
+		m_sync_state = sync_state;
+	}
+
+	bool is_syncing() const {
+		return m_sync_state == sync_state_t::SYNC_PHASE;
+	}
+
+	bool will_be_erased() const {
+		return m_sync_state != sync_state_t::NOT_SYNCING;
 	}
 
 	void set_remove_from_cache(bool remove_from_cache) {
@@ -229,7 +243,7 @@ private:
 	bool m_remove_from_disk;
 	bool m_remove_from_cache;
 	bool m_only_append;
-	bool m_is_syncing;
+	sync_state_t m_sync_state;
 	char m_cache_page_number;
 	struct dnet_raw_id m_id;
 	std::shared_ptr<raw_data_t> m_data;
