@@ -88,7 +88,7 @@ std::string make_reply(int req, std::string content = "") {
 	ret.append(content_type);
 	ret.append("\r\n");
 	ret.append("Content-Length: ");
-	ret.append(std::to_string(content.size()));
+	ret.append(std::to_string((long long unsigned int)content.size()));
 	ret.append("\r\n\r\n");
 	ret.append(content);
 
