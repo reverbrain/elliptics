@@ -186,7 +186,7 @@ static inline void find_result_unpack(dnet_node *node, dnet_id *id, const data_p
 static inline dnet_raw_id transform_index_id(session &sess, const dnet_raw_id &data_id, int shard_id)
 {
 	dnet_raw_id id;
-	dnet_indexes_transform_index_id(sess.get_node().get_native(), &data_id, &id, shard_id);
+	dnet_indexes_transform_index_id(sess.get_native_node(), &data_id, &id, shard_id);
 	return id;
 }
 
