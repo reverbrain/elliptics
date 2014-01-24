@@ -26,6 +26,7 @@
 #include <iostream>
 #include <mutex>
 #include <set>
+#include <sstream>
 #include <thread>
 
 //#ifdef DEVELOPER_BUILD
@@ -572,7 +573,8 @@ class read_callback : public multigroup_callback<read_result_entry>
 
 			if (!error && !failed_groups.empty()
 					&& io
-					&& io->offset == 0) {
+					&& (io->size == io->total_size)
+					&& (io->offset == 0)) {
 
 				session new_sess = sess.clone();
 				new_sess.set_groups(failed_groups);
@@ -589,6 +591,19 @@ class read_callback : public multigroup_callback<read_result_entry>
 				write_ctl.fd = -1;
 				write_ctl.cmd = DNET_CMD_WRITE;
 				write_ctl.cflags = ctl.cflags;
+
+
+				std::ostringstream ss;
+				for (auto g = failed_groups.begin(); g != failed_groups.end();) {
+					ss << *g;
+
+					if (++g != failed_groups.end())
+						ss << ":";
+				}
+
+				dnet_log_raw(sess.get_node().get_native(), DNET_LOG_INFO,
+						"read_callback::read-recovery: %s: %llu bytes -> %s groups\n",
+					dnet_dump_id_str(io->id), (unsigned long long)io->size, ss.str().c_str());
 
 				new_sess.write_data(write_ctl);
 			}
