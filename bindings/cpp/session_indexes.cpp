@@ -90,8 +90,8 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 	sess.set_checker(checkers::no_check);
 	sess.set_exceptions_policy(session::no_exceptions);
 
-	uint64_t data_size = 0;
-	uint64_t max_data_size = 0;
+	size_t data_size = 0;
+	size_t max_data_size = 0;
 	for (size_t i = 0; i < indexes.size(); ++i) {
 		data_size += indexes[i].data.size();
 		max_data_size = std::max(max_data_size, indexes[i].data.size());
