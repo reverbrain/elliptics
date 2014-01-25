@@ -58,6 +58,9 @@ const std::map<std::string, int> handlers = {{"/list", DNET_MONITOR_LIST},
 	{"/commands", DNET_MONITOR_COMMANDS},
 	{"/io_histograms", DNET_MONITOR_IO_HISTOGRAMS}};
 
+/*!
+ * Generates HTTP response for @req category with @content
+ */
 std::string make_reply(int req, std::string content = "") {
 	std::string ret;
 	std::string content_type = "application/json";
@@ -88,17 +91,22 @@ std::string make_reply(int req, std::string content = "") {
 	ret.append(content_type);
 	ret.append("\r\n");
 	ret.append("Content-Length: ");
-	ret.append(std::to_string(content.size()));
+	ret.append(std::to_string((long long unsigned int)content.size()));
 	ret.append("\r\n\r\n");
 	ret.append(content);
 
 	return ret;
 }
 
-int parse(const char* begin, size_t size) {
-	const char* end = begin + size;
-	const char *method_end = std::find(begin, end, ' ');
-	if (method_end >= end || begin == method_end)
+/*!
+ * Parses simple HTTP request and determines requested category
+ * @packet - HTTP request packet
+ * @size - size of HTTP request packet
+ */
+int parse(const char* packet, size_t size) {
+	const char* end = packet + size;
+	const char *method_end = std::find(packet, end, ' ');
+	if (method_end >= end || packet == method_end)
 		return DNET_MONITOR_BAD;
 
 	const char *url_begin = method_end + 1;

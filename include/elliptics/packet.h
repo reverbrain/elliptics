@@ -480,7 +480,13 @@ struct dnet_io_attr
 	struct dnet_time	timestamp;
 	uint64_t		user_flags;
 
-	uint64_t		reserved[2];
+	/*
+	 * Total size of the object being read.
+	 * Particulary useful when client asks for part of the object (by specifying size in read request).
+	 */
+	uint64_t		total_size;
+
+	uint64_t		reserved1;
 	uint32_t		reserved2;
 
 	uint32_t		flags;
