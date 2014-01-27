@@ -286,8 +286,8 @@ struct command_histograms {
 	command_histograms(const std::vector<std::pair<uint64_t, std::string>> &xs,
 	                   const std::vector<std::pair<uint64_t, std::string>> &ys)
 	: cache(xs, ys)
-	, disk(xs, ys)
 	, cache_internal(xs, ys)
+	, disk(xs, ys)
 	, disk_internal(xs, ys)
 	{}
 
