@@ -113,8 +113,8 @@ public:
 	typedef time_stats_tree_t::p_node_t p_node_t;
 	typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
 
-	time_stats_updater_t();
-	time_stats_updater_t(time_stats_tree_t &t);
+	time_stats_updater_t(const size_t max_depth = 1);
+	time_stats_updater_t(time_stats_tree_t &t, const size_t max_depth = 1);
 	~time_stats_updater_t();
 
 	void set_time_stats_tree(time_stats_tree_t &t);
@@ -123,6 +123,8 @@ public:
 	void start(const int action_code);
 	void start(const int action_code, const time_point_t& start_time);
 	void stop(const int action_code);
+
+	void set_max_depth(const size_t max_depth);
 
 	size_t get_depth() const;
 
@@ -147,6 +149,7 @@ private:
 	std::stack<measurement> measurements;
 	time_stats_tree_t* t;
 	size_t depth;
+	size_t max_depth;
 };
 
 class action_guard {

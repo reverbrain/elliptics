@@ -15,6 +15,8 @@
 
 #include "time_stats.hpp"
 
+#include <elliptics/interface.h>
+
 namespace ioremap { namespace cache {
 
 const char* actions_names[]{
@@ -127,11 +129,12 @@ void time_stats_tree_t::merge_into(time_stats_tree_t::p_node_t lhs_node,
 	}
 }
 
-time_stats_updater_t::time_stats_updater_t(): current_node(NULL), t(nullptr), depth(0) {
+time_stats_updater_t::time_stats_updater_t(const size_t max_depth):
+	current_node(0), t(nullptr), depth(0), max_depth(max_depth) {
 	measurements.emplace(std::chrono::system_clock::now(), NULL);
 }
 
-time_stats_updater_t::time_stats_updater_t(time_stats_tree_t &t) {
+time_stats_updater_t::time_stats_updater_t(time_stats_tree_t &t, const size_t max_depth): max_depth(max_depth) {
 	set_time_stats_tree(t);
 	measurements.emplace(std::chrono::system_clock::now(), NULL);
 }
@@ -162,6 +165,11 @@ void time_stats_updater_t::start(const int action_code) {
 }
 
 void time_stats_updater_t::start(const int action_code, const time_stats_updater_t::time_point_t& start_time) {
+	++depth;
+	if (get_depth() > max_depth) {
+		return;
+	}
+
 	t->lock.lock();
 	if (!t->node_has_link(current_node, action_code)) {
 		t->add_new_link(current_node, action_code);
@@ -171,16 +179,28 @@ void time_stats_updater_t::start(const int action_code, const time_stats_updater
 
 	measurements.emplace(start_time, current_node);
 	current_node = next_node;
-	++depth;
 }
 
 void time_stats_updater_t::stop(const int action_code) {
+	if (get_depth() > max_depth) {
+		--depth;
+		return;
+	}
+
 	std::lock_guard<std::mutex> guard(t->lock);
 
 	if (t->get_node_action_code(current_node) != action_code) {
 		throw std::logic_error("Stopping wrong action");
 	}
 	pop_measurement();
+}
+
+void time_stats_updater_t::set_max_depth(const size_t max_depth) {
+	if (depth != 0) {
+		throw std::logic_error("can't change max_depth during update");
+	}
+
+	this->max_depth = max_depth;
 }
 
 size_t time_stats_updater_t::get_depth() const {
@@ -195,7 +215,7 @@ void time_stats_updater_t::pop_measurement(const time_point_t& end_time) {
 	--depth;
 }
 
-action_guard::action_guard(time_stats_updater_t *updater, int action_code): updater(updater), action_code(action_code) {
+action_guard::action_guard(time_stats_updater_t *updater, const int action_code): updater(updater), action_code(action_code) {
 	updater->start(action_code);
 }
 
