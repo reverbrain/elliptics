@@ -9,8 +9,9 @@ import shutil
 
 def run_test(path, test):
     os.mkdir(path)
-    p = subprocess.Popen([test, '--path', path], stdout=sys.stdout, stderr=subprocess.STDOUT, cwd=path)
-    result = p.communicate()
+    p = subprocess.Popen([test, '--path', path], stdout=sys.stdout,
+                         stderr=subprocess.STDOUT, cwd=path)
+    p.communicate()
 
     return p.returncode
 
@@ -47,14 +48,22 @@ def main():
         print('# Start {1} of {2}: {0}: '.format(test[1], i + 1, len(tests)))
 
         timer_begin = time.time()
-        result = run_test(tests_base_dir + '/' + test[1], test[0] + '/' + test[1])
+        result = run_test(tests_base_dir + '/' + test[1],
+                          test[0] + '/' + test[1])
         timer_end = time.time()
 
-        print('# Result: {0}\t{1} sec\n'.format('Passed' if result == 0 else 'Failed ({0})'.format(result), timer_end - timer_begin))
+        if result == 0:
+            str_result = 'Passed'
+        else:
+            str_result = 'Failed ({0})'.format(result)
+
+        print('# Result: {0}\t{1} sec\n'.format(str_result,
+                                                timer_end - timer_begin))
 
         all_ok &= result == 0
 
-        file = tarfile.TarFile.open(artifacts_dir + '/' + test[1] + '.tar.bz2', 'w:bz2')
+        file = tarfile.TarFile.open(artifacts_dir + '/' + test[1] + '.tar.bz2',
+                                    'w:bz2')
         file.add(tests_base_dir + '/' + test[1], test[1])
         file.close()
 
@@ -64,4 +73,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
