@@ -13,6 +13,51 @@
 * GNU Lesser General Public License for more details.
 */
 
+/*!
+ * \file time_stats.hpp
+ * \brief Tools for time monitoring
+ *
+ * This file contains tools for detailed time monitoring,
+ * that allow you to gather time statistics in call tree manner.
+ * This way you can see time consumed by each action and
+ * it's distribution between other inner actions, which perfectly reveals bottlenecks.
+ *
+ * Example of simple monitoring:
+ * \code
+ *      time_stats_tree_t time_stats; // Call tree for storing statistics.
+ *      time_stats_updater_t updater(time_stats); // Updater for gathering of statistics.
+ *
+ *      void cache_read(...) {
+ *          action_guard(updater, ACTION_READ); // Creates new guard and starts action which will be stopped on guard's destructor
+ *          updater.start(ACTION_READ_FIND); // Starts new action which will be inner to ACTION_READ
+ *          found = find_record(...);
+ *          updater.stop(ACTION_READ_FIND);
+ *          if (!found) {
+ *              action_guard(updater, ACTION_READ_FROM_DISK);
+ *              updater.start(ACTION_LOAD_FROM_DISK);
+ *              data = read_from_disk(...);
+ *              updater.stop(ACTION_LOAD_FROM_DISK);
+ *              updater.start(ACTION_PUT_INTO_CACHE);
+ *              put_into_cache(...);
+ *              updater.stop(ACTION_PUT_INTO_CACHE);
+ *              return data; // Here all action guards are destructed and actions are correctly finished
+ *          }
+ *          updater.start(ACTION_LOAD_FROM_CACHE);
+ *          data = load_from_cache(...);
+ *          updater.stop(ACTION_LOAD_FROM_CACHE);
+ *          return data;
+ *      }
+ * \endcode
+ * This code with build such call tree:
+ *
+ * - ACTION_READ
+ *      - ACTION_READ_FIND
+ *      - ACTION_READ_FROM_DISK
+ *          - ACTION_LOAD_FROM_DISK
+ *          - ACTION_PUT_INTO_CACHE
+ *      - ACTION_LOAD_FROM_CACHE
+ */
+
 #ifndef TIME_STATS_HPP
 #define TIME_STATS_HPP
 
