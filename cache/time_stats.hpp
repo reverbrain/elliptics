@@ -69,36 +69,47 @@ enum actions {
 };
 
 /*!
- * \brief Stores call tree with consumed times for each node.
+ * \brief Stores call tree.
+ *
+ * Each node of the tree represents information about single action:
+ * - Action code
+ * - Total time consumed during this action
  */
 class time_stats_tree_t {
 public:
 	/*!
-	 * \brief Constructor: initializes call tree with single root node
+	 * \brief initializes call tree with single root node
 	 */
 	time_stats_tree_t();
 
 	/*!
-	 * \brief Destructor: frees memory consumed by call tree
+	 * \brief frees memory consumed by call tree
 	 */
 	~time_stats_tree_t();
 
 	/*!
 	 * \brief Converts call tree to json
-	 * \param stat_value
-	 * \param allocator
-	 * \return
+	 * \param stat_value Json node for writing
+	 * \param allocator Json allocator
+	 * \return Modified json node
 	 */
 	rapidjson::Value& to_json(rapidjson::Value &stat_value,
 							  rapidjson::Document::AllocatorType &allocator) const;
 
 	struct node_t;
+	/*!
+	 * \brief Pointer to node type
+	 */
 	typedef size_t p_node_t;
 
 	/*!
 	 * \brief Struct that stores single node with it's action and time
 	 */
 	struct node_t {
+		/*!
+		 * \brief Initializes node with \a action_code and zero consumed time
+		 * \param action_code Action code of the node
+		 */
 		node_t(int action_code): action_code(action_code), time(0) {}
 
 		/*!
@@ -118,51 +129,51 @@ public:
 
 	/*!
 	 * \brief Returns an action code for \a node
-	 * \param Target node
-	 * \return
+	 * \param node Target node
+	 * \return Action code of the target node
 	 */
 	int get_node_action_code(p_node_t node) const;
 
 	/*!
 	 * \brief Sets time for \a node
-	 * \param Target node
-	 * \param Time to set
+	 * \param node Target node
+	 * \param time Time to set
 	 */
 	void set_node_time(p_node_t node, long long time);
 
 	/*!
 	 * \brief Returns time for \a node
-	 * \param Target node
-	 * \return
+	 * \param node Target node
+	 * \return Target node time
 	 */
 	long long int get_node_time(p_node_t node) const;
 
 	/*!
 	 * \brief Checks whether node has child with \a action_code
-	 * \param Target node
-	 * \param Child's action code
-	 * \return
+	 * \param node Target node
+	 * \param action_code Child's action code
+	 * \return whether \a node has child with \a action_code
 	 */
 	bool node_has_link(p_node_t node, int action_code) const;
 
 	/*!
 	 * \brief Gets node's child with \a action_code
-	 * \param Target node
-	 * \param Child's action code
-	 * \return
+	 * \param node Target node
+	 * \param action_code Child's action code
+	 * \return Pointer to child with \a action_code
 	 */
 	p_node_t get_node_link(p_node_t node, int action_code) const;
 
 	/*!
 	 * \brief Adds new child to \a node with \a action_code
-	 * \param Target node
-	 * \param Child's action code
+	 * \param node Target node
+	 * \param action_code Child's action code
 	 */
 	void add_new_link(p_node_t node, int action_code);
 
 	/*!
 	 * \brief Merges this tree into \a another_tree
-	 * \param Target tree
+	 * \param another_tree Target tree
 	 */
 	void merge_into(time_stats_tree_t& another_tree) const;
 
@@ -181,10 +192,10 @@ private:
 	 * \internal
 	 *
 	 * \brief Recursively converts subtree to json
-	 * \param current_node
-	 * \param stat_value
-	 * \param allocator
-	 * \return
+	 * \param current_node Node which subtree will be converted
+	 * \param stat_value Json node for writing
+	 * \param allocator Json allocator
+	 * \return Modified json node
 	 */
 	rapidjson::Value& to_json(p_node_t current_node, rapidjson::Value &stat_value,
 							  rapidjson::Document::AllocatorType &allocator) const;
@@ -194,7 +205,7 @@ private:
 	 *
 	 * \brief Allocates space for new node
 	 * \param action_code
-	 * \return
+	 * \return Pointer to newly created node
 	 */
 	p_node_t new_node(int action_code);
 
@@ -202,7 +213,7 @@ private:
 	 * \internal
 	 *
 	 * \brief Recursively merges \a lhd_node into \a rhs_node
-	 * \param lhs_node
+	 * \param lhs_node Node which will be merged
 	 * \param rhs_node
 	 * \param rhs_tree
 	 */
@@ -221,37 +232,49 @@ private:
  */
 class time_stats_updater_t {
 public:
+	/*!
+	 * \brief Call tree node type
+	 */
 	typedef time_stats_tree_t::node_t node_t;
+
+	/*!
+	 * \brief Pointer to call tree node type
+	 */
+
 	typedef time_stats_tree_t::p_node_t p_node_t;
+
+	/*!
+	 * \brief Time point type
+	 */
 	typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
 
 	/*!
-	 * \brief Constructor: Initializes updater without target tree
-	 * \param Maximum depth of call stack
+	 * \brief Initializes updater without target tree
+	 * \param max_depth Maximum monitored depth of call stack
 	 */
 	time_stats_updater_t(const size_t max_depth = 1);
 
 	/*!
-	 * \brief Constructor: Initializes updater with target tree
-	 * \param Target tree
-	 * \param Maximum depth of call stack
+	 * \brief Initializes updater with target tree
+	 * \param t Target tree
+	 * \param max_depth Maximum monitored depth of call stack
 	 */
 	time_stats_updater_t(time_stats_tree_t &t, const size_t max_depth = 1);
 
 	/*!
-	 * \brief Destructor: Checks if all actions are were correctly finished.
+	 * \brief Checks if all actions were correctly finished.
 	 */
 	~time_stats_updater_t();
 
 	/*!
 	 * \brief Sets target tree for updates
-	 * \param Target tree
+	 * \param t Target tree
 	 */
 	void set_time_stats_tree(time_stats_tree_t &t);
 
 	/*!
 	 * \brief Checks whether tree for updates is set
-	 * \return
+	 * \return whether updater target tree was set
 	 */
 	bool has_time_stats_tree() const;
 
@@ -264,7 +287,7 @@ public:
 	/*!
 	 * \brief Starts new branch in tree with action \a action_code and with specified start time
 	 * \param action_code
-	 * \param Action start time
+	 * \param start_time Action start time
 	 */
 	void start(const int action_code, const time_point_t& start_time);
 
@@ -275,14 +298,14 @@ public:
 	void stop(const int action_code);
 
 	/*!
-	 * \brief Sets max call stack depth to \a max_depth
-	 * \param max_depth
+	 * \brief Sets max monitored call stack depth to \a max_depth
+	 * \param max_depth Max monitored call stack depth
 	 */
 	void set_max_depth(const size_t max_depth);
 
 	/*!
 	 * \brief Gets current call stack depth
-	 * \return
+	 * \return Current call stack depth
 	 */
 	size_t get_depth() const;
 
@@ -303,9 +326,9 @@ private:
 	 */
 	struct measurement {
 		/*!
-		 * \brief Constructor: Initializes measurement with specified start time and pointer to previous node in call stack
-		 * \param Start time
-		 * \param Pointer to previous node in call stack
+		 * \brief Initializes measurement with specified start time and pointer to previous node in call stack
+		 * \param time Start time
+		 * \param previous_node Pointer to previous node in call stack
 		 */
 		measurement(const time_point_t& time, p_node_t previous_node): start_time(time),
 			previous_node(previous_node) {}
@@ -323,7 +346,7 @@ private:
 
 	/*!
 	 * \brief Removes measurement from top of call stack and updates corresponding node in call-tree
-	 * \param End time of the measurement
+	 * \param end_time End time of the measurement
 	 */
 	void pop_measurement(const time_point_t& end_time = std::chrono::system_clock::now());
 
@@ -359,19 +382,19 @@ private:
 class action_guard {
 public:
 	/*!
-	 * \brief Constructor: Initializes guard and starts action with \a action_code
-	 * \param Updater whos start will is called
+	 * \brief Initializes guard and starts action with \a action_code
+	 * \param updater Updater whos start is called
 	 * \param action_code
 	 */
 	action_guard(time_stats_updater_t *updater, const int action_code);
 
 	/*!
-	 * \brief Destructor: Stops action if it is not already stopped
+	 * \brief Stops action if it is not already stopped
 	 */
 	~action_guard();
 
 	/*!
-	 * \brief Allowes to stop action manually
+	 * \brief Allows to stop action manually
 	 */
 	void stop();
 
