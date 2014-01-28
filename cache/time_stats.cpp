@@ -19,6 +19,9 @@
 
 namespace ioremap { namespace cache {
 
+/*!
+ * \brief List of names for possible actions in call tree
+ */
 const char* actions_names[]{
 	"ACTION_CACHE",
 	"ACTION_WRITE",
@@ -52,12 +55,19 @@ const char* actions_names[]{
 	"ACTION_SYNC_BEFORE_OPERATION",
 };
 
+/*!
+ * \internal
+ *
+ * \brief Returns action name by \a action_code
+ * \param action_code
+ * \return
+ */
 const char* get_action_name(const int action_code) {
 	return actions_names[action_code];
 }
 
 time_stats_tree_t::time_stats_tree_t() {
-	root = new_node(ACTION_CACHE);
+	root = new_node(ACTION);
 }
 
 time_stats_tree_t::~time_stats_tree_t() {
@@ -215,12 +225,24 @@ void time_stats_updater_t::pop_measurement(const time_point_t& end_time) {
 	--depth;
 }
 
-action_guard::action_guard(time_stats_updater_t *updater, const int action_code): updater(updater), action_code(action_code) {
+action_guard::action_guard(time_stats_updater_t *updater, const int action_code):
+	updater(updater), action_code(action_code), is_stopped(false) {
 	updater->start(action_code);
 }
 
 action_guard::~action_guard() {
+	if (!is_stopped) {
+		updater->stop(action_code);
+	}
+}
+
+void action_guard::stop() {
+	if (is_stopped) {
+		throw std::logic_error("action is already stopped");
+	}
+
 	updater->stop(action_code);
+	is_stopped = true;
 }
 
 }}
