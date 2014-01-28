@@ -582,6 +582,26 @@ public:
 		return create_result(std::move(session::list_indexes(elliptics_id::convert(id))));
 	}
 
+	python_set_indexes_result remove_indexes(const bp::api::object &id, const bp::api::object &indexes) {
+		auto std_indexes = convert_to_vector<std::string>(indexes);
+
+		return create_result(std::move(session::remove_indexes(elliptics_id::convert(id), std_indexes)));
+	}
+
+	python_set_indexes_result remove_indexes_internal(const bp::api::object &id, const bp::api::object &indexes) {
+		auto std_indexes = convert_to_vector<std::string>(indexes);
+
+		return create_result(std::move(session::remove_indexes_internal(elliptics_id::convert(id), std_indexes)));
+	}
+
+	python_remove_result remove_index_internal(const bp::api::object &id) {
+		return create_result(std::move(session::remove_index_internal(elliptics_id::convert(id).raw_id())));
+	}
+
+	python_remove_result remove_index(const bp::api::object &id, bool remove_data) {
+		return create_result(std::move(session::remove_index(elliptics_id::convert(id).raw_id(), remove_data)));
+	}
+
 	python_stat_result stat_log() {
 		return create_result(std::move(session::stat_log()));
 	}
@@ -1527,6 +1547,27 @@ void init_elliptics_session() {
 		     "            print 'Data:', index.data\n"
 		     "    excep Exception as e:\n"
 		     "        print 'List indexes failed:', e\n")
+
+		.def("remove_indexes", &elliptics_session::remove_indexes,
+		     (bp::args("id", "indexes")),
+		     "remove_indexes(id, indexes)\n"
+		     "    Removes @id from all @indexes and remove @indexes from indexes list of @id")
+
+		.def("remove_indexes_internal", &elliptics_session::remove_indexes_internal,
+		     (bp::args("id", "indexes")),
+		     "remove_indexes_internal(id, indexes)\n"
+		     "    Removes @id from all @indexes and doesn't change indexes list of @id\n")
+
+		.def("remove_index_internal", &elliptics_session::remove_index_internal,
+		     (bp::arg("id")),
+		     "remove_index_internal(id)\n"
+		     "    Removes @id from all indexes which are connected with @id\n"
+		     "    Doesn't change indexes list of @id\n")
+
+		.def("remove_index", &elliptics_session::remove_index,
+		     (bp::args("id", "remove_data")),
+		     "remove_index(id, remove_data)\n"
+		     "    Removes @id from all @indexes and doesn't change indexes list of @id\n")
 
 // Statistics
 
