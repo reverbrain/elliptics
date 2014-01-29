@@ -19,55 +19,24 @@
 
 namespace ioremap { namespace cache {
 
-/*!
- * \brief List of names for possible actions in call tree
- */
-const char* actions_names[]{
-	"ACTION_CACHE",
-	"ACTION_WRITE",
-	"ACTION_READ",
-	"ACTION_REMOVE",
-	"ACTION_LOOKUP",
-	"ACTION_LOCK",
-	"ACTION_FIND",
-	"ACTION_ADD_TO_PAGE",
-	"ACTION_RESIZE_PAGE",
-	"ACTION_SYNC_AFTER_APPEND",
-	"ACTION_WRITE_APPEND_ONLY",
-	"ACTION_WRITE_AFTER_APPEND_ONLY",
-	"ACTION_POPULATE_FROM_DISK",
-	"ACTION_CLEAR",
-	"ACTION_LIFECHECK",
-	"ACTION_CREATE_DATA",
-	"ACTION_CAS",
-	"ACTION_MODIFY",
-	"ACTION_DECREASE_KEY",
-	"ACTION_MOVE_RECORD",
-	"ACTION_ERASE",
-	"ACTION_REMOVE_LOCAL",
-	"ACTION_LOCAL_LOOKUP",
-	"ACTION_INIT",
-	"ACTION_LOCAL_READ",
-	"ACTION_PREPARE",
-	"ACTION_LOCAL_WRITE",
-	"ACTION_PREPARE_SYNC",
-	"ACTION_SYNC",
-	"ACTION_SYNC_BEFORE_OPERATION",
-};
-
-/*!
- * \internal
- *
- * \brief Returns action name by \a action_code
- * \param action_code
- * \return
- */
-const char* get_action_name(const int action_code) {
-	return actions_names[action_code];
+actions_set_t::actions_set_t() {
 }
 
-time_stats_tree_t::time_stats_tree_t() {
-	root = new_node(ACTION);
+actions_set_t::~actions_set_t() {
+}
+
+int actions_set_t::define_new_action(const std::string &action_name) {
+	int action_code = actions_names.size();
+	actions_names.insert(make_pair(action_code, action_name));
+	return action_code;
+}
+
+std::string actions_set_t::get_action_name(int action_code) const {
+	return actions_names.at(action_code);
+}
+
+time_stats_tree_t::time_stats_tree_t(const actions_set_t &actions_set): actions_set(actions_set) {
+	root = new_node(-1);
 }
 
 time_stats_tree_t::~time_stats_tree_t() {
@@ -114,7 +83,7 @@ rapidjson::Value &time_stats_tree_t::to_json(p_node_t current_node, rapidjson::V
 		p_node_t next_node = it->second;
 		rapidjson::Value subtree_value(rapidjson::kObjectType);
 		to_json(next_node, subtree_value, allocator);
-		stat_value.AddMember(get_action_name(get_node_action_code(next_node)), subtree_value, allocator);
+		stat_value.AddMember(actions_set.get_action_name(get_node_action_code(next_node)).c_str(), subtree_value, allocator);
 	}
 	return stat_value;
 }

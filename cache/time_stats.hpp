@@ -77,40 +77,39 @@
 namespace ioremap { namespace cache {
 
 /*!
- * \brief List of possible actions in call tree
+ * \brief Represents set of actions that allows defining new actions and resolving action's names by their codes
  */
-enum actions {
-	ACTION,
-	ACTION_CACHE,
-	ACTION_WRITE,
-	ACTION_READ,
-	ACTION_REMOVE,
-	ACTION_LOOKUP,
-	ACTION_LOCK,
-	ACTION_FIND,
-	ACTION_ADD_TO_PAGE,
-	ACTION_RESIZE_PAGE,
-	ACTION_SYNC_AFTER_APPEND,
-	ACTION_WRITE_APPEND_ONLY,
-	ACTION_WRITE_AFTER_APPEND_ONLY,
-	ACTION_POPULATE_FROM_DISK,
-	ACTION_CLEAR,
-	ACTION_LIFECHECK,
-	ACTION_CREATE_DATA,
-	ACTION_CAS,
-	ACTION_MODIFY,
-	ACTION_DECREASE_KEY,
-	ACTION_MOVE_RECORD,
-	ACTION_ERASE,
-	ACTION_REMOVE_LOCAL,
-	ACTION_LOCAL_LOOKUP,
-	ACTION_INIT,
-	ACTION_LOCAL_READ,
-	ACTION_PREPARE,
-	ACTION_LOCAL_WRITE,
-	ACTION_PREPARE_SYNC,
-	ACTION_SYNC,
-	ACTION_SYNC_BEFORE_OPERATION,
+class actions_set_t {
+public:
+	/*!
+	 * \brief Initializes empty actions set
+	 */
+	actions_set_t();
+
+	/*!
+	 * \brief Frees memory consumed by actions set
+	 */
+	~actions_set_t();
+
+	/*!
+	 * \brief Defines new action
+	 * \param action_name new action's name
+	 * \return new action's code
+	 */
+	int define_new_action(const std::string& action_name);
+
+	/*!
+	 * \brief Gets action's name by it's \a action_code
+	 * \param action_code
+	 * \return action's name
+	 */
+	std::string get_action_name(int action_code) const;
+
+private:
+	/*!
+	 * \brief Map between action's codes and action's names
+	 */
+	std::unordered_map<int, std::string> actions_names;
 };
 
 /*!
@@ -123,9 +122,10 @@ enum actions {
 class time_stats_tree_t {
 public:
 	/*!
-	 * \brief initializes call tree with single root node
+	 * \brief initializes call tree with single root node and action set
+	 * \param actions_set Set of available actions for monitoring in call tree
 	 */
-	time_stats_tree_t();
+	time_stats_tree_t(const actions_set_t& actions_set);
 
 	/*!
 	 * \brief frees memory consumed by call tree
@@ -268,6 +268,11 @@ private:
 	 * \brief Tree nodes
 	 */
 	std::vector<node_t> nodes;
+
+	/*!
+	 * \brief Available actions for monitoring
+	 */
+	const actions_set_t& actions_set;
 };
 
 /*!

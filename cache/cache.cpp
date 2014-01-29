@@ -177,7 +177,7 @@ rapidjson::Value &cache_manager::get_caches_size_stats_json(rapidjson::Value &st
 }
 
 rapidjson::Value &cache_manager::get_total_caches_time_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
-	time_stats_tree_t total_caches_time_stats;
+	time_stats_tree_t total_caches_time_stats(actions::cache_actions);
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		m_caches[i]->get_time_stats().merge_into(total_caches_time_stats);
 	}
