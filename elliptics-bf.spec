@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.4
+Version:	2.24.15.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jan 30 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.5
+- debian: elliptics/-dev provides elliptics/-dev-2.24 now
+
 * Thu Jan 30 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.4
 - debian: elliptics-client provides elliptics-client-2.24 now
 - Tests: fixed indent in run_tests.py

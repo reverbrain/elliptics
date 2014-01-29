@@ -1,3 +1,9 @@
+elliptics (2.24.15.5) unstable; urgency=low
+
+  * debian: elliptics/-dev provides elliptics/-dev-2.24 now
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 30 Jan 2014 00:23:10 +0400
+
 elliptics (2.24.15.4) unstable; urgency=low
 
   * debian: elliptics-client provides elliptics-client-2.24 now
