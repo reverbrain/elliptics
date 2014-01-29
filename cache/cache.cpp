@@ -31,6 +31,44 @@
 
 namespace ioremap { namespace cache {
 
+namespace actions {
+
+actions_set_t cache_actions;
+
+const int ACTION = cache_actions.define_new_action("ACTION");
+const int ACTION_CACHE = cache_actions.define_new_action("ACTION_CACHE");
+const int ACTION_WRITE = cache_actions.define_new_action("ACTION_WRITE");
+const int ACTION_READ = cache_actions.define_new_action("ACTION_READ");
+const int ACTION_REMOVE = cache_actions.define_new_action("ACTION_REMOVE");
+const int ACTION_LOOKUP = cache_actions.define_new_action("ACTION_LOOKUP");
+const int ACTION_LOCK = cache_actions.define_new_action("ACTION_LOCK");
+const int ACTION_FIND = cache_actions.define_new_action("ACTION_FIND");
+const int ACTION_ADD_TO_PAGE = cache_actions.define_new_action("ACTION_ADD_TO_PAGE");
+const int ACTION_RESIZE_PAGE = cache_actions.define_new_action("ACTION_RESIZE_PAGE");
+const int ACTION_SYNC_AFTER_APPEND = cache_actions.define_new_action("ACTION_SYNC_AFTER_APPEND");
+const int ACTION_WRITE_APPEND_ONLY = cache_actions.define_new_action("ACTION_WRITE_APPEND_ONLY");
+const int ACTION_WRITE_AFTER_APPEND_ONLY = cache_actions.define_new_action("ACTION_WRITE_AFTER_APPEND_ONLY");
+const int ACTION_POPULATE_FROM_DISK = cache_actions.define_new_action("ACTION_POPULATE_FROM_DISK");
+const int ACTION_CLEAR = cache_actions.define_new_action("ACTION_CLEAR");
+const int ACTION_LIFECHECK = cache_actions.define_new_action("ACTION_LIFECHECK");
+const int ACTION_CREATE_DATA = cache_actions.define_new_action("ACTION_CREATE_DATA");
+const int ACTION_CAS = cache_actions.define_new_action("ACTION_CAS");
+const int ACTION_MODIFY = cache_actions.define_new_action("ACTION_MODIFY");
+const int ACTION_DECREASE_KEY = cache_actions.define_new_action("ACTION_DECREASE_KEY");
+const int ACTION_MOVE_RECORD = cache_actions.define_new_action("ACTION_MOVE_RECORD");
+const int ACTION_ERASE = cache_actions.define_new_action("ACTION_ERASE");
+const int ACTION_REMOVE_LOCAL = cache_actions.define_new_action("ACTION_REMOVE_LOCAL");
+const int ACTION_LOCAL_LOOKUP = cache_actions.define_new_action("ACTION_LOCAL_LOOKUP");
+const int ACTION_INIT = cache_actions.define_new_action("ACTION_INIT");
+const int ACTION_LOCAL_READ = cache_actions.define_new_action("ACTION_LOCAL_READ");
+const int ACTION_PREPARE = cache_actions.define_new_action("ACTION_PREPARE");
+const int ACTION_LOCAL_WRITE = cache_actions.define_new_action("ACTION_LOCAL_WRITE");
+const int ACTION_PREPARE_SYNC = cache_actions.define_new_action("ACTION_PREPARE_SYNC");
+const int ACTION_SYNC = cache_actions.define_new_action("ACTION_SYNC");
+const int ACTION_SYNC_BEFORE_OPERATION = cache_actions.define_new_action("ACTION_SYNC_BEFORE_OPERATION");
+
+}
+
 class cache_stat_provider : public ioremap::monitor::stat_provider {
 public:
 	cache_stat_provider(const cache_manager &manager)

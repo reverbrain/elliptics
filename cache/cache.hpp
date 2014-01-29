@@ -443,39 +443,39 @@ private:
 
 namespace ioremap { namespace cache { namespace actions {
 
-	static actions_set_t cache_actions;
+extern actions_set_t cache_actions;
 
-	const static int ACTION = cache_actions.define_new_action("ACTION");
-	const static int ACTION_CACHE = cache_actions.define_new_action("ACTION_CACHE");
-	const static int ACTION_WRITE = cache_actions.define_new_action("ACTION_WRITE");
-	const static int ACTION_READ = cache_actions.define_new_action("ACTION_READ");
-	const static int ACTION_REMOVE = cache_actions.define_new_action("ACTION_REMOVE");
-	const static int ACTION_LOOKUP = cache_actions.define_new_action("ACTION_LOOKUP");
-	const static int ACTION_LOCK = cache_actions.define_new_action("ACTION_LOCK");
-	const static int ACTION_FIND = cache_actions.define_new_action("ACTION_FIND");
-	const static int ACTION_ADD_TO_PAGE = cache_actions.define_new_action("ACTION_ADD_TO_PAGE");
-	const static int ACTION_RESIZE_PAGE = cache_actions.define_new_action("ACTION_RESIZE_PAGE");
-	const static int ACTION_SYNC_AFTER_APPEND = cache_actions.define_new_action("ACTION_SYNC_AFTER_APPEND");
-	const static int ACTION_WRITE_APPEND_ONLY = cache_actions.define_new_action("ACTION_WRITE_APPEND_ONLY");
-	const static int ACTION_WRITE_AFTER_APPEND_ONLY = cache_actions.define_new_action("ACTION_WRITE_AFTER_APPEND_ONLY");
-	const static int ACTION_POPULATE_FROM_DISK = cache_actions.define_new_action("ACTION_POPULATE_FROM_DISK");
-	const static int ACTION_CLEAR = cache_actions.define_new_action("ACTION_CLEAR");
-	const static int ACTION_LIFECHECK = cache_actions.define_new_action("ACTION_LIFECHECK");
-	const static int ACTION_CREATE_DATA = cache_actions.define_new_action("ACTION_CREATE_DATA");
-	const static int ACTION_CAS = cache_actions.define_new_action("ACTION_CAS");
-	const static int ACTION_MODIFY = cache_actions.define_new_action("ACTION_MODIFY");
-	const static int ACTION_DECREASE_KEY = cache_actions.define_new_action("ACTION_DECREASE_KEY");
-	const static int ACTION_MOVE_RECORD = cache_actions.define_new_action("ACTION_MOVE_RECORD");
-	const static int ACTION_ERASE = cache_actions.define_new_action("ACTION_ERASE");
-	const static int ACTION_REMOVE_LOCAL = cache_actions.define_new_action("ACTION_REMOVE_LOCAL");
-	const static int ACTION_LOCAL_LOOKUP = cache_actions.define_new_action("ACTION_LOCAL_LOOKUP");
-	const static int ACTION_INIT = cache_actions.define_new_action("ACTION_INIT");
-	const static int ACTION_LOCAL_READ = cache_actions.define_new_action("ACTION_LOCAL_READ");
-	const static int ACTION_PREPARE = cache_actions.define_new_action("ACTION_PREPARE");
-	const static int ACTION_LOCAL_WRITE = cache_actions.define_new_action("ACTION_LOCAL_WRITE");
-	const static int ACTION_PREPARE_SYNC = cache_actions.define_new_action("ACTION_PREPARE_SYNC");
-	const static int ACTION_SYNC = cache_actions.define_new_action("ACTION_SYNC");
-	const static int ACTION_SYNC_BEFORE_OPERATION = cache_actions.define_new_action("ACTION_SYNC_BEFORE_OPERATION");
+const extern int ACTION;
+const extern int ACTION_CACHE;
+const extern int ACTION_WRITE;
+const extern int ACTION_READ;
+const extern int ACTION_REMOVE;
+const extern int ACTION_LOOKUP;
+const extern int ACTION_LOCK;
+const extern int ACTION_FIND;
+const extern int ACTION_ADD_TO_PAGE;
+const extern int ACTION_RESIZE_PAGE;
+const extern int ACTION_SYNC_AFTER_APPEND;
+const extern int ACTION_WRITE_APPEND_ONLY;
+const extern int ACTION_WRITE_AFTER_APPEND_ONLY;
+const extern int ACTION_POPULATE_FROM_DISK;
+const extern int ACTION_CLEAR;
+const extern int ACTION_LIFECHECK;
+const extern int ACTION_CREATE_DATA;
+const extern int ACTION_CAS;
+const extern int ACTION_MODIFY;
+const extern int ACTION_DECREASE_KEY;
+const extern int ACTION_MOVE_RECORD;
+const extern int ACTION_ERASE;
+const extern int ACTION_REMOVE_LOCAL;
+const extern int ACTION_LOCAL_LOOKUP;
+const extern int ACTION_INIT;
+const extern int ACTION_LOCAL_READ;
+const extern int ACTION_PREPARE;
+const extern int ACTION_LOCAL_WRITE;
+const extern int ACTION_PREPARE_SYNC;
+const extern int ACTION_SYNC;
+const extern int ACTION_SYNC_BEFORE_OPERATION;
 
 }}}
 
