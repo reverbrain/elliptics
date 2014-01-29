@@ -132,7 +132,7 @@ class logger
 class file_logger : public logger
 {
 	public:
-		explicit file_logger(const char *file, const int level = DNET_LOG_INFO);
+		explicit file_logger(const char *file, const int level);
 		~file_logger();
 };
 
