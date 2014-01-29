@@ -302,7 +302,7 @@ public:
 	 * \brief Initializes updater without target tree
 	 * \param max_depth Maximum monitored depth of call stack
 	 */
-	time_stats_updater_t(const size_t max_depth = 1);
+	time_stats_updater_t(const size_t max_depth = std::numeric_limits<size_t>::max());
 
 	/*!
 	 * \brief Initializes updater with target tree

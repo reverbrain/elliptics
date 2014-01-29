@@ -445,7 +445,6 @@ namespace ioremap { namespace cache { namespace actions {
 
 extern actions_set_t cache_actions;
 
-const extern int ACTION;
 const extern int ACTION_CACHE;
 const extern int ACTION_WRITE;
 const extern int ACTION_READ;
@@ -476,6 +475,9 @@ const extern int ACTION_LOCAL_WRITE;
 const extern int ACTION_PREPARE_SYNC;
 const extern int ACTION_SYNC;
 const extern int ACTION_SYNC_BEFORE_OPERATION;
+const extern int ACTION_ERASE_ITERATE;
+const extern int ACTION_SYNC_ITERATE;
+const extern int ACTION_DNET_OPLOCK;
 
 }}}
 

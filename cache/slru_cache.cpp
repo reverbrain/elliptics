@@ -67,7 +67,6 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	sync_if_required(it, guard);
 
 	if (!it && !cache) {
-
 		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not a cache call\n", dnet_dump_id_str(id));
 		return -ENOTSUP;
 	}
@@ -156,7 +155,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	raw_data_t &raw = *it->data();
 
 	if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
-		action_guard(get_time_stats_updater(), ACTION_CAS);
+		action_guard cas_guard(get_time_stats_updater(), ACTION_CAS);
 
 		// Data is already in memory, so it's free to use it
 		// raw.size() is zero only if there is no such file on the server
@@ -428,7 +427,7 @@ time_stats_updater_t *slru_cache_t::get_time_stats_updater() {
 }
 
 void slru_cache_t::sync_if_required(data_t* it, elliptics_unique_lock<std::mutex> &guard) {
-	action_guard(get_time_stats_updater(), ACTION_SYNC_BEFORE_OPERATION);
+	action_guard sync_if_required(get_time_stats_updater(), ACTION_SYNC_BEFORE_OPERATION);
 
 	if (it && it->is_syncing()) {
 		dnet_id id;
@@ -481,7 +480,7 @@ void slru_cache_t::remove_data_from_page(const unsigned char *id, size_t page_nu
 }
 
 void slru_cache_t::move_data_between_pages(const unsigned char *id, size_t source_page_number, size_t destination_page_number, data_t *data) {
-	action_guard(get_time_stats_updater(), ACTION_MOVE_RECORD);
+	action_guard move_data_between_pages_guard(get_time_stats_updater(), ACTION_MOVE_RECORD);
 
 	if (source_page_number != destination_page_number) {
 		remove_data_from_page(id, source_page_number, data);
@@ -596,7 +595,7 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 }
 
 void slru_cache_t::erase_element(data_t *obj) {
-	action_guard(get_time_stats_updater(), ACTION_ERASE);
+	action_guard erase_element_guard(get_time_stats_updater(), ACTION_ERASE);
 
 	if (obj->will_be_erased()) {
 		obj->set_remove_from_cache(true);
@@ -627,7 +626,7 @@ void slru_cache_t::erase_element(data_t *obj) {
 }
 
 void slru_cache_t::sync_element(const dnet_id &raw, bool after_append, const std::vector<char> &data, uint64_t user_flags, const dnet_time &timestamp) {
-	action_guard(get_time_stats_updater(), ACTION_SYNC);
+	action_guard sync_guard(get_time_stats_updater(), ACTION_SYNC);
 
 	local_session sess(m_node);
 	sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | (after_append ? DNET_IO_FLAGS_APPEND : 0));
@@ -702,10 +701,6 @@ void slru_cache_t::life_check(void) {
 		dnet_id id;
 		memset(&id, 0, sizeof(id));
 
-		std::vector<char> data;
-		uint64_t user_flags;
-		dnet_time timestamp;
-
 		{
 			start_action(ACTION_LOCK);
 			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
@@ -752,25 +747,24 @@ void slru_cache_t::life_check(void) {
 			stop_action(ACTION_PREPARE_SYNC);
 		}
 
+		start_action(ACTION_SYNC_ITERATE);
 		for (auto it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
 			data_t *elem = *it;
 			memcpy(id.id, elem->id().id, DNET_ID_SIZE);
 
+			start_action(ACTION_DNET_OPLOCK);
 			dnet_oplock(m_node, &id);
-
-			bool only_append = elem->only_append();
-			data = elem->data()->data();
-			user_flags = elem->user_flags();
-			timestamp = elem->timestamp();
+			stop_action(ACTION_DNET_OPLOCK);
 
 			// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
 			if (elem->is_syncing()) {
-				sync_element(id, only_append, data, user_flags, timestamp);
+				sync_element(id, elem->only_append(), elem->data()->data(), elem->user_flags(), elem->timestamp());
 				elem->set_sync_state(data_t::sync_state_t::ERASE_PHASE);
 			}
 
 			dnet_opunlock(m_node, &id);
 		}
+		stop_action(ACTION_SYNC_ITERATE);
 		start_action(ACTION_REMOVE_LOCAL);
 		for (std::deque<struct dnet_id>::iterator it = remove.begin(); it != remove.end(); ++it) {
 			dnet_remove_local(m_node, &(*it));
@@ -781,6 +775,7 @@ void slru_cache_t::life_check(void) {
 			start_action(ACTION_LOCK);
 			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE CLEAR PAGES: %p", this);
 			stop_action(ACTION_LOCK);
+			start_action(ACTION_ERASE_ITERATE);
 			for (std::deque<data_t*>::iterator it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
 				data_t *elem = *it;
 				elem->set_sync_state(data_t::sync_state_t::NOT_SYNCING);
@@ -790,6 +785,7 @@ void slru_cache_t::life_check(void) {
 					}
 				}
 			}
+			stop_action(ACTION_ERASE_ITERATE);
 		}
 		stop_action(ACTION_LIFECHECK);
 
