@@ -51,9 +51,9 @@ def main():
                           test[0] + '/' + test[1])
         timer_end = time.time()
 
-    result_str = 'Passed'
-    if result != 0:
-        result_str = 'Failed ({0})'.format(result)
+        result_str = 'Passed'
+        if result != 0:
+            result_str = 'Failed ({0})'.format(result)
 
         print('# Result: {0}\t{1} sec\n'.format(result_str,
                                                 timer_end - timer_begin))
