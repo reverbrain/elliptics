@@ -113,7 +113,7 @@ class logger_data;
 class logger
 {
 	public:
-		explicit logger(logger_interface *interface, const int level);
+		explicit logger(logger_interface *interface, const int level = DNET_LOG_INFO);
 		logger();
 		logger(const logger &other);
 		~logger();
