@@ -701,6 +701,9 @@ void slru_cache_t::life_check(void) {
 		dnet_id id;
 		memset(&id, 0, sizeof(id));
 
+		double objects_for_deletion_proportion = m_cache_stats.number_of_objects_marked_for_deletion
+												/ double(m_cache_stats.number_of_objects + 1);
+
 		{
 			start_action(ACTION_LOCK);
 			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
@@ -789,7 +792,8 @@ void slru_cache_t::life_check(void) {
 		}
 		stop_action(ACTION_LIFECHECK);
 
-		sleep(1);
+		int sleep_time = 100 / (objects_for_deletion_proportion * 20 + 1);
+		std::this_thread::sleep_for( std::chrono::milliseconds(sleep_time) );
 	}
 
 	ioremap::cache::local::thread_time_stats_updater = nullptr;
