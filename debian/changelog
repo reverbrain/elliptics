@@ -1,3 +1,18 @@
+elliptics (2.24.15.4) unstable; urgency=low
+
+  * debian: elliptics-client provides elliptics-client-2.24 now
+  * Tests: fixed indent in run_tests.py
+  * Tests: running run_tests.py with proper python
+  * Tests: fixed build on rhel 5
+  * Tests: Fixed pep8 warnings and indent
+  * Monitoring: fixed warning on build
+  * Monitor&Doxygen: Added doxygen code documentation to monitor
+  * read-callback: only run read recovery when we have read the whole object. Added read recovery debug.
+  * dnet_io_attr: added total_size field (without ABI changes), which contains total size of the read record. In particular useful when client asks for part of the object (by specifying size in read request).
+  * Monitor: fixed build on lucid.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 30 Jan 2014 00:09:45 +0400
+
 elliptics (2.24.15.3) unstable; urgency=low
 
   * Python: Fixed typo in docstrings.

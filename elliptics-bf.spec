@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.3
+Version:	2.24.15.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jan 30 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.4
+- debian: elliptics-client provides elliptics-client-2.24 now
+- Tests: fixed indent in run_tests.py
+- Tests: running run_tests.py with proper python
+- Tests: fixed build on rhel 5
+- Tests: Fixed pep8 warnings and indent
+- Monitoring: fixed warning on build
+- Monitor&Doxygen: Added doxygen code documentation to monitor
+- read-callback: only run read recovery when we have read the whole object. Added read recovery debug.
+- dnet_io_attr: added total_size field (without ABI changes), which contains total size of the read record. In particular useful when client asks for part of the object (by specifying size in read request).
+- Monitor: fixed build on lucid.
+
 * Fri Jan 24 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.3
 - Python: Fixed typo in docstrings.
 - Python: added ability to clone session.
