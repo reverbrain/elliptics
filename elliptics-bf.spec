@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.5
+Version:	2.24.15.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jan 30 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.6
+- debian: provide and replace *-2.24 package versions
+
 * Thu Jan 30 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.5
 - debian: elliptics/-dev provides elliptics/-dev-2.24 now
 

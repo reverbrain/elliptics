@@ -1,3 +1,9 @@
+elliptics (2.24.15.6) unstable; urgency=low
+
+  * debian: provide and replace *-2.24 package versions
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 30 Jan 2014 16:26:13 +0400
+
 elliptics (2.24.15.5) unstable; urgency=low
 
   * debian: elliptics/-dev provides elliptics/-dev-2.24 now
