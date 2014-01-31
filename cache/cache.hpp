@@ -82,7 +82,7 @@ public:
 	data_t(const unsigned char *id) :
 		m_lifetime(0), m_synctime(0), m_user_flags(0),
 		m_remove_from_disk(false), m_remove_from_cache(false),
-		m_only_append(false), m_sync_state(sync_state_t::NOT_SYNCING) {
+		m_only_append(false), m_removed_from_page(true), m_sync_state(sync_state_t::NOT_SYNCING) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
 		dnet_empty_time(&m_timestamp);
 	}
@@ -90,7 +90,7 @@ public:
 	data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
 		m_lifetime(0), m_synctime(0), m_user_flags(0),
 		m_remove_from_disk(remove_from_disk), m_remove_from_cache(false),
-		m_only_append(false), m_sync_state(sync_state_t::NOT_SYNCING) {
+		m_only_append(false), m_removed_from_page(true), m_sync_state(sync_state_t::NOT_SYNCING) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
 		dnet_empty_time(&m_timestamp);
 
@@ -153,6 +153,7 @@ public:
 
 	void set_cache_page_number(size_t cache_page_number) {
 		m_cache_page_number = cache_page_number;
+		set_removed_from_page(false);
 	}
 
 	void clear_synctime() {
@@ -211,6 +212,14 @@ public:
 		m_only_append = only_append;
 	}
 
+	bool is_removed_from_page() const {
+		return m_removed_from_page;
+	}
+
+	void set_removed_from_page(bool removed_from_page) {
+		m_removed_from_page = removed_from_page;
+	}
+
 	size_t size(void) const {
 		return capacity() + overhead_size();
 	}
@@ -243,6 +252,7 @@ private:
 	bool m_remove_from_disk;
 	bool m_remove_from_cache;
 	bool m_only_append;
+	bool m_removed_from_page;
 	sync_state_t m_sync_state;
 	char m_cache_page_number;
 	struct dnet_raw_id m_id;

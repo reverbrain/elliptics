@@ -187,6 +187,13 @@ public:
 	void set_node_time(p_node_t node, long long time);
 
 	/*!
+	 * \brief Increments time for \a node
+	 * \param node Target node
+	 * \param delta Time to add
+	 */
+	void inc_node_time(p_node_t node, long long delta);
+
+	/*!
 	 * \brief Returns time for \a node
 	 * \param node Target node
 	 * \return Target node time
@@ -213,8 +220,17 @@ public:
 	 * \brief Adds new child to \a node with \a action_code
 	 * \param node Target node
 	 * \param action_code Child's action code
+	 * \return Pointer to newly created child with \a action_code
 	 */
-	void add_new_link(p_node_t node, int action_code);
+	p_node_t add_new_link(p_node_t node, int action_code);
+
+	/*!
+	 * \brief Adds new child to \a node with \a action_code if it's missing
+	 * \param node Target node
+	 * \param action_code Child's action code
+	 * \return Pointer to child with \a action_code
+	 */
+	p_node_t add_new_link_if_missing(p_node_t node, int action_code);
 
 	/*!
 	 * \brief Merges this tree into \a another_tree
@@ -223,14 +239,21 @@ public:
 	void merge_into(time_stats_tree_t& another_tree) const;
 
 	/*!
+	 * \brief Calculates time differences between this tree and \a another tree
+	 * \param another_tree
+	 */
+	time_stats_tree_t diff_from(time_stats_tree_t& another_tree) const;
+
+	/*!
+	 * \brief Substracts time stats of this tree from \a another tree
+	 * \param another_tree
+	 */
+	void substract_from(time_stats_tree_t& another_tree) const;
+
+	/*!
 	 * \brief Root of the tree
 	 */
 	p_node_t root;
-
-	/*!
-	 * \brief Lock to handle concurrency during updates
-	 */
-	mutable std::mutex lock;
 
 private:
 	/*!
@@ -257,12 +280,22 @@ private:
 	/*!
 	 * \internal
 	 *
-	 * \brief Recursively merges \a lhd_node into \a rhs_node
+	 * \brief Recursively merges \a lhs_node into \a rhs_node
 	 * \param lhs_node Node which will be merged
 	 * \param rhs_node
 	 * \param rhs_tree
 	 */
 	void merge_into(p_node_t lhs_node, p_node_t rhs_node, time_stats_tree_t& rhs_tree) const;
+
+	/*!
+	 * \internal
+	 *
+	 * \brief Recursively substracts \a lhs_node from \a rhs_node
+	 * \param lhs_node Node which will be substracted
+	 * \param rhs_node
+	 * \param rhs_tree
+	 */
+	void substract_from(p_node_t lhs_node, p_node_t rhs_node, time_stats_tree_t& rhs_tree) const;
 
 	/*!
 	 * \brief Tree nodes
@@ -273,6 +306,46 @@ private:
 	 * \brief Available actions for monitoring
 	 */
 	const actions_set_t& actions_set;
+};
+
+/*!
+ * \brief Concurrent version of time stats tree to handle simultanious updates
+ */
+class concurrent_time_stats_tree_t {
+public:
+	/*!
+	 * \brief Initializes time_stats_tree with \a actions_set
+	 * \param actions_set Set of available action for monitoring
+	 */
+	concurrent_time_stats_tree_t(actions_set_t& actions_set);
+
+	/*!
+	 * \brief Gets ownership of time stats tree
+	 */
+	void lock();
+
+	/*!
+	 * \brief Releases ownership of time stats tree
+	 */
+	void unlock();
+
+	/*!
+	 * \brief Returns inner time stats tree
+	 * \return Inner time stats tree
+	 */
+	time_stats_tree_t& get_time_stats_tree();
+
+private:
+	/*!
+	 * \brief Lock to handle concurrency during updates
+	 */
+	mutable std::mutex tree_mutex;
+
+	/*!
+	 * \brief Inner time_stats_tree
+	 */
+	time_stats_tree_t time_stats_tree;
+
 };
 
 /*!
@@ -306,10 +379,10 @@ public:
 
 	/*!
 	 * \brief Initializes updater with target tree
-	 * \param t Target tree
+	 * \param time_stats_tree Target tree
 	 * \param max_depth Maximum monitored depth of call stack
 	 */
-	time_stats_updater_t(time_stats_tree_t &t, const size_t max_depth = 1);
+	time_stats_updater_t(concurrent_time_stats_tree_t &time_stats_tree, const size_t max_depth = 1);
 
 	/*!
 	 * \brief Checks if all actions were correctly finished.
@@ -318,9 +391,9 @@ public:
 
 	/*!
 	 * \brief Sets target tree for updates
-	 * \param t Target tree
+	 * \param time_stats_tree Target tree
 	 */
-	void set_time_stats_tree(time_stats_tree_t &t);
+	void set_time_stats_tree(concurrent_time_stats_tree_t &time_stats_tree);
 
 	/*!
 	 * \brief Checks whether tree for updates is set
@@ -413,7 +486,7 @@ private:
 	/*!
 	 * \brief Target call-tree
 	 */
-	time_stats_tree_t* t;
+	concurrent_time_stats_tree_t* time_stats_tree;
 
 	/*!
 	 * \brief Current call stack depth

@@ -55,6 +55,10 @@ void time_stats_tree_t::set_node_time(time_stats_tree_t::p_node_t node, long lon
 	nodes[node].time = time;
 }
 
+void time_stats_tree_t::inc_node_time(time_stats_tree_t::p_node_t node, long long delta) {
+	nodes[node].time += delta;
+}
+
 long long int time_stats_tree_t::get_node_time(time_stats_tree_t::p_node_t node) const {
 	return nodes[node].time;
 }
@@ -67,13 +71,32 @@ time_stats_tree_t::p_node_t time_stats_tree_t::get_node_link(time_stats_tree_t::
 	return nodes[node].links.at(action_code);
 }
 
-void time_stats_tree_t::add_new_link(time_stats_tree_t::p_node_t node, int action_code) {
+time_stats_tree_t::p_node_t time_stats_tree_t::add_new_link(time_stats_tree_t::p_node_t node, int action_code) {
 	p_node_t action_node = new_node(action_code);
 	nodes[node].links.insert(std::make_pair(action_code, action_node));
+	return action_node;
+}
+
+time_stats_tree_t::p_node_t time_stats_tree_t::add_new_link_if_missing(time_stats_tree_t::p_node_t node, int action_code) {
+	auto link = nodes[node].links.find(action_code);
+	if (link == nodes[node].links.end()) {
+		return add_new_link(node, action_code);
+	}
+	return link->second;
 }
 
 void time_stats_tree_t::merge_into(time_stats_tree_t &another_tree) const {
 	merge_into(root, another_tree.root, another_tree);
+}
+
+time_stats_tree_t time_stats_tree_t::diff_from(time_stats_tree_t &another_tree) const {
+	time_stats_tree_t diff_tree = *this;
+	another_tree.substract_from(diff_tree);
+	return std::move(diff_tree);
+}
+
+void time_stats_tree_t::substract_from(time_stats_tree_t &another_tree) const {
+	return substract_from(root, another_tree.root, another_tree);
 }
 
 rapidjson::Value &time_stats_tree_t::to_json(p_node_t current_node, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
@@ -108,13 +131,27 @@ void time_stats_tree_t::merge_into(time_stats_tree_t::p_node_t lhs_node,
 	}
 }
 
+void time_stats_tree_t::substract_from(time_stats_tree_t::p_node_t lhs_node, time_stats_tree_t::p_node_t rhs_node, time_stats_tree_t &rhs_tree) const {
+	rhs_tree.set_node_time(rhs_node, rhs_tree.get_node_time(rhs_node) - get_node_time(lhs_node));
+
+	for (auto it = nodes[lhs_node].links.begin(); it != nodes[lhs_node].links.end(); ++it) {
+		int action_code = it->first;
+		p_node_t lhs_next_node = it->second;
+		if (!rhs_tree.node_has_link(rhs_node, action_code)) {
+			rhs_tree.add_new_link(rhs_node, action_code);
+		}
+		p_node_t rhs_next_node = rhs_tree.get_node_link(rhs_node, action_code);
+		substract_from(lhs_next_node, rhs_next_node, rhs_tree);
+	}
+}
+
 time_stats_updater_t::time_stats_updater_t(const size_t max_depth):
-	current_node(0), t(nullptr), depth(0), max_depth(max_depth) {
+	current_node(0), time_stats_tree(nullptr), depth(0), max_depth(max_depth) {
 	measurements.emplace(std::chrono::system_clock::now(), NULL);
 }
 
-time_stats_updater_t::time_stats_updater_t(time_stats_tree_t &t, const size_t max_depth): max_depth(max_depth) {
-	set_time_stats_tree(t);
+time_stats_updater_t::time_stats_updater_t(concurrent_time_stats_tree_t &time_stats_tree, const size_t max_depth): max_depth(max_depth) {
+	set_time_stats_tree(time_stats_tree);
 	measurements.emplace(std::chrono::system_clock::now(), NULL);
 }
 
@@ -122,21 +159,21 @@ time_stats_updater_t::~time_stats_updater_t() {
 	if (depth != 0) {
 		throw std::logic_error("~time_stats_updater(): extra measurements");
 	}
-	std::lock_guard<std::mutex> guard(t->lock);
+	std::lock_guard<concurrent_time_stats_tree_t> guard(*time_stats_tree);
 
 	while (!measurements.empty()) {
 		pop_measurement();
 	}
 }
 
-void time_stats_updater_t::set_time_stats_tree(time_stats_tree_t &t) {
-	current_node = t.root;
-	this->t = &t;
+void time_stats_updater_t::set_time_stats_tree(concurrent_time_stats_tree_t &time_stats_tree) {
+	current_node = time_stats_tree.get_time_stats_tree().root;
+	this->time_stats_tree = &time_stats_tree;
 	depth = 0;
 }
 
 bool time_stats_updater_t::has_time_stats_tree() const {
-	return (t != nullptr);
+	return (time_stats_tree != nullptr);
 }
 
 void time_stats_updater_t::start(const int action_code) {
@@ -149,12 +186,9 @@ void time_stats_updater_t::start(const int action_code, const time_stats_updater
 		return;
 	}
 
-	t->lock.lock();
-	if (!t->node_has_link(current_node, action_code)) {
-		t->add_new_link(current_node, action_code);
-	}
-	p_node_t next_node = t->get_node_link(current_node, action_code);
-	t->lock.unlock();
+	time_stats_tree->lock();
+	p_node_t next_node = time_stats_tree->get_time_stats_tree().add_new_link_if_missing(current_node, action_code);
+	time_stats_tree->unlock();
 
 	measurements.emplace(start_time, current_node);
 	current_node = next_node;
@@ -166,9 +200,9 @@ void time_stats_updater_t::stop(const int action_code) {
 		return;
 	}
 
-	std::lock_guard<std::mutex> guard(t->lock);
+	std::lock_guard<concurrent_time_stats_tree_t> guard(*time_stats_tree);
 
-	if (t->get_node_action_code(current_node) != action_code) {
+	if (time_stats_tree->get_time_stats_tree().get_node_action_code(current_node) != action_code) {
 		throw std::logic_error("Stopping wrong action");
 	}
 	pop_measurement();
@@ -189,7 +223,7 @@ size_t time_stats_updater_t::get_depth() const {
 void time_stats_updater_t::pop_measurement(const time_point_t& end_time) {
 	measurement previous_measurement = measurements.top();
 	measurements.pop();
-	t->set_node_time(current_node, t->get_node_time(current_node) + delta(previous_measurement.start_time, end_time));
+	time_stats_tree->get_time_stats_tree().inc_node_time(current_node, delta(previous_measurement.start_time, end_time));
 	current_node = previous_measurement.previous_node;
 	--depth;
 }
@@ -212,6 +246,21 @@ void action_guard::stop() {
 
 	updater->stop(action_code);
 	is_stopped = true;
+}
+
+concurrent_time_stats_tree_t::concurrent_time_stats_tree_t(actions_set_t &actions_set): time_stats_tree(actions_set) {
+}
+
+void concurrent_time_stats_tree_t::lock() {
+	tree_mutex.lock();
+}
+
+void concurrent_time_stats_tree_t::unlock() {
+	tree_mutex.unlock();
+}
+
+time_stats_tree_t &concurrent_time_stats_tree_t::get_time_stats_tree() {
+	return time_stats_tree;
 }
 
 }}

@@ -42,7 +42,7 @@ public:
 
 	cache_stats get_cache_stats() const;
 
-	const time_stats_tree_t &get_time_stats() const;
+	const time_stats_tree_t get_time_stats() const;
 
 private:
 
@@ -62,7 +62,7 @@ private:
 	std::thread m_lifecheck;
 	treap_t m_treap;
 	mutable cache_stats m_cache_stats;
-	mutable time_stats_tree_t m_time_stats;
+	mutable concurrent_time_stats_tree_t m_time_stats;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 
