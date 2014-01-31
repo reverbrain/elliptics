@@ -64,7 +64,6 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	start_action(ACTION_FIND);
 	data_t* it = m_treap.find(id);
 	stop_action(ACTION_FIND);
-	sync_if_required(it, guard);
 
 	if (!it && !cache) {
 		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not a cache call\n", dnet_dump_id_str(id));
@@ -131,6 +130,8 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 			return err;
 		}
 	}
+
+	sync_if_required(it, guard);
 
 	bool new_page = false;
 
