@@ -104,6 +104,9 @@ public:
 	data_t &operator =(const data_t &other) = delete;
 
 	~data_t() {
+		if (!is_removed_from_page()) {
+			std::cerr << "~data_t(): element is not removed from cache" << std::endl;
+		}
 	}
 
 	const struct dnet_raw_id &id(void) const {

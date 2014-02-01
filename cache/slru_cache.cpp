@@ -131,8 +131,6 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 		}
 	}
 
-	sync_if_required(it, guard);
-
 	bool new_page = false;
 
 	if (!it) {
@@ -249,7 +247,6 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 	start_action(ACTION_FIND);
 	data_t* it = m_treap.find(id);
 	stop_action(ACTION_FIND);
-	sync_if_required(it, guard);
 
 	if (it && it->only_append()) {
 		sync_after_append(guard, true, &*it);
@@ -296,7 +293,6 @@ int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 	start_action(ACTION_FIND);
 	data_t* it = m_treap.find(id);
 	stop_action(ACTION_FIND);
-	sync_if_required(it, guard);
 
 	if (it) {
 
@@ -349,7 +345,6 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	start_action(ACTION_FIND);
 	data_t* it = m_treap.find(id);
 	stop_action(ACTION_FIND);
-	sync_if_required(it, guard);
 
 	if (!it) {
 		return -ENOTSUP;

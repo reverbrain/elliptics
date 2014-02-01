@@ -157,7 +157,7 @@ time_stats_updater_t::time_stats_updater_t(concurrent_time_stats_tree_t &time_st
 
 time_stats_updater_t::~time_stats_updater_t() {
 	if (depth != 0) {
-		throw std::logic_error("~time_stats_updater(): extra measurements");
+		std::cerr << "~time_stats_updater(): extra measurements" << std::endl;
 	}
 	std::lock_guard<concurrent_time_stats_tree_t> guard(*time_stats_tree);
 

@@ -180,14 +180,14 @@ public:
 	int get_node_action_code(p_node_t node) const;
 
 	/*!
-	 * \brief Sets time for \a node
+	 * \brief Sets total consumed time in \a node
 	 * \param node Target node
-	 * \param time Time to set
+	 * \param time New time value
 	 */
 	void set_node_time(p_node_t node, long long time);
 
 	/*!
-	 * \brief Increments time for \a node
+	 * \brief Increments total consumed time in \a node
 	 * \param node Target node
 	 * \param delta Time to add
 	 */
