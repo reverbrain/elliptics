@@ -169,6 +169,7 @@ std::string statistics::report(int category) {
 		rapidjson::Document value_doc;
 		value_doc.Parse<0>(it->first->json().c_str());
 		report.AddMember(it->second.c_str(),
+						 allocator,
 		                 static_cast<rapidjson::Value&>(value_doc),
 		                 allocator);
 	}

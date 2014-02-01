@@ -156,6 +156,9 @@ public:
 
 	void set_cache_page_number(size_t cache_page_number) {
 		m_cache_page_number = cache_page_number;
+		if (!is_removed_from_page()) {
+			std::cerr << "Element is not removed from cache page" << std::endl;
+		}
 		set_removed_from_page(false);
 	}
 

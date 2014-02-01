@@ -208,10 +208,16 @@ rapidjson::Value &cache_manager::get_total_caches_size_stats_json(rapidjson::Val
 	return stats.to_json(stat_value, allocator);
 }
 
+std::string get_cache_name(int id, size_t number_length) {
+	std::string name = boost::lexical_cast<std::string> (id);
+	std::string prefix(number_length - name.length(), '0');
+	return "Cache_" + prefix + name;
+}
+
 rapidjson::Value &cache_manager::get_caches_size_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		rapidjson::Value cache_time_stats(rapidjson::kObjectType);
-		stat_value.PushBack(m_caches[i]->get_cache_stats().to_json(cache_time_stats, allocator), allocator);
+		stat_value.AddMember(get_cache_name(i, 2).c_str(), allocator, m_caches[i]->get_cache_stats().to_json(cache_time_stats, allocator), allocator);
 	}
 	return stat_value;
 }
@@ -228,7 +234,7 @@ rapidjson::Value &cache_manager::get_total_caches_time_stats_json(rapidjson::Val
 rapidjson::Value &cache_manager::get_caches_time_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		rapidjson::Value cache_time_stats(rapidjson::kObjectType);
-		stat_value.PushBack(m_caches[i]->get_time_stats().to_json(cache_time_stats, allocator), allocator);
+		stat_value.AddMember(get_cache_name(i, 2).c_str(), m_caches[i]->get_time_stats().to_json(cache_time_stats, allocator), allocator);
 	}
 	return stat_value;
 }
@@ -250,7 +256,7 @@ std::string cache_manager::stat_json() const {
 	total_cache.AddMember("time_stats", time_stats, allocator);
 	doc.AddMember("total_cache", total_cache, allocator);
 
-	rapidjson::Value caches(rapidjson::kArrayType);
+	rapidjson::Value caches(rapidjson::kObjectType);
 	get_caches_size_stats_json(caches, allocator);
 	doc.AddMember("caches", caches, allocator);
 

@@ -103,9 +103,15 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 			remove_data_from_page(id, page_number, &*it);
 			resize_page(id, new_page_number, 2 * new_size);
 
+			if (it->remove_from_cache()) {
+				m_cache_stats.size_of_objects_marked_for_deletion -= it->size();
+			}
 			m_cache_stats.size_of_objects -= it->size();
 			raw.insert(raw.end(), data, data + io->size);
 			m_cache_stats.size_of_objects += it->size();
+			if (it->remove_from_cache()) {
+				m_cache_stats.size_of_objects_marked_for_deletion += it->size();
+			}
 
 			insert_data_into_page(id, new_page_number, &*it);
 
@@ -191,6 +197,9 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	remove_data_from_page(id, page_number, &*it);
 	resize_page(id, new_page_number, 2 * new_size);
 
+	if (it->remove_from_cache()) {
+		m_cache_stats.size_of_objects_marked_for_deletion -= it->size();
+	}
 	m_cache_stats.size_of_objects -= it->size();
 
 	start_action(ACTION_MODIFY);
@@ -263,6 +272,9 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 		size_t page_number = it->cache_page_number();
 		size_t new_page_number = page_number;
 
+		if (it->remove_from_cache()) {
+			m_cache_stats.size_of_objects_marked_for_deletion -= it->size();
+		}
 		it->set_remove_from_cache(false);
 
 		if (!new_page) {
@@ -295,9 +307,8 @@ int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 	stop_action(ACTION_FIND);
 
 	if (it) {
-
 		// If cache_only is not set the data also should be remove from the disk
-		// If data is marked and cache_only is not set - data must be synced to the disk
+		// If data is marked and cache_only is not set - data must not be synced to the disk
 		remove_from_disk |= it->remove_from_disk();
 		if (it->synctime() && !cache_only) {
 			size_t previous_eventtime = it->eventtime();
@@ -402,7 +413,10 @@ cache_stats slru_cache_t::get_cache_stats() const {
 }
 
 const time_stats_tree_t slru_cache_t::get_time_stats() const {
-	return m_time_stats.get_time_stats_tree();
+	m_time_stats.lock();
+	time_stats_tree_t time_stats_tree = m_time_stats.get_time_stats_tree();
+	m_time_stats.unlock();
+	return std::move(time_stats_tree);
 }
 
 // private:
@@ -496,7 +510,7 @@ data_t* slru_cache_t::create_data(const unsigned char *id, const char *data, siz
 
 	insert_data_into_page(id, last_page_number, raw);
 
-	++m_cache_stats.number_of_objects;
+	m_cache_stats.number_of_objects++;
 	m_cache_stats.size_of_objects += raw->size();
 	m_treap.insert(raw);
 	return raw;
@@ -556,10 +570,7 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 	size_t &max_cache_size = m_cache_pages_max_sizes[page_number];
 	size_t previous_page_number = get_previous_page_number(page_number);
 
-	int iterations = 0;
-	int iterations_continued = 0;
 	for (auto it = m_cache_pages_lru[page_number].begin(), end = m_cache_pages_lru[page_number].end(); it != end;) {
-		++iterations;
 		if (max_cache_size + removed_size >= cache_size + reserve)
 			break;
 
@@ -567,7 +578,6 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 		++it;
 
 		if (raw->is_syncing()) {
-			++iterations_continued;
 			continue;
 		}
 
@@ -590,8 +600,8 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 					}
 				}
 				removed_size += raw->size();
-				m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*raw));
-				raw->set_removed_from_page(true);
+//				m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*raw));
+//				raw->set_removed_from_page(true);
 			} else {
 				erase_element(raw);
 			}
@@ -603,7 +613,10 @@ void slru_cache_t::erase_element(data_t *obj) {
 	action_guard erase_element_guard(get_time_stats_updater(), ACTION_ERASE);
 
 	if (obj->will_be_erased()) {
-		obj->set_remove_from_cache(true);
+		if (!obj->remove_from_cache()) {
+			m_cache_stats.size_of_objects_marked_for_deletion += obj->size();
+			obj->set_remove_from_cache(true);
+		}
 		return;
 	}
 
