@@ -756,15 +756,6 @@ static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_
 		for (i = 0; i < pool->num; ++i) {
 			 /* Someone claimed transaction @tid */
 			if (pool->trans[i] == tid) {
-				 /* Its our transaction, let's handle it */
-				if (i == thread_index) {
-					/* its the last transaction in given set, clear 'claim' flag for current thread */
-					if (!(cmd->flags & DNET_FLAGS_MORE))
-						pool->trans[thread_index] = ~0ULL;
-
-					return it;
-				}
-
 				/* we should not touch it */
 				ok = 0;
 				break;
@@ -776,12 +767,10 @@ static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_
 		 * but only if 'we' do not wait for another transaction already.
 		 */
 		if (ok) {
-			if (pool->trans[thread_index] == ~0ULL) {
-				/* only claim this transaction if there will be others */
-				if (cmd->flags & DNET_FLAGS_MORE)
-					pool->trans[thread_index] = tid;
-				return it;
-			}
+			/* only claim this transaction if there will be others */
+			if (cmd->flags & DNET_FLAGS_MORE)
+				pool->trans[thread_index] = tid;
+			return it;
 		}
 	}
 
