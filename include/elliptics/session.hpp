@@ -77,17 +77,17 @@ class transport_control
 {
 	public:
 		transport_control();
-		transport_control(const struct dnet_id &id, unsigned int cmd, uint64_t cflags = 0);
+		transport_control(const dnet_id &id, unsigned int cmd, uint64_t cflags = 0);
 
-		void set_key(const struct dnet_id &id);
+		void set_key(const dnet_id &id);
 		void set_command(unsigned int cmd);
 		void set_cflags(uint64_t cflags);
 		void set_data(void *data, unsigned int size);
 
-		struct dnet_trans_control get_native() const;
+		dnet_trans_control get_native() const;
 
 	private:
-		struct dnet_trans_control m_data;
+		dnet_trans_control m_data;
 };
 
 struct address
@@ -123,7 +123,7 @@ class logger
 		void 		log(const int level, const char *msg);
 		void 		print(int level, const char *format, ...) __attribute__ ((format(printf, 3, 4)));
 		int			get_log_level();
-		struct dnet_log		*get_native();
+		dnet_log		*get_native();
 
 	protected:
 		std::shared_ptr<logger_data> m_data;
@@ -145,7 +145,7 @@ class node
 		node();
 		explicit node(const std::shared_ptr<node_data> &data);
 		explicit node(const logger &l);
-		node(const logger &l, struct dnet_config &cfg);
+		node(const logger &l, dnet_config &cfg);
 		node(const node &other);
 		~node();
 
@@ -159,8 +159,8 @@ class node
 		bool is_valid() const;
 
 		logger get_log() const;
-		struct dnet_node *	get_native();
-		struct dnet_node *	get_native() const;
+		dnet_node *	get_native();
+		dnet_node *	get_native() const;
 
 	protected:
 		std::shared_ptr<node_data> m_data;
@@ -202,7 +202,7 @@ class key
 		bool m_by_id;
 		std::string m_remote;
 		int m_reserved;
-		struct dnet_id m_id;
+		dnet_id m_id;
 		uint32_t m_trace_id;
 };
 
@@ -230,15 +230,15 @@ class session
 		/*!
 		 * Converts string \a data to dnet_id \a id.
 		 */
-		void			transform(const std::string &data, struct dnet_id &id) const;
+		void			transform(const std::string &data, dnet_id &id) const;
 		/*!
 		 * Converts string \a data to dnet_raw_id \a id.
 		 */
-		void			transform(const std::string &data, struct dnet_raw_id &id) const;
+		void			transform(const std::string &data, dnet_raw_id &id) const;
 		/*!
-		 * \overload transform()
+		 * \overload
 		 */
-		void			transform(const data_pointer &data, struct dnet_id &id) const;
+		void			transform(const data_pointer &data, dnet_id &id) const;
 		/*!
 		 * Makes dnet_id be accessible by key::id() in the key \a id.
 		 */
@@ -336,8 +336,8 @@ class session
 		 * All write operations will use this timestamp, instead of system time.
 		 * If set to zero (default), system time will be used.
 		 */
-		void			set_timestamp(struct dnet_time *ts);
-		void			get_timestamp(struct dnet_time *ts);
+		void			set_timestamp(dnet_time *ts);
+		void			get_timestamp(dnet_time *ts);
 
 		/*!
 		 * Gets user flags of the session.
@@ -367,7 +367,7 @@ class session
 							uint64_t offset, uint64_t size);
 
 		/*!
-		 * Reads data from server by \a key id and dnet_io_attr \io.
+		 * Reads data from server by \a key id and dnet_io_attr \a io.
 		 * Data is requested iteratively to \a groups until the first success
 		 * or groups are ended.
 		 * Command is sent to server is DNET_CMD_READ.
@@ -376,22 +376,22 @@ class session
 		 */
 		async_read_result read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io);
 		/*!
-		 * \overload read_data()
+		 * \overload read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 		 * Allows to specify the command \a cmd.
 		 */
 		async_read_result read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd);
 		/*!
-		 * \overload read_data()
+		 * \overload read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 		 * Allows to specify the single \a group.
 		 */
-		async_read_result read_data(const key &id, int group_id, const struct dnet_io_attr &io);
+		async_read_result read_data(const key &id, int group_id, const dnet_io_attr &io);
 		/*!
-		 * \overload read_data()
+		 * \overload read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 		 * Allows to specify the \a offset and the \a size.
 		 */
 		async_read_result read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size);
 		/*!
-		 * \overload read_data()
+		 * \overload read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 		 * Allows to specify the \a offset and the \a size.
 		 * Groups are generated automatically by session::mix_states().
 		 */
@@ -438,7 +438,7 @@ class session
 		async_write_result write_data(const key &id, const argument_data &file, uint64_t remote_offset);
 
 		/*!
-		 * Writes data \a file by the key \a id and remote offset \a remote_offset chunk by chunk with a size \chunk_size.
+		 * Writes data \a file by the key \a id and remote offset \a remote_offset chunk by chunk with a size \a chunk_size.
 		 *
 		 * Returns async_write_result.
 		 *
@@ -469,7 +469,7 @@ class session
 		 *
 		 * Returns async_write_result.
 		 */
-		async_write_result write_cas(const key &id, const argument_data &file, const struct dnet_id &old_csum, uint64_t remote_offset);
+		async_write_result write_cas(const key &id, const argument_data &file, const dnet_id &old_csum, uint64_t remote_offset);
 
 		/*!
 		 * Prepares \a psize bytes place to write data by \a id and writes data by \a file and by \a remote_offset
@@ -572,18 +572,18 @@ class session
 		 * Changes node \a status on given \a address, \a port and network \a family.
 		 */
 		void			update_status(const char *addr, const int port,
-						const int family, struct dnet_node_status *status);
+						const int family, dnet_node_status *status);
 		/*!
 		 * Changes node \a status on key \a id.
 		 */
-		void			update_status(const key &id, struct dnet_node_status *status);
+		void			update_status(const key &id, dnet_node_status *status);
 
 		/*!
 		 * Reads data in range specified in \a io at group \a group_id.
 		 *
 		 * Returns async_read_result.
 		 */
-		async_read_result read_data_range(const struct dnet_io_attr &io, int group_id);
+		async_read_result read_data_range(const dnet_io_attr &io, int group_id);
 
 		/*!
 		 * \internal
@@ -592,19 +592,19 @@ class session
 		 *
 		 * \note This method is left only for compatibility.
 		 */
-		std::vector<std::string> read_data_range_raw(struct dnet_io_attr &io, int group_id);
+		std::vector<std::string> read_data_range_raw(dnet_io_attr &io, int group_id);
 
 		/*!
 		 * Removes data in range specified in \a io at group \a group_id.
 		 *
 		 * Returns async_read_result.
 		 */
-		async_read_result remove_data_range(const struct dnet_io_attr &io, int group_id);
+		async_read_result remove_data_range(const dnet_io_attr &io, int group_id);
 
 		/*!
 		 * Returns the list of network routes.
 		 */
-		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
+		std::vector<std::pair<dnet_id, dnet_addr> > get_routes();
 
 		async_iterator_result start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
 								uint32_t type, uint64_t flags,
@@ -669,7 +669,7 @@ class session
 		 *
 		 * \note Left only for compatibility reasons.
 		 */
-		void			reply(const struct sph &sph, const std::string &event,
+		void			reply(const sph &sph, const std::string &event,
 						const std::string &data,
 						const std::string &binary);
 
@@ -679,15 +679,15 @@ class session
 		 *
 		 * Returns async_read_result.
 		 */
-		async_read_result bulk_read(const std::vector<struct dnet_io_attr> &ios);
+		async_read_result bulk_read(const std::vector<dnet_io_attr> &ios);
 		/*!
-		 * \overload bulk_read()
+		 * \overload
 		 *
 		 * Allows to specify the list of string \a keys.
 		 */
 		async_read_result bulk_read(const std::vector<std::string> &keys);
 		/*!
-		 * \overload bulk_read()
+		 * \overload
 		 *
 		 * Allows to specify the list of key \a keys.
 		 */
@@ -701,11 +701,11 @@ class session
 		 */
 		async_write_result bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<argument_data> &data);
 		/*!
-		 * \overload bulk_read()
+		 * \overload
 		 *
 		 * Allows to pass list of std::string as \a data.
 		 */
-		async_write_result bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data);
+		async_write_result bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<std::string> &data);
 
 		async_set_indexes_result set_indexes(const key &id, const std::vector<index_entry> &indexes);
 		async_set_indexes_result set_indexes(const key &id, const std::vector<std::string> &indexes,
@@ -733,13 +733,21 @@ class session
 		async_list_indexes_result list_indexes(const key &id);
 
 		/*!
+		 * Returns logger object.
+		 */
+		logger get_logger() const;
+		/*!
 		 * Returns reference to parent node.
 		 */
 		node	get_node() const;
 		/*!
+		 * Returns reference to parent node.
+		 */
+		dnet_node *get_native_node() const;
+		/*!
 		 * Returns pointer to dnet_session.
 		 */
-		struct dnet_session *	get_native();
+		dnet_session *	get_native();
 
 	protected:
 		std::shared_ptr<session_data>		m_data;
@@ -748,10 +756,7 @@ class session
 		async_iterator_result iterator(const key &id, const data_pointer& request);
 		async_find_indexes_result find_indexes_internal(const std::vector<dnet_raw_id> &indexes, bool intersect);
 
-		void			mix_states(const key &id, std::vector<int> &groups);
-		void			mix_states(std::vector<int> &groups);
-		std::vector<int>	mix_states(const key &id);
-		std::vector<int>	mix_states();
+		error_info mix_states(const key &id, std::vector<int> &groups) __attribute__((warn_unused_result));
 };
 
 }} /* namespace ioremap::elliptics */
