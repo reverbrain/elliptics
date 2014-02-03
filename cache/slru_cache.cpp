@@ -320,6 +320,9 @@ int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 				stop_action(ACTION_DECREASE_KEY);
 			}
 		}
+		if (it->is_syncing()) {
+			it->set_sync_state(data_t::sync_state_t::ERASE_PHASE);
+		}
 		erase_element(&(*it));
 		err = 0;
 	}
