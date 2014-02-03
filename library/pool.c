@@ -618,6 +618,11 @@ static void *dnet_io_process_network(void *data_)
 
 	dnet_set_name("net_pool");
 
+	if (evs == NULL) {
+		dnet_log(n, DNET_LOG_ERROR, "Not enough memory to allocate epoll_events");
+		goto err_out_exit;
+	}
+
 	// get current timestamp for future outputting "Net pool is suspended..." logging
 	gettimeofday(&prev_tv, NULL);
 
@@ -710,9 +715,9 @@ static void *dnet_io_process_network(void *data_)
 		}
 	}
 
-	if (evs)
-		free(evs);
+	free(evs);
 
+err_out_exit:
 	return &n->need_exit;
 }
 
