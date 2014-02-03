@@ -176,15 +176,15 @@ if(DOXYGEN_FOUND)
     set(DOC_TARGET "doc")
     configure_file(doc/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
     configure_file(doc/DoxygenLayout.xml.in ${CMAKE_CURRENT_BINARY_DIR}/DoxygenLayout.xml @ONLY)
-    add_custom_target(${DOC_TARGET} ALL
+    add_custom_target(${DOC_TARGET}
         ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
         COMMENT "Building documentation"
         SOURCE doc/Doxyfile.in doc/DoxygenLayout.xml)
 
-	install( DIRECTORY
-		${CMAKE_CURRENT_BINARY_DIR}/doc/html
-		${CMAKE_CURRENT_BINARY_DIR}/doc/qch
-		DESTINATION share/elliptics/doc
-        )
+#	install( DIRECTORY
+#		${CMAKE_CURRENT_BINARY_DIR}/doc/html
+#		${CMAKE_CURRENT_BINARY_DIR}/doc/qch
+#		DESTINATION share/elliptics/doc
+#        )
 endif()
 
