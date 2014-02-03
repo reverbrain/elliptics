@@ -55,7 +55,7 @@ void iterate_node(Ctx &ctx, const dnet_addr &node) {
 	}
 
 	if (!found) {
-		std::cerr << "Node was'n found in route list" << std::endl;
+		std::cerr << "Node was not found in the route list" << std::endl;
 		return;
 	}
 
