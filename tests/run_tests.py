@@ -32,7 +32,8 @@ def main():
         (binary_dir, 'dnet_cpp_test'),
         (binary_dir, 'dnet_cpp_cache_test'),
         (binary_dir, 'dnet_cpp_srw_test'),
-        (binary_dir, 'dnet_cpp_api_test')
+        (binary_dir, 'dnet_cpp_api_test'),
+        (binary_dir, 'dnet_cpp_capped_test')
     ]
     print('Running {0} tests'.format(len(tests)))
 

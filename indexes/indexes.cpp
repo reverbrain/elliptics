@@ -56,9 +56,12 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		for (uint64_t i = 0; i < request->entries_count; ++i) {
 			const dnet_indexes_request_entry *request_entry = reinterpret_cast<const dnet_indexes_request_entry *>(data_start + data_offset);
 
-			index_entry entry;
+			dnet_index_entry entry;
 			entry.index = request_entry->id;
 			entry.data = data_pointer::copy(request_entry->data, request_entry->size);
+			entry.time.tsec = 0;
+			entry.time.tnsec = 0;
+//			dnet_current_time(&entry.time);
 
 			indexes.indexes.push_back(entry);
 
@@ -456,6 +459,12 @@ err_out_complete:
 	}
 };
 
+static bool entry_time_less_than(const dnet_index_entry &first, const dnet_index_entry &second)
+{
+	return first.time.tsec < second.time.tsec ||
+		(first.time.tsec == second.time.tsec && first.time.tnsec < second.time.tnsec);
+}
+
 /*!
  * Update data-object table for certain secondary index.
  *
@@ -463,7 +472,8 @@ err_out_complete:
  * @data is what was downloaded from the storage
  */
 data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_indexes_request *request,
-	const data_pointer &index_data, const data_pointer &data, uint32_t action)
+	const data_pointer &index_data, const data_pointer &data, uint32_t action,
+	std::vector<dnet_indexes_reply_entry> * &removed, uint32_t limit)
 {
 	elliptics_timer timer;
 
@@ -474,9 +484,10 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_in
 	const int64_t timer_unpack = timer.restart();
 
 	// Construct index entry
-	index_entry request_index;
+	dnet_index_entry request_index;
 	memcpy(request_index.index.id, request->id.id, sizeof(request_index.index.id));
 	request_index.data = index_data;
+	dnet_current_time(&request_index.time);
 
 	auto it = std::lower_bound(indexes.indexes.begin(), indexes.indexes.end(), request_index, dnet_raw_id_less_than<skip_data>());
 
@@ -485,7 +496,8 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_in
 	if (it != indexes.indexes.end() && it->index == request_index.index) {
 		// It's already there
 		if (action == DNET_INDEXES_FLAGS_INTERNAL_INSERT) {
-			if (it->data == request_index.data) {
+			// Item exists, update it's data and time if it's capped collection
+			if (!removed && it->data == request_index.data) {
 				const int64_t timer_compare = timer.restart();
 				DNET_DUMP_ID_LEN(id_str, cmd_id, DNET_DUMP_NUM);
 				typedef long long int lld;
@@ -495,10 +507,9 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_in
 					 lld(timer_compare));
 				// All's ok, keep it untouched
 				return data;
-			} else {
-				// Data is not correct, replace it by new one
-				it->data = request_index.data;
 			}
+			it->data = request_index.data;
+			it->time = request_index.time;
 		} else {
 			// Anyway, destroy it
 			indexes.indexes.erase(it);
@@ -506,7 +517,30 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_in
 	} else {
 		// Index is not created yet
 		if (action == DNET_INDEXES_FLAGS_INTERNAL_INSERT) {
-			// Just insert it
+			// Remove extra elements from capped collection
+			if (removed && limit != 0 && indexes.indexes.size() + 1 > limit) {
+				dnet_indexes_reply_entry entry;
+				memset(&entry, 0, sizeof(entry));
+
+				auto position = it - indexes.indexes.begin();
+
+				while (indexes.indexes.size() + 1 > limit && !indexes.indexes.empty()) {
+					auto jt = std::min_element(indexes.indexes.begin(), indexes.indexes.end(), entry_time_less_than);
+
+					// jt will be removed, so it should be modified to be still valid
+					if (position > jt - indexes.indexes.begin())
+						--position;
+
+					memcpy(entry.id.id, jt->index.id, DNET_ID_SIZE);
+					entry.status = DNET_INDEXES_CAPPED_REMOVED;
+
+					indexes.indexes.erase(jt);
+					removed->push_back(entry);
+				}
+
+				it = indexes.indexes.begin() + position;
+			}
+			// And just insert new index
 			indexes.indexes.insert(it, 1, request_index);
 		} else {
 			const int64_t timer_compare = timer.restart();
@@ -547,7 +581,8 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_in
 	return std::move(new_buffer);
 }
 
-int process_internal_indexes_entry(dnet_node *node, const dnet_indexes_request &request, dnet_indexes_request_entry &entry)
+int process_internal_indexes_entry(dnet_node *node, const dnet_indexes_request &request,
+	dnet_indexes_request_entry &entry, std::vector<dnet_indexes_reply_entry> * &removed)
 {
 	elliptics_timer timer;
 
@@ -560,17 +595,21 @@ int process_internal_indexes_entry(dnet_node *node, const dnet_indexes_request &
 	const data_pointer entry_data = data_pointer::from_raw(entry.data, entry.size);
 
 	if (node->log->log_level >= DNET_LOG_DEBUG) {
-		char index_buffer[DNET_DUMP_NUM * 2 + 1];
+		char index_buffer[DNET_ID_SIZE * 2 + 1];
 		char object_buffer[DNET_DUMP_NUM * 2 + 1];
 
-		dnet_log(node, DNET_LOG_DEBUG, "INDEXES_INTERNAL: index: %s, object: %s, flags: %u\n",
-			dnet_dump_id_len_raw(entry.id.id, DNET_DUMP_NUM, index_buffer),
+		dnet_log(node, DNET_LOG_DEBUG, "INDEXES_INTERNAL: index: %s, object: %s, flags: 0x%llx\n",
+			dnet_dump_id_len_raw(entry.id.id, DNET_ID_SIZE, index_buffer),
 			dnet_dump_id_len_raw(request.id.id, DNET_DUMP_NUM, object_buffer),
-			request.flags);
+			static_cast<unsigned long long>(entry.flags));
 	}
 
 	uint32_t action = entry.flags & (DNET_INDEXES_FLAGS_INTERNAL_INSERT
 		| DNET_INDEXES_FLAGS_INTERNAL_REMOVE | DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL);
+	const bool capped = entry.flags & DNET_INDEXES_FLAGS_INTERNAL_CAPPED_COLLECTION;
+
+	if (!capped)
+		removed = nullptr;
 
 	switch (action) {
 		case DNET_INDEXES_FLAGS_INTERNAL_INSERT:
@@ -586,11 +625,13 @@ int process_internal_indexes_entry(dnet_node *node, const dnet_indexes_request &
 			dnet_log(node, DNET_LOG_INFO, "INDEXES_INTERNAL: id: %s, checks: %lld ms, remove: %lld ms\n",
 				 id_str, lld(timer_checks), lld(timer_remove));
 
+			removed = nullptr;
 			return err;
 		}
 		default: {
 			dnet_log(node, DNET_LOG_ERROR, "INDEXES_INTERNAL: invalid flags: 0x%llx\n",
 				static_cast<unsigned long long>(entry.flags));
+			removed = nullptr;
 			return -EINVAL;
 		}
 	}
@@ -601,7 +642,7 @@ int process_internal_indexes_entry(dnet_node *node, const dnet_indexes_request &
 	data_pointer data = sess.read(id, &err);
 	const int64_t timer_read = timer.restart();
 
-	data_pointer new_data = convert_index_table(node, &id, &request, entry_data, data, action);
+	data_pointer new_data = convert_index_table(node, &id, &request, entry_data, data, action, removed, entry.limit);
 	const int64_t timer_convert = timer.restart();
 
 	const bool data_equal = data == new_data;
@@ -635,28 +676,39 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 		return -EINVAL;
 	}
 
-	data_buffer buffer(sizeof(dnet_indexes_reply) + request->entries_count * sizeof(dnet_indexes_reply_entry));
+	data_buffer buffer(sizeof(dnet_indexes_reply) + request->entries_count * 2 * sizeof(dnet_indexes_reply_entry));
 
 	dnet_indexes_reply reply;
 	memset(&reply, 0, sizeof(reply));
-
-	reply.entries_count = request->entries_count;
-
 	buffer.write(reply);
+
+	size_t entries_count = request->entries_count;
 
 	dnet_indexes_reply_entry reply_entry;
 	memset(&reply_entry, 0, sizeof(reply_entry));
+	dnet_indexes_reply_entry reply_entry_removed;
+	memset(&reply_entry, 0, sizeof(reply_entry_removed));
+
+	std::vector<dnet_indexes_reply_entry> removed;
 
 	int err = -1;
 
 	for (uint64_t i = 0; i < request->entries_count; ++i) {
 		dnet_indexes_request_entry &entry = request->entries[i];
-		int ret = process_internal_indexes_entry(state->n, *request, entry);
+		removed.clear();
+		auto *tmp = &removed;
+		int ret = process_internal_indexes_entry(state->n, *request, entry, tmp);
 
 		reply_entry.id = entry.id;
 		reply_entry.status = ret;
 
 		buffer.write(reply_entry);
+
+		if (tmp) {
+			entries_count += removed.size();
+			for (auto it = removed.begin(); it != removed.end(); ++it)
+				buffer.write(*it);
+		}
 
 		if (!ret) {
 			err = 0;
@@ -667,6 +719,7 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 
 	if (!err) {
 		data_pointer reply_data = std::move(buffer);
+		reply_data.data<dnet_indexes_reply>()->entries_count = entries_count;
 
 		cmd->flags &= (DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 
@@ -684,8 +737,8 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, const dnet_id &re
 	const bool intersection = request->flags & DNET_INDEXES_FLAGS_INTERSECT;
 	const bool unite = request->flags & DNET_INDEXES_FLAGS_UNITE;
 
-	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_FIND: indexes count: %u, flags: %llu\n",
-		 (unsigned) request->entries_count, (unsigned long long) request->flags);
+	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_FIND: indexes count: %u, flags: %llu, more: %d\n",
+		 (unsigned) request->entries_count, (unsigned long long) request->flags, int(more));
 
 	if ((intersection && unite) || !(intersection || unite)) {
 		return -EINVAL;

@@ -113,6 +113,7 @@ config_data config_data::default_srw_value()
 			("io_thread_num", 50)
 			("nonblocking_io_thread_num", 16)
 			("net_thread_num", 16)
+			("indexes_shard_count", 16)
 			("history", DUMMY_VALUE)
 			("daemon", 0)
 			("auth_cookie", DUMMY_VALUE)
@@ -232,9 +233,6 @@ void server_node::stop()
 		throw std::runtime_error("Server node \"" + m_path + "\" is already stoped");
 
 	dnet_set_need_exit(m_node);
-	while (!dnet_need_exit(m_node))
-		sleep(1);
-
 	dnet_server_node_destroy(m_node);
 	m_node = NULL;
 }
@@ -470,6 +468,14 @@ std::string read_file(const char *file_path)
 	}
 
 	return result;
+}
+
+nodes_data::~nodes_data()
+{
+#ifndef NO_SERVER
+	for (auto it = nodes.begin(); it != nodes.end(); ++it)
+		dnet_set_need_exit(it->get_native());
+#endif // NO_SERVER
 }
 
 } // namespace tests
