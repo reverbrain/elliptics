@@ -600,8 +600,8 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 					}
 				}
 				removed_size += raw->size();
-//				m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*raw));
-//				raw->set_removed_from_page(true);
+				m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*raw));
+				raw->set_removed_from_page(true);
 			} else {
 				erase_element(raw);
 			}
@@ -627,11 +627,9 @@ void slru_cache_t::erase_element(data_t *obj) {
 	remove_data_from_page(obj->id().id, page_number, obj);
 	m_treap.erase(obj);
 
-	if (obj->eventtime()) {
-		if (obj->synctime()) {
-			sync_element(obj);
-			obj->clear_synctime();
-		}
+	if (obj->synctime()) {
+		sync_element(obj);
+		obj->clear_synctime();
 	}
 
 	if (obj->remove_from_cache()) {
@@ -809,6 +807,7 @@ void slru_cache_t::life_check(void) {
 			stop_action(ACTION_LIFECHECK);
 			ioremap::cache::local::thread_time_stats_updater = nullptr;
 		}
+
 		std::this_thread::sleep_for( std::chrono::milliseconds(1000) );
 	}
 
