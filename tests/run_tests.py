@@ -62,10 +62,11 @@ def main():
 
         all_ok &= result == 0
 
-        file = tarfile.TarFile.open(artifacts_dir + '/' + test[1] + '.tar.bz2',
-                                    'w:bz2')
-        file.add(tests_base_dir + '/' + test[1], test[1])
-        file.close()
+        if result != 0:
+            file_path = os.join(artifacts_dir, test[1] + '.tar.bz2')
+            file = tarfile.TarFile.open(file_path, 'w:bz2')
+            file.add(tests_base_dir + '/' + test[1], test[1])
+            file.close()
 
     print('Tests are finised')
 
