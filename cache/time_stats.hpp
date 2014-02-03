@@ -148,7 +148,9 @@ public:
 	typedef size_t p_node_t;
 
 	/*!
-	 * \brief Struct that stores single node with it's action and time
+	 * \brief Struct that stores single node that represents action in call tree.
+	 *
+	 * Action is characterized by it's code(name) and total time consumed by this action.
 	 */
 	struct node_t {
 		/*!
@@ -180,23 +182,23 @@ public:
 	int get_node_action_code(p_node_t node) const;
 
 	/*!
-	 * \brief Sets total consumed time in \a node
-	 * \param node Target node
+	 * \brief Sets total time consumed by action represented by \a node
+	 * \param node Action's node
 	 * \param time New time value
 	 */
 	void set_node_time(p_node_t node, long long time);
 
 	/*!
-	 * \brief Increments total consumed time in \a node
-	 * \param node Target node
-	 * \param delta Time to add
+	 * \brief Increments total time consumed by action represented by \a node
+	 * \param node Action's node
+	 * \param delta Value by which time will be incremented
 	 */
 	void inc_node_time(p_node_t node, long long delta);
 
 	/*!
-	 * \brief Returns time for \a node
-	 * \param node Target node
-	 * \return Target node time
+	 * \brief Returns total time consumed by action represented by \a node
+	 * \param node Action's node
+	 * \return Time consumed by action
 	 */
 	long long int get_node_time(p_node_t node) const;
 
@@ -220,7 +222,7 @@ public:
 	 * \brief Adds new child to \a node with \a action_code
 	 * \param node Target node
 	 * \param action_code Child's action code
-	 * \return Pointer to newly created child with \a action_code
+	 * \return Pointer to newly created child of \a node with \a action_code
 	 */
 	p_node_t add_new_link(p_node_t node, int action_code);
 
@@ -228,30 +230,30 @@ public:
 	 * \brief Adds new child to \a node with \a action_code if it's missing
 	 * \param node Target node
 	 * \param action_code Child's action code
-	 * \return Pointer to child with \a action_code
+	 * \return Pointer to child of \a node with \a action_code
 	 */
 	p_node_t add_new_link_if_missing(p_node_t node, int action_code);
 
 	/*!
 	 * \brief Merges this tree into \a another_tree
-	 * \param another_tree Target tree
+	 * \param another_tree Tree where current tree will be merged in
 	 */
 	void merge_into(time_stats_tree_t& another_tree) const;
 
 	/*!
 	 * \brief Calculates time differences between this tree and \a another tree
-	 * \param another_tree
+	 * \param another_tree Tree which will be substracted from this tree
 	 */
 	time_stats_tree_t diff_from(time_stats_tree_t& another_tree) const;
 
 	/*!
 	 * \brief Substracts time stats of this tree from \a another tree
-	 * \param another_tree
+	 * \param another_tree Tree from which this tree will be substracted
 	 */
 	void substract_from(time_stats_tree_t& another_tree) const;
 
 	/*!
-	 * \brief Root of the tree
+	 * \brief Root of the call tree
 	 */
 	p_node_t root;
 
@@ -363,7 +365,6 @@ public:
 	/*!
 	 * \brief Pointer to call tree node type
 	 */
-
 	typedef time_stats_tree_t::p_node_t p_node_t;
 
 	/*!
@@ -375,14 +376,14 @@ public:
 	 * \brief Initializes updater without target tree
 	 * \param max_depth Maximum monitored depth of call stack
 	 */
-	time_stats_updater_t(const size_t max_depth = std::numeric_limits<size_t>::max());
+	time_stats_updater_t(const size_t max_depth = DEFAULT_DEPTH);
 
 	/*!
 	 * \brief Initializes updater with target tree
-	 * \param time_stats_tree Target tree
+	 * \param time_stats_tree Tree used to monitor updates
 	 * \param max_depth Maximum monitored depth of call stack
 	 */
-	time_stats_updater_t(concurrent_time_stats_tree_t &time_stats_tree, const size_t max_depth = 1);
+	time_stats_updater_t(concurrent_time_stats_tree_t &time_stats_tree, const size_t max_depth = DEFAULT_DEPTH);
 
 	/*!
 	 * \brief Checks if all actions were correctly finished.
@@ -391,7 +392,7 @@ public:
 
 	/*!
 	 * \brief Sets target tree for updates
-	 * \param time_stats_tree Target tree
+	 * \param time_stats_tree Tree used to monitor updates
 	 */
 	void set_time_stats_tree(concurrent_time_stats_tree_t &time_stats_tree);
 
@@ -403,20 +404,20 @@ public:
 
 	/*!
 	 * \brief Starts new branch in tree with action \a action_code
-	 * \param action_code
+	 * \param action_code Code of new action
 	 */
 	void start(const int action_code);
 
 	/*!
 	 * \brief Starts new branch in tree with action \a action_code and with specified start time
-	 * \param action_code
+	 * \param action_code Code of new action
 	 * \param start_time Action start time
 	 */
 	void start(const int action_code, const time_point_t& start_time);
 
 	/*!
 	 * \brief Stops last action. Updates total consumed time in call-tree.
-	 * \param action_code
+	 * \param action_code Code of finished action
 	 */
 	void stop(const int action_code);
 
@@ -497,6 +498,11 @@ private:
 	 * \brief Maximum monitored call stack depth
 	 */
 	size_t max_depth;
+
+	/*!
+	 * \brief Default monitored call stack depth
+	 */
+	static const size_t DEFAULT_DEPTH = std::numeric_limits<size_t>::max();
 };
 
 /*!
@@ -507,7 +513,7 @@ public:
 	/*!
 	 * \brief Initializes guard and starts action with \a action_code
 	 * \param updater Updater whos start is called
-	 * \param action_code
+	 * \param action_code Code of new action
 	 */
 	action_guard(time_stats_updater_t *updater, const int action_code);
 
@@ -528,12 +534,12 @@ private:
 	time_stats_updater_t *updater;
 
 	/*!
-	 * \brief Action code for action
+	 * \brief Action code of guarded action
 	 */
 	const int action_code;
 
 	/*!
-	 * \brief Shows if the action is already stopped
+	 * \brief Shows if action is already stopped
 	 */
 	bool is_stopped;
 };
