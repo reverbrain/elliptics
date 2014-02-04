@@ -586,6 +586,7 @@ int dnet_add_state(struct dnet_node *n, char *addr_str, int port, int family, in
  */
 
 int dnet_state_num(struct dnet_session *s);
+int dnet_node_state_num(struct dnet_node *n);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id);
 void dnet_state_put(struct dnet_net_state *st);
 
