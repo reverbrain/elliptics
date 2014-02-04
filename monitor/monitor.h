@@ -149,7 +149,7 @@ void dnet_monitor_exit(struct dnet_node *n);
  * Adds to \a monitor raw statistics provider \a stat
  * with \a name to the provider list
  */
-void dnet_monitor_add_provider(void* monitor, struct stat_provider_raw stat, const char *name);
+void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw stat, const char *name);
 
 /*!
  * \internal
@@ -162,7 +162,7 @@ void dnet_monitor_add_provider(void* monitor, struct stat_provider_raw stat, con
  * \a size - size of data that takes a part in command execution
  * \a time - time spended on command execution
  */
-void monitor_command_counter(void *monitor, const int cmd, const int trans,
+void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans,
                              const int err, const int cache,
                              const uint32_t size, const unsigned long time);
 
@@ -171,7 +171,7 @@ void monitor_command_counter(void *monitor, const int cmd, const int trans,
  *
  * Outputs into log all monitor statistics
  */
-void dnet_monitor_log(void *monitor);
+void dnet_monitor_log(struct dnet_node *n);
 
 #ifdef __cplusplus
 }
