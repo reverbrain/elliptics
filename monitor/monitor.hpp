@@ -29,6 +29,8 @@ struct dnet_node;
 
 namespace ioremap { namespace monitor {
 
+class stat_provider;
+
 /*!
  * Main monitoring class which connects different parts of monitoring subsystem
  */
@@ -60,6 +62,8 @@ private:
 	server		m_server;
 	statistics	m_statistics;
 };
+
+void dnet_monitor_add_provider(struct dnet_node *n, stat_provider *provider, const char *name);
 
 }} /* namespace ioremap::monitor */
 
