@@ -1136,7 +1136,11 @@ err_out_exit:
 
 int dnet_state_num(struct dnet_session *s)
 {
-	struct dnet_node *n = s->node;
+	return dnet_node_state_num(s->node);
+}
+
+int dnet_node_state_num(struct dnet_node *n)
+{
 	struct dnet_net_state *st;
 	struct dnet_group *g;
 	int num = 0;
