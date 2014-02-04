@@ -61,9 +61,9 @@ if(WITH_COCAINE)
 endif()
 
 add_custom_target(test
-    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
+    COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
     DEPENDS ${TESTS_LIST}
-    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py")
+    SOURCES "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py")
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)

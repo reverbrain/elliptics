@@ -725,6 +725,24 @@ static void *dnet_io_process(void *data_)
 
 		pthread_mutex_lock(&pool->lock);
 
+		/*
+		 * Comment below is only related to client IO threads processing replies from the server.
+		 *
+		 * At any given moment of time it is forbidden for 2 IO threads to process replies for the same transaction.
+		 * This may lead to the situation, when thread 1 processes final ack, while thread 2 is being handling received data.
+		 * Thread 1 will free resources, which leads thread 2 to crash the whole process.
+		 *
+		 * Thus any transaction may only be processed on single thread at any given time.
+		 * But it is possible to ping-pong transaction between multiple IO threads as long as each IO thread
+		 * processes different transaction reply simultaneously.
+		 *
+		 * We must set current thread index to -1 to highlight that current thread currently does not perform any task,
+		 * so it can be assigned any transaction reply, if it is not already claimed by another thread.
+		 *
+		 * If we leave here previously processed transaction id, we might stuck, since all threads will wait for those
+		 * transactions they are assigned to, thus not allowing any further process, since no thread will be able to
+		 * process current request and move to the next one.
+		 */
 		pool->trans[wio->thread_index] = -1;
 
 		if (!(r = take_request(pool, wio->thread_index))) {
