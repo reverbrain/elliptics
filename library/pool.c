@@ -167,15 +167,15 @@ err_out_exit:
 }
 
 /* As an example (with hardcoded loglevel and one second interval) */
-static inline void list_stat_log(struct list_stat *st, struct dnet_node *node, const char *list_name) {
+static inline void list_stat_log(struct list_stat *st, struct dnet_node *node, const char *list_name, int nonblocking) {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 
 	if ((tv.tv_sec - st->time_base.tv_sec) >= 1) {
 		double elapsed_seconds = (double)(tv.tv_sec - st->time_base.tv_sec) * 1000000 + (tv.tv_usec - st->time_base.tv_usec);
 		elapsed_seconds /= 1000000;
-		dnet_log(node, DNET_LOG_INFO, "%s report: elapsed: %.3f s, current size: %ld, min: %ld, max: %ld, volume: %ld\n",
-			list_name, elapsed_seconds, st->list_size, st->min_list_size, st->max_list_size, st->volume);
+		dnet_log(node, DNET_LOG_INFO, "%s report: elapsed: %.3f s, current size: %ld, min: %ld, max: %ld, volume: %ld, noneblocking: %d\n",
+			list_name, elapsed_seconds, st->list_size, st->min_list_size, st->max_list_size, st->volume, nonblocking);
 
 		list_stat_reset(st, &tv);
 	}
@@ -212,9 +212,9 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
 	list_stat_size_increase(&pool->list_stats, 1);
-	list_stat_log(&pool->list_stats, r->st->n, "input io queue");
-	pthread_cond_signal(&pool->wait);
+	list_stat_log(&pool->list_stats, r->st->n, "input io queue", nonblocking);
 	pthread_mutex_unlock(&pool->lock);
+	pthread_cond_signal(&pool->wait);
 }
 
 
@@ -527,6 +527,9 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 		}
 	}
 
+	if (send)
+		pthread_cond_broadcast(&st->n->io->full_wait);
+
 	return err;
 }
 
@@ -563,18 +566,79 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_check_io_pool(struct dnet_io *io)
+{
+	struct dnet_work_pool *pool = io->recv_pool;
+	struct dnet_work_pool *nb_pool = io->recv_pool_nb;
+	int max_size = (pool->num + nb_pool->num) * 1000;
+	int list_size = 0;
+
+	pthread_mutex_lock(&pool->lock);
+	list_size = pool->list_stats.list_size;
+	pthread_mutex_unlock(&pool->lock);
+
+	pthread_mutex_lock(&nb_pool->lock);
+	list_size += nb_pool->list_stats.list_size;
+	pthread_mutex_unlock(&nb_pool->lock);
+
+	if (list_size <= max_size)
+		return 1;
+
+	return 0;
+}
+
+static void dnet_shuffle_epoll_events(struct epoll_event *evs, int size) {
+	int i = 0, j = 0;
+	struct epoll_event tmp;
+
+	if (size < 1)
+		return;
+
+	for (i = 0; i < size - 1; ++i) {
+		j = i + rand() / (RAND_MAX / (size - i) + 1);
+
+		memcpy(&tmp, evs + j, sizeof(struct epoll_event));
+		memcpy(evs + j, evs + i, sizeof(struct epoll_event));
+		memcpy(evs + i, &tmp, sizeof(struct epoll_event));
+	}
+}
+
 static void *dnet_io_process_network(void *data_)
 {
 	struct dnet_net_io *nio = data_;
 	struct dnet_node *n = nio->n;
 	struct dnet_net_state *st;
-	struct epoll_event ev;
+	struct epoll_event *evs = malloc(sizeof(struct epoll_event));
+	struct epoll_event *evs_tmp = NULL;
+	int evs_size = 1;
+	int tmp = 0;
 	int err = 0;
+	int i = 0;
+	struct timeval prev_tv, curr_tv;
 
 	dnet_set_name("net_pool");
 
+	if (evs == NULL) {
+		dnet_log(n, DNET_LOG_ERROR, "Not enough memory to allocate epoll_events");
+		goto err_out_exit;
+	}
+
+	// get current timestamp for future outputting "Net pool is suspended..." logging
+	gettimeofday(&prev_tv, NULL);
+
 	while (!n->need_exit) {
-		err = epoll_wait(nio->epoll_fd, &ev, 1, 1000);
+		// get current number of states
+		tmp = dnet_node_state_num(n);
+		if (evs_size < tmp) {
+			tmp *= 2; // tries to increase number of epoll_events
+			evs_tmp = (struct epoll_event *)realloc(evs, sizeof(struct epoll_event) * tmp);
+			if (evs_tmp) {
+				evs = evs_tmp;
+				evs_size = tmp;
+			}
+		}
+
+		err = epoll_wait(nio->epoll_fd, evs, evs_size, 1000);
 		if (err == 0)
 			continue;
 
@@ -589,16 +653,27 @@ static void *dnet_io_process_network(void *data_)
 			break;
 		}
 
-		st = ev.data.ptr;
-		st->epoll_fd = nio->epoll_fd;
+		// tmp will counts number of send events
+		tmp = 0;
+		// suffles available epoll_events
+		dnet_shuffle_epoll_events(evs, err);
+		for (i = 0; i < err; ++i) {
+			st = evs[i].data.ptr;
+			st->epoll_fd = nio->epoll_fd;
 
-		while (1) {
-			err = st->process(st, &ev);
+			// if event is send or io pool queues are not full then process it
+			if ((evs[i].events & EPOLLOUT) || dnet_check_io_pool(n->io)) {
+				++tmp;
+				err = st->process(st, &evs[i]);
+			}
+			else
+				continue;
+
 			if (err == 0)
 				continue;
 
 			if (err == -EAGAIN && st->stall < DNET_DEFAULT_STALL_TRANSACTIONS)
-				break;
+				continue;
 
 			if (err < 0 || st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
 				if (!err)
@@ -621,11 +696,28 @@ static void *dnet_io_process_network(void *data_)
 				// transactions may live in the tree and be accessed without locks in IO thread,
 				// IO thread is kind of 'owner' of the transaction processing
 				dnet_state_put(st);
-				break;
+				continue;
 			}
+		}
+
+		// wait condition variable if no data was sended and io pool queues are still full
+		if (tmp == 0 && dnet_check_io_pool(n->io) == 0) {
+			gettimeofday(&curr_tv, NULL);
+			// print log only if previous log was writed more then 1 seconds
+			if ((curr_tv.tv_sec - prev_tv.tv_sec) > 1) {
+				dnet_log(n, DNET_LOG_INFO, "Net pool is suspended bacause io pool queues is full\n");
+				prev_tv = curr_tv;
+			}
+			// wait condition variable - io queues has a free slot or some socket has something to send
+			pthread_mutex_lock(&n->io->full_lock);
+			pthread_cond_wait(&n->io->full_wait, &n->io->full_lock);
+			pthread_mutex_unlock(&n->io->full_lock);
 		}
 	}
 
+	free(evs);
+
+err_out_exit:
 	return &n->need_exit;
 }
 
@@ -643,11 +735,6 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 		dnet_state_put(st);
 	}
 }
-
-struct dnet_io_process_data {
-	struct dnet_node *n;
-	int thread_number;
-};
 
 static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_index)
 {
@@ -669,15 +756,6 @@ static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_
 		for (i = 0; i < pool->num; ++i) {
 			 /* Someone claimed transaction @tid */
 			if (pool->trans[i] == tid) {
-				 /* Its our transaction, let's handle it */
-				if (i == thread_index) {
-					/* its the last transaction in given set, clear 'claim' flag for current thread */
-					if (!(cmd->flags & DNET_FLAGS_MORE))
-						pool->trans[thread_index] = ~0ULL;
-
-					return it;
-				}
-
 				/* we should not touch it */
 				ok = 0;
 				break;
@@ -689,12 +767,10 @@ static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_
 		 * but only if 'we' do not wait for another transaction already.
 		 */
 		if (ok) {
-			if (pool->trans[thread_index] == ~0ULL) {
-				/* only claim this transaction if there will be others */
-				if (cmd->flags & DNET_FLAGS_MORE)
-					pool->trans[thread_index] = tid;
-				return it;
-			}
+			/* only claim this transaction if there will be others */
+			if (cmd->flags & DNET_FLAGS_MORE)
+				pool->trans[thread_index] = tid;
+			return it;
 		}
 	}
 
@@ -754,6 +830,7 @@ static void *dnet_io_process(void *data_)
 		if (r) {
 			list_del_init(&r->req_entry);
 			list_stat_size_decrease(&pool->list_stats, 1);
+			pthread_cond_broadcast(&n->io->full_wait);
 		}
 		pthread_mutex_unlock(&pool->lock);
 
@@ -788,6 +865,18 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_exit;
 	}
 
+	err = pthread_mutex_init(&n->io->full_lock, NULL);
+	if (err) {
+		err = -err;
+		goto err_out_free;
+	}
+
+	err = pthread_cond_init(&n->io->full_wait, NULL);
+	if (err) {
+		err = -err;
+		goto err_out_free_mutex;
+	}
+
 	memset(n->io, 0, io_size);
 
 	n->io->net_thread_num = cfg->net_thread_num;
@@ -797,7 +886,7 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 	n->io->recv_pool = dnet_work_pool_alloc(n, cfg->io_thread_num, DNET_WORK_IO_MODE_BLOCKING, dnet_io_process);
 	if (!n->io->recv_pool) {
 		err = -ENOMEM;
-		goto err_out_free;
+		goto err_out_free_cond;
 	}
 
 	n->io->recv_pool_nb = dnet_work_pool_alloc(n, cfg->nonblocking_io_thread_num, DNET_WORK_IO_MODE_NONBLOCKING, dnet_io_process);
@@ -841,6 +930,10 @@ err_out_net_destroy:
 	dnet_work_pool_cleanup(n->io->recv_pool_nb);
 err_out_free_recv_pool:
 	dnet_work_pool_cleanup(n->io->recv_pool);
+err_out_free_cond:
+	pthread_cond_destroy(&n->io->full_wait);
+err_out_free_mutex:
+	pthread_mutex_destroy(&n->io->full_lock);
 err_out_free:
 	free(n->io);
 err_out_exit:
