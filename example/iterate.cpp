@@ -20,6 +20,7 @@
 #include <vector>
 #include <string>
 #include <set>
+#include <iostream>
 
 #include <boost/program_options.hpp>
 
