@@ -68,9 +68,7 @@ cache_manager::cache_manager(struct dnet_node *n) {
 	stop = false;
 	m_dump_stats = std::thread(std::bind(&cache_manager::dump_stats, this));
 
-	auto real_monitor = static_cast<ioremap::monitor::monitor*>(n->monitor);
-	if (real_monitor)
-		real_monitor->get_statistics().add_provider(new cache_stat_provider(*this), "cache");
+	ioremap::monitor::dnet_monitor_add_provider(n, new cache_stat_provider(*this), "cache");
 }
 
 cache_manager::~cache_manager() {

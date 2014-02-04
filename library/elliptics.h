@@ -568,6 +568,7 @@ struct dnet_node
 	void			*cache;
 
 	void			*monitor;
+	pthread_rwlock_t monitor_rwlock;
 
 	struct dnet_config_data *config_data;
 };
