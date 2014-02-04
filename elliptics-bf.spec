@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.6
+Version:	2.24.15.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Feb 05 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.7
+- Monitoring: Added rwlock on access to dnet_node::monitor
+- Get rid of get_node calls
+- client: Fixes for x86 platform
+- Core: Limited size of io queues to the number of io threads * 1000. Added building iterate.cpp from example to main build without installation.
+
 * Thu Jan 30 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.6
 - debian: provide and replace *-2.24 package versions
 
