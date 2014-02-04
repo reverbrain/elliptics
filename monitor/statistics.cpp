@@ -166,7 +166,7 @@ std::string statistics::report(int category) {
 	for (auto it = m_stat_providers.cbegin(), end = m_stat_providers.cend(); it != end; ++it) {
 		if (!it->first->check_category(category))
 			continue;
-		rapidjson::Document value_doc;
+		rapidjson::Document value_doc(&allocator);
 		value_doc.Parse<0>(it->first->json().c_str());
 		report.AddMember(it->second.c_str(),
 						 allocator,

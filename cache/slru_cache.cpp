@@ -580,10 +580,6 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 		data_t *raw = &*it;
 		++it;
 
-		if (raw->is_syncing()) {
-			continue;
-		}
-
 		// If page is not last move object to previous page
 		if (previous_page_number < m_cache_pages_number) {
 			move_data_between_pages(id, page_number, previous_page_number, raw);
@@ -726,7 +722,6 @@ void slru_cache_t::life_check(void) {
 				elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
 				stop_action(ACTION_LOCK);
 
-				elements_for_sync.clear();
 				start_action(ACTION_PREPARE_SYNC);
 				while (!m_need_exit && !m_treap.empty()) {
 					size_t time = ::time(NULL);

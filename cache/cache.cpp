@@ -117,7 +117,7 @@ cache_manager::cache_manager(struct dnet_node *n) {
 }
 
 cache_manager::~cache_manager() {
-	//Stops all caches in parallel. Avoids sleeping in all cache distructors
+	//Stops all caches in parallel. Avoids sleeping in all cache destructors
 	size_t id = 0;
 	for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it, ++id) {
 		(*it)->stop(); //Sets cache as stopped
