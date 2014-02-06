@@ -502,7 +502,7 @@ private:
 	/*!
 	 * \brief Default monitored call stack depth
 	 */
-	static const size_t DEFAULT_DEPTH = std::numeric_limits<size_t>::max();
+	static const size_t DEFAULT_DEPTH;
 };
 
 /*!

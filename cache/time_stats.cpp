@@ -17,6 +17,8 @@
 
 #include <elliptics/interface.h>
 
+#include <limits.h>
+
 namespace ioremap { namespace cache {
 
 actions_set_t::actions_set_t() {
@@ -145,8 +147,10 @@ void time_stats_tree_t::substract_from(time_stats_tree_t::p_node_t lhs_node, tim
 	}
 }
 
+const size_t time_stats_updater_t::DEFAULT_DEPTH = std::numeric_limits<size_t>::max();
+
 time_stats_updater_t::time_stats_updater_t(const size_t max_depth):
-	current_node(0), time_stats_tree(nullptr), depth(0), max_depth(max_depth) {
+	current_node(0), time_stats_tree(NULL), depth(0), max_depth(max_depth) {
 	measurements.emplace(std::chrono::system_clock::now(), NULL);
 }
 
@@ -173,7 +177,7 @@ void time_stats_updater_t::set_time_stats_tree(concurrent_time_stats_tree_t &tim
 }
 
 bool time_stats_updater_t::has_time_stats_tree() const {
-	return (time_stats_tree != nullptr);
+	return (time_stats_tree != NULL);
 }
 
 void time_stats_updater_t::start(const int action_code) {

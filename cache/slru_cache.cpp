@@ -40,7 +40,7 @@ slru_cache_t::~slru_cache_t() {
 	stop();
 	m_lifecheck.join();
 	clear();
-	ioremap::cache::local::thread_time_stats_updater = nullptr;
+	ioremap::cache::local::thread_time_stats_updater = NULL;
 }
 
 void slru_cache_t::stop() {
@@ -803,7 +803,7 @@ void slru_cache_t::life_check(void) {
 				stop_action(ACTION_ERASE_ITERATE);
 			}
 			stop_action(ACTION_LIFECHECK);
-			ioremap::cache::local::thread_time_stats_updater = nullptr;
+			ioremap::cache::local::thread_time_stats_updater = NULL;
 		}
 
 		std::this_thread::sleep_for( std::chrono::milliseconds(1000) );

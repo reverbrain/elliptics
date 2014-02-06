@@ -163,7 +163,7 @@ void cache_manager::clear() {
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		m_caches[i]->clear();
 	}
-	ioremap::cache::local::thread_time_stats_updater = nullptr;
+	ioremap::cache::local::thread_time_stats_updater = NULL;
 }
 
 size_t cache_manager::cache_size() const {
@@ -273,7 +273,7 @@ size_t cache_manager::idx(const unsigned char *id) {
 }} /* namespace ioremap::cache */
 
 namespace ioremap { namespace cache { namespace local {
-	__thread time_stats_updater_t *thread_time_stats_updater = nullptr;
+	__thread time_stats_updater_t *thread_time_stats_updater = NULL;
 }}}
 
 using namespace ioremap::cache;
@@ -337,7 +337,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		err = -ENOENT;
 	}
 
-	ioremap::cache::local::thread_time_stats_updater = nullptr;
+	ioremap::cache::local::thread_time_stats_updater = NULL;
 	return err;
 }
 
@@ -373,7 +373,7 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 		err = -ENOENT;
 	}
 
-	ioremap::cache::local::thread_time_stats_updater = nullptr;
+	ioremap::cache::local::thread_time_stats_updater = NULL;
 	return err;
 }
 
@@ -399,7 +399,7 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 		err = -ENOENT;
 	}
 
-	ioremap::cache::local::thread_time_stats_updater = nullptr;
+	ioremap::cache::local::thread_time_stats_updater = NULL;
 	return err;
 }
 
