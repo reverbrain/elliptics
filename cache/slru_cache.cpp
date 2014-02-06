@@ -24,7 +24,6 @@ using namespace ioremap::cache::actions;
 // public:
 
 slru_cache_t::slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes) :
-	m_need_exit(false),
 	m_node(n),
 	m_cache_pages_number(cache_pages_max_sizes.size()),
 	m_cache_pages_max_sizes(cache_pages_max_sizes),
@@ -37,14 +36,9 @@ slru_cache_t::slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache
 slru_cache_t::~slru_cache_t() {
 	time_stats_updater_t time_stats_updater;
 	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
-	stop();
 	m_lifecheck.join();
 	clear();
 	ioremap::cache::local::thread_time_stats_updater = nullptr;
-}
-
-void slru_cache_t::stop() {
-	m_need_exit = true;
 }
 
 int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
@@ -704,7 +698,7 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 
 void slru_cache_t::life_check(void) {
 
-	while (!m_need_exit) {
+	while (!dnet_need_exit(m_node)) {
 		{
 			time_stats_updater_t time_stats_updater;
 			ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
@@ -723,7 +717,7 @@ void slru_cache_t::life_check(void) {
 				stop_action(ACTION_LOCK);
 
 				start_action(ACTION_PREPARE_SYNC);
-				while (!m_need_exit && !m_treap.empty()) {
+				while (!dnet_need_exit(m_node) && !m_treap.empty()) {
 					size_t time = ::time(NULL);
 					last_time = time;
 

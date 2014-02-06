@@ -28,8 +28,6 @@ public:
 
 	~slru_cache_t();
 
-	void stop();
-
 	int write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data);
 
 	std::shared_ptr<raw_data_t> read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io);
@@ -52,7 +50,6 @@ private:
 
 	time_stats_updater_t *get_time_stats_updater();
 
-	bool m_need_exit;
 	struct dnet_node *m_node;
 	std::mutex m_lock;
 	size_t m_cache_pages_number;
