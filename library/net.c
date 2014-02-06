@@ -291,6 +291,8 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	buf = r = malloc(sizeof(struct dnet_io_req) + orig->dsize + orig->hsize);
 	if (!r) {
 		err = -ENOMEM;
+		dnet_log(st->n, DNET_LOG_ERROR, "Not enough memory for io req queue fd: %d : %s %d\n", orig->fd, strerror(-err), err);
+
 		goto err_out_exit;
 	}
 	memset(r, 0, sizeof(struct dnet_io_req));
