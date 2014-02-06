@@ -109,18 +109,10 @@ cache_manager::cache_manager(struct dnet_node *n) {
 		m_caches.emplace_back(std::make_shared<slru_cache_t>(n, pages_max_sizes));
 	}
 
-	stop = false;
-
 	ioremap::monitor::dnet_monitor_add_provider(n, new cache_stat_provider(*this), "cache");
 }
 
 cache_manager::~cache_manager() {
-	//Stops all caches in parallel. Avoids sleeping in all cache destructors
-	size_t id = 0;
-	for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it, ++id) {
-		(*it)->stop(); //Sets cache as stopped
-	}
-	stop = true;
 }
 
 int cache_manager::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
