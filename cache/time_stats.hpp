@@ -24,14 +24,18 @@
  *
  * Example of simple monitoring:
  * \code
- *      time_stats_tree_t time_stats; // Call tree for storing statistics.
+ *      actions_set_t actions_set; // Define set of actions that will be monitored
+ *      const int ACTION_READ = actions_set.define_new_action("READ");
+ *      ...
+ *      const int ACTION_FIND = actions_set.define_new_action("FIND");
+ *      concurrent_time_stats_tree_t time_stats(actions_set); // Call tree for storing statistics.
  *      time_stats_updater_t updater(time_stats); // Updater for gathering of statistics.
  *
  *      void cache_read(...) {
  *          action_guard(updater, ACTION_READ); // Creates new guard and starts action which will be stopped on guard's destructor
- *          updater.start(ACTION_READ_FIND); // Starts new action which will be inner to ACTION_READ
+ *          updater.start(ACTION_FIND); // Starts new action which will be inner to ACTION_READ
  *          found = find_record(...);
- *          updater.stop(ACTION_READ_FIND);
+ *          updater.stop(ACTION_FIND);
  *          if (!found) {
  *              action_guard(updater, ACTION_READ_FROM_DISK);
  *              updater.start(ACTION_LOAD_FROM_DISK);
@@ -51,7 +55,7 @@
  * This code with build such call tree:
  *
  * - ACTION_READ
- *      - ACTION_READ_FIND
+ *      - ACTION_FIND
  *      - ACTION_READ_FROM_DISK
  *          - ACTION_LOAD_FROM_DISK
  *          - ACTION_PUT_INTO_CACHE
