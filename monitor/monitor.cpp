@@ -44,7 +44,10 @@ void dnet_monitor_add_provider(struct dnet_node *n, stat_provider *provider, con
 
 	pthread_rwlock_rdlock(&n->monitor_rwlock);
 	auto real_monitor = static_cast<monitor*>(n->monitor);
-	real_monitor->get_statistics().add_provider(provider, name);
+	if (real_monitor)
+		real_monitor->get_statistics().add_provider(provider, name);
+	else
+		delete provider;
 	pthread_rwlock_unlock(&n->monitor_rwlock);
 }
 
@@ -84,8 +87,10 @@ void dnet_monitor_exit(struct dnet_node *n) {
 	pthread_rwlock_wrlock(&n->monitor_rwlock);
 
 	auto real_monitor = monitor_cast(n->monitor);
-	delete real_monitor;
-	n->monitor = NULL;
+	if (real_monitor) {
+		delete real_monitor;
+		n->monitor = NULL;
+	}
 
 	pthread_rwlock_unlock(&n->monitor_rwlock);
 }
@@ -99,8 +104,11 @@ void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw sta
 	pthread_rwlock_rdlock(&n->monitor_rwlock);
 
 	auto real_monitor = monitor_cast(n->monitor);
-	auto provider = new ioremap::monitor::raw_provider(stat);
-	real_monitor->get_statistics().add_provider(provider, std::string(name));
+	if (real_monitor) {
+		auto provider = new ioremap::monitor::raw_provider(stat);
+		real_monitor->get_statistics().add_provider(provider, std::string(name));
+	} else
+		stat.stop(stat.stat_private);
 
 	pthread_rwlock_unlock(&n->monitor_rwlock);
 }
@@ -112,7 +120,8 @@ void dnet_monitor_log(struct dnet_node *n) {
 	pthread_rwlock_rdlock(&n->monitor_rwlock);
 
 	auto real_monitor = monitor_cast(n->monitor);
-	real_monitor->get_statistics().log();
+	if (real_monitor)
+		real_monitor->get_statistics().log();
 
 	pthread_rwlock_unlock(&n->monitor_rwlock);
 }
@@ -126,8 +135,9 @@ void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans
 	pthread_rwlock_rdlock(&n->monitor_rwlock);
 
 	auto real_monitor = monitor_cast(n->monitor);
-	real_monitor->get_statistics().command_counter(cmd, trans, err,
-	                                               cache, size, time);
+	if (real_monitor)
+		real_monitor->get_statistics().command_counter(cmd, trans, err,
+		                                               cache, size, time);
 
 	pthread_rwlock_unlock(&n->monitor_rwlock);
 }

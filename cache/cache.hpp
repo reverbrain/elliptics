@@ -384,7 +384,6 @@ class cache_manager {
 		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
 		size_t m_max_cache_size;
 		size_t m_cache_pages_number;
-		bool stop;
 
 		size_t idx(const unsigned char *id);
 };
