@@ -88,26 +88,32 @@ public:
 	/*!
 	 * \brief Initializes empty actions set
 	 */
-	actions_set_t();
+	actions_set_t() {}
 
 	/*!
 	 * \brief Frees memory consumed by actions set
 	 */
-	~actions_set_t();
+	~actions_set_t() {}
 
 	/*!
 	 * \brief Defines new action
 	 * \param action_name new action's name
 	 * \return new action's code
 	 */
-	int define_new_action(const std::string& action_name);
+	int define_new_action(const std::string& action_name) {
+		int action_code = actions_names.size();
+		actions_names.insert(make_pair(action_code, action_name));
+		return action_code;
+	}
 
 	/*!
 	 * \brief Gets action's name by it's \a action_code
 	 * \param action_code
 	 * \return action's name
 	 */
-	std::string get_action_name(int action_code) const;
+	std::string get_action_name(int action_code) const {
+		return actions_names.at(action_code);
+	}
 
 private:
 	/*!
@@ -129,12 +135,14 @@ public:
 	 * \brief initializes call tree with single root node and action set
 	 * \param actions_set Set of available actions for monitoring in call tree
 	 */
-	time_stats_tree_t(const actions_set_t& actions_set);
+	time_stats_tree_t(const actions_set_t &actions_set): actions_set(actions_set) {
+		root = new_node(-1);
+	}
 
 	/*!
 	 * \brief frees memory consumed by call tree
 	 */
-	~time_stats_tree_t();
+	~time_stats_tree_t() {}
 
 	/*!
 	 * \brief Converts call tree to json
@@ -143,7 +151,9 @@ public:
 	 * \return Modified json node
 	 */
 	rapidjson::Value& to_json(rapidjson::Value &stat_value,
-							  rapidjson::Document::AllocatorType &allocator) const;
+							  rapidjson::Document::AllocatorType &allocator) const {
+		return to_json(root, stat_value, allocator);
+	}
 
 	struct node_t;
 	/*!
@@ -183,28 +193,36 @@ public:
 	 * \param node Target node
 	 * \return Action code of the target node
 	 */
-	int get_node_action_code(p_node_t node) const;
+	int get_node_action_code(p_node_t node) const {
+		return nodes[node].action_code;
+	}
 
 	/*!
 	 * \brief Sets total time consumed by action represented by \a node
 	 * \param node Action's node
 	 * \param time New time value
 	 */
-	void set_node_time(p_node_t node, long long time);
+	void set_node_time(p_node_t node, long long time) {
+		nodes[node].time = time;
+	}
 
 	/*!
 	 * \brief Increments total time consumed by action represented by \a node
 	 * \param node Action's node
 	 * \param delta Value by which time will be incremented
 	 */
-	void inc_node_time(p_node_t node, long long delta);
+	void inc_node_time(p_node_t node, long long delta) {
+		nodes[node].time += delta;
+	}
 
 	/*!
 	 * \brief Returns total time consumed by action represented by \a node
 	 * \param node Action's node
 	 * \return Time consumed by action
 	 */
-	long long int get_node_time(p_node_t node) const;
+	long long int get_node_time(p_node_t node) const {
+		return nodes[node].time;
+	}
 
 	/*!
 	 * \brief Checks whether node has child with \a action_code
@@ -212,7 +230,9 @@ public:
 	 * \param action_code Child's action code
 	 * \return whether \a node has child with \a action_code
 	 */
-	bool node_has_link(p_node_t node, int action_code) const;
+	bool node_has_link(p_node_t node, int action_code) const {
+		return nodes[node].links.find(action_code) != nodes[node].links.end();
+	}
 
 	/*!
 	 * \brief Gets node's child with \a action_code
@@ -220,7 +240,9 @@ public:
 	 * \param action_code Child's action code
 	 * \return Pointer to child with \a action_code
 	 */
-	p_node_t get_node_link(p_node_t node, int action_code) const;
+	p_node_t get_node_link(p_node_t node, int action_code) const {
+		return nodes[node].links.at(action_code);
+	}
 
 	/*!
 	 * \brief Adds new child to \a node with \a action_code
@@ -228,7 +250,11 @@ public:
 	 * \param action_code Child's action code
 	 * \return Pointer to newly created child of \a node with \a action_code
 	 */
-	p_node_t add_new_link(p_node_t node, int action_code);
+	p_node_t add_new_link(p_node_t node, int action_code) {
+		p_node_t action_node = new_node(action_code);
+		nodes[node].links.insert(std::make_pair(action_code, action_node));
+		return action_node;
+	}
 
 	/*!
 	 * \brief Adds new child to \a node with \a action_code if it's missing
@@ -236,25 +262,39 @@ public:
 	 * \param action_code Child's action code
 	 * \return Pointer to child of \a node with \a action_code
 	 */
-	p_node_t add_new_link_if_missing(p_node_t node, int action_code);
+	p_node_t add_new_link_if_missing(p_node_t node, int action_code) {
+		auto link = nodes[node].links.find(action_code);
+		if (link == nodes[node].links.end()) {
+			return add_new_link(node, action_code);
+		}
+		return link->second;
+	}
 
 	/*!
 	 * \brief Merges this tree into \a another_tree
 	 * \param another_tree Tree where current tree will be merged in
 	 */
-	void merge_into(time_stats_tree_t& another_tree) const;
+	void merge_into(time_stats_tree_t& another_tree) const {
+		merge_into(root, another_tree.root, another_tree);
+	}
 
 	/*!
 	 * \brief Calculates time differences between this tree and \a another tree
 	 * \param another_tree Tree which will be substracted from this tree
 	 */
-	time_stats_tree_t diff_from(time_stats_tree_t& another_tree) const;
+	time_stats_tree_t diff_from(time_stats_tree_t& another_tree) const {
+		time_stats_tree_t diff_tree = *this;
+		another_tree.substract_from(diff_tree);
+		return std::move(diff_tree);
+	}
 
 	/*!
 	 * \brief Substracts time stats of this tree from \a another tree
 	 * \param another_tree Tree from which this tree will be substracted
 	 */
-	void substract_from(time_stats_tree_t& another_tree) const;
+	void substract_from(time_stats_tree_t& another_tree) const {
+		return substract_from(root, another_tree.root, another_tree);
+	}
 
 	/*!
 	 * \brief Root of the call tree
@@ -272,7 +312,18 @@ private:
 	 * \return Modified json node
 	 */
 	rapidjson::Value& to_json(p_node_t current_node, rapidjson::Value &stat_value,
-							  rapidjson::Document::AllocatorType &allocator) const;
+							  rapidjson::Document::AllocatorType &allocator) const {
+
+		stat_value.AddMember("time", (int64_t) get_node_time(current_node), allocator);
+
+		for (auto it = nodes[current_node].links.begin(); it != nodes[current_node].links.end(); ++it) {
+			p_node_t next_node = it->second;
+			rapidjson::Value subtree_value(rapidjson::kObjectType);
+			to_json(next_node, subtree_value, allocator);
+			stat_value.AddMember(actions_set.get_action_name(get_node_action_code(next_node)).c_str(), subtree_value, allocator);
+		}
+		return stat_value;
+	}
 
 	/*!
 	 * \internal
@@ -281,7 +332,10 @@ private:
 	 * \param action_code
 	 * \return Pointer to newly created node
 	 */
-	p_node_t new_node(int action_code);
+	p_node_t new_node(int action_code) {
+		nodes.emplace_back(action_code);
+		return nodes.size() - 1;
+	}
 
 	/*!
 	 * \internal
@@ -291,7 +345,19 @@ private:
 	 * \param rhs_node
 	 * \param rhs_tree
 	 */
-	void merge_into(p_node_t lhs_node, p_node_t rhs_node, time_stats_tree_t& rhs_tree) const;
+	void merge_into(p_node_t lhs_node, p_node_t rhs_node, time_stats_tree_t& rhs_tree) const {
+		rhs_tree.set_node_time(rhs_node, rhs_tree.get_node_time(rhs_node) + get_node_time(lhs_node));
+
+		for (auto it = nodes[lhs_node].links.begin(); it != nodes[lhs_node].links.end(); ++it) {
+			int action_code = it->first;
+			p_node_t lhs_next_node = it->second;
+			if (!rhs_tree.node_has_link(rhs_node, action_code)) {
+				rhs_tree.add_new_link(rhs_node, action_code);
+			}
+			p_node_t rhs_next_node = rhs_tree.get_node_link(rhs_node, action_code);
+			merge_into(lhs_next_node, rhs_next_node, rhs_tree);
+		}
+	}
 
 	/*!
 	 * \internal
@@ -301,7 +367,19 @@ private:
 	 * \param rhs_node
 	 * \param rhs_tree
 	 */
-	void substract_from(p_node_t lhs_node, p_node_t rhs_node, time_stats_tree_t& rhs_tree) const;
+	void substract_from(p_node_t lhs_node, p_node_t rhs_node, time_stats_tree_t& rhs_tree) const {
+		rhs_tree.set_node_time(rhs_node, rhs_tree.get_node_time(rhs_node) - get_node_time(lhs_node));
+
+		for (auto it = nodes[lhs_node].links.begin(); it != nodes[lhs_node].links.end(); ++it) {
+			int action_code = it->first;
+			p_node_t lhs_next_node = it->second;
+			if (!rhs_tree.node_has_link(rhs_node, action_code)) {
+				rhs_tree.add_new_link(rhs_node, action_code);
+			}
+			p_node_t rhs_next_node = rhs_tree.get_node_link(rhs_node, action_code);
+			substract_from(lhs_next_node, rhs_next_node, rhs_tree);
+		}
+	}
 
 	/*!
 	 * \brief Tree nodes
@@ -323,23 +401,30 @@ public:
 	 * \brief Initializes time_stats_tree with \a actions_set
 	 * \param actions_set Set of available action for monitoring
 	 */
-	concurrent_time_stats_tree_t(actions_set_t& actions_set);
+	concurrent_time_stats_tree_t(actions_set_t &actions_set): time_stats_tree(actions_set) {
+	}
 
 	/*!
 	 * \brief Gets ownership of time stats tree
 	 */
-	void lock();
+	void lock() {
+		tree_mutex.lock();
+	}
 
 	/*!
 	 * \brief Releases ownership of time stats tree
 	 */
-	void unlock();
+	void unlock() {
+		tree_mutex.unlock();
+	}
 
 	/*!
 	 * \brief Returns inner time stats tree
 	 * \return Inner time stats tree
 	 */
-	time_stats_tree_t& get_time_stats_tree();
+	time_stats_tree_t& get_time_stats_tree() {
+		return time_stats_tree;
+	}
 
 private:
 	/*!
@@ -380,62 +465,118 @@ public:
 	 * \brief Initializes updater without target tree
 	 * \param max_depth Maximum monitored depth of call stack
 	 */
-	time_stats_updater_t(const size_t max_depth = DEFAULT_DEPTH);
+	time_stats_updater_t(const size_t max_depth = DEFAULT_DEPTH):
+		current_node(0), time_stats_tree(NULL), depth(0), max_depth(max_depth) {
+		measurements.emplace(std::chrono::system_clock::now(), NULL);
+	}
 
 	/*!
 	 * \brief Initializes updater with target tree
 	 * \param time_stats_tree Tree used to monitor updates
 	 * \param max_depth Maximum monitored depth of call stack
 	 */
-	time_stats_updater_t(concurrent_time_stats_tree_t &time_stats_tree, const size_t max_depth = DEFAULT_DEPTH);
+	time_stats_updater_t(concurrent_time_stats_tree_t &time_stats_tree,
+						 const size_t max_depth = DEFAULT_DEPTH): max_depth(max_depth) {
+		set_time_stats_tree(time_stats_tree);
+		measurements.emplace(std::chrono::system_clock::now(), NULL);
+	}
 
 	/*!
 	 * \brief Checks if all actions were correctly finished.
 	 */
-	~time_stats_updater_t();
+	~time_stats_updater_t() {
+		if (depth != 0) {
+			std::cerr << "~time_stats_updater(): extra measurements" << std::endl;
+		}
+		std::lock_guard<concurrent_time_stats_tree_t> guard(*time_stats_tree);
+
+		while (!measurements.empty()) {
+			pop_measurement();
+		}
+	}
 
 	/*!
 	 * \brief Sets target tree for updates
 	 * \param time_stats_tree Tree used to monitor updates
 	 */
-	void set_time_stats_tree(concurrent_time_stats_tree_t &time_stats_tree);
+	void set_time_stats_tree(concurrent_time_stats_tree_t &time_stats_tree) {
+		current_node = time_stats_tree.get_time_stats_tree().root;
+		this->time_stats_tree = &time_stats_tree;
+		depth = 0;
+	}
 
 	/*!
 	 * \brief Checks whether tree for updates is set
 	 * \return whether updater target tree was set
 	 */
-	bool has_time_stats_tree() const;
+	bool has_time_stats_tree() const {
+		return (time_stats_tree != NULL);
+	}
 
 	/*!
 	 * \brief Starts new branch in tree with action \a action_code
 	 * \param action_code Code of new action
 	 */
-	void start(const int action_code);
+	void start(const int action_code) {
+		start(action_code, std::chrono::system_clock::now());
+	}
 
 	/*!
 	 * \brief Starts new branch in tree with action \a action_code and with specified start time
 	 * \param action_code Code of new action
 	 * \param start_time Action start time
 	 */
-	void start(const int action_code, const time_point_t& start_time);
+	void start(const int action_code, const time_point_t& start_time) {
+		++depth;
+		if (get_depth() > max_depth) {
+			return;
+		}
+
+		time_stats_tree->lock();
+		p_node_t next_node = time_stats_tree->get_time_stats_tree().add_new_link_if_missing(current_node, action_code);
+		time_stats_tree->unlock();
+
+		measurements.emplace(start_time, current_node);
+		current_node = next_node;
+	}
 
 	/*!
 	 * \brief Stops last action. Updates total consumed time in call-tree.
 	 * \param action_code Code of finished action
 	 */
-	void stop(const int action_code);
+	void stop(const int action_code) {
+		if (get_depth() > max_depth) {
+			--depth;
+			return;
+		}
+
+		std::lock_guard<concurrent_time_stats_tree_t> guard(*time_stats_tree);
+
+		if (time_stats_tree->get_time_stats_tree().get_node_action_code(current_node) != action_code) {
+			throw std::logic_error("Stopping wrong action");
+		}
+		pop_measurement();
+	}
 
 	/*!
 	 * \brief Sets max monitored call stack depth to \a max_depth
 	 * \param max_depth Max monitored call stack depth
 	 */
-	void set_max_depth(const size_t max_depth);
+	void set_max_depth(const size_t max_depth) {
+		if (depth != 0) {
+			throw std::logic_error("can't change max_depth during update");
+		}
+
+		this->max_depth = max_depth;
+	}
 
 	/*!
 	 * \brief Gets current call stack depth
 	 * \return Current call stack depth
 	 */
-	size_t get_depth() const;
+	size_t get_depth() const {
+		return depth;
+	}
 
 private:
 	/*!
@@ -444,8 +585,7 @@ private:
 	 * \brief Returns delta between two time_points
 	 */
 	template<class Period = std::chrono::microseconds>
-	long long int delta(time_point_t& start, const time_point_t& end) const
-	{
+	long long int delta(time_point_t& start, const time_point_t& end) const {
 		return (std::chrono::duration_cast<Period> (end - start)).count();
 	}
 
@@ -476,7 +616,13 @@ private:
 	 * \brief Removes measurement from top of call stack and updates corresponding node in call-tree
 	 * \param end_time End time of the measurement
 	 */
-	void pop_measurement(const time_point_t& end_time = std::chrono::system_clock::now());
+	void pop_measurement(const time_point_t& end_time = std::chrono::system_clock::now()) {
+		measurement previous_measurement = measurements.top();
+		measurements.pop();
+		time_stats_tree->get_time_stats_tree().inc_node_time(current_node, delta(previous_measurement.start_time, end_time));
+		current_node = previous_measurement.previous_node;
+		--depth;
+	}
 
 	/*!
 	 * \brief Current position in call-tree
@@ -506,7 +652,7 @@ private:
 	/*!
 	 * \brief Default monitored call stack depth
 	 */
-	static const size_t DEFAULT_DEPTH;
+	static const size_t DEFAULT_DEPTH = -1;
 };
 
 /*!
@@ -519,17 +665,31 @@ public:
 	 * \param updater Updater whos start is called
 	 * \param action_code Code of new action
 	 */
-	action_guard(time_stats_updater_t *updater, const int action_code);
+	action_guard(time_stats_updater_t *updater, const int action_code):
+		updater(updater), action_code(action_code), is_stopped(false) {
+		updater->start(action_code);
+	}
 
 	/*!
 	 * \brief Stops action if it is not already stopped
 	 */
-	~action_guard();
+	~action_guard() {
+		if (!is_stopped) {
+			updater->stop(action_code);
+		}
+	}
 
 	/*!
 	 * \brief Allows to stop action manually
 	 */
-	void stop();
+	void stop() {
+		if (is_stopped) {
+			throw std::logic_error("action is already stopped");
+		}
+
+		updater->stop(action_code);
+		is_stopped = true;
+	}
 
 private:
 	/*!
