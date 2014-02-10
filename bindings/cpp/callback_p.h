@@ -395,7 +395,7 @@ class multigroup_callback
 			dnet_log_raw(sess.get_native_node(),
 				DNET_LOG_DEBUG, "%s: multigroup_callback::handle: cmd: %s, trans: %lx, status: %d, flags: %lx, group: %d: %zd/%zd, priv: %p\n",
 					dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), cmd->trans, cmd->status, cmd->flags,
-					groups[m_group_index], m_group_index, groups.size(), priv);
+					m_group_index < groups.size() ? groups[m_group_index] : -1, m_group_index, groups.size(), priv);
 
 			if (cb.handle(state, cmd, func, priv)) {
 				m_has_finished |= !cb.statuses().empty();

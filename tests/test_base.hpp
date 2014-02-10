@@ -151,6 +151,8 @@ struct nodes_data
 {
 	typedef std::shared_ptr<nodes_data> ptr;
 
+	~nodes_data();
+
 	directory_handler run_directory;
 #ifndef NO_SERVER
 	directory_handler directory;
