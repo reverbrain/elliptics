@@ -39,7 +39,7 @@
 #include "elliptics/interface.h"
 
 #include "treap.hpp"
-#include "time_stats.hpp"
+#include "../react/react.hpp"
 
 #include "../monitor/rapidjson/document.h"
 #include "../monitor/rapidjson/writer.h"
