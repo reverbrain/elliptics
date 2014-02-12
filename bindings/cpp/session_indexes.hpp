@@ -31,35 +31,30 @@
 
 namespace ioremap { namespace elliptics {
 
+enum {
+	DNET_INDEXES_CAPPED_REMOVED = 1
+};
+
+struct dnet_index_entry : public index_entry
+{
+	dnet_index_entry()
+	{
+		time.tsec = 0;
+		time.tnsec = 0;
+	}
+
+	dnet_index_entry(const dnet_raw_id &index, const data_pointer &data, const dnet_time &time)
+		: index_entry(index, data), time(time)
+	{}
+
+	dnet_time time;
+};
+
 struct dnet_indexes
 {
 	int shard_id;
 	int shard_count;
-	std::vector<index_entry> indexes;
-};
-
-struct update_request
-{
-	dnet_id id;
-	std::vector<index_entry> indexes;
-};
-
-struct update_result_entry
-{
-	dnet_raw_id id;
-	int error;
-};
-
-struct update_result
-{
-	std::vector<update_result_entry> indexes;
-};
-
-struct update_index_request
-{
-	dnet_id id;
-	index_entry index;
-	bool remove;
+	std::vector<dnet_index_entry> indexes;
 };
 
 template <typename T>
@@ -115,18 +110,6 @@ using namespace ioremap::elliptics;
 
 enum dnet_indexes_version : uint16_t {
 	dnet_indexes_version_second = 2
-};
-
-enum update_request_version : uint16_t {
-	update_request_version_first = 1
-};
-
-enum update_index_request_version : uint16_t {
-	update_index_request_version_first = 1
-};
-
-enum update_result_version : uint16_t {
-	update_result_version_first = 1
 };
 
 enum find_indexes_result_entry_version : uint16_t {
@@ -203,22 +186,31 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const in
 	return o;
 }
 
-inline update_result_entry &operator >>(msgpack::object o, update_result_entry &v)
+inline dnet_index_entry &operator >>(msgpack::object o, dnet_index_entry &v)
 {
-	if (o.type != msgpack::type::ARRAY || o.via.array.size != 2)
+	if (o.type != msgpack::type::ARRAY || (o.via.array.size != 2 && o.via.array.size != 4))
 		throw msgpack::type_error();
 	object *p = o.via.array.ptr;
-	p[0].convert(&v.id);
-	p[1].convert(&v.error);
+	p[0].convert(&v.index);
+	p[1].convert(&v.data);
+	if (o.via.array.size != 2) {
+		p[2].convert(&v.time.tsec);
+		p[3].convert(&v.time.tnsec);
+	} else {
+		v.time.tsec = 0;
+		v.time.tnsec = 0;
+	}
 	return v;
 }
 
 template <typename Stream>
-inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_result_entry &v)
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dnet_index_entry &v)
 {
-	o.pack_array(2);
-	o.pack(v.id);
-	o.pack(v.error);
+	o.pack_array(4);
+	o.pack(v.index);
+	o.pack(v.data);
+	o.pack(v.time.tsec);
+	o.pack(v.time.tnsec);
 	return o;
 }
 
@@ -257,114 +249,6 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dn
 	o.pack(v.shard_id);
 	o.pack(v.shard_count);
 	return o;
-}
-
-template <typename Stream>
-inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_request &request)
-{
-	o.pack_array(3);
-	o.pack(uint16_t(update_request_version_first));
-	o.pack(request.id);
-	o.pack(request.indexes);
-	return o;
-}
-
-inline update_request &operator >>(msgpack::object obj, update_request &request)
-{
-	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
-		throw msgpack::type_error();
-
-	object *array = obj.via.array.ptr;
-	const uint32_t size = obj.via.array.size;
-
-	uint16_t version = 0;
-	array[0].convert(&version);
-	switch (version) {
-	case update_request_version_first: {
-		if (size != 3)
-			throw msgpack::type_error();
-
-		array[1].convert(&request.id);
-		array[2].convert(&request.indexes);
-		break;
-	}
-	default:
-		throw msgpack::type_error();
-	}
-
-	return request;
-}
-
-template <typename Stream>
-inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_index_request &request)
-{
-	o.pack_array(4);
-	o.pack(uint16_t(update_index_request_version_first)); // version
-	o.pack(request.id);
-	o.pack(request.index);
-	o.pack(request.remove);
-	return o;
-}
-
-inline update_index_request &operator >>(msgpack::object obj, update_index_request &request)
-{
-	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
-		throw msgpack::type_error();
-
-	object *array = obj.via.array.ptr;
-	const uint32_t size = obj.via.array.size;
-
-	uint16_t version = 0;
-	array[0].convert(&version);
-	switch (version) {
-	case update_index_request_version_first: {
-		if (size != 4)
-			throw msgpack::type_error();
-
-		array[1].convert(&request.id);
-		array[2].convert(&request.index);
-		array[3].convert(&request.remove);
-		break;
-	}
-	default:
-		throw msgpack::type_error();
-	}
-
-	return request;
-}
-
-template <typename Stream>
-inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_result &result)
-{
-	o.pack_array(2);
-	o.pack(uint16_t(update_result_version_first));
-	o.pack(result.indexes);
-	return o;
-}
-
-inline update_result &operator >>(msgpack::object obj, update_result &result)
-{
-	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
-		throw msgpack::type_error();
-
-	object *array = obj.via.array.ptr;
-	const uint32_t size = obj.via.array.size;
-
-	uint16_t version = 0;
-	array[0].convert(&version);
-	switch (version) {
-	case update_result_version_first: {
-		if (size != 2)
-			throw msgpack::type_error();
-
-		array[1].convert(&result.indexes);
-		break;
-	}
-	default:
-		throw msgpack::type_error();
-	}
-
-	return result;
 }
 
 template <typename Stream>

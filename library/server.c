@@ -52,6 +52,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 		err = -ENOMEM;
 		goto err_out_close;
 	}
+	memset(buf, 0, size);
 
 	num = storage_free / q + 1;
 	for (i=0; i<num; ++i) {

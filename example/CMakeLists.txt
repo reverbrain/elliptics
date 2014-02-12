@@ -38,6 +38,9 @@ target_link_libraries(dnet_notify ${ECOMMON_LIBRARIES} elliptics_cpp)
 add_executable(dnet_ids ids.c)
 target_link_libraries(dnet_ids "")
 
+add_executable(iterate iterate.cpp)
+target_link_libraries(iterate ${ECOMMON_LIBRARIES} elliptics_cpp boost_program_options)
+
 install(TARGETS
         dnet_ioserv
         dnet_find

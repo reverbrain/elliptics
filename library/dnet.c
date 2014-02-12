@@ -1240,7 +1240,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	gettimeofday(&end, NULL);
 
 	diff = DIFF(start, end);
-	monitor_command_counter(n->monitor, cmd->cmd, tid, err, handled_in_cache, io ? io->size : 0, diff);
+	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, io ? io->size : 0, diff);
 	dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), tid,
 			(unsigned long long)cmd->flags, diff, err);
