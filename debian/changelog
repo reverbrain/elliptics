@@ -1,3 +1,10 @@
+elliptics (2.24.15.9) unstable; urgency=low
+
+  * reconnect: fixed groups array allocation. limit group array for random selection by 4096 groups
+  * core: added socket close debug
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 12 Feb 2014 23:58:37 +0400
+
 elliptics (2.24.15.8) unstable; urgency=low
 
   * Monitor: Added extra check that monitor is still alive after acquiring rwlock.
