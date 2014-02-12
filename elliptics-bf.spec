@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.7
+Version:	2.24.15.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Feb 12 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.8
+- Monitor: Added extra check that monitor is still alive after acquiring rwlock.
+- Example: fixed build. Tests: fixed path joining.
+
 * Wed Feb 05 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.7
 - Monitoring: Added rwlock on access to dnet_node::monitor
 - Get rid of get_node calls

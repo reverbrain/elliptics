@@ -1,3 +1,10 @@
+elliptics (2.24.15.8) unstable; urgency=low
+
+  * Monitor: Added extra check that monitor is still alive after acquiring rwlock.
+  * Example: fixed build. Tests: fixed path joining.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 12 Feb 2014 21:01:57 +0400
+
 elliptics (2.24.15.7) unstable; urgency=low
 
   * Monitoring: Added rwlock on access to dnet_node::monitor
