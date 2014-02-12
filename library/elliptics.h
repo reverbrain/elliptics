@@ -653,7 +653,7 @@ int dnet_socket_create(struct dnet_node *n, char *addr_str, int port, struct dne
 int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr *addr, int listening);
 
 void dnet_set_sockopt(int s);
-void dnet_sock_close(int s);
+void dnet_sock_close(struct dnet_node *n, int s);
 
 enum dnet_join_state {
 	DNET_JOIN = 1,			/* Node joined the network */

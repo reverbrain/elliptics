@@ -251,7 +251,7 @@ static int dnet_check_connection(struct dnet_node *n, struct dnet_addr *addr)
 	if (s < 0)
 		return s;
 
-	dnet_sock_close(s);
+	dnet_sock_close(n, s);
 	return 0;
 }
 
