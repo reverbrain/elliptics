@@ -458,7 +458,7 @@ private:
 
 namespace ioremap { namespace cache { namespace actions {
 
-extern actions_set_t cache_actions;
+extern react::actions_set_t cache_actions;
 
 const extern int ACTION_CACHE;
 const extern int ACTION_WRITE;
@@ -498,7 +498,7 @@ const extern int ACTION_DNET_OPLOCK;
 
 namespace ioremap { namespace cache { namespace local {
 
-extern __thread time_stats_updater_t *thread_time_stats_updater;
+extern __thread react::time_stats_updater_t *thread_time_stats_updater;
 
 }}}
 

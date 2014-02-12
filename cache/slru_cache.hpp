@@ -22,6 +22,8 @@
 
 namespace ioremap { namespace cache {
 
+using namespace react;
+
 class slru_cache_t {
 public:
 	slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes);
