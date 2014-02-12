@@ -640,7 +640,7 @@ err_out_free:
 err_out_exit:
 	*errp = err;
 	if (s >= 0)
-		dnet_sock_close(s);
+		dnet_sock_close(n, s);
 	return NULL;
 }
 
