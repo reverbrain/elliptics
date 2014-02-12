@@ -609,7 +609,7 @@ int process_internal_indexes_entry(dnet_node *node, const dnet_indexes_request &
 	const bool capped = entry.flags & DNET_INDEXES_FLAGS_INTERNAL_CAPPED_COLLECTION;
 
 	if (!capped)
-		removed = nullptr;
+		removed = NULL;
 
 	switch (action) {
 		case DNET_INDEXES_FLAGS_INTERNAL_INSERT:
@@ -625,13 +625,13 @@ int process_internal_indexes_entry(dnet_node *node, const dnet_indexes_request &
 			dnet_log(node, DNET_LOG_INFO, "INDEXES_INTERNAL: id: %s, checks: %lld ms, remove: %lld ms\n",
 				 id_str, lld(timer_checks), lld(timer_remove));
 
-			removed = nullptr;
+			removed = NULL;
 			return err;
 		}
 		default: {
 			dnet_log(node, DNET_LOG_ERROR, "INDEXES_INTERNAL: invalid flags: 0x%llx\n",
 				static_cast<unsigned long long>(entry.flags));
-			removed = nullptr;
+			removed = NULL;
 			return -EINVAL;
 		}
 	}
