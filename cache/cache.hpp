@@ -493,6 +493,7 @@ const extern int ACTION_SYNC_BEFORE_OPERATION;
 const extern int ACTION_ERASE_ITERATE;
 const extern int ACTION_SYNC_ITERATE;
 const extern int ACTION_DNET_OPLOCK;
+const extern int ACTION_DESTRUCT;
 
 }}}
 

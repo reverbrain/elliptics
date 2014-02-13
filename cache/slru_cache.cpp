@@ -36,8 +36,10 @@ slru_cache_t::slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache
 slru_cache_t::~slru_cache_t() {
 	time_stats_updater_t time_stats_updater;
 	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
+	start_action(ACTION_DESTRUCT);
 	m_lifecheck.join();
 	clear();
+	stop_action(ACTION_DESTRUCT);
 	ioremap::cache::local::thread_time_stats_updater = NULL;
 }
 
