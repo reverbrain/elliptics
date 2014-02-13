@@ -280,7 +280,6 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, str
 
 		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &la, s, &err, DNET_JOIN, -1, dnet_state_accept_process);
 		if (!n->st) {
-			close(s);
 			goto err_out_state_destroy;
 		}
 

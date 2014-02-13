@@ -31,6 +31,7 @@ namespace ioremap { namespace elliptics {
 
 typedef async_result_handler<callback_result_entry> async_update_indexes_handler;
 
+#define DNET_INDEXES_FLAGS_CAPPED_COLLECTION (1<<28)
 #define DNET_INDEXES_FLAGS_NOINTERNAL (1 << 29)
 #define DNET_INDEXES_FLAGS_NOUPDATE (1 << 30)
 
@@ -70,7 +71,7 @@ static void on_update_index_finished(async_update_indexes_handler handler, const
  * flags passed as an argument.
  */
 static async_set_indexes_result session_set_indexes(session &orig_sess, const key &request_id,
-		const std::vector<index_entry> &indexes, uint32_t flags)
+		const std::vector<index_entry> &indexes, uint32_t flags, uint64_t limit = 0)
 {
 	orig_sess.transform(request_id);
 
@@ -104,9 +105,10 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 	memset(&indexes_id, 0, sizeof(indexes_id));
 	dnet_indexes_transform_object_id(node, &request_id.id(), &indexes_id);
 
+	const bool capped = (flags & DNET_INDEXES_FLAGS_CAPPED_COLLECTION);
 	const bool noupdate = (flags & DNET_INDEXES_FLAGS_NOUPDATE);
 	const bool nointernal = (flags & DNET_INDEXES_FLAGS_NOINTERNAL);
-	flags &= ~(DNET_INDEXES_FLAGS_NOUPDATE | DNET_INDEXES_FLAGS_NOINTERNAL);
+	flags &= ~(DNET_INDEXES_FLAGS_CAPPED_COLLECTION | DNET_INDEXES_FLAGS_NOUPDATE | DNET_INDEXES_FLAGS_NOINTERNAL);
 
 	if (!noupdate) {
 		data_buffer buffer(sizeof(dnet_indexes_request) +
@@ -128,6 +130,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 		for (size_t i = 0; i < indexes.size(); ++i) {
 			const index_entry &index = indexes[i];
 			entry.id = index.index;
+			entry.limit = limit;
 			entry.size = index.data.size();
 
 			buffer.write(entry);
@@ -194,8 +197,12 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 			dnet_indexes_transform_index_id(node, &index.index, &tmp_entry_id, shard_id);
 			memcpy(id.id, tmp_entry_id.id, DNET_ID_SIZE);
 
+			entry->limit = limit;
 			entry->size = index.data.size();
 			entry->flags = (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) ? DNET_INDEXES_FLAGS_INTERNAL_INSERT : DNET_INDEXES_FLAGS_INTERNAL_REMOVE;
+			if (capped)
+				entry->flags |= DNET_INDEXES_FLAGS_INTERNAL_CAPPED_COLLECTION;
+
 			control.set_data(data.data(), sizeof(dnet_indexes_request) +
 					sizeof(dnet_indexes_request_entry) + index.data.size());
 			memcpy(entry_data, index.data.data(), index.data.size());
@@ -453,6 +460,94 @@ async_set_indexes_result session::update_indexes(const key &id,
 	return update_indexes(id, raw_indexes);
 }
 
+struct add_to_capped_collection_handler : public std::enable_shared_from_this<add_to_capped_collection_handler>
+{
+	add_to_capped_collection_handler(const session &sess, const async_generic_result &result)
+		: sess(sess), handler(result), counter(1)
+	{
+	}
+
+	void on_entry(const callback_result_entry &entry)
+	{
+		if (!entry.error() && entry.size() >= sizeof(dnet_indexes_reply)) {
+			const dnet_indexes_reply *reply = entry.data<dnet_indexes_reply>();
+			for (uint64_t index = 0; index < reply->entries_count; ++index) {
+				const dnet_indexes_reply_entry &entry = reply->entries[index];
+				if (entry.status == DNET_INDEXES_CAPPED_REMOVED) {
+					using std::placeholders::_1;
+
+					++counter;
+
+					sess.remove(entry.id).connect(
+						std::bind(&add_to_capped_collection_handler::on_removed_entry, shared_from_this(), _1),
+						std::bind(&add_to_capped_collection_handler::on_finished, shared_from_this(), _1));
+				}
+			}
+		}
+
+		handler.process(entry);
+	}
+
+	void on_removed_entry(const callback_result_entry &entry)
+	{
+		handler.process(entry);
+	}
+
+	void on_finished(const error_info &error)
+	{
+		if (error) {
+			std::lock_guard<std::mutex> lock(total_error_mutex);
+			total_error = error;
+		}
+
+		if (0 == --counter)
+			handler.complete(total_error);
+	}
+
+	session sess;
+	async_result_handler<callback_result_entry> handler;
+	std::atomic_size_t counter;
+	std::mutex total_error_mutex;
+	error_info total_error;
+};
+
+async_generic_result session::add_to_capped_collection(const key &id, const index_entry &index, int limit, bool remove_data)
+{
+	transform(id);
+
+	session sess = *this;
+
+	if (remove_data) {
+		sess = clone();
+		sess.set_filter(filters::all_with_ack);
+		sess.set_checker(checkers::no_check);
+		sess.set_exceptions_policy(no_exceptions);
+	}
+
+	async_generic_result indexes_result = session_set_indexes(sess, id, std::vector<index_entry>(1, index),
+		DNET_INDEXES_FLAGS_CAPPED_COLLECTION | DNET_INDEXES_FLAGS_UPDATE_ONLY, limit);
+
+	if (!remove_data) {
+		return indexes_result;
+	}
+
+	session remove_sess = clone();
+	remove_sess.set_filter(filters::all_with_ack);
+	remove_sess.set_checker(checkers::no_check);
+	remove_sess.set_exceptions_policy(no_exceptions);
+
+	async_generic_result result(*this);
+
+	auto handler = std::make_shared<add_to_capped_collection_handler>(remove_sess, result);
+
+	using std::placeholders::_1;
+
+	indexes_result.connect(std::bind(&add_to_capped_collection_handler::on_entry, handler, _1),
+		std::bind(&add_to_capped_collection_handler::on_finished, handler, _1));
+
+	return result;
+}
+
 async_set_indexes_result session::remove_indexes(const key &id, const std::vector<dnet_raw_id> &indexes)
 {
 	std::vector<index_entry> index_entries;
@@ -578,8 +673,9 @@ struct check_indexes_handler
 			return;
 		}
 
-		for (auto it = result.indexes.begin(); it != result.indexes.end(); ++it)
+		for (auto it = result.indexes.begin(); it != result.indexes.end(); ++it) {
 			handler.process(*it);
+		}
 		handler.complete(error_info());
 	}
 };
