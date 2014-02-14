@@ -1,3 +1,11 @@
+elliptics (2.24.15.10) unstable; urgency=low
+
+  * client: Make aggregated to handle empty sequence
+  * cache: decrease log level if cache is not enabled
+  * client: Fixed read_latest policy
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 14 Feb 2014 21:29:04 +0400
+
 elliptics (2.24.15.9) unstable; urgency=low
 
   * reconnect: fixed groups array allocation. limit group array for random selection by 4096 groups
