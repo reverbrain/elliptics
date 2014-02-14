@@ -40,6 +40,7 @@ set_target_properties(dnet_cpp_capped_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_capped_test ${TEST_LIBRARIES})
 
 set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_capped_test dnet_cpp_api_test)
+set(TESTS_DEPS ${TESTS_LIST})
 
 if(WITH_COCAINE)
 	include(../cmake/Modules/locate_library.cmake)
@@ -61,12 +62,13 @@ if(WITH_COCAINE)
 	    COMMAND tar -cf dnet_cpp_srw_test_app.tar dnet_cpp_srw_test_app
 	    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 
-        list(APPEND TESTS_LIST dnet_cpp_srw_test dnet_cpp_srw_test_app)
+        list(APPEND TESTS_LIST dnet_cpp_srw_test)
+        list(APPEND TESTS_DEPS dnet_cpp_srw_test dnet_cpp_srw_test_app)
 endif()
 
 add_custom_target(test
-    COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDS ${TESTS_LIST}
+    COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" ${TESTS_LIST}
+    DEPENDS ${TESTS_DEPS}
     SOURCES "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py")
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
