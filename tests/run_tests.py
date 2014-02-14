@@ -28,13 +28,11 @@ def main():
     source_dir = sys.argv[1]
     binary_dir = sys.argv[2]
 
-    tests = [
-        (binary_dir, 'dnet_cpp_test'),
-        (binary_dir, 'dnet_cpp_cache_test'),
-        (binary_dir, 'dnet_cpp_srw_test'),
-        (binary_dir, 'dnet_cpp_api_test'),
-        (binary_dir, 'dnet_cpp_capped_test')
-    ]
+    tests = list()
+
+    for i in xrange(3, len(sys.argv)):
+        tests.append((binary_dir, sys.argv[i]))
+
     print('Running {0} tests'.format(len(tests)))
 
     tests_base_dir = binary_dir + '/result'
