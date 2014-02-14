@@ -811,18 +811,22 @@ struct read_latest_callback
 
 	void operator() (const std::vector<lookup_result_entry> &result, const error_info &error)
 	{
-		if (!error && !result.empty()) {
-			groups.clear();
-			groups.reserve(result.size());
-			for (auto it = result.begin(); it != result.end(); ++it)
-				groups.push_back(it->command()->id.group_id);
+		if (error) {
+			handler.complete(error);
+			return;
+		} else if (result.empty()) {
+			handler.complete(create_error(-ENOENT, id, "prepare_latest failed"));
+			return;
 		}
 
-		{
-			session_scope scope(sess);
-			sess.set_exceptions_policy(session::no_exceptions);
-			sess.read_data(id, groups, offset, size).connect(handler);
-		}
+		groups.clear();
+		groups.reserve(result.size());
+		for (auto it = result.begin(); it != result.end(); ++it)
+			groups.push_back(it->command()->id.group_id);
+
+		sess.set_filter(filters::all_with_ack);
+		sess.set_checker(checkers::no_check);
+		sess.read_data(id, groups, offset, size).connect(handler);
 	}
 };
 
@@ -831,6 +835,7 @@ async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t 
 	async_read_result result(*this);
 	{
 		session sess = clone();
+	sess.set_exceptions_policy(no_exceptions);
 		sess.set_filter(filters::positive);
 		sess.set_checker(checkers::no_check);
 
