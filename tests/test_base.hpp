@@ -154,8 +154,8 @@ struct nodes_data
 	~nodes_data();
 
 	directory_handler run_directory;
-#ifndef NO_SERVER
 	directory_handler directory;
+#ifndef NO_SERVER
 	std::vector<server_node> nodes;
 	int locator_port;
 #endif // NO_SERVER
