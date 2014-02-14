@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.1.0
+Version:	2.25.1.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Feb 14 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.1.1
+- tests: Don't run srw tests if srw is disabled
+- client: Fixed log output for amd64 platform
+- client: Fixes for x86 platform
+- tests: Fixed compilation error
+- client: Fixed read_latest policy
+- cache: decrease log level if cache is not enabled
+- tests: added missing header
+- cache: define _GLIBCXX_USE_NANOSLEEP to enable sleep_for()
+- test: added server library to test-common itself, since it uses them
+- indexes: there is no nullptr on older compilers
+
 * Thu Feb 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.1.0
 - pool: added comment on how client handles replies in multiple IO threads
 - tests: Don't make artifacts if test is successfull

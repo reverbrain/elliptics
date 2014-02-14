@@ -1,3 +1,18 @@
+elliptics (2.25.1.1) unstable; urgency=low
+
+  * tests: Don't run srw tests if srw is disabled
+  * client: Fixed log output for amd64 platform
+  * client: Fixes for x86 platform
+  * tests: Fixed compilation error
+  * client: Fixed read_latest policy
+  * cache: decrease log level if cache is not enabled
+  * tests: added missing header
+  * cache: define _GLIBCXX_USE_NANOSLEEP to enable sleep_for()
+  * test: added server library to test-common itself, since it uses them
+  * indexes: there is no nullptr on older compilers
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 14 Feb 2014 21:31:11 +0400
+
 elliptics (2.25.1.0) unstable; urgency=low
 
   * pool: added comment on how client handles replies in multiple IO threads
