@@ -78,6 +78,12 @@ extern "C" {
  * Category for IO hisograms statistics
  */
 #define DNET_MONITOR_IO_HISTOGRAMS	4
+/*!
+ * \internal
+ *
+ * Category for backend statistics
+ */
+#define DNET_MONITOR_BACKEND			5
 
 struct dnet_node;
 struct dnet_config;

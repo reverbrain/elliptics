@@ -416,10 +416,7 @@ cache_stats slru_cache_t::get_cache_stats() const {
 }
 
 const time_stats_tree_t slru_cache_t::get_time_stats() const {
-	m_time_stats.lock();
-	time_stats_tree_t time_stats_tree = m_time_stats.get_time_stats_tree();
-	m_time_stats.unlock();
-	return std::move(time_stats_tree);
+	return std::move(m_time_stats.copy_time_stats_tree());
 }
 
 // private:

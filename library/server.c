@@ -206,6 +206,39 @@ err_out_exit:
 	return err;
 }
 
+static const char* dnet_backend_stat_json(void *priv)
+{
+	struct dnet_backend_callbacks* cb = (struct dnet_backend_callbacks*) priv;
+
+	char* json_stat;
+	size_t size;
+
+	cb->storage_stat_json(cb->command_private, &json_stat, &size);
+	return json_stat;
+}
+
+static void dnet_backend_stat_stop(void *priv)
+{
+	(void) priv;
+}
+
+static int dnet_backend_stat_check_category(void *priv, int category)
+{
+	(void) priv;
+	return category == DNET_MONITOR_BACKEND || category == DNET_MONITOR_ALL;
+}
+
+static int dnet_backend_stat_provider_init(struct dnet_node *n)
+{
+	struct stat_provider_raw stat_provider;
+	stat_provider.stat_private = n->cb;
+	stat_provider.json = &dnet_backend_stat_json;
+	stat_provider.stop = &dnet_backend_stat_stop;
+	stat_provider.check_category = &dnet_backend_stat_check_category;
+	dnet_monitor_add_provider(n, stat_provider, "backend");
+	return 0;
+}
+
 struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, struct dnet_config *cfg, struct dnet_addr *addrs, int addr_num)
 {
 	struct dnet_node *n;
@@ -247,9 +280,13 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, str
 	if (err)
 		goto err_out_notify_exit;
 
-	err = dnet_cache_init(n);
+	err = dnet_backend_stat_provider_init(n);
 	if (err)
 		goto err_out_monitor_exit;
+
+	err = dnet_cache_init(n);
+	if (err)
+		goto err_out_backend_stat_provider_exit;
 
 	err = dnet_local_addr_add(n, addrs, addr_num);
 	if (err)
@@ -314,6 +351,7 @@ err_out_addr_cleanup:
 	dnet_local_addr_cleanup(n);
 err_out_cache_cleanup:
 	dnet_cache_cleanup(n);
+err_out_backend_stat_provider_exit:
 err_out_monitor_exit:
 	dnet_monitor_exit(n);
 err_out_notify_exit:
