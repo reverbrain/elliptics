@@ -267,6 +267,9 @@ struct dnet_backend_callbacks {
 	/* fills storage statistics */
 	int			(* storage_stat)(void *priv, struct dnet_stat *st);
 
+	/* fills storage statistics in json format */
+	int			(* storage_stat_json)(void *priv, char **json_stat, size_t *size);
+
 	/* cleanups backend at exit */
 	void			(* backend_cleanup)(void *command_private);
 

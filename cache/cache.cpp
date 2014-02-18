@@ -68,6 +68,7 @@ const int ACTION_SYNC_BEFORE_OPERATION = cache_actions.define_new_action("SYNC_B
 const int ACTION_ERASE_ITERATE = cache_actions.define_new_action("ERASE_ITERATE");
 const int ACTION_SYNC_ITERATE = cache_actions.define_new_action("SYNC_ITERATE");
 const int ACTION_DNET_OPLOCK = cache_actions.define_new_action("DNET_OPLOCK");
+const int ACTION_DESTRUCT = cache_actions.define_new_action("DESTRUCT");
 
 }
 

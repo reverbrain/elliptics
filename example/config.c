@@ -41,6 +41,7 @@
 #include "elliptics/backends.h"
 
 #include "../library/elliptics.h"
+#include "../monitor/monitor.h"
 
 #include "common.h"
 
