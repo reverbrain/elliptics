@@ -32,18 +32,19 @@
 
 #include <boost/intrusive/list.hpp>
 
-#include "../library/elliptics.h"
-#include "../indexes/local_session.h"
+#include "library/elliptics.h"
+#include "indexes/local_session.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "treap.hpp"
-#include "../react/react.hpp"
+#include "react/react.hpp"
 
-#include "../monitor/rapidjson/document.h"
-#include "../monitor/rapidjson/writer.h"
-#include "../monitor/rapidjson/stringbuffer.h"
+#include "monitor/rapidjson/document.h"
+#include "monitor/rapidjson/writer.h"
+#include "monitor/rapidjson/stringbuffer.h"
+
+#include "treap.hpp"
 
 namespace ioremap { namespace cache {
 

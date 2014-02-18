@@ -22,12 +22,12 @@
 
 #include "boost/lexical_cast.hpp"
 
-#include "../monitor/monitor.h"
-#include "../monitor/monitor.hpp"
-#include "../monitor/statistics.hpp"
-#include "../monitor/rapidjson/document.h"
-#include "../monitor/rapidjson/writer.h"
-#include "../monitor/rapidjson/stringbuffer.h"
+#include "monitor/monitor.h"
+#include "monitor/monitor.hpp"
+#include "monitor/statistics.hpp"
+#include "monitor/rapidjson/document.h"
+#include "monitor/rapidjson/writer.h"
+#include "monitor/rapidjson/stringbuffer.h"
 
 namespace ioremap { namespace cache {
 
