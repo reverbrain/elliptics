@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.1.1
+Version:	2.25.2.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Feb 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.2.0
+- build: depend on 0.21.30+ eblob where react monitoring support added
+- Monitor: Backend statistics provider added.
+
 * Fri Feb 14 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.1.1
 - tests: Don't run srw tests if srw is disabled
 - client: Fixed log output for amd64 platform

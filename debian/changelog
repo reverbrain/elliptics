@@ -1,3 +1,10 @@
+elliptics (2.25.2.0) unstable; urgency=low
+
+  * build: depend on 0.21.30+ eblob where react monitoring support added
+  * Monitor: Backend statistics provider added.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 18 Feb 2014 18:23:39 +0400
+
 elliptics (2.25.1.1) unstable; urgency=low
 
   * tests: Don't run srw tests if srw is disabled
