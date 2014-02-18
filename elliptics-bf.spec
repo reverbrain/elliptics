@@ -21,7 +21,7 @@ BuildRequires:	gcc44 gcc44-c++
 %else
 BuildRequires:  python-devel
 %endif
-BuildRequires:	eblob-devel >= 0.21.26
+BuildRequires:	eblob-devel >= 0.21.30
 BuildRequires:	cmake msgpack-devel
 
 %if %{defined rhel} && 0%{?rhel} < 6
