@@ -106,6 +106,22 @@ static void test_cache_overflow(session &sess)
 	}
 }
 
+/*!
+ * \defgroup test_cache_lru_eviction Test cache lru eviction
+ * This test assures that cache uses lru eviction scheme.
+ * It means that the last accessed element should be removed first on eviction.
+ * For this test we define auxiliary class \a lru_list_emulator_t that emulates work of simple lru list.
+ * Then we perform operations in parallel on real cache and lru_list_emulator and check that cache evict correct elements.
+ * We cannot guarantee that cache will erase some element at some moment, because erases can be deferred.
+ * That's why we check the fact that cache doesn't erase element that shouldn't be erased.
+ *
+ * Test has three stages:
+ *  - Write data to cache's full capacity.
+ *  - Add one more element and check that all elements, except for the first added to cache are still in list.
+ *  - Repeat stage two.
+ * \{
+ */
+
 class lru_list_emulator_t {
 public:
 	void add(int value) {
@@ -226,6 +242,8 @@ static void test_cache_lru_eviction(session &sess)
 	cache_write_check_lru(sess, current_objects_number++, data, 3000, lru_list_emulator, cache);
 	cache_read_check_lru(sess, removed_key, lru_list_emulator, cache);
 }
+
+/*! \} */ //test_cache_lru_eviction group
 
 std::string generate_data(size_t length)
 {
