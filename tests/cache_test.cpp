@@ -186,10 +186,12 @@ static void test_cache_lru_eviction(session &sess)
 	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[0].get_native()->cache;
 	const size_t cache_size = cache->cache_size();
 	const size_t cache_pages_number = cache->cache_pages_number();
+
+	BOOST_REQUIRE_MESSAGE(cache_pages_number == 1, "Can't run cache_lru_eviction test with more then one cache page");
+
 	lru_list_emulator_t lru_list_emulator;
 	argument_data data("0");
 
-	key idKey;
 	size_t current_objects_number = 0;
 
 	cache->clear();
