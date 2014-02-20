@@ -22,12 +22,12 @@
 
 #include "boost/lexical_cast.hpp"
 
-#include "../monitor/monitor.h"
-#include "../monitor/monitor.hpp"
-#include "../monitor/statistics.hpp"
-#include "../monitor/rapidjson/document.h"
-#include "../monitor/rapidjson/writer.h"
-#include "../monitor/rapidjson/stringbuffer.h"
+#include "monitor/monitor.h"
+#include "monitor/monitor.hpp"
+#include "monitor/statistics.hpp"
+#include "monitor/rapidjson/document.h"
+#include "monitor/rapidjson/writer.h"
+#include "monitor/rapidjson/stringbuffer.h"
 
 namespace ioremap { namespace cache {
 
@@ -68,6 +68,7 @@ const int ACTION_SYNC_BEFORE_OPERATION = cache_actions.define_new_action("SYNC_B
 const int ACTION_ERASE_ITERATE = cache_actions.define_new_action("ERASE_ITERATE");
 const int ACTION_SYNC_ITERATE = cache_actions.define_new_action("SYNC_ITERATE");
 const int ACTION_DNET_OPLOCK = cache_actions.define_new_action("DNET_OPLOCK");
+const int ACTION_DESTRUCT = cache_actions.define_new_action("DESTRUCT");
 
 }
 
@@ -375,7 +376,6 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	int err = -ENOTSUP;
 
 	if (!n->cache) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
 		return -ENOTSUP;
 	}
 

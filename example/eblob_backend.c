@@ -985,6 +985,19 @@ int eblob_backend_storage_stat(void *priv, struct dnet_stat *st)
 	return 0;
 }
 
+int eblob_backend_storage_stat_json(void *priv, char **json_stat, size_t *size)
+{
+	int err;
+	struct eblob_backend_config *r = priv;
+
+	err = eblob_stat_json_get(r->eblob, json_stat, size);
+	if (err) {
+		return err;
+	}
+
+	return 0;
+}
+
 static void eblob_backend_cleanup(void *priv)
 {
 	struct eblob_backend_config *c = priv;
@@ -1039,6 +1052,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	cfg->storage_size = b->storage_size;
 	cfg->storage_free = b->storage_free;
 	b->cb.storage_stat = eblob_backend_storage_stat;
+	b->cb.storage_stat_json = eblob_backend_storage_stat_json;
 
 	b->cb.command_private = c;
 	b->cb.command_handler = eblob_backend_command_handler;

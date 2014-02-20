@@ -43,6 +43,7 @@ include(FixRpath)
 
 create_stdint(${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 # Set id_size
 if (NOT ID_SIZE)

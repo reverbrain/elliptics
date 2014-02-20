@@ -267,6 +267,9 @@ struct dnet_backend_callbacks {
 	/* fills storage statistics */
 	int			(* storage_stat)(void *priv, struct dnet_stat *st);
 
+	/* fills storage statistics in json format */
+	int			(* storage_stat_json)(void *priv, char **json_stat, size_t *size);
+
 	/* cleanups backend at exit */
 	void			(* backend_cleanup)(void *command_private);
 
@@ -549,7 +552,7 @@ static inline char *dnet_print_time(const struct dnet_time *t)
 	localtime_r((time_t *)&t->tsec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	snprintf(__dnet_print_time, sizeof(__dnet_print_time), "%s.%06lu", str, t->tnsec / 1000);
+	snprintf(__dnet_print_time, sizeof(__dnet_print_time), "%s.%06llu", str, (long long unsigned) t->tnsec / 1000);
 	return __dnet_print_time;
 }
 
