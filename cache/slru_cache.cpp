@@ -33,7 +33,8 @@ slru_cache_t::slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache
 	m_cache_pages_max_sizes(cache_pages_max_sizes),
 	m_cache_pages_sizes(m_cache_pages_number, 0),
 	m_cache_pages_lru(new lru_list_t[m_cache_pages_number]),
-	m_time_stats(cache_actions) {
+	m_time_stats(cache_actions),
+	m_clear_occured(false) {
 	m_lifecheck = std::thread(std::bind(&slru_cache_t::life_check, this));
 }
 
@@ -396,6 +397,7 @@ void slru_cache_t::clear() {
 	start_action(ACTION_LOCK);
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE CLEAR: %p", this);
 	stop_action(ACTION_LOCK);
+	m_clear_occured = true;
 
 	for (size_t page_number = 0; page_number < m_cache_pages_number; ++page_number) {
 		m_cache_pages_max_sizes[page_number] = 0;
@@ -403,7 +405,12 @@ void slru_cache_t::clear() {
 	}
 
 	while (!m_treap.empty()) {
-		erase_element(m_treap.top());
+		data_t *obj = m_treap.top();
+
+		sync_if_required(obj, guard);
+		obj->set_sync_state(data_t::sync_state_t::NOT_SYNCING);
+
+		erase_element(obj);
 	}
 
 	m_cache_pages_max_sizes = cache_pages_max_sizes;
@@ -761,6 +768,9 @@ void slru_cache_t::life_check(void) {
 
 			start_action(ACTION_SYNC_ITERATE);
 			for (auto it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
+				if (m_clear_occured)
+					break;
+
 				data_t *elem = *it;
 				memcpy(id.id, elem->id().id, DNET_ID_SIZE);
 
@@ -787,17 +797,22 @@ void slru_cache_t::life_check(void) {
 				start_action(ACTION_LOCK);
 				elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE CLEAR PAGES: %p", this);
 				stop_action(ACTION_LOCK);
-				start_action(ACTION_ERASE_ITERATE);
-				for (std::deque<data_t*>::iterator it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
-					data_t *elem = *it;
-					elem->set_sync_state(data_t::sync_state_t::NOT_SYNCING);
-					if (elem->synctime() <= last_time) {
-						if (elem->only_append() || elem->remove_from_cache()) {
-							erase_element(elem);
+
+				if (!m_clear_occured) {
+					start_action(ACTION_ERASE_ITERATE);
+					for (std::deque<data_t*>::iterator it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
+						data_t *elem = *it;
+						elem->set_sync_state(data_t::sync_state_t::NOT_SYNCING);
+						if (elem->synctime() <= last_time) {
+							if (elem->only_append() || elem->remove_from_cache()) {
+								erase_element(elem);
+							}
 						}
 					}
+					stop_action(ACTION_ERASE_ITERATE);
+				} else {
+					m_clear_occured = false;
 				}
-				stop_action(ACTION_ERASE_ITERATE);
 			}
 			stop_action(ACTION_LIFECHECK);
 			ioremap::cache::local::thread_time_stats_updater = NULL;
