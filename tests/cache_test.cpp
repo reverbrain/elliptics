@@ -17,6 +17,9 @@
 #include "test_base.hpp"
 #include "../cache/cache.hpp"
 
+#include <list>
+#include <stdexcept>
+
 #define BOOST_TEST_NO_MAIN
 #include <boost/test/included/unit_test.hpp>
 
@@ -55,7 +58,7 @@ static void test_cache_records_sizes(session &sess)
 	size_t record_size = 0;
 	{
 		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(0)), data, 3000));
-		const auto& stats = cache->get_total_cache_stats();
+		auto stats = cache->get_total_cache_stats();
 		record_size = stats.size_of_objects;
 		BOOST_REQUIRE_EQUAL(stats.number_of_objects, 1);
 	}
@@ -63,7 +66,7 @@ static void test_cache_records_sizes(session &sess)
 	size_t records_number = cache_size / cache_pages_number / record_size - 5;
 	for (size_t id = 1; id < records_number; ++id) {
 		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(id)), data, 3000));
-		const auto& stats = cache->get_total_cache_stats();
+		auto stats = cache->get_total_cache_stats();
 
 		size_t total_pages_sizes = 0;
 		for (size_t i = 0; i < stats.pages_sizes.size(); ++i) {
@@ -87,25 +90,139 @@ static void test_cache_overflow(session &sess)
 	size_t record_size = 0;
 	{
 		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::string("0")), data, 3000));
-		const auto& stats = cache->get_total_cache_stats();
+		auto stats = cache->get_total_cache_stats();
 		record_size = stats.size_of_objects;
 	}
 
 	size_t records_number = (cache_size / cache_pages_number / record_size) * 10;
 	for (size_t id = 1; id < records_number; ++id) {
 		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(id)), data, 3000));
-		const auto& stats = cache->get_total_cache_stats();
+		auto stats = cache->get_total_cache_stats();
 
 		size_t total_pages_sizes = 0;
 		for (size_t i = 0; i < stats.pages_sizes.size(); ++i) {
 			total_pages_sizes += stats.pages_sizes[i];
+		}
+	}
+}
 
-//			BOOST_REQUIRE_LE(stats.pages_sizes[i], stats.pages_max_sizes[i]);
+class lru_list_emulator_t {
+public:
+	void add(int value) {
+		lru_list.push_back(value);
+	}
+
+	void remove(int value) {
+		std::list<int>::iterator it = std::find(lru_list.begin(), lru_list.end(), value);
+		if (it == lru_list.end()) {
+			throw std::logic_error("remove: No such element in list");
+		}
+		lru_list.erase(it);
+	}
+
+	void remove_last() {
+		if (lru_list.empty()) {
+			throw std::logic_error("remove_last: Can't remove from empty list");
+		}
+		lru_list.pop_front();
+	}
+
+	void update(int value) {
+		std::list<int>::iterator it = std::find(lru_list.begin(), lru_list.end(), value);
+		if (it == lru_list.end()) {
+			throw std::logic_error("update: No such element in list");
 		}
 
-//		BOOST_REQUIRE_LE(stats.size_of_objects, cache_size);
-//		BOOST_REQUIRE_EQUAL(stats.size_of_objects, total_pages_sizes);
+		lru_list.erase(it);
+		lru_list.push_back(value);
 	}
+
+	bool contains(int value) const {
+		return std::find(lru_list.begin(), lru_list.end(), value) != lru_list.end();
+	}
+
+private:
+	std::list<int> lru_list;
+};
+
+void cache_write_check_lru(session &sess, int id, const argument_data& data, long timeout,
+							   lru_list_emulator_t& lru_list_emulator, ioremap::cache::cache_manager *cache) {
+
+	key idKey = key(boost::lexical_cast<std::string>(id));
+
+	int objects_number_before = cache->get_total_cache_stats().number_of_objects;
+	ELLIPTICS_REQUIRE(write_result, sess.write_cache(idKey, data, timeout));
+	lru_list_emulator.add(id);
+	int objects_number_after = cache->get_total_cache_stats().number_of_objects;
+
+	int objects_removed = objects_number_before - objects_number_after + 1;
+	for (int i = 0; i < objects_removed; ++i) {
+		lru_list_emulator.remove_last();
+	}
+}
+
+void cache_read_check_lru(session &sess, int id, lru_list_emulator_t& lru_list_emulator, ioremap::cache::cache_manager *cache) {
+
+	key idKey = key(boost::lexical_cast<std::string>(id));
+	std::unique_ptr<async_read_result> read_result;
+
+	int objects_number_before = cache->get_total_cache_stats().number_of_objects;
+	if (!lru_list_emulator.contains(id)) {
+		ELLIPTICS_WARN_ERROR(read_result, sess.read_data(idKey, 0, 0), -ENOENT);
+	} else {
+		ELLIPTICS_REQUIRE(read_result, sess.read_data(idKey, 0, 0));
+		lru_list_emulator.update(id);
+	}
+	int objects_number_after = cache->get_total_cache_stats().number_of_objects;
+
+	int objects_removed = objects_number_before - objects_number_after;
+	for (int i = 0; i < objects_removed; ++i) {
+		lru_list_emulator.remove_last();
+	}
+}
+
+static void test_cache_lru_eviction(session &sess)
+{
+	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[0].get_native()->cache;
+	const size_t cache_size = cache->cache_size();
+	const size_t cache_pages_number = cache->cache_pages_number();
+	lru_list_emulator_t lru_list_emulator;
+	argument_data data("0");
+
+	key idKey;
+	size_t current_objects_number = 0;
+
+	cache->clear();
+	size_t record_size = 0;
+	{
+		cache_write_check_lru(sess, current_objects_number++, data, 3000, lru_list_emulator, cache);
+		auto stats = cache->get_total_cache_stats();
+		record_size = stats.size_of_objects;
+	}
+
+	// Fill cache to full capacity with keys
+	size_t max_records_number = (cache_size / cache_pages_number / record_size) - 1;
+	for (size_t recordNumber = 1; recordNumber < max_records_number; ++recordNumber) {
+		cache_write_check_lru(sess, current_objects_number++, data, 3000, lru_list_emulator, cache);
+	}
+	auto stats = cache->get_total_cache_stats();
+	BOOST_REQUIRE_EQUAL(stats.number_of_objects, current_objects_number);
+
+	int removed_key = current_objects_number;
+	cache_write_check_lru(sess, current_objects_number++, data, 3000, lru_list_emulator, cache);
+
+	// Check that 0 record is evicted
+	cache_read_check_lru(sess, 0, lru_list_emulator, cache);
+
+	// Check that all keys are in list
+	for (size_t recordNumber = 1; recordNumber < max_records_number; ++recordNumber) {
+		cache_read_check_lru(sess, recordNumber, lru_list_emulator, cache);
+		cache_write_check_lru(sess, recordNumber, data, 3000, lru_list_emulator, cache);
+	}
+
+	// Add one more new key, check that removed_key, which was not updated is removed
+	cache_write_check_lru(sess, current_objects_number++, data, 3000, lru_list_emulator, cache);
+	cache_read_check_lru(sess, removed_key, lru_list_emulator, cache);
 }
 
 std::string generate_data(size_t length)
@@ -123,6 +240,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_cache_records_sizes, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 	ELLIPTICS_TEST_CASE(test_cache_overflow, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 	ELLIPTICS_TEST_CASE(test_cache_overflow, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE));
+	ELLIPTICS_TEST_CASE(test_cache_lru_eviction, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 
 	return true;
 }
