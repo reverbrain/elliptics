@@ -22,12 +22,12 @@
 
 #include "boost/lexical_cast.hpp"
 
-#include "../monitor/monitor.h"
-#include "../monitor/monitor.hpp"
-#include "../monitor/statistics.hpp"
-#include "../monitor/rapidjson/document.h"
-#include "../monitor/rapidjson/writer.h"
-#include "../monitor/rapidjson/stringbuffer.h"
+#include "monitor/monitor.h"
+#include "monitor/monitor.hpp"
+#include "monitor/statistics.hpp"
+#include "monitor/rapidjson/document.h"
+#include "monitor/rapidjson/writer.h"
+#include "monitor/rapidjson/stringbuffer.h"
 
 namespace ioremap { namespace cache {
 
@@ -68,6 +68,7 @@ const int ACTION_SYNC_BEFORE_OPERATION = cache_actions.define_new_action("SYNC_B
 const int ACTION_ERASE_ITERATE = cache_actions.define_new_action("ERASE_ITERATE");
 const int ACTION_SYNC_ITERATE = cache_actions.define_new_action("SYNC_ITERATE");
 const int ACTION_DNET_OPLOCK = cache_actions.define_new_action("DNET_OPLOCK");
+const int ACTION_DESTRUCT = cache_actions.define_new_action("DESTRUCT");
 
 }
 
@@ -109,18 +110,10 @@ cache_manager::cache_manager(struct dnet_node *n) {
 		m_caches.emplace_back(std::make_shared<slru_cache_t>(n, pages_max_sizes));
 	}
 
-	stop = false;
-
 	ioremap::monitor::dnet_monitor_add_provider(n, new cache_stat_provider(*this), "cache");
 }
 
 cache_manager::~cache_manager() {
-	//Stops all caches in parallel. Avoids sleeping in all cache destructors
-	size_t id = 0;
-	for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it, ++id) {
-		(*it)->stop(); //Sets cache as stopped
-	}
-	stop = true;
 }
 
 int cache_manager::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
@@ -163,7 +156,7 @@ void cache_manager::clear() {
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		m_caches[i]->clear();
 	}
-	ioremap::cache::local::thread_time_stats_updater = nullptr;
+	ioremap::cache::local::thread_time_stats_updater = NULL;
 }
 
 size_t cache_manager::cache_size() const {
@@ -273,7 +266,7 @@ size_t cache_manager::idx(const unsigned char *id) {
 }} /* namespace ioremap::cache */
 
 namespace ioremap { namespace cache { namespace local {
-	__thread time_stats_updater_t *thread_time_stats_updater = nullptr;
+	__thread time_stats_updater_t *thread_time_stats_updater = NULL;
 }}}
 
 using namespace ioremap::cache;
@@ -337,7 +330,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		err = -ENOENT;
 	}
 
-	ioremap::cache::local::thread_time_stats_updater = nullptr;
+	ioremap::cache::local::thread_time_stats_updater = NULL;
 	return err;
 }
 
@@ -373,7 +366,7 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 		err = -ENOENT;
 	}
 
-	ioremap::cache::local::thread_time_stats_updater = nullptr;
+	ioremap::cache::local::thread_time_stats_updater = NULL;
 	return err;
 }
 
@@ -383,7 +376,6 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	int err = -ENOTSUP;
 
 	if (!n->cache) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
 		return -ENOTSUP;
 	}
 
@@ -399,7 +391,7 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 		err = -ENOENT;
 	}
 
-	ioremap::cache::local::thread_time_stats_updater = nullptr;
+	ioremap::cache::local::thread_time_stats_updater = NULL;
 	return err;
 }
 

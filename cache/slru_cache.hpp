@@ -18,17 +18,17 @@
 #define SLRU_CACHE_HPP
 
 #include "cache.hpp"
-#include "time_stats.hpp"
+#include "react/react.hpp"
 
 namespace ioremap { namespace cache {
+
+using namespace react;
 
 class slru_cache_t {
 public:
 	slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes);
 
 	~slru_cache_t();
-
-	void stop();
 
 	int write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data);
 
@@ -52,7 +52,6 @@ private:
 
 	time_stats_updater_t *get_time_stats_updater();
 
-	bool m_need_exit;
 	struct dnet_node *m_node;
 	std::mutex m_lock;
 	size_t m_cache_pages_number;
@@ -63,6 +62,7 @@ private:
 	treap_t m_treap;
 	mutable cache_stats m_cache_stats;
 	mutable concurrent_time_stats_tree_t m_time_stats;
+	bool m_clear_occured;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 

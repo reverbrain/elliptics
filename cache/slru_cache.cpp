@@ -14,6 +14,10 @@
 * GNU Lesser General Public License for more details.
 */
 
+#ifndef _GLIBCXX_USE_NANOSLEEP
+#define _GLIBCXX_USE_NANOSLEEP
+#endif
+
 #include "slru_cache.hpp"
 #include <cassert>
 
@@ -24,27 +28,24 @@ using namespace ioremap::cache::actions;
 // public:
 
 slru_cache_t::slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes) :
-	m_need_exit(false),
 	m_node(n),
 	m_cache_pages_number(cache_pages_max_sizes.size()),
 	m_cache_pages_max_sizes(cache_pages_max_sizes),
 	m_cache_pages_sizes(m_cache_pages_number, 0),
 	m_cache_pages_lru(new lru_list_t[m_cache_pages_number]),
-	m_time_stats(cache_actions) {
+	m_time_stats(cache_actions),
+	m_clear_occured(false) {
 	m_lifecheck = std::thread(std::bind(&slru_cache_t::life_check, this));
 }
 
 slru_cache_t::~slru_cache_t() {
 	time_stats_updater_t time_stats_updater;
 	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
-	stop();
+	start_action(ACTION_DESTRUCT);
 	m_lifecheck.join();
 	clear();
-	ioremap::cache::local::thread_time_stats_updater = nullptr;
-}
-
-void slru_cache_t::stop() {
-	m_need_exit = true;
+	stop_action(ACTION_DESTRUCT);
+	ioremap::cache::local::thread_time_stats_updater = NULL;
 }
 
 int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
@@ -396,6 +397,7 @@ void slru_cache_t::clear() {
 	start_action(ACTION_LOCK);
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE CLEAR: %p", this);
 	stop_action(ACTION_LOCK);
+	m_clear_occured = true;
 
 	for (size_t page_number = 0; page_number < m_cache_pages_number; ++page_number) {
 		m_cache_pages_max_sizes[page_number] = 0;
@@ -403,7 +405,12 @@ void slru_cache_t::clear() {
 	}
 
 	while (!m_treap.empty()) {
-		erase_element(m_treap.top());
+		data_t *obj = m_treap.top();
+
+		sync_if_required(obj, guard);
+		obj->set_sync_state(data_t::sync_state_t::NOT_SYNCING);
+
+		erase_element(obj);
 	}
 
 	m_cache_pages_max_sizes = cache_pages_max_sizes;
@@ -416,10 +423,7 @@ cache_stats slru_cache_t::get_cache_stats() const {
 }
 
 const time_stats_tree_t slru_cache_t::get_time_stats() const {
-	m_time_stats.lock();
-	time_stats_tree_t time_stats_tree = m_time_stats.get_time_stats_tree();
-	m_time_stats.unlock();
-	return std::move(time_stats_tree);
+	return std::move(m_time_stats.copy_time_stats_tree());
 }
 
 // private:
@@ -704,7 +708,7 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 
 void slru_cache_t::life_check(void) {
 
-	while (!m_need_exit) {
+	while (!dnet_need_exit(m_node)) {
 		{
 			time_stats_updater_t time_stats_updater;
 			ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
@@ -723,7 +727,7 @@ void slru_cache_t::life_check(void) {
 				stop_action(ACTION_LOCK);
 
 				start_action(ACTION_PREPARE_SYNC);
-				while (!m_need_exit && !m_treap.empty()) {
+				while (!dnet_need_exit(m_node) && !m_treap.empty()) {
 					size_t time = ::time(NULL);
 					last_time = time;
 
@@ -764,6 +768,9 @@ void slru_cache_t::life_check(void) {
 
 			start_action(ACTION_SYNC_ITERATE);
 			for (auto it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
+				if (m_clear_occured)
+					break;
+
 				data_t *elem = *it;
 				memcpy(id.id, elem->id().id, DNET_ID_SIZE);
 
@@ -790,20 +797,25 @@ void slru_cache_t::life_check(void) {
 				start_action(ACTION_LOCK);
 				elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE CLEAR PAGES: %p", this);
 				stop_action(ACTION_LOCK);
-				start_action(ACTION_ERASE_ITERATE);
-				for (std::deque<data_t*>::iterator it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
-					data_t *elem = *it;
-					elem->set_sync_state(data_t::sync_state_t::NOT_SYNCING);
-					if (elem->synctime() <= last_time) {
-						if (elem->only_append() || elem->remove_from_cache()) {
-							erase_element(elem);
+
+				if (!m_clear_occured) {
+					start_action(ACTION_ERASE_ITERATE);
+					for (std::deque<data_t*>::iterator it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
+						data_t *elem = *it;
+						elem->set_sync_state(data_t::sync_state_t::NOT_SYNCING);
+						if (elem->synctime() <= last_time) {
+							if (elem->only_append() || elem->remove_from_cache()) {
+								erase_element(elem);
+							}
 						}
 					}
+					stop_action(ACTION_ERASE_ITERATE);
+				} else {
+					m_clear_occured = false;
 				}
-				stop_action(ACTION_ERASE_ITERATE);
 			}
 			stop_action(ACTION_LIFECHECK);
-			ioremap::cache::local::thread_time_stats_updater = nullptr;
+			ioremap::cache::local::thread_time_stats_updater = NULL;
 		}
 
 		std::this_thread::sleep_for( std::chrono::milliseconds(1000) );

@@ -162,7 +162,7 @@ int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr *addr, int lis
 	return s;
 
 err_out_close:
-	dnet_sock_close(s);
+	dnet_sock_close(n, s);
 err_out_exit:
 	return err;
 }
@@ -291,6 +291,8 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	buf = r = malloc(sizeof(struct dnet_io_req) + orig->dsize + orig->hsize);
 	if (!r) {
 		err = -ENOMEM;
+		dnet_log(st->n, DNET_LOG_ERROR, "Not enough memory for io req queue fd: %d : %s %d\n", orig->fd, strerror(-err), err);
+
 		goto err_out_exit;
 	}
 	memset(r, 0, sizeof(struct dnet_io_req));
@@ -839,8 +841,14 @@ void dnet_state_reset(struct dnet_net_state *st, int error)
 }
 
 
-void dnet_sock_close(int s)
+void dnet_sock_close(struct dnet_node *n, int s)
 {
+	char addr_str[128] = "no address";
+	if (n->addr_num) {
+		dnet_server_convert_dnet_addr_raw(&n->addrs[0], addr_str, sizeof(addr_str));
+	}
+	dnet_log(n, DNET_LOG_NOTICE, "%s: addr: %s, closing socket: %d\n", dnet_dump_id(&n->id), addr_str, s);
+
 	shutdown(s, SHUT_RDWR);
 	close(s);
 }
@@ -1121,11 +1129,11 @@ err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
 	pthread_mutex_destroy(&st->trans_lock);
 err_out_dup_destroy:
-	dnet_sock_close(st->write_s);
+	dnet_sock_close(n, st->write_s);
 err_out_free:
 	free(st);
 err_out_close:
-	dnet_sock_close(s);
+	dnet_sock_close(n, s);
 
 err_out_exit:
 	if (err == -EEXIST)
@@ -1170,8 +1178,8 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	dnet_state_remove(st);
 
 	if (st->read_s >= 0) {
-		dnet_sock_close(st->read_s);
-		dnet_sock_close(st->write_s);
+		dnet_sock_close(st->n, st->read_s);
+		dnet_sock_close(st->n, st->write_s);
 	}
 
 	dnet_state_clean(st);

@@ -32,18 +32,19 @@
 
 #include <boost/intrusive/list.hpp>
 
-#include "../library/elliptics.h"
-#include "../indexes/local_session.h"
+#include "library/elliptics.h"
+#include "indexes/local_session.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "treap.hpp"
-#include "time_stats.hpp"
+#include "react/react.hpp"
 
-#include "../monitor/rapidjson/document.h"
-#include "../monitor/rapidjson/writer.h"
-#include "../monitor/rapidjson/stringbuffer.h"
+#include "monitor/rapidjson/document.h"
+#include "monitor/rapidjson/writer.h"
+#include "monitor/rapidjson/stringbuffer.h"
+
+#include "treap.hpp"
 
 namespace ioremap { namespace cache {
 
@@ -384,7 +385,6 @@ class cache_manager {
 		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
 		size_t m_max_cache_size;
 		size_t m_cache_pages_number;
-		bool stop;
 
 		size_t idx(const unsigned char *id);
 };
@@ -459,7 +459,7 @@ private:
 
 namespace ioremap { namespace cache { namespace actions {
 
-extern actions_set_t cache_actions;
+extern react::actions_set_t cache_actions;
 
 const extern int ACTION_CACHE;
 const extern int ACTION_WRITE;
@@ -494,12 +494,13 @@ const extern int ACTION_SYNC_BEFORE_OPERATION;
 const extern int ACTION_ERASE_ITERATE;
 const extern int ACTION_SYNC_ITERATE;
 const extern int ACTION_DNET_OPLOCK;
+const extern int ACTION_DESTRUCT;
 
 }}}
 
 namespace ioremap { namespace cache { namespace local {
 
-extern __thread time_stats_updater_t *thread_time_stats_updater;
+extern __thread react::time_stats_updater_t *thread_time_stats_updater;
 
 }}}
 

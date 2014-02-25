@@ -713,6 +713,7 @@ class session
 		async_set_indexes_result update_indexes(const key &id, const std::vector<index_entry> &indexes);
 		async_set_indexes_result update_indexes(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
+		async_generic_result add_to_capped_collection(const key &id, const index_entry &index, int limit, bool remove_data);
 		async_set_indexes_result remove_indexes(const key &id, const std::vector<dnet_raw_id> &indexes);
 		async_set_indexes_result remove_indexes(const key &id, const std::vector<std::string> &indexes);
 		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<index_entry> &indexes);
