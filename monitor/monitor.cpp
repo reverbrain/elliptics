@@ -86,13 +86,15 @@ void dnet_monitor_exit(struct dnet_node *n) {
 
 	pthread_rwlock_wrlock(&n->monitor_rwlock);
 
-	auto real_monitor = monitor_cast(n->monitor);
-	if (real_monitor) {
-		delete real_monitor;
-		n->monitor = NULL;
-	}
+	auto monitor = n->monitor;
+	n->monitor = NULL;
 
 	pthread_rwlock_unlock(&n->monitor_rwlock);
+
+	auto real_monitor = monitor_cast(monitor);
+	if (real_monitor) {
+		delete real_monitor;
+	}
 }
 
 void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw stat, const char *name) {
