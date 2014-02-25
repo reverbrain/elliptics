@@ -1121,6 +1121,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 
 	ctl.io.size = io_size;
 	ctl.io.offset = io_offset;
+	ctl.io.flags = s->ioflags;
 
 	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
 	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
