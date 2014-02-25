@@ -361,11 +361,12 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	data_t* it = m_treap.find(id);
 	stop_action(ACTION_FIND);
 
-	if (!it) {
-		return -ENOTSUP;
-	}
+	dnet_time timestamp;
+	memset(&timestamp, 0, sizeof(timestamp));
 
-	dnet_time timestamp = it->timestamp();
+	if (it) {
+		timestamp = it->timestamp();
+	}
 
 	guard.unlock();
 
@@ -373,17 +374,21 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	local_session sess(m_node);
 	cmd->flags |= DNET_FLAGS_NOCACHE;
 	ioremap::elliptics::data_pointer data = sess.lookup(*cmd, &err);
+	cmd->flags &= ~DNET_FLAGS_NOCACHE;
 	stop_action(ACTION_LOCAL_LOOKUP);
 
-	cmd->flags &= ~DNET_FLAGS_NOCACHE;
-
 	if (err) {
+		if (!it) {
+			return err;
+		}
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 		return dnet_send_file_info_ts_without_fd(st, cmd, NULL, 0, &timestamp);
 	}
 
 	dnet_file_info *info = data.skip<dnet_addr>().data<dnet_file_info>();
-	info->mtime = timestamp;
+	if (it) {
+		info->mtime = timestamp;
+	}
 
 	cmd->flags &= (DNET_FLAGS_MORE | DNET_FLAGS_NEED_ACK);
 	return dnet_send_reply(st, cmd, data.data(), data.size(), 0);
