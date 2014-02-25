@@ -1131,7 +1131,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 	ctl.fd = -1;
 	ctl.complete = dnet_read_file_complete;
 	ctl.cmd = DNET_CMD_READ;
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.cflags = s->cflags | DNET_FLAGS_NEED_ACK;
 
 	c = malloc(sizeof(struct dnet_io_completion) + len + 1 + sizeof(DNET_HISTORY_SUFFIX));
 	if (!c) {
