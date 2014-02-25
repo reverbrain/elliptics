@@ -408,10 +408,13 @@ static int dnet_check_route_table(struct dnet_node *n)
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		group_num++;
+
+		if (group_num >= 4096)
+			break;
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	groups = malloc(group_num);
+	groups = malloc(group_num * sizeof(int));
 	if (!groups) {
 		err = -ENOMEM;
 		goto err_out_exit;

@@ -106,6 +106,12 @@ typename iterator::value_type aggregated(session &sess, iterator begin, iterator
 
 	async_result_type result(sess);
 
+	if (begin == end) {
+		async_result_handler<entry_type> handler(result);
+		handler.complete(create_error(-ENXIO, "has no requests to send"));
+		return result;
+	}
+
 	auto handler = std::make_shared<aggregator_type>(result, std::distance(begin, end));
 	auto on_entry = bind_method(handler, &aggregator_type::on_entry);
 	auto on_finished = bind_method(handler, &aggregator_type::on_finished);
