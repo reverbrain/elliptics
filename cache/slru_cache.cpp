@@ -378,6 +378,8 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 
 	if (err) {
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+		// zero size means 'we didn't find key on disk', but yet it exists in cache
+		// lookup by its nature is 'show me what is on disk' command
 		return dnet_send_file_info_ts_without_fd(st, cmd, NULL, 0, &timestamp);
 	}
 
