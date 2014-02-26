@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.10
+Version:	2.24.15.11
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,17 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Feb 26 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.11
+- stall: changed default reset-stall-count from 5 to 3
+- stall: fixed stall counter reset. Decrease timed out state weigth by 10 instead of 2.
+- stall: reset stall counter in transaction destructor if transaction hasn't timed out
+- IOClient: provided cflags in READ io command created by read_file.
+- Recovery: Added to merge statistics 'local_remove_old*' counters that contains information about keys which were removed without copying because they contain old data of keys.
+- IOClient: Provided ioflags from session to READ io command created by read_file.
+- Python: fixed code style.
+- Python: Fixed pep8 warnings in setup.py.
+- Python: dnet_balancer and fixes
+
 * Fri Feb 14 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.10
 - client: Make aggregated to handle empty sequence
 - cache: decrease log level if cache is not enabled
