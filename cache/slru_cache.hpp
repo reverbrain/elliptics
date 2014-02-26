@@ -62,6 +62,7 @@ private:
 	treap_t m_treap;
 	mutable cache_stats m_cache_stats;
 	mutable concurrent_time_stats_tree_t m_time_stats;
+	bool m_clear_occured;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 
