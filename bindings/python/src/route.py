@@ -15,8 +15,7 @@
 # =============================================================================
 
 from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET
-from itertools import groupby, izip
-from operator import attrgetter, itemgetter
+from operator import itemgetter
 from elliptics.core import Id
 from elliptics.log import logged_class
 
@@ -72,8 +71,9 @@ class Address(object):
     def from_host_port_family(cls, addr_str, group_id=0):
         """
         Creates address from string "host:port:family" and optional group_id.\n
-        address = elliptics.Address.from_host_port_family(addr_str='host.com:1025:2',
-                                                          group_id=0)
+        address = elliptics.Address.from_host_port_family(
+            addr_str='host.com:1025:2',
+            group_id=0)
         """
         host, port, family = addr_str.rsplit(':', 2)
         return cls(host=host, port=int(port),
@@ -195,26 +195,19 @@ class RouteList(object):
         for group in cls(sorted_routes).groups():
             group_routes = cls(sorted_routes).filter_by_group_id(group).routes
             last_address = group_routes[-1].address
-            merged_group = []
 
             # Insert implicit first route if needed
             if group_routes[0].key.id != smallest_id:
-                group_routes.insert(0, Route(Id(smallest_id, group), last_address))
-
-            # For each Route in list left only first one for each route
-            for _, g in groupby(group_routes, attrgetter('address')):
-                merged_group.append(list(g)[0])
-            assert(all(r1.address != r2.address
-                       for r1, r2 in izip(merged_group, merged_group[1:])))
-            assert(all(r1.key < r2.key
-                       for r1, r2 in izip(merged_group, merged_group[1:])))
+                route = Route(Id(smallest_id, group), last_address)
+                group_routes.insert(0, route)
 
             # Insert implicit last route if needed
             if group_routes[-1].key.id != biggest_id:
-                merged_group.append(Route(Id(biggest_id, group), last_address))
+                route = Route(Id(biggest_id, group), last_address)
+                group_routes.append(route)
 
             # Extend route list
-            merged_routes.extend(merged_group)
+            merged_routes.extend(group_routes)
 
         # Sort results by key
         merged_routes.sort(key=itemgetter(0))
@@ -225,7 +218,8 @@ class RouteList(object):
     def filter_by_address(self, address):
         """
         Filters routes for specified address\n
-        routes = routes.filter_by_address(Address.from_host_port_family('host.com:1025:2'))
+        address = Address.from_host_port_family('host.com:1025:2')
+        routes = routes.filter_by_address(address)
         """
         return RouteList([route for route in self.routes
                           if route.address == address])
@@ -273,14 +267,16 @@ class RouteList(object):
     def get_address_group_id(self, address):
         """
         Returns group_id of address based on route table\n
-        group_id = routes.get_address_group_id(Address.from_host_port_family('host.com:1025:2'))
+        group_id = routes.get_address_group_id(
+            Address.from_host_port_family('host.com:1025:2'))
         """
         return self.filter_by_address(address)[0].key.group_id
 
     def get_address_id(self, address):
         """
         Returns first key for specified address from route table\n
-        id = routes.get_address_id(Address.from_host_port_family('host.com:1025:2'))
+        id = routes.get_address_id(
+            Address.from_host_port_family('host.com:1025:2'))
         """
         return self.filter_by_address(address)[0].key
 
@@ -293,7 +289,8 @@ class RouteList(object):
     def get_address_ranges(self, address):
         """
         Returns key ranges which belong to specified address\n
-        ranges = routes.get_address_ranges(Address.from_host_port_family('host.com:1025:2'))
+        ranges = routes.get_address_ranges(
+            Address.from_host_port_family('host.com:1025:2'))
         """
         ranges = []
         group_id = self.get_address_group_id(address)

@@ -130,7 +130,7 @@ inline std::string convert_report(const rapidjson::Document &report) {
 	return buffer.GetString();
 }
 
-std::string statistics::report() {
+std::string statistics::report(int category) {
 	rapidjson::Document report;
 	report.SetObject();
 	auto &allocator = report.GetAllocator();
@@ -142,20 +142,34 @@ std::string statistics::report() {
 	m_start_time = end_time;
 	report.AddMember("time", time, allocator);
 
-	rapidjson::Value io_queue_value(rapidjson::kObjectType);
-	report.AddMember("io_queue_stat", io_queue_report(io_queue_value, allocator), allocator);
-	rapidjson::Value commands_value(rapidjson::kObjectType);
-	report.AddMember("commands_stat", commands_report(commands_value, allocator), allocator);
-	rapidjson::Value history_value(rapidjson::kArrayType);
-	report.AddMember("history_stat", history_report(history_value, allocator), allocator);
-	rapidjson::Value histogram_value(rapidjson::kObjectType);
-	report.AddMember("histogram", histogram_report(histogram_value, allocator), allocator);
+	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_IO_QUEUE) {
+		rapidjson::Value io_queue_value(rapidjson::kObjectType);
+		report.AddMember("io_queue_stat", io_queue_report(io_queue_value, allocator), allocator);
+	}
+
+	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_COMMANDS) {
+		rapidjson::Value commands_value(rapidjson::kObjectType);
+		report.AddMember("commands_stat", commands_report(commands_value, allocator), allocator);
+	}
+
+	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_COMMANDS) {
+		rapidjson::Value history_value(rapidjson::kArrayType);
+		report.AddMember("history_stat", history_report(history_value, allocator), allocator);
+	}
+
+	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_IO_HISTOGRAMS) {
+		rapidjson::Value histogram_value(rapidjson::kObjectType);
+		report.AddMember("histogram", histogram_report(histogram_value, allocator), allocator);
+	}
 
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
 	for (auto it = m_stat_providers.cbegin(), end = m_stat_providers.cend(); it != end; ++it) {
-		rapidjson::Document value_doc;
+		if (!it->first->check_category(category))
+			continue;
+		rapidjson::Document value_doc(&allocator);
 		value_doc.Parse<0>(it->first->json().c_str());
 		report.AddMember(it->second.c_str(),
+						 allocator,
 		                 static_cast<rapidjson::Value&>(value_doc),
 		                 allocator);
 	}
@@ -183,7 +197,7 @@ rapidjson::Value& statistics::io_queue_report(rapidjson::Value &stat_value, rapi
 }
 
 void statistics::log() {
-	dnet_log(m_monitor.node(), DNET_LOG_ERROR, "%s", report().c_str());
+	dnet_log(m_monitor.node(), DNET_LOG_ERROR, "%s", report(DNET_MONITOR_ALL).c_str());
 }
 
 rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {

@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.0
+Version:	2.25.2.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -21,7 +21,7 @@ BuildRequires:	gcc44 gcc44-c++
 %else
 BuildRequires:  python-devel
 %endif
-BuildRequires:	eblob-devel >= 0.21.26
+BuildRequires:	eblob-devel >= 0.21.30
 BuildRequires:	cmake msgpack-devel
 
 %if %{defined rhel} && 0%{?rhel} < 6
@@ -87,6 +87,8 @@ CXXFLAGS="-pthread -I/usr/include/boost%{boost_ver}" LDFLAGS="-L/usr/lib64/boost
 
 make %{?_smp_mflags}
 
+make test
+
 %install
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
@@ -134,6 +136,76 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Feb 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.2.0
+- build: depend on 0.21.30+ eblob where react monitoring support added
+- Monitor: Backend statistics provider added.
+
+* Fri Feb 14 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.1.1
+- tests: Don't run srw tests if srw is disabled
+- client: Fixed log output for amd64 platform
+- client: Fixes for x86 platform
+- tests: Fixed compilation error
+- client: Fixed read_latest policy
+- cache: decrease log level if cache is not enabled
+- tests: added missing header
+- cache: define _GLIBCXX_USE_NANOSLEEP to enable sleep_for()
+- test: added server library to test-common itself, since it uses them
+- indexes: there is no nullptr on older compilers
+
+* Thu Feb 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.1.0
+- pool: added comment on how client handles replies in multiple IO threads
+- tests: Don't make artifacts if test is successfull
+- docs: Don't try to install documentation
+- cpp: get rid of get_node calls
+- Added forgotten doc/Doxy*.in files
+- cpp: Changed mix_states behaviour
+- file_logger: do not accept default log-level, force client to provide correct one
+- Tests: running run_tests.py with proper python.
+- logger: logger construction from the interface must *NOT* set default log-level, users should not be tricked here and potentially find out later, that their logging is being done only on INFO and ERROR level
+- Monitor&Doxygen: Added doxygen code documentation to monitor.
+- read-callback: only run read recovery when we have read the whole object. Added read recovery dbug.
+- dnet_io_attr: added total_size field (without ABI changes), which contains total size of the read record.
+- reconnect: fixed groups array allocation. limit group array for random selection by 4096 groups
+- core: added socket close debug
+- client: Added capped collections
+- Core: Missed error notification added
+- client: Make aggregated to handle empty sequence
+- cache: Stop lifecheck thread at node->need_exit
+- Monitor: Added extra check that monitor is still alive after acquiring rwlock.
+- Core: added checking epoll_events
+- Cache: Elements that were removed while being in sync queue don't sync now.
+- Cache: Resize page optimization.
+- Core: Limited size of io queues to the number of io threads * 1000. Added building iterate.cpp from example to main build without installation.
+- Cache: fixed size stats counting for deleting objects
+- Monitor: json allocator for dynamic string added
+- Cache: syncing to disk during requests to cache removed
+- Cache: Append optimization added
+- Cache: concurrent_time_tree, erase from page, time_tree difference
+- Cache: Life check sleep time adjusts to system load
+- Cache: Action names refactored. New actions added.
+- Cache: Actions set added.
+- Cache: time_stats doxygen documentation added
+- Cache: Copy of data before sync added
+- Cache: multiple bugfixes
+
+* Fri Jan 24 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.0.0
+- Python: Fixed typo in docstrings.
+- Python: added ability to clone session.
+- Python: Fixed pep8 warnings in setup.py. Added dnet_balancer to elliptics-client package.
+- Python: added keeping node inside python elliptics.Session to insure that session will be deleted after node.
+- Python: added (re)balancing ids script
+- trans: randomize route table update: select 5 random groups and read table from one random node from each selected group
+- Python: bugfixes
+- rpm: added make test
+- doc: Added documentation generation by doxygen
+- Utils: Introduce argument_data
+- tests: Add data_buffer test case
+- Utils: Optimized data_pointer behaviour
+- tests: Moved API checks to external test file
+- Monitor: Added ability to extend monitor statistics via custom statistics providers.
+- srw: Don't call cocaine::app_t::stop on stopped apps
+- Monitor: Made elliptics_monitor as shared library.
+
 * Wed Dec 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.0
 - cache: treap implementation, cache distribution changes
 - monitor: initial implementation

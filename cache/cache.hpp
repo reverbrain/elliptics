@@ -1,3 +1,20 @@
+/*
+* 2012+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
+* 2013+ Copyright (c) Ruslan Nigmatullin <euroelessar@yandex.ru>
+* 2013+ Copyright (c) Andrey Kashin <kashin.andrej@gmail.com>
+* All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU Lesser General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU Lesser General Public License for more details.
+*/
+
 #ifndef CACHE_HPP
 #define CACHE_HPP
 
@@ -15,11 +32,17 @@
 
 #include <boost/intrusive/list.hpp>
 
-#include "../library/elliptics.h"
-#include "../indexes/local_session.h"
+#include "library/elliptics.h"
+#include "indexes/local_session.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
+
+#include "react/react.hpp"
+
+#include "monitor/rapidjson/document.h"
+#include "monitor/rapidjson/writer.h"
+#include "monitor/rapidjson/stringbuffer.h"
 
 #include "treap.hpp"
 
@@ -51,13 +74,24 @@ boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::opti
 
 class data_t : public lru_list_base_hook_t, public treap_node_t<data_t> {
 public:
-	data_t(const unsigned char *id) {
+	enum class sync_state_t : char {
+		NOT_SYNCING,
+		SYNC_PHASE,
+		ERASE_PHASE,
+	};
+
+	data_t(const unsigned char *id) :
+		m_lifetime(0), m_synctime(0), m_user_flags(0),
+		m_remove_from_disk(false), m_remove_from_cache(false),
+		m_only_append(false), m_removed_from_page(true), m_sync_state(sync_state_t::NOT_SYNCING) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
+		dnet_empty_time(&m_timestamp);
 	}
 
 	data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
 		m_lifetime(0), m_synctime(0), m_user_flags(0),
-		m_remove_from_disk(remove_from_disk), m_remove_from_cache(false), m_only_append(false) {
+		m_remove_from_disk(remove_from_disk), m_remove_from_cache(false),
+		m_only_append(false), m_removed_from_page(true), m_sync_state(sync_state_t::NOT_SYNCING) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
 		dnet_empty_time(&m_timestamp);
 
@@ -71,6 +105,9 @@ public:
 	data_t &operator =(const data_t &other) = delete;
 
 	~data_t() {
+		if (!is_removed_from_page()) {
+			std::cerr << "~data_t(): element is not removed from cache" << std::endl;
+		}
 	}
 
 	const struct dnet_raw_id &id(void) const {
@@ -98,10 +135,10 @@ public:
 	}
 
 	size_t eventtime() const {
-        size_t time = 0;
+		size_t time = 0;
 		if (!time || (lifetime() && time > lifetime()))
 		{
-            time = lifetime();
+			time = lifetime();
 		}
 		if (!time || (synctime() && time > synctime()))
 		{
@@ -120,6 +157,10 @@ public:
 
 	void set_cache_page_number(size_t cache_page_number) {
 		m_cache_page_number = cache_page_number;
+		if (!is_removed_from_page()) {
+			std::cerr << "Element is not removed from cache page" << std::endl;
+		}
+		set_removed_from_page(false);
 	}
 
 	void clear_synctime() {
@@ -150,6 +191,22 @@ public:
 		return m_remove_from_cache;
 	}
 
+	sync_state_t sync_state() const {
+		return m_sync_state;
+	}
+
+	void set_sync_state(sync_state_t sync_state) {
+		m_sync_state = sync_state;
+	}
+
+	bool is_syncing() const {
+		return m_sync_state == sync_state_t::SYNC_PHASE;
+	}
+
+	bool will_be_erased() const {
+		return m_sync_state != sync_state_t::NOT_SYNCING;
+	}
+
 	void set_remove_from_cache(bool remove_from_cache) {
 		m_remove_from_cache = remove_from_cache;
 	}
@@ -160,6 +217,14 @@ public:
 
 	void set_only_append(bool only_append) {
 		m_only_append = only_append;
+	}
+
+	bool is_removed_from_page() const {
+		return m_removed_from_page;
+	}
+
+	void set_removed_from_page(bool removed_from_page) {
+		m_removed_from_page = removed_from_page;
 	}
 
 	size_t size(void) const {
@@ -194,9 +259,39 @@ private:
 	bool m_remove_from_disk;
 	bool m_remove_from_cache;
 	bool m_only_append;
+	bool m_removed_from_page;
+	sync_state_t m_sync_state;
 	char m_cache_page_number;
 	struct dnet_raw_id m_id;
 	std::shared_ptr<raw_data_t> m_data;
+};
+
+struct record_info {
+	record_info(data_t* obj) {
+		only_append = obj->only_append();
+		memcpy(id.id, obj->id().id, DNET_ID_SIZE);
+		data = obj->data()->data();
+		user_flags = obj->user_flags();
+		timestamp = obj->timestamp();
+		is_synced = false;
+	}
+
+	bool operator< (const record_info& other) const {
+		return dnet_id_cmp_str(id.id, other.id.id) < 0;
+	}
+
+	bool is_synced;
+	bool only_append;
+	dnet_id id;
+	std::vector<char> data;
+	uint64_t user_flags;
+	dnet_time timestamp;
+};
+
+struct record_id_less {
+	bool operator() (const record_info& lhs, const unsigned char* id) const {
+		return dnet_id_cmp_str(lhs.id.id, id);
+	}
 };
 
 typedef boost::intrusive::list<data_t, boost::intrusive::base_hook<lru_list_base_hook_t> > lru_list_t;
@@ -210,62 +305,38 @@ struct eventtime_less {
 
 typedef treap<data_t> treap_t;
 
-struct atomic_cache_stats {
-	atomic_cache_stats():
-		number_of_objects(0), size_of_objects(0),
-		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
-		total_lifecheck_time(0),
-		total_write_time(0),
-		total_read_time(0),
-		total_remove_time(0), total_lookup_time(0), total_resize_time(0) {}
-
-	std::atomic_size_t number_of_objects;
-	std::atomic_size_t size_of_objects;
-	std::atomic_size_t number_of_objects_marked_for_deletion;
-	std::atomic_size_t size_of_objects_marked_for_deletion;
-
-	std::atomic_size_t total_lifecheck_time;
-	std::atomic_size_t total_write_time;
-	std::atomic_size_t total_read_time;
-	std::atomic_size_t total_remove_time;
-	std::atomic_size_t total_lookup_time;
-	std::atomic_size_t total_resize_time;
-};
-
 struct cache_stats {
-	cache_stats(const atomic_cache_stats& stats):
-		number_of_objects(stats.number_of_objects),
-		size_of_objects(stats.size_of_objects),
-		number_of_objects_marked_for_deletion(stats.number_of_objects_marked_for_deletion),
-		size_of_objects_marked_for_deletion(stats.size_of_objects_marked_for_deletion),
-		total_lifecheck_time(stats.total_lifecheck_time),
-		total_write_time(stats.total_write_time),
-		total_read_time(stats.total_read_time),
-		total_remove_time(stats.total_remove_time),
-		total_lookup_time(stats.total_lookup_time),
-		total_resize_time(stats.total_resize_time)
-	{}
-
 	cache_stats():
 		number_of_objects(0), size_of_objects(0),
-		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0),
-		total_lifecheck_time(0), total_write_time(0), total_read_time(0),
-		total_remove_time(0), total_lookup_time(0), total_resize_time(0) {}
+		number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0) {}
 
-	size_t number_of_objects;
-	size_t size_of_objects;
-	size_t number_of_objects_marked_for_deletion;
-	size_t size_of_objects_marked_for_deletion;
-
-	size_t total_lifecheck_time;
-	size_t total_write_time;
-	size_t total_read_time;
-	size_t total_remove_time;
-	size_t total_lookup_time;
-	size_t total_resize_time;
+	std::size_t number_of_objects;
+	std::size_t size_of_objects;
+	std::size_t number_of_objects_marked_for_deletion;
+	std::size_t size_of_objects_marked_for_deletion;
 
 	std::vector<size_t> pages_sizes;
 	std::vector<size_t> pages_max_sizes;
+
+	rapidjson::Value& to_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
+		stat_value.AddMember("size", size_of_objects, allocator)
+				  .AddMember("removing_size", size_of_objects_marked_for_deletion, allocator)
+				  .AddMember("objects", number_of_objects, allocator)
+				  .AddMember("removing_objects", number_of_objects_marked_for_deletion, allocator);
+
+		rapidjson::Value pages_sizes_stat(rapidjson::kArrayType);
+		for (auto it = pages_sizes.begin(), end = pages_sizes.end(); it != end; ++it) {
+			pages_sizes_stat.PushBack(*it, allocator);
+		}
+		stat_value.AddMember("pages_sizes", pages_sizes_stat, allocator);
+
+		rapidjson::Value pages_max_sizes_stat(rapidjson::kArrayType);
+		for (auto it = pages_max_sizes.begin(), end = pages_max_sizes.end(); it != end; ++it) {
+			pages_max_sizes_stat.PushBack(*it, allocator);
+		}
+		stat_value.AddMember("pages_max_sizes", pages_max_sizes_stat, allocator);
+		return stat_value;
+	}
 };
 
 class slru_cache_t;
@@ -300,7 +371,13 @@ class cache_manager {
 
 		std::vector<cache_stats> get_caches_stats() const;
 
-		void dump_stats() const;
+		rapidjson::Value& get_total_caches_size_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
+
+		rapidjson::Value& get_total_caches_time_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
+
+		rapidjson::Value& get_caches_size_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
+
+		rapidjson::Value& get_caches_time_stats_json(rapidjson::Value& stat_value, rapidjson::Document::AllocatorType &allocator) const;
 
 		std::string stat_json() const;
 
@@ -308,8 +385,6 @@ class cache_manager {
 		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
 		size_t m_max_cache_size;
 		size_t m_cache_pages_number;
-		std::thread m_dump_stats;
-		bool stop;
 
 		size_t idx(const unsigned char *id);
 };
@@ -381,5 +456,53 @@ private:
 };
 
 }}
+
+namespace ioremap { namespace cache { namespace actions {
+
+extern react::actions_set_t cache_actions;
+
+const extern int ACTION_CACHE;
+const extern int ACTION_WRITE;
+const extern int ACTION_READ;
+const extern int ACTION_REMOVE;
+const extern int ACTION_LOOKUP;
+const extern int ACTION_LOCK;
+const extern int ACTION_FIND;
+const extern int ACTION_ADD_TO_PAGE;
+const extern int ACTION_RESIZE_PAGE;
+const extern int ACTION_SYNC_AFTER_APPEND;
+const extern int ACTION_WRITE_APPEND_ONLY;
+const extern int ACTION_WRITE_AFTER_APPEND_ONLY;
+const extern int ACTION_POPULATE_FROM_DISK;
+const extern int ACTION_CLEAR;
+const extern int ACTION_LIFECHECK;
+const extern int ACTION_CREATE_DATA;
+const extern int ACTION_CAS;
+const extern int ACTION_MODIFY;
+const extern int ACTION_DECREASE_KEY;
+const extern int ACTION_MOVE_RECORD;
+const extern int ACTION_ERASE;
+const extern int ACTION_REMOVE_LOCAL;
+const extern int ACTION_LOCAL_LOOKUP;
+const extern int ACTION_INIT;
+const extern int ACTION_LOCAL_READ;
+const extern int ACTION_PREPARE;
+const extern int ACTION_LOCAL_WRITE;
+const extern int ACTION_PREPARE_SYNC;
+const extern int ACTION_SYNC;
+const extern int ACTION_SYNC_BEFORE_OPERATION;
+const extern int ACTION_ERASE_ITERATE;
+const extern int ACTION_SYNC_ITERATE;
+const extern int ACTION_DNET_OPLOCK;
+const extern int ACTION_DESTRUCT;
+
+}}}
+
+namespace ioremap { namespace cache { namespace local {
+
+extern __thread react::time_stats_updater_t *thread_time_stats_updater;
+
+}}}
+
 
 #endif // CACHE_HPP

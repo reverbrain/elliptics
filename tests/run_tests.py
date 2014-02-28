@@ -9,8 +9,9 @@ import shutil
 
 def run_test(path, test):
     os.mkdir(path)
-    p = subprocess.Popen([test, '--path', path], stdout=sys.stdout, stderr=subprocess.STDOUT, cwd=path)
-    result = p.communicate()
+    p = subprocess.Popen([test, '--path', path], stdout=sys.stdout,
+                         stderr=subprocess.STDOUT, cwd=path)
+    p.communicate()
 
     return p.returncode
 
@@ -27,12 +28,11 @@ def main():
     source_dir = sys.argv[1]
     binary_dir = sys.argv[2]
 
-    tests = [
-        (binary_dir, 'dnet_cpp_test'),
-        (binary_dir, 'dnet_cpp_cache_test'),
-        (binary_dir, 'dnet_cpp_srw_test'),
-        (binary_dir, 'dnet_cpp_api_test')
-    ]
+    tests = list()
+
+    for i in xrange(3, len(sys.argv)):
+        tests.append((binary_dir, sys.argv[i]))
+
     print('Running {0} tests'.format(len(tests)))
 
     tests_base_dir = binary_dir + '/result'
@@ -47,21 +47,32 @@ def main():
         print('# Start {1} of {2}: {0}: '.format(test[1], i + 1, len(tests)))
 
         timer_begin = time.time()
-        result = run_test(tests_base_dir + '/' + test[1], test[0] + '/' + test[1])
+        result = run_test(tests_base_dir + '/' + test[1],
+                          test[0] + '/' + test[1])
         timer_end = time.time()
 
-        print('# Result: {0}\t{1} sec\n'.format('Passed' if result == 0 else 'Failed ({0})'.format(result), timer_end - timer_begin))
+        if result == 0:
+            str_result = 'Passed'
+        else:
+            str_result = 'Failed ({0})'.format(result)
+
+        print('# Result: {0}\t{1} sec\n'.format(str_result,
+                                                timer_end - timer_begin))
 
         all_ok &= result == 0
 
-        file = tarfile.TarFile.open(artifacts_dir + '/' + test[1] + '.tar.bz2', 'w:bz2')
-        file.add(tests_base_dir + '/' + test[1], test[1])
-        file.close()
+        if result != 0:
+            file_path = os.path.join(artifacts_dir, test[1] + '.tar.bz2')
+            file = tarfile.TarFile.open(file_path, 'w:bz2')
+            file.add(tests_base_dir + '/' + test[1], test[1])
+            file.close()
 
     print('Tests are finised')
 
-    exit(0 if all_ok else 1)
+    if all_ok:
+        exit(0)
+    else:
+        exit(1)
 
 if __name__ == "__main__":
     main()
-

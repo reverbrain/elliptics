@@ -30,23 +30,65 @@ namespace ioremap { namespace monitor {
 class monitor;
 class handler;
 
+/*!
+ * Server class which is responsible for:
+ *    listening incoming connection
+ *    handling simple GET HTTP request
+ *    sends simple HTTP response with json statistics of specified category
+ */
 class server {
 public:
+
+	/*!
+	 * Constructor: initializes server for @mon to listen @port
+	 */
 	server(monitor &mon, unsigned int port);
+
+	/*!
+	 * Destructor: stops server and freeing all data
+	 */
 	~server();
 
+	/*!
+	 * Stops listening incoming connection and sending responses
+	 */
 	void stop();
 
 private:
+	/*!
+	 * Disabling default copy constructor
+	 */
 	server(const server&);
 
+	/*!
+	 * Starts listening monitor port
+	 */
 	void listen();
-	void async_accept();
-	void handle_accept(std::shared_ptr<handler> h, const boost::system::error_code &err);
 
+	/*!
+	 * Asynchronously accepts incoming connecitons
+	 */
+	void async_accept();
+
+	/*!
+	 * Callback which will be called on new accepted incoming connection
+	 */
+	void handle_accept(std::shared_ptr<handler> h,
+	                   const boost::system::error_code &err);
+
+	/*!
+	 * Monitor that creates server
+	 */
 	monitor							&m_monitor;
+	/*!
+	 * boost::asio kitchen for asynchronous work with sockets
+	 */
 	boost::asio::io_service			m_io_service;
 	boost::asio::ip::tcp::acceptor	m_acceptor;
+
+	/*!
+	 * Thread for executing boost::asio
+	 */
 	std::thread						m_listen;
 };
 

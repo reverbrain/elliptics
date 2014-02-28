@@ -181,16 +181,25 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		char str[64];
 		struct tm tm;
 
+		if (t->cmd.status != -ETIMEDOUT) {
+			if (st->stall) {
+				dnet_log(st->n, DNET_LOG_INFO, "%s: reseting state stall counter: weight: %f\n",
+						dnet_state_dump_addr(st), st->weight);
+			}
+
+			st->stall = 0;
+		}
+
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, "
+		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, stall: %d, "
 				"weight: %f, mrt: %ld, time: %ld, started: %s.%06lu, cached status: %d.\n",
 			dnet_dump_id(&t->cmd.id),
 			dnet_cmd_string(t->command),
 			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
 			!!(t->trans & ~DNET_TRANS_REPLY),
-			dnet_state_dump_addr(t->st),
+			dnet_state_dump_addr(t->st), t->st->stall,
 			st->weight, st->median_read_time, diff,
 			str, t->start.tv_usec,
 			t->cmd.status);
@@ -345,8 +354,6 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 	}
 	pthread_mutex_unlock(&st->trans_lock);
 
-	dnet_log(st->n, DNET_LOG_DEBUG, "stall check: state: %s, st: %p, transactions-moved: %d\n", dnet_state_dump_addr(st), st, trans_moved);
-
 	return trans_moved;
 }
 
@@ -358,24 +365,13 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 		st->stall++;
 
 		if (st->weight >= 2)
-			st->weight /= 2;
+			st->weight /= 10;
 
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%u, weight: %f\n",
 				dnet_state_dump_addr(st), trans_timeout, st->stall, DNET_DEFAULT_STALL_TRANSACTIONS, st->weight);
 
-		if (st->stall >= st->n->stall_count) {
+		if (st->stall >= st->n->stall_count)
 			dnet_state_reset_nolock_noclean(st, -ETIMEDOUT, head);
-		}
-	} else {
-		st->stall = 0;
-
-		if (st->weight < DNET_STATE_MAX_WEIGHT)
-			st->weight *= 1.2;
-
-		if (st->stall) {
-			dnet_log(st->n, DNET_LOG_INFO, "%s: reseting state stall counter: weight: %f\n",
-					dnet_state_dump_addr(st), st->weight);
-		}
 	}
 }
 
@@ -398,24 +394,44 @@ static void dnet_check_all_states(struct dnet_node *n)
 
 static int dnet_check_route_table(struct dnet_node *n)
 {
-	int rnd = rand();
+	int rnd;
 	struct dnet_id id;
-	int groups[128];
-	int group_num = 0, i;
+	unsigned int *groups;
+	int group_num = 0, i, err;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
-		groups[group_num++] = g->group_id;
+		group_num++;
 
-		if (group_num > (int)ARRAY_SIZE(groups))
+		if (group_num >= 4096)
 			break;
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	for (i = 0; i < group_num; ++i) {
-		id.group_id = groups[i];
+	groups = calloc(group_num, sizeof(unsigned int));
+	if (!groups) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	i = 0;
+	pthread_mutex_lock(&n->state_lock);
+	list_for_each_entry(g, &n->group_list, group_entry) {
+		groups[i++] = g->group_id;
+
+		if (i >= group_num) {
+			group_num = i;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&n->state_lock);
+
+	for (i = 0; i < (5 < group_num ? 5 : group_num); ++i) {
+		rnd = rand() % group_num;
+
+		id.group_id = groups[rnd];
 		memcpy(id.id, &rnd, sizeof(rnd));
 
 		st = dnet_state_get_first(n, &id);
@@ -425,7 +441,10 @@ static int dnet_check_route_table(struct dnet_node *n)
 		}
 	}
 
-	return 0;
+	free(groups);
+
+err_out_exit:
+	return err;
 }
 
 static void *dnet_reconnect_process(void *data)

@@ -20,6 +20,9 @@
 #include <boost/python/list.hpp>
 #include <boost/python/dict.hpp>
 #include <boost/python/stl_iterator.hpp>
+#include <boost/python/manage_new_object.hpp>
+#include <boost/python/return_value_policy.hpp>
+
 
 #include <boost/make_shared.hpp>
 
@@ -141,6 +144,11 @@ void dnet_iterator_range_set_key_end(dnet_iterator_range *range, const elliptics
 class elliptics_session: public session, public bp::wrapper<session> {
 public:
 	elliptics_session(const node &n) : session(n) {}
+	elliptics_session(const session &s) : session(s) {}
+
+	elliptics_session* clone() const {
+		return new elliptics_session(session::clone());
+	}
 
 	elliptics_id transform(const bp::api::object &data) {
 		bp::extract<std::string> get_string(data);
@@ -434,7 +442,7 @@ public:
 	python_exec_result exec_src(const bp::api::object &id, const int src_key, const std::string &event, const std::string &data) {
 		dnet_id* raw_id = NULL;
 		dnet_id conv_id;
-		if (id != bp::api::object()) {
+		if (id.ptr() != Py_None) {
 			auto eid = elliptics_id::convert(id);
 			session::transform(eid);
 			conv_id = eid.id();
@@ -675,6 +683,12 @@ void init_elliptics_session() {
 	            "__init__(node)\n"
 	            "    Initializes session by the node\n\n"
 	            "    session = elliptics.Session(node)"))
+		.def("clone", &elliptics_session::clone,
+		     bp::return_value_policy<bp::manage_new_object>(),
+		     "clone()\n"
+		     "    Creates and returns session which is equal to current\n"
+		     "    but complitely independent from it.\n\n"
+		     "    cloned_session = session.clone()\n")
 		.def("transform", &elliptics_session::transform, (bp::args("data")),
 		     "transform(data)\n"
 		     "    Transforms data to elliptics.Id\n"

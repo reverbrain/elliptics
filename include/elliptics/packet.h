@@ -437,6 +437,13 @@ static inline void dnet_convert_list(struct dnet_list *l)
  * This flag is for DNET_CMD_INDEXES_INTERNAL request only.
  */
 #define DNET_INDEXES_FLAGS_INTERNAL_REMOVE_FROM_STORAGE	(1<<4)
+/*
+ * This index is capped collection, so it may need to remove some
+ * object from it.
+ *
+ * This flag is for DNET_CMD_INDEXES_INTERNAL request only.
+ */
+#define DNET_INDEXES_FLAGS_INTERNAL_CAPPED_COLLECTION	(1<<5)
 
 
 struct dnet_time {
@@ -480,7 +487,13 @@ struct dnet_io_attr
 	struct dnet_time	timestamp;
 	uint64_t		user_flags;
 
-	uint64_t		reserved[2];
+	/*
+	 * Total size of the object being read.
+	 * Particulary useful when client asks for part of the object (by specifying size in read request).
+	 */
+	uint64_t		total_size;
+
+	uint64_t		reserved1;
 	uint32_t		reserved2;
 
 	uint32_t		flags;
@@ -914,7 +927,9 @@ struct dnet_indexes_request_entry
 {
 	struct dnet_raw_id		id;		/* Index ID */
 	uint64_t			flags;		/* Index flags */
-	uint64_t			reserved[2];
+	uint32_t			limit;		/* Capped collection limit */
+	uint32_t			reserved1;
+	uint64_t			reserved2;
 	uint64_t			size;		/* Data size */
 	char				data[0];	/* Index-specific data */
 } __attribute__ ((packed));

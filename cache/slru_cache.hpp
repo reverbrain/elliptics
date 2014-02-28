@@ -1,17 +1,34 @@
+/*
+* 2013+ Copyright (c) Ruslan Nigmatullin <euroelessar@yandex.ru>
+* 2013+ Copyright (c) Andrey Kashin <kashin.andrej@gmail.com>
+* All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU Lesser General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU Lesser General Public License for more details.
+*/
+
 #ifndef SLRU_CACHE_HPP
 #define SLRU_CACHE_HPP
 
 #include "cache.hpp"
+#include "react/react.hpp"
 
 namespace ioremap { namespace cache {
+
+using namespace react;
 
 class slru_cache_t {
 public:
 	slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes);
 
 	~slru_cache_t();
-
-	void stop();
 
 	int write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data);
 
@@ -25,17 +42,16 @@ public:
 
 	cache_stats get_cache_stats() const;
 
+	const time_stats_tree_t get_time_stats() const;
+
 private:
 
-	int write_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data);
+	void start_action(const int action_code);
 
-	std::shared_ptr<raw_data_t> read_(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io);
+	void stop_action(const int action_code);
 
-	int remove_(const unsigned char *id, dnet_io_attr *io);
+	time_stats_updater_t *get_time_stats_updater();
 
-	int lookup_(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd);
-
-	bool m_need_exit;
 	struct dnet_node *m_node;
 	std::mutex m_lock;
 	size_t m_cache_pages_number;
@@ -44,9 +60,9 @@ private:
 	std::unique_ptr<lru_list_t[]> m_cache_pages_lru;
 	std::thread m_lifecheck;
 	treap_t m_treap;
-	std::size_t finds_number;
-	std::size_t total_find_time;
-	mutable atomic_cache_stats m_cache_stats;
+	mutable cache_stats m_cache_stats;
+	mutable concurrent_time_stats_tree_t m_time_stats;
+	bool m_clear_occured;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 
@@ -60,6 +76,8 @@ private:
 	size_t get_previous_page_number(size_t page_number) const {
 		return page_number + 1;
 	}
+
+	void sync_if_required(data_t* it, elliptics_unique_lock<std::mutex> &guard);
 
 	void insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data);
 

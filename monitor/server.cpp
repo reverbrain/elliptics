@@ -21,6 +21,7 @@
 #include "monitor.hpp"
 
 #include "../library/elliptics.h"
+#include "http_miscs.hpp"
 
 namespace ioremap { namespace monitor {
 
@@ -44,12 +45,13 @@ private:
 	void async_write(std::string data);
 	void handle_read(const boost::system::error_code &err, size_t size);
 	void handle_write();
-
 	void close();
+
+	int parse_request(size_t size);
 
 	monitor							&m_monitor;
 	boost::asio::ip::tcp::socket	m_socket;
-	boost::array<char, 64>			m_buffer;
+	boost::array<char, 1024>		m_buffer;
 	std::string						m_report;
 };
 
@@ -104,12 +106,19 @@ void handler::async_read() {
 }
 
 void handler::handle_read(const boost::system::error_code &err, size_t size) {
-	if (err || size < 1) {
+	if (err) {
 		close();
 		return;
 	}
 
-	async_write(m_monitor.get_statistics().report());
+	auto req = parse_request(size);
+	std::string content = "";
+
+	if (req >= DNET_MONITOR_ALL)
+		content = m_monitor.get_statistics().report(req);
+
+	std::string reply = make_reply(req, content);
+	async_write(reply);
 }
 
 void handler::async_write(std::string data) {
@@ -126,6 +135,10 @@ void handler::handle_write() {
 void handler::close() {
 	boost::system::error_code ec;
 	m_socket.shutdown(boost::asio::socket_base::shutdown_both, ec);
+}
+
+int handler::parse_request(size_t size) {
+	return parse(m_buffer.data(), size);
 }
 
 }} /* namespace ioremap::monitor */

@@ -151,12 +151,14 @@ struct nodes_data
 {
 	typedef std::shared_ptr<nodes_data> ptr;
 
+	~nodes_data();
+
+	directory_handler run_directory;
+	directory_handler directory;
 #ifndef NO_SERVER
 	std::vector<server_node> nodes;
-	directory_handler directory;
 	int locator_port;
 #endif // NO_SERVER
-	directory_handler run_directory;
 
 	std::unique_ptr<ioremap::elliptics::node> node;
 };

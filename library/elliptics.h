@@ -420,6 +420,10 @@ struct dnet_io {
 
 	struct dnet_work_pool	*recv_pool;
 	struct dnet_work_pool	*recv_pool_nb;
+
+	// condition variable for waiting when io pools are able to process packets
+	pthread_mutex_t		full_lock;
+	pthread_cond_t		full_wait;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
@@ -564,6 +568,7 @@ struct dnet_node
 	void			*cache;
 
 	void			*monitor;
+	pthread_rwlock_t monitor_rwlock;
 
 	struct dnet_config_data *config_data;
 };
@@ -653,7 +658,7 @@ int dnet_socket_create(struct dnet_node *n, char *addr_str, int port, struct dne
 int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr *addr, int listening);
 
 void dnet_set_sockopt(int s);
-void dnet_sock_close(int s);
+void dnet_sock_close(struct dnet_node *n, int s);
 
 enum dnet_join_state {
 	DNET_JOIN = 1,			/* Node joined the network */

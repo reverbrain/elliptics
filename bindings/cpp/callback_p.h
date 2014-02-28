@@ -26,6 +26,7 @@
 #include <iostream>
 #include <mutex>
 #include <set>
+#include <sstream>
 #include <thread>
 
 //#ifdef DEVELOPER_BUILD
@@ -139,7 +140,7 @@ class default_callback
 		typedef std::function<void (const T &)> entry_processor_func;
 
 		default_callback(const session &sess, const async_result<T> &result)
-			: m_logger(sess.get_node().get_log()),
+			: m_logger(sess.get_logger()),
 			  m_count(1), m_complete(0), m_result(result), m_proto_error(false)
 		{
 		}
@@ -391,10 +392,11 @@ class multigroup_callback
 		 */
 		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
 		{
-			dnet_log_raw(sess.get_node().get_native(),
-				DNET_LOG_DEBUG, "%s: multigroup_callback::handle: cmd: %s, trans: %lx, status: %d, flags: %lx, group: %d: %zd/%zd, priv: %p\n",
-					dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), cmd->trans, cmd->status, cmd->flags,
-					groups[m_group_index], m_group_index, groups.size(), priv);
+			dnet_log_raw(sess.get_native_node(),
+				DNET_LOG_DEBUG, "%s: multigroup_callback::handle: cmd: %s, trans: %llx, status: %d, flags: %llx, group: %d: %zd/%zd, priv: %p\n",
+					dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), static_cast<long long unsigned>(cmd->trans),
+					cmd->status, static_cast<long long unsigned>(cmd->flags),
+					m_group_index < groups.size() ? groups[m_group_index] : -1, m_group_index, groups.size(), priv);
 
 			if (cb.handle(state, cmd, func, priv)) {
 				m_has_finished |= !cb.statuses().empty();
@@ -417,7 +419,7 @@ class multigroup_callback
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
 
-			dnet_log_raw(sess.get_node().get_native(),
+			dnet_log_raw(sess.get_native_node(),
 				DNET_LOG_DEBUG, "multigroup_callback::iterate_groups: group: %d: %zd/%zd, error: %d, priv: %p\n",
 					groups[m_group_index], m_group_index, groups.size(), error->code(), priv);
 			// try next group
@@ -430,7 +432,7 @@ class multigroup_callback
 				if (next_group(error, id, func, priv)) {
 					if (error->code()) {
 						// some exception, log and try next group
-						dnet_log_raw(sess.get_node().get_native(),
+						dnet_log_raw(sess.get_native_node(),
 							DNET_LOG_NOTICE,
 							"%s: iterate-groups exception: %s\n",
 							dnet_dump_id(&id), error->message().c_str());
@@ -508,7 +510,7 @@ class lookup_callback : public multigroup_callback<lookup_result_entry>
 			cb.clear();
 			cb.set_count(unlimited);
 
-			dnet_log_raw(sess.get_node().get_native(), DNET_LOG_DEBUG, "lookup_callback::next_group: %s: error: %d, priv: %p\n",
+			dnet_log_raw(sess.get_native_node(), DNET_LOG_DEBUG, "lookup_callback::next_group: %s: error: %d, priv: %p\n",
 					dnet_dump_id(&id), error->code(), priv);
 
 			int err = dnet_lookup_object(sess.get_native(), &id, func, priv);
@@ -549,7 +551,7 @@ class read_callback : public multigroup_callback<read_result_entry>
 
 			int err = dnet_read_object(sess.get_native(), &ctl);
 
-			dnet_log_raw(sess.get_node().get_native(), DNET_LOG_DEBUG, "read_callback::next_group: %s: error: %d, priv: %p, err: %d\n",
+			dnet_log_raw(sess.get_native_node(), DNET_LOG_DEBUG, "read_callback::next_group: %s: error: %d, priv: %p, err: %d\n",
 					dnet_dump_id(&id), error->code(), priv, err);
 
 			if (err) {
@@ -572,7 +574,8 @@ class read_callback : public multigroup_callback<read_result_entry>
 
 			if (!error && !failed_groups.empty()
 					&& io
-					&& io->offset == 0) {
+					&& (io->size == io->total_size)
+					&& (io->offset == 0)) {
 
 				session new_sess = sess.clone();
 				new_sess.set_groups(failed_groups);
@@ -589,6 +592,19 @@ class read_callback : public multigroup_callback<read_result_entry>
 				write_ctl.fd = -1;
 				write_ctl.cmd = DNET_CMD_WRITE;
 				write_ctl.cflags = ctl.cflags;
+
+
+				std::ostringstream ss;
+				for (auto g = failed_groups.begin(); g != failed_groups.end();) {
+					ss << *g;
+
+					if (++g != failed_groups.end())
+						ss << ":";
+				}
+
+				dnet_log_raw(sess.get_node().get_native(), DNET_LOG_INFO,
+						"read_callback::read-recovery: %s: %llu bytes -> %s groups\n",
+					dnet_dump_id_str(io->id), (unsigned long long)io->size, ss.str().c_str());
 
 				new_sess.write_data(write_ctl);
 			}
@@ -669,7 +685,7 @@ class read_bulk_callback : public read_callback
 		typedef std::shared_ptr<read_bulk_callback> ptr;
 
 		read_bulk_callback(const session &sess, const async_read_result &result, const io_attr_set &ios, const dnet_io_control &ctl)
-			: read_callback(sess, result, ctl), log(sess.get_node().get_log()), ios_set(ios)
+			: read_callback(sess, result, ctl), log(sess.get_logger()), ios_set(ios)
 		{
 			cb.set_process_entry(default_callback<read_result_entry>::entry_processor_func());
 			debug("BULK_READ, callback: %p, ios.size: %zu", this, ios.size());
@@ -699,7 +715,7 @@ class read_bulk_callback : public read_callback
 			const size_t io_num = ios_cache.size();
 			dnet_io_attr *ios = ios_cache.data();
 
-			dnet_node *node = sess.get_node().get_native();
+			dnet_node *node = sess.get_native_node();
 			net_state_ptr cur, next;
 			dnet_id next_id = id;
 			const int group_id = id.group_id;
@@ -825,12 +841,12 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 		find_indexes_callback(const session &arg_sess, const std::vector<dnet_raw_id> &indexes,
 			bool intersect, const async_generic_result &result) :
 			multigroup_callback<callback_result_entry>(arg_sess, result),
-			log(sess.get_node().get_log()),
+			log(sess.get_logger()),
 			intersect(intersect),
-			shard_count(dnet_node_get_indexes_shard_count(sess.get_node().get_native())),
+			shard_count(dnet_node_get_indexes_shard_count(sess.get_native_node())),
 			indexes(indexes)
 		{
-			dnet_node *node = sess.get_node().get_native();
+			dnet_node *node = sess.get_native_node();
 
 			id_precalc.resize(shard_count * indexes.size());
 
@@ -900,7 +916,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 			unsigned long long index_requests_count = 0;
 			const int group_id = id.group_id;
 
-			dnet_node *node = sess.get_node().get_native();
+			dnet_node *node = sess.get_native_node();
 			dnet_setup_id(&id, group_id, index_requests_set.begin()->id.id);
 			net_state_ptr cur(dnet_state_get_first(node, &id));
 			net_state_ptr next;
@@ -1178,7 +1194,7 @@ class remove_index_callback
 			cb.set_count(unlimited);
 			size_t count = 0;
 
-			dnet_node *node = sess.get_node().get_native();
+			dnet_node *node = sess.get_native_node();
 			const int shard_count = dnet_node_get_indexes_shard_count(node);
 
 			dnet_trans_control control;
@@ -1425,7 +1441,7 @@ class exec_callback
 		typedef std::shared_ptr<exec_callback> ptr;
 
 		exec_callback(const session &sess, const async_exec_result &result)
-			: sess(sess), id(NULL), sph(NULL), cb(sess, result)
+			: sess(sess), id(NULL), srw_data(NULL), cb(sess, result)
 		{
 		}
 
@@ -1433,10 +1449,10 @@ class exec_callback
 		{
 			cb.set_count(unlimited);
 
-			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph);
+			int err = dnet_send_cmd(sess.get_native(), id, func, priv, srw_data);
 			if (err < 0) {
 				*error = create_error(err, "failed to execute cmd: event: %.*s, data-size: %llu",
-						sph->event_size, sph->data, (unsigned long long)sph->data_size);
+						srw_data->event_size, srw_data->data, (unsigned long long)srw_data->data_size);
 				return true;
 			}
 
@@ -1456,7 +1472,7 @@ class exec_callback
 
 		session sess;
 		struct dnet_id *id;
-		struct sph *sph;
+		struct sph *srw_data;
 		default_callback<exec_result_entry> cb;
 };
 

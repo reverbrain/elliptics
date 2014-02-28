@@ -640,7 +640,7 @@ err_out_free:
 err_out_exit:
 	*errp = err;
 	if (s >= 0)
-		dnet_sock_close(s);
+		dnet_sock_close(n, s);
 	return NULL;
 }
 
@@ -1121,6 +1121,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 
 	ctl.io.size = io_size;
 	ctl.io.offset = io_offset;
+	ctl.io.flags = s->ioflags;
 
 	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
 	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
@@ -1130,7 +1131,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 	ctl.fd = -1;
 	ctl.complete = dnet_read_file_complete;
 	ctl.cmd = DNET_CMD_READ;
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.cflags = s->cflags | DNET_FLAGS_NEED_ACK;
 
 	c = malloc(sizeof(struct dnet_io_completion) + len + 1 + sizeof(DNET_HISTORY_SUFFIX));
 	if (!c) {
