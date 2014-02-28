@@ -25,6 +25,13 @@ import elliptics
 def pytest_addoption(parser):
     parser.addoption('--remote', action='append', default=[],
                      help='Elliptics node address')
+    parser.addoption('--group', type=int, help='elliptics group', default=1)
+    parser.addoption('--loglevel', type=int, choices=xrange(5), default=1)
+
+    parser.addoption('--source_dir', action="store", default=None,
+                     help='Source dir')
+    parser.addoption('--binary_dir', action="store", default=None,
+                     help='Binary dir')
 
 
 def set_property(obj, prop, value, check_value=None,
@@ -47,14 +54,77 @@ def raises(type, message, func, *args, **kwargs):
 
 @pytest.fixture(scope='class')
 def simple_node(request):
-    simple_node = elliptics.Node(elliptics.Logger("/dev/null", 4))
+    simple_node = elliptics.Node(elliptics.Logger("/dev/stderr", 4))
     for r in request.config.option.remote:
         simple_node.add_remote(r)
-
-    if len(request.config.option.remote) == 0:
-        simple_node.add_remote('shaitan01h.dev.yandex.net:2025:2')
 
     def fin():
         print "Finilizing simple node"
     request.addfinalizer(fin)
     return simple_node
+
+
+class PassthroughWrapper(object):
+    ''' Wrapper to assure session/node destroy sequence: session first, node last '''
+    def __init__(self, node, session):
+        self.node = node
+        self.session = session
+
+    def __getattr__(self, name):
+        return getattr(self.session, name)
+
+    def __del__(self):
+        del self.session
+        del self.node
+
+
+def connect(endpoints, groups, **kw):
+    remotes = []
+    for r in endpoints:
+        parts = r.split(":")
+        remotes.append((parts[0], int(parts[1])))
+
+    def rename(kw, old, new):
+        if old in kw:
+            kw[new] = kw.pop(old)
+
+    # drop impedeing attrs, just in case
+    kw.pop('elog', None)
+    kw.pop('cfg', None)
+    kw.pop('remotes', None)
+    # rename good names to required bad ones
+    rename(kw, 'logfile', 'log_file')
+    rename(kw, 'loglevel', 'log_level')
+
+    n = elliptics.create_node(**kw)
+
+    for r in remotes:
+        try:
+            n.add_remote(r[0], r[1])
+        except Exception:
+            pass
+
+    s = elliptics.Session(n)
+    s.add_groups(groups)
+
+#    return PassthroughWrapper(n, s)
+    return s
+
+
+#@pytest.fixture(scope='module')
+@pytest.fixture
+def elliptics_client(request):
+    ''' Initializes client connection to elliptics.
+    Returns Session object.
+    '''
+    remote = request.config.getoption('--remote')
+    group = request.config.getoption('--group')
+    loglevel = request.config.getoption('--loglevel')
+    if not remote:
+        from socket import gethostname
+        remote = gethostname() + ':2025'
+
+    return connect(remote, [group], loglevel=loglevel)
+    # client = connect([remote], [group], loglevel=loglevel)
+    # client.set_filter(elliptics.filters.all_with_ack)
+    # return client
