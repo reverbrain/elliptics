@@ -96,7 +96,7 @@ class Server:
         self.__create_manifest__()
         self.__create_profile__()
 
-        app = subprocess.Popen(['cocaine-tool', 'app upload',
+        app = subprocess.Popen(['cocaine-tool', 'app', 'upload',
                                 '--manifest', self.name + '/dnet_cpp_srw_test_app.manifest',
                                 '--package', '../dnet_cpp_srw_test_app.tar',
                                 '--name', 'dnet_cpp_srw_test_app',
@@ -120,7 +120,7 @@ class Server:
         s.groups = [self.group]
         s.cflags = elliptics.command_flags.nolock
         s.set_filter(elliptics.filters.all_with_ack)
-        s.exec_(None, event='dnet_cpp_srw_test_app@start-task').wait()
+        s.exec_(id=None, event='dnet_cpp_srw_test_app@start-task').wait()
 
     def status(self):
         return 0
