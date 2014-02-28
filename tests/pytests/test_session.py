@@ -264,11 +264,11 @@ class TestSession:
         assert len(results) == len(nodes)
 
         for r in results:
-            assert len(r.context.address) > 0
-            assert '%s:%d' % (r.address.host, r.address.port) == r.context.address
+            assert r.context.address
+            assert r.address == r.context.address
 
             #TODO: check if src_id isn't empty
-            assert r.context.src_id.id != [0] * 64
+            #assert r.context.src_id.id != [0] * 64
 
     def test_exec_fanout_manual(self, elliptics_client, exec_func, server):
         ''' Fan out using manual lookup into routing table '''
@@ -288,8 +288,8 @@ class TestSession:
             collected.append((addr, key, results[0]))
 
         for addr, key, r in collected:
-            assert len(r.context.address) > 0
-            assert '%s:%d' % (r.address.host, r.address.port) == r.context.address
+            assert r.context.address
+            assert r.address == r.context.address
 
             #TODO: check if src_id isn't empty
-            assert r.context.src_id == key
+            #assert r.context.src_id == key
