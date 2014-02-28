@@ -384,7 +384,7 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 
 	try {
-		cache->lookup(cmd->id.id, st, cmd);
+		err = cache->lookup(cmd->id.id, st, cmd);
 	} catch (const std::exception &e) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
