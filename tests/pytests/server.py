@@ -23,19 +23,17 @@ sys.path.insert(0, "")  # for running from cmake
 
 
 class Server:
-    server_no = 0
-    ports = []
-
     def __init__(self,
                  log_level=4,
                  group=1, remotes=[],
                  port=2025,
                  wait_timeout=30, check_timeout=50,
                  cache_size=1024 * 1024 * 256, caches_number=16,
-                 indexes_shard_count=2, locator_port=20053, plugin_path=""):
+                 indexes_shard_count=2, locator_port=20053, plugin_path="", without_cocaine=False,
+                 monitor_port=20000):
         from socket import gethostname
-        self.name = 'server_{0}'.format(Server.server_no)
-        Server.server_no += 1
+        self.name = 'server_{0}'.format(port)
+        self.without_cocaine = without_cocaine
         self.log_path = '/dev/stderr'
         self.log_level = log_level
         self.group = group
@@ -51,10 +49,8 @@ class Server:
         self.cfg_path = 'elliptis.cfg'
         self.plugin_path = plugin_path
         self.runtime_path = 'run'
-
         self.locator_port = locator_port
-        Server.ports.append(self.port)
-
+        self.monitor_port = monitor_port
         self.remotes = remotes + [self.get_addr()]
 
     def start(self):
@@ -92,6 +88,8 @@ class Server:
             }, f)
 
     def upload_app(self):
+        if self.without_cocaine:
+            return
         import subprocess
         self.__create_manifest__()
         self.__create_profile__()
@@ -144,6 +142,9 @@ class Server:
         data_path = os.path.join(self.name, self.data_path)
         if not os.path.exists(data_path):
             os.mkdir(data_path)
+        srw_line = 'srw_config = cocaine.cfg'
+        if self.without_cocaine:
+            srw_line = ''
         config = '''
         log = {0}
         log_level = {1}
@@ -160,11 +161,11 @@ class Server:
         auth_cookie = unique_storage_cookie
         cache_size = 102400
         indexes_shard_count = 2
-        monitor_port = 20000
+        monitor_port = {7}
         server_net_prio = 0x20
         client_net_prio = 6
         flags = 4
-        srw_config = {8}
+        {8}
         backend = blob
         blob_size = 10M
         records_in_blob = 10000000
@@ -173,16 +174,18 @@ class Server:
         defrag_timeout = 3600
         defrag_percentage = 25
         sync = 5
-        data = {7}
+        data = {9}
         iterate_thread_num = 1
-        '''.format(self.log_path, int(self.log_level), self.group,
-                   self.history, ' '.join(self.remotes), self.addr, self.port,
-                   self.data_path + '/data', 'cocaine.cfg')
+        '''.format(self.log_path, int(self.log_level), self.group, self.history,
+                   ' '.join(self.remotes), self.addr, self.port, self.monitor_port,
+                   srw_line, self.data_path + '/data')
         config_path = os.path.join(self.name, self.cfg_path)
         with open(config_path, 'w') as f:
             f.write(config)
 
     def __create_cocaine_config(self):
+        if self.without_cocaine:
+            return
         if not os.path.exists(self.name):
             os.mkdir(self.name)
         runtime_path = os.path.join(self.name, self.runtime_path)
@@ -218,20 +221,41 @@ class Server:
 
 @pytest.fixture(scope='module')
 def server(request):
-    if request.config.option.remote:
+    if request.config.option.remotes:
         return None
 
-    plugin_path = os.path.join(request.config.option.binary_dir, '../cocaine/plugins/')
-    server = Server(port=random.randint(2000, 3000),
-                    locator_port=random.randint(20000, 30000),
-                    plugin_path=plugin_path)
+    import socket
 
-    request.config.option.remote = [server.get_addr()]
+    plugin_path = os.path.join(request.config.option.binary_dir, '../cocaine/plugins/')
+    groups = [int(g) for g in request.config.option.groups.split(',')]
+
+    servers = []
+
+    ports = random.sample(xrange(2000, 3000), len(groups) * 2)
+    locator_ports = random.sample(xrange(4000, 5000), len(groups) * 2)
+    monitor_ports = random.sample(xrange(6000, 7000), len(groups) * 2)
+
+    request.config.option.remotes = ['{0}:{1}:2'.format(socket.gethostname(), p) for p in ports]
+
+    nodes_in_group = 2
+
+    for i, g in enumerate(groups):
+        for j in range(nodes_in_group):
+            servers.append(Server(port=ports[i * nodes_in_group + j],
+                                  locator_port=locator_ports[i * nodes_in_group + j],
+                                  plugin_path=plugin_path,
+                                  without_cocaine=request.config.option.without_cocaine,
+                                  remotes=request.config.option.remotes,
+                                  group=g,
+                                  monitor_port=monitor_ports[i * nodes_in_group + j]))
 
     def fin():
         print "Finilizing Servers"
-        server.stop()
+        for s in servers:
+            s.stop()
     request.addfinalizer(fin)
 
-    server.start()
-    return server
+    for s in servers:
+        s.start()
+
+    return servers

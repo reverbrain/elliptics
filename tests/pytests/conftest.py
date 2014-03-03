@@ -23,15 +23,17 @@ import elliptics
 
 
 def pytest_addoption(parser):
-    parser.addoption('--remote', action='append', default=[],
+    parser.addoption('--remotes', action='append', default=[],
                      help='Elliptics node address')
-    parser.addoption('--group', type=int, help='elliptics group', default=1)
+    parser.addoption('--groups', action='store', help='elliptics groups', default='1,2,3')
     parser.addoption('--loglevel', type=int, choices=xrange(5), default=1)
 
-    parser.addoption('--source_dir', action="store", default=None,
+    parser.addoption('--source_dir', action='store', default=None,
                      help='Source dir')
-    parser.addoption('--binary_dir', action="store", default=None,
+    parser.addoption('--binary_dir', action='store', default=None,
                      help='Binary dir')
+    parser.addoption('--without-cocaine', action='store_true', default=False,
+                     help='Turns off exec tests that are connected with cocaine')
 
 
 def set_property(obj, prop, value, check_value=None,
@@ -55,7 +57,7 @@ def raises(type, message, func, *args, **kwargs):
 @pytest.fixture(scope='class')
 def simple_node(request):
     simple_node = elliptics.Node(elliptics.Logger("/dev/stderr", 4))
-    for r in request.config.option.remote:
+    for r in request.config.option.remotes:
         simple_node.add_remote(r)
 
     def fin():
@@ -111,20 +113,25 @@ def connect(endpoints, groups, **kw):
     return s
 
 
+@pytest.fixture
+def elliptics_groups(request):
+    return [int(g) for g in request.config.option.groups.split(',')]
+
+
 #@pytest.fixture(scope='module')
 @pytest.fixture
 def elliptics_client(request):
     ''' Initializes client connection to elliptics.
     Returns Session object.
     '''
-    remote = request.config.getoption('--remote')
-    group = request.config.getoption('--group')
-    loglevel = request.config.getoption('--loglevel')
+    remote = request.config.option.remotes
+    groups = [int(g) for g in request.config.option.groups.split(',')]
+    loglevel = request.config.option.loglevel
     if not remote:
         from socket import gethostname
         remote = gethostname() + ':2025'
 
-    return connect(remote, [group], loglevel=loglevel)
-    # client = connect([remote], [group], loglevel=loglevel)
+    return connect(remote, groups, loglevel=loglevel)
+    # client = connect([remote], groups, loglevel=loglevel)
     # client.set_filter(elliptics.filters.all_with_ack)
     # return client
