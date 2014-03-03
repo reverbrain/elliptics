@@ -42,7 +42,7 @@ target_link_libraries(dnet_cpp_capped_test ${TEST_LIBRARIES})
 set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_capped_test dnet_cpp_api_test)
 set(TESTS_DEPS ${TESTS_LIST})
 
-set(WITHOUT_COCAINT "--without-cocaine")
+set(WITHOUT_COCAINE "--without-cocaine")
 
 if(WITH_COCAINE)
     include(../cmake/Modules/locate_library.cmake)
@@ -59,7 +59,7 @@ if(WITH_COCAINE)
     set_target_properties(dnet_cpp_srw_test_app ${TEST_PROPERTIES})
     target_link_libraries(dnet_cpp_srw_test_app elliptics_cpp ${CocaineNative_LIBRARIES} ${Boost_LIBRARIES} ${LIBEV_LIBRARIES})
 
-    set(WITHOUT_COCAINT "")
+    set(WITHOUT_COCAINE "")
 
     add_custom_command(TARGET dnet_cpp_srw_test_app
         POST_BUILD
@@ -90,7 +90,7 @@ SET(ENV{LD_LIBRARY_PATH} ".")
 
 add_custom_command(TARGET test
     POST_BUILD
-    COMMAND export LD_LIBRARY_PATH=.:.. && py.test ${CMAKE_CURRENT_SOURCE_DIR}/pytests --source_dir="${CMAKE_CURRENT_SOURCE_DIR}" --binary_dir="${CMAKE_CURRENT_BINARY_DIR}" ${WITHOUT_COCAINT}
+    COMMAND export LD_LIBRARY_PATH=.:.. && py.test ${CMAKE_CURRENT_SOURCE_DIR}/pytests --source_dir="${CMAKE_CURRENT_SOURCE_DIR}" --binary_dir="${CMAKE_CURRENT_BINARY_DIR}" ${WITHOUT_COCAINE}
     #COMMAND rm -fr *
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)
 
