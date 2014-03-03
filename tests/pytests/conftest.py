@@ -26,7 +26,7 @@ def pytest_addoption(parser):
     parser.addoption('--remotes', action='append', default=[],
                      help='Elliptics node address')
     parser.addoption('--groups', action='store', help='elliptics groups', default='1,2,3')
-    parser.addoption('--loglevel', type=int, choices=xrange(5), default=1)
+    parser.addoption('--loglevel', type='choice', choices=xrange(5), default=1)
 
     parser.addoption('--source_dir', action='store', default=None,
                      help='Source dir')
