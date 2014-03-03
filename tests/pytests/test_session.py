@@ -26,8 +26,48 @@ import elliptics
 
 EVENT = 'dnet_cpp_srw_test_app@info'
 
+io_flags = set((elliptics.io_flags.default,
+                elliptics.io_flags.append,
+                elliptics.io_flags.prepare,
+                elliptics.io_flags.commit,
+                elliptics.io_flags.overwrite,
+                elliptics.io_flags.nocsum,
+                elliptics.io_flags.plain_write,
+                elliptics.io_flags.nodata,
+                elliptics.io_flags.cache,
+                elliptics.io_flags.cache_only,
+                elliptics.io_flags.cache_remove_from_disk))
+
+command_flags = set((elliptics.command_flags.default,
+                     elliptics.command_flags.direct,
+                     elliptics.command_flags.nolock))
+
+exceptions_policy = set((elliptics.exceptions_policy.no_exceptions,
+                         elliptics.exceptions_policy.throw_at_start,
+                         elliptics.exceptions_policy.throw_at_wait,
+                         elliptics.exceptions_policy.throw_at_get,
+                         elliptics.exceptions_policy.throw_at_iterator_end,
+                         elliptics.exceptions_policy.default_exceptions))
+
+filters = set((elliptics.filters.positive,
+               elliptics.filters.negative,
+               elliptics.filters.all,
+               elliptics.filters.all_with_ack))
+
+checkers = set((elliptics.checkers.no_check,
+                elliptics.checkers.at_least_one,
+                elliptics.checkers.all,
+                elliptics.checkers.quorum))
+
 
 class TestSession:
+    def test_flags(self):
+        assert set(elliptics.io_flags.values.values()) == io_flags
+        assert set(elliptics.command_flags.values.values()) == command_flags
+        assert set(elliptics.exceptions_policy.values.values()) == exceptions_policy
+        assert set(elliptics.filters.values.values()) == filters
+        assert set(elliptics.checkers.values.values()) == checkers
+
     @pytest.mark.parametrize("prop, value", [
         ('timeout', 5),
         ('groups', []),
@@ -47,31 +87,10 @@ class TestSession:
             range(1, 100),
             range(1, 100000),
             range(10, 10000))),
-        ('cflags', 'set_cflags', 'get_cflags', (
-            elliptics.command_flags.default,
-            elliptics.command_flags.direct,
-            elliptics.command_flags.nolock)),
-        ('ioflags', 'set_ioflags', 'get_ioflags', (
-            elliptics.io_flags.default,
-            elliptics.io_flags.append,
-            elliptics.io_flags.prepare,
-            elliptics.io_flags.commit,
-            elliptics.io_flags.overwrite,
-            elliptics.io_flags.nocsum,
-            elliptics.io_flags.plain_write,
-            elliptics.io_flags.nodata,
-            elliptics.io_flags.cache,
-            elliptics.io_flags.cache_only,
-            elliptics.io_flags.cache_remove_from_disk)),
+        ('cflags', 'set_cflags', 'get_cflags', command_flags),
+        ('ioflags', 'set_ioflags', 'get_ioflags', io_flags),
         ('exceptions_policy', 'set_exceptions_policy',
-         'get_exceptions_policy', (
-             elliptics.exceptions_policy.no_exceptions,
-             elliptics.exceptions_policy.throw_at_start,
-             elliptics.exceptions_policy.throw_at_wait,
-             elliptics.exceptions_policy.throw_at_get,
-             elliptics.exceptions_policy.throw_at_iterator_end,
-             elliptics.exceptions_policy.default_exceptions,
-
+         'get_exceptions_policy', tuple(exceptions_policy) + (
              elliptics.exceptions_policy.throw_at_start |
              elliptics.exceptions_policy.throw_at_wait,
 
