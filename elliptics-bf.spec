@@ -30,7 +30,7 @@ BuildRequires:	cmake msgpack-devel
 %define boost_ver %{nil}
 %endif
 
-BuildRequires:	boost%{boost_ver}-devel, boost%{boost_ver}-iostreams, boost%{boost_ver}-python, boost%{boost_ver}-system, boost%{boost_ver}-thread, boost%{boost_ver}-filesystem, python-pytest
+BuildRequires:	boost%{boost_ver}-devel, boost%{boost_ver}-iostreams, boost%{boost_ver}-python, boost%{boost_ver}-system, boost%{boost_ver}-thread, boost%{boost_ver}-filesystem, pytest
 
 Obsoletes: srw
 
