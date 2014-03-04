@@ -404,7 +404,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	addr.family = orig->addr.family;
 	addr.addr_len = salen;
 
-	dnet_set_sockopt(cs);
+	dnet_set_sockopt(n, cs);
 
 	err = dnet_socket_local_addr(cs, &saddr);
 	if (err) {

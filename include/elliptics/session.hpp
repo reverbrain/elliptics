@@ -156,6 +156,8 @@ class node
 
 		void			set_timeouts(const int wait_timeout, const int check_timeout);
 
+		void			set_keepalive(int idle, int cnt, int interval);
+
 		bool is_valid() const;
 
 		logger get_log() const;
