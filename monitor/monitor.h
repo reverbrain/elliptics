@@ -65,7 +65,7 @@ extern "C" {
  *
  * Category for IO queue statistics
  */
-#define DNET_MONITOR_IO_QUEUE		2
+#define DNET_MONITOR_IO				2
 /*!
  * \internal
  *
