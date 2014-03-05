@@ -27,6 +27,7 @@
 
 #include "elliptics.h"
 #include "elliptics/interface.h"
+#include "../monitor/monitor.h"
 
 static char *dnet_work_io_mode_string[] = {
 	[DNET_WORK_IO_MODE_BLOCKING] = "BLOCKING",
@@ -116,6 +117,38 @@ err_out_io_threads:
 	pthread_mutex_unlock(&pool->lock);
 
 	return err;
+}
+
+static void io_stat_stop(void *stat __unused) {}
+
+static int io_stat_check(void *stat __unused, int category) {
+	if (category == DNET_MONITOR_IO || category == DNET_MONITOR_ALL)
+		return 1;
+	else
+		return 0;
+}
+
+static const char *io_stat_json(void *priv) {
+	struct dnet_io *io = (struct dnet_io *)priv;
+	static char json[1024];
+	int err;
+
+	err = snprintf(json, 1024,
+	               "{\"blocking\": {\"current_size\": %ld, \"volume\": %ld}, \
+	                 \"nonblocking\": {\"current_size\": %ld, \"volume\": %ld}, \
+	                 \"blocked\": %d, \
+	                 \"output\": {\"current_size\": %ld, \"volume\": %ld}}",
+	               io->recv_pool->list_stats.list_size, io->recv_pool->list_stats.volume,
+	               io->recv_pool_nb->list_stats.list_size, io->recv_pool_nb->list_stats.volume,
+	               io->blocked,
+	               io->output_stats.list_size, io->output_stats.volume);
+
+	if (err >= 0) {
+		json[err] = '\0';
+		return json;
+	}
+
+	return "";
 }
 
 static struct dnet_work_pool *dnet_work_pool_alloc(struct dnet_node *n, int num, int mode, void *(* process)(void *))
@@ -472,6 +505,10 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			list_del(&r->req_entry);
 			pthread_mutex_unlock(&st->send_lock);
 
+			pthread_mutex_lock(&st->n->io->full_lock);
+			list_stat_size_decrease(&st->n->io->output_stats, 1);
+			pthread_mutex_unlock(&st->n->io->full_lock);
+
 			if (atomic_read(&st->send_queue_size) > 0)
 				if (atomic_dec(&st->send_queue_size) == DNET_SEND_WATERMARK_LOW) {
 					dnet_log(st->n, DNET_LOG_DEBUG,
@@ -510,6 +547,9 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 	if (send) {
 		ev.events = EPOLLOUT;
 		fd = st->write_s;
+		pthread_mutex_lock(&st->n->io->full_lock);
+		list_stat_size_increase(&st->n->io->output_stats, 1);
+		pthread_mutex_unlock(&st->n->io->full_lock);
 	} else {
 		ev.events = EPOLLIN;
 		fd = st->read_s;
@@ -717,7 +757,9 @@ static void *dnet_io_process_network(void *data_)
 			}
 			// wait condition variable - io queues has a free slot or some socket has something to send
 			pthread_mutex_lock(&n->io->full_lock);
+			n->io->blocked = 1;
 			pthread_cond_wait(&n->io->full_wait, &n->io->full_lock);
+			n->io->blocked = 0;
 			pthread_mutex_unlock(&n->io->full_lock);
 		}
 	}
@@ -865,6 +907,7 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 {
 	int err, i;
 	int io_size = sizeof(struct dnet_io) + sizeof(struct dnet_net_io) * cfg->net_thread_num;
+	struct stat_provider_raw io_stat;
 
 	n->io = malloc(io_size);
 	if (!n->io) {
@@ -884,6 +927,8 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_free_mutex;
 	}
 
+	list_stat_init(&n->io->output_stats);
+
 	memset(n->io, 0, io_size);
 
 	n->io->net_thread_num = cfg->net_thread_num;
@@ -901,6 +946,13 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		err = -ENOMEM;
 		goto err_out_free_recv_pool;
 	}
+
+	io_stat.stat_private = n->io;
+	io_stat.stop = &io_stat_stop;
+	io_stat.json = &io_stat_json;
+	io_stat.check_category = &io_stat_check;
+
+	dnet_monitor_add_provider(n, io_stat, "io");
 
 	for (i=0; i<n->io->net_thread_num; ++i) {
 		struct dnet_net_io *nio = &n->io->net[i];
