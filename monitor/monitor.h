@@ -140,7 +140,7 @@ struct stat_provider_raw {
  * then n->monitor will contain pointer to it and
  * should be used in c functions
  */
-int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
+int dnet_monitor_init(void **monitor, struct dnet_config *cfg);
 
 /*!
  * \internal
@@ -171,13 +171,6 @@ void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw sta
 void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans,
                              const int err, const int cache,
                              const uint32_t size, const unsigned long time);
-
-/*!
- * \internal
- *
- * Outputs into log all monitor statistics
- */
-void dnet_monitor_log(struct dnet_node *n);
 
 #ifdef __cplusplus
 }

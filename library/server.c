@@ -26,8 +26,6 @@
 #include <signal.h>
 
 #include "elliptics.h"
-#include "../monitor/monitor.h"
-
 #include "elliptics/interface.h"
 
 static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned long long storage_free)
@@ -374,7 +372,6 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	 *
 	 * After all of them finish destroying the node, all it's counters and so on.
 	 */
-	dnet_monitor_exit(n);
 	dnet_node_cleanup_common_resources(n);
 
 	dnet_srw_cleanup(n);
