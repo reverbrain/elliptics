@@ -19,7 +19,7 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:	python26-devel
 BuildRequires:	gcc44 gcc44-c++
 %else
-BuildRequires:  python-devel
+BuildRequires:	python-devel
 %endif
 BuildRequires:	eblob-devel >= 0.21.30
 BuildRequires:	cmake msgpack-devel
@@ -30,7 +30,8 @@ BuildRequires:	cmake msgpack-devel
 %define boost_ver %{nil}
 %endif
 
-BuildRequires:	boost%{boost_ver}-devel, boost%{boost_ver}-iostreams, boost%{boost_ver}-python, boost%{boost_ver}-system, boost%{boost_ver}-thread, boost%{boost_ver}-filesystem, pytest
+BuildRequires:	boost%{boost_ver}-devel, boost%{boost_ver}-iostreams, boost%{boost_ver}-python, boost%{boost_ver}-system, boost%{boost_ver}-thread, boost%{boost_ver}-filesystem
+BuildRequires:	python-virtualenv
 
 Obsoletes: srw
 
@@ -46,7 +47,7 @@ Requires: %{name} = %{version}-%{release}
 
 
 %description devel
-Elliptics network is a fault tolerant distributed hash table 
+Elliptics network is a fault tolerant distributed hash table
 object storage.
 
 This package contains libraries, header files and developer documentation
@@ -330,7 +331,7 @@ rm -rf %{buildroot}
 - Python: provided python level log based on logging.
 - Cpp: Extended comments and notes about write_prepare, write_plain and write_commit.
 - Cpp: fixed write_data by chunks.
-- Relicense Elliptics under LGPL 
+- Relicense Elliptics under LGPL
 
 * Mon Oct 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.21
 - Added more debug info for cache requests.
@@ -973,7 +974,7 @@ rm -rf %{buildroot}
 -  Only return wait error (usually -ETIMEOUT/-110) if wait internal
 -  status (assigned in write completion handler) was set to something
 -  except -ENXIO.
--     
+-
 -  -ENXIO is set by default and means no transactions were sent
 - dnet_schedule_io() should wakeup only one thread when new packet has been queued
 
@@ -1145,7 +1146,7 @@ rm -rf %{buildroot}
 - Added logical route groups to support multiple addresses in config.
 - Do not try to initialize srw if no config specified. Otherwise fail whole node initialization if srw init failed.
 - Send discovery at startup
-- Use bp=boost::python namespace 
+- Use bp=boost::python namespace
 
 * Mon Feb 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.4.3
 - Use poll() in autodiscovery. Socket must be bound to recv data.
@@ -1534,7 +1535,7 @@ rm -rf %{buildroot}
 * Wed Feb 29 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.12.0.1-1
 - Depend on 0.15 eblob: added new defragmentation parameters into config
 - Propagate prepare_write() and friends return values back to callers - changed API
- 
+
 * Sun Feb 19 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.7-1
 - Get rid of virtually unused and unneded eblob generation tools. It can be replaced by trivial python scripts
 - Updated python scripts to use new eblob class

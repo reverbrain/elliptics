@@ -90,7 +90,11 @@ SET(ENV{LD_LIBRARY_PATH} ".")
 
 add_custom_command(TARGET test
     POST_BUILD
-    COMMAND export LD_LIBRARY_PATH=.:.. && py.test ${CMAKE_CURRENT_SOURCE_DIR}/pytests --source_dir="${CMAKE_CURRENT_SOURCE_DIR}" --binary_dir="${CMAKE_CURRENT_BINARY_DIR}" ${WITHOUT_COCAINE}
+    COMMAND virtualenv . &&
+        source bin/activate &&
+        pip install pytest &&
+        export LD_LIBRARY_PATH=.:.. &&
+        py.test ${CMAKE_CURRENT_SOURCE_DIR}/pytests --source_dir="${CMAKE_CURRENT_SOURCE_DIR}" --binary_dir="${CMAKE_CURRENT_BINARY_DIR}" ${WITHOUT_COCAINE}
     #COMMAND rm -fr *
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)
 

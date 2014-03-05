@@ -199,7 +199,7 @@ class Server:
                 'locator': {'port': self.locator_port},
                 'paths': {
                     'plugins': self.plugin_path,
-                    'runtime_path': self.runtime_path
+                    'runtime': self.runtime_path
                 },
                 'services': {
                     'logging': {'type': 'logging'},
