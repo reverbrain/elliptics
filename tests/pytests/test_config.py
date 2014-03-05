@@ -20,7 +20,7 @@ import sys
 
 sys.path.insert(0, "")  # for running from cmake
 
-from conftest import set_property, raises
+from conftest import set_property
 
 
 def pytest_generate_tests(metafunc):
@@ -111,33 +111,26 @@ class TestConfig:
             '093-4utpoijherg098dfh-98haspdng\x00')
 
     def test_out_of_limits(self, cfg):
-        raises(OverflowError,
-               'Python int too large to convert to C long',
-               set_property, cfg, 'check_timeout', 2 ** 63)
+        pytest.raises(OverflowError,
+                      set_property, cfg, 'check_timeout', 2 ** 63)
 
-        raises(OverflowError,
-               "can't convert negative value to unsigned",
-               set_property, cfg, 'wait_timeout', -1)
-        raises(OverflowError,
-               'bad numeric conversion: positive overflow',
-               set_property, cfg, 'wait_timeout', 2 ** 32)
+        pytest.raises(OverflowError,
+                      set_property, cfg, 'wait_timeout', -1)
 
-        raises(OverflowError,
-               'bad numeric conversion: positive overflow',
-               set_property, cfg, 'io_thread_num', 2 ** 32)
+        pytest.raises(OverflowError,
+                      set_property, cfg, 'wait_timeout', 2 ** 32)
 
-        raises(OverflowError,
-               'bad numeric conversion: positive overflow',
-               set_property, cfg, 'net_thread_num', 2 ** 32)
+        pytest.raises(OverflowError,
+                      set_property, cfg, 'io_thread_num', 2 ** 32)
 
-        raises(OverflowError,
-               'bad numeric conversion: positive overflow',
-               set_property, cfg, 'nonblocking_io_thread_num', 2 ** 32)
+        pytest.raises(OverflowError,
+                      set_property, cfg, 'net_thread_num', 2 ** 32)
 
-        raises(OverflowError,
-               'bad numeric conversion: positive overflow',
-               set_property, cfg, 'flags', 2 ** 32)
+        pytest.raises(OverflowError,
+                      set_property, cfg, 'nonblocking_io_thread_num', 2 ** 32)
 
-        raises(OverflowError,
-               'bad numeric conversion: positive overflow',
-               set_property, cfg, 'client_prio', 2 ** 32)
+        pytest.raises(OverflowError,
+                      set_property, cfg, 'flags', 2 ** 32)
+
+        pytest.raises(OverflowError,
+                      set_property, cfg, 'client_prio', 2 ** 32)
