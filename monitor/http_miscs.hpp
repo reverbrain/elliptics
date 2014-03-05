@@ -44,7 +44,7 @@ const std::string list = "<html>"
 	"GET <a href='/list'>/list</a> - Retrieves a list of acceptable statistics<br/>"
 	"GET <a href='/all'>/all</a> - Retrieves all statistics from all submodules<br/>"
 	"GET <a href='/cache'>/cache</a> - Retrieves statistics about cache<br/>"
-	"GET <a href='/io_queue'>/io_queue</a> - Retrieves statistics about io queue<br/>"
+	"GET <a href='/io'>/io</a> - Retrieves statistics about io statistics<br/>"
 	"GET <a href='/commands'>/commands</a> - Retrieves statistics about commands<br/>"
 	"GET <a href='/io_histograms'>/io_histograms</a> - Retrieves statistics about io histograms<br/>"
 	"</body>"
@@ -54,7 +54,7 @@ const std::string list = "<html>"
 const std::map<std::string, int> handlers = {{"/list", DNET_MONITOR_LIST},
 	{"/all", DNET_MONITOR_ALL},
 	{"/cache", DNET_MONITOR_CACHE},
-	{"/io_queue", DNET_MONITOR_IO_QUEUE},
+	{"/io", DNET_MONITOR_IO},
 	{"/commands", DNET_MONITOR_COMMANDS},
 	{"/io_histograms", DNET_MONITOR_IO_HISTOGRAMS},
 	{"/backend", DNET_MONITOR_BACKEND}};
