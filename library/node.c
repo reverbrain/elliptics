@@ -27,16 +27,24 @@
 
 #include "elliptics.h"
 #include "elliptics/interface.h"
-#include "../monitor/monitor.h"
+#include "monitor/monitor.h"
 
-static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg, void *monitor)
+static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 {
 	struct dnet_node *n;
 	int err;
+	void *monitor = NULL;
+
+	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
+		err  = dnet_monitor_init(&monitor, cfg);
+		if (err)
+			return NULL;
+	}
 
 	n = malloc(sizeof(struct dnet_node));
-	if (!n)
-		return NULL;
+	if (!n) {
+		goto err_out_monitor_exit;
+	}
 
 	memset(n, 0, sizeof(struct dnet_node));
 
@@ -105,6 +113,8 @@ err_out_destroy_state:
 	pthread_mutex_destroy(&n->state_lock);
 err_out_free:
 	free(n);
+err_out_monitor_exit:
+	dnet_monitor_exit(monitor);
 	return NULL;
 }
 
@@ -492,7 +502,6 @@ struct dnet_net_state *dnet_node_state(struct dnet_node *n)
 struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 {
 	struct dnet_node *n;
-	void *monitor = NULL;
 	int err = -ENOMEM;
 
 	sigset_t previous_sigset;
@@ -536,16 +545,10 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 			cfg->net_thread_num = 8;
 	}
 
-	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
-		err  = dnet_monitor_init(&monitor, cfg);
-		if (err)
-			goto err_out_exit;
-	}
-
-	n = dnet_node_alloc(cfg, monitor);
+	n = dnet_node_alloc(cfg);
 	if (!n) {
 		err = -ENOMEM;
-		goto err_out_monitor_exit;
+		goto err_out_exit;
 	}
 
 	if (!cfg->family)
@@ -632,8 +635,6 @@ err_out_crypto_cleanup:
 	dnet_crypto_cleanup(n);
 err_out_free:
 	free(n);
-err_out_monitor_exit:
-	dnet_monitor_exit(monitor);
 err_out_exit:
 	pthread_sigmask(SIG_SETMASK, &previous_sigset, NULL);
 
