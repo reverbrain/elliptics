@@ -19,7 +19,7 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:	python26-devel
 BuildRequires:	gcc44 gcc44-c++
 %else
-BuildRequires:  python-devel
+BuildRequires:	python-devel
 %endif
 BuildRequires:	eblob-devel >= 0.21.30
 BuildRequires:	cmake msgpack-devel
@@ -30,7 +30,8 @@ BuildRequires:	cmake msgpack-devel
 %define boost_ver %{nil}
 %endif
 
-BuildRequires:	boost%{boost_ver}-devel, boost%{boost_ver}-iostreams, boost%{boost_ver}-python, boost%{boost_ver}-system, boost%{boost_ver}-thread, boost%{boost_ver}-filesystem, pytest
+BuildRequires:	boost%{boost_ver}-devel, boost%{boost_ver}-iostreams, boost%{boost_ver}-python, boost%{boost_ver}-system, boost%{boost_ver}-thread, boost%{boost_ver}-filesystem
+BuildRequires:	python-virtualenv
 
 Obsoletes: srw
 

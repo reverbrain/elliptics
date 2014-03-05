@@ -21,6 +21,7 @@ Build-Depends:	cdbs,
 		python-central,
 		python-dev (>= 2.6),
 		python-pip,
+		python-virtualenv
 Standards-Version: 3.8.0
 Homepage: http://www.ioremap.net/projects/elliptics
 XS-Python-Version: >= 2.6
