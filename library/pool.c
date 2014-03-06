@@ -119,38 +119,6 @@ err_out_io_threads:
 	return err;
 }
 
-static void io_stat_stop(void *stat __unused) {}
-
-static int io_stat_check(void *stat __unused, int category) {
-	if (category == DNET_MONITOR_IO || category == DNET_MONITOR_ALL)
-		return 1;
-	else
-		return 0;
-}
-
-static const char *io_stat_json(void *priv) {
-	struct dnet_io *io = (struct dnet_io *)priv;
-	static char json[1024];
-	int err;
-
-	err = snprintf(json, 1024,
-	               "{\"blocking\": {\"current_size\": %ld, \"volume\": %ld}, \
-	                 \"nonblocking\": {\"current_size\": %ld, \"volume\": %ld}, \
-	                 \"blocked\": %d, \
-	                 \"output\": {\"current_size\": %ld, \"volume\": %ld}}",
-	               io->recv_pool->list_stats.list_size, io->recv_pool->list_stats.volume,
-	               io->recv_pool_nb->list_stats.list_size, io->recv_pool_nb->list_stats.volume,
-	               io->blocked,
-	               io->output_stats.list_size, io->output_stats.volume);
-
-	if (err >= 0) {
-		json[err] = '\0';
-		return json;
-	}
-
-	return "";
-}
-
 static struct dnet_work_pool *dnet_work_pool_alloc(struct dnet_node *n, int num, int mode, void *(* process)(void *))
 {
 	struct dnet_work_pool *pool;
@@ -907,7 +875,6 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 {
 	int err, i;
 	int io_size = sizeof(struct dnet_io) + sizeof(struct dnet_net_io) * cfg->net_thread_num;
-	struct stat_provider_raw io_stat;
 
 	n->io = malloc(io_size);
 	if (!n->io) {
@@ -947,13 +914,6 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_free_recv_pool;
 	}
 
-	io_stat.stat_private = n->io;
-	io_stat.stop = &io_stat_stop;
-	io_stat.json = &io_stat_json;
-	io_stat.check_category = &io_stat_check;
-
-	dnet_monitor_add_provider(n, io_stat, "io");
-
 	for (i=0; i<n->io->net_thread_num; ++i) {
 		struct dnet_net_io *nio = &n->io->net[i];
 
@@ -977,6 +937,8 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 			goto err_out_net_destroy;
 		}
 	}
+
+	dnet_monitor_init_io_stat_provider(n);
 
 	return 0;
 
