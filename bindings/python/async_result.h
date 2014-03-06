@@ -80,7 +80,7 @@ struct callback_one_handlers {
 	void on_final(const error_info &err) {
 		gil_guard gstate;
 		try {
-			(*final_handler)(final_handler, error(err.code(), err.message()));
+			(*final_handler)(error(err.code(), err.message()));
 		} catch (const bp::error_already_set& e) {}
 	}
 
