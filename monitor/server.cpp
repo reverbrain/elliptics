@@ -70,10 +70,7 @@ void server::listen() {
 	try {
 		async_accept();
 		m_io_service.run();
-	} catch (const std::exception &e) {
-		dnet_log(m_monitor.node(), DNET_LOG_ERROR,
-		         "Could not run monitor io_service: %s\n", e.what());
-	}
+	} catch (const std::exception &e) {}
 }
 
 void server::async_accept() {

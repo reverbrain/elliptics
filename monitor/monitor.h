@@ -65,7 +65,7 @@ extern "C" {
  *
  * Category for IO queue statistics
  */
-#define DNET_MONITOR_IO_QUEUE		2
+#define DNET_MONITOR_IO				2
 /*!
  * \internal
  *
@@ -134,7 +134,7 @@ struct stat_provider_raw {
  * then n->monitor will contain pointer to it and
  * should be used in c functions
  */
-int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
+int dnet_monitor_init(void **monitor, struct dnet_config *cfg);
 
 /*!
  * \internal
@@ -154,6 +154,13 @@ void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw sta
 /*!
  * \internal
  *
+ * Creates stat provider for io queues and adds it to provider list
+ */
+void dnet_monitor_init_io_stat_provider(struct dnet_node *n);
+
+/*!
+ * \internal
+ *
  * Sends to \a monitor statistics some properties of executed command:
  * \a cmd - identifier of the command
  * \a trans - number of transaction
@@ -165,13 +172,6 @@ void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw sta
 void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans,
                              const int err, const int cache,
                              const uint32_t size, const unsigned long time);
-
-/*!
- * \internal
- *
- * Outputs into log all monitor statistics
- */
-void dnet_monitor_log(struct dnet_node *n);
 
 #ifdef __cplusplus
 }

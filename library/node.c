@@ -27,19 +27,30 @@
 
 #include "elliptics.h"
 #include "elliptics/interface.h"
+#include "monitor/monitor.h"
 
 static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 {
 	struct dnet_node *n;
 	int err;
+	void *monitor = NULL;
+
+	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
+		err  = dnet_monitor_init(&monitor, cfg);
+		if (err)
+			return NULL;
+	}
 
 	n = malloc(sizeof(struct dnet_node));
-	if (!n)
-		return NULL;
+	if (!n) {
+		goto err_out_monitor_exit;
+	}
 
 	memset(n, 0, sizeof(struct dnet_node));
 
 	atomic_init(&n->trans, 0);
+
+	n->monitor = monitor;
 
 	err = dnet_log_init(n, cfg->log);
 	if (err)
@@ -102,6 +113,8 @@ err_out_destroy_state:
 	pthread_mutex_destroy(&n->state_lock);
 err_out_free:
 	free(n);
+err_out_monitor_exit:
+	dnet_monitor_exit(monitor);
 	return NULL;
 }
 
@@ -675,6 +688,8 @@ void dnet_node_destroy(struct dnet_node *n)
 
 	dnet_node_cleanup_common_resources(n);
 	dnet_counter_destroy(n);
+
+	dnet_monitor_exit(n);
 
 	free(n);
 }

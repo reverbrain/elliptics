@@ -44,8 +44,8 @@ target_link_libraries(iterate ${ECOMMON_LIBRARIES} elliptics_cpp boost_program_o
 install(TARGETS
         dnet_ioserv
         dnet_find
-	dnet_ioclient
-	dnet_index
+        dnet_ioclient
+        dnet_index
         dnet_stat
         dnet_notify
         dnet_ids
