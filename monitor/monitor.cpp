@@ -22,7 +22,8 @@
 
 #include <exception>
 
-#include "../library/elliptics.h"
+#include "library/elliptics.h"
+#include "io_stat_provider.hpp"
 
 namespace ioremap { namespace monitor {
 
@@ -111,4 +112,13 @@ void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans
 	if (real_monitor)
 		real_monitor->get_statistics().command_counter(cmd, trans, err,
 		                                               cache, size, time);
+}
+
+void dnet_monitor_init_io_stat_provider(struct dnet_node *n) {
+	if (!n->monitor)
+		return;
+
+	auto real_monitor = monitor_cast(n->monitor);
+	if (real_monitor)
+		real_monitor->get_statistics().add_provider(new ioremap::monitor::io_stat_provider(n), "io");
 }

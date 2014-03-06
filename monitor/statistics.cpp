@@ -20,7 +20,7 @@
 #include "statistics.hpp"
 
 #include "monitor.hpp"
-#include "../cache/cache.hpp"
+#include "cache/cache.hpp"
 
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"

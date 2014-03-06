@@ -160,6 +160,13 @@ void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw sta
 /*!
  * \internal
  *
+ * Creates stat provider for io queues and adds it to provider list
+ */
+void dnet_monitor_init_io_stat_provider(struct dnet_node *n);
+
+/*!
+ * \internal
+ *
  * Sends to \a monitor statistics some properties of executed command:
  * \a cmd - identifier of the command
  * \a trans - number of transaction
