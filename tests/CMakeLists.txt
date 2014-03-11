@@ -21,7 +21,7 @@ add_library(test_common SHARED
     test_base.hpp
     test_base.cpp)
 set_target_properties(test_common ${TEST_PROPERTIES})
-target_link_libraries(test_common elliptics_cocaine elliptics_cpp dl ${Boost_LIBRARIES})
+target_link_libraries(test_common elliptics elliptics_cocaine elliptics_cpp dl ${Boost_LIBRARIES})
 
 add_executable(dnet_cpp_test test.cpp)
 set_target_properties(dnet_cpp_test ${TEST_PROPERTIES})
