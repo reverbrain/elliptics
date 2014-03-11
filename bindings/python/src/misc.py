@@ -31,11 +31,15 @@ def wrap_address(classes):
         """
         Node address as elliptics.Address
         """
-        return Address.from_host_port(self.__address__, self.__group_id__)
+        if hasattr(cls, 'group_id'):
+            return Address.from_host_port(self.__address__, self.__group_id__)
+        else:
+            return Address.from_host_port(self.__address__)
     for cls in classes:
         cls.__address__ = cls.address
-        cls.__group_id__ = cls.group_id
-        del cls.group_id
+        if hasattr(cls, 'group_id'):
+            cls.__group_id__ = cls.group_id
+            del cls.group_id
         cls.address = address
 
 LookupResultEntry.__storage_address__ = LookupResultEntry.storage_address
@@ -48,7 +52,8 @@ wrap_address([IteratorResultEntry,
               CallbackResultEntry,
               StatResultEntry,
               AddressStatistics,
-              StatCountResultEntry
+              StatCountResultEntry,
+              ExecContext
               ])
 
 

@@ -439,9 +439,16 @@ public:
 		return create_result(std::move(session::cancel_iterator(elliptics_id::convert(id), iterator_id)));
 	}
 
-	python_exec_result exec_src(const bp::api::object &id, const int src_key, const std::string &event, const std::string &data) {
+	python_exec_result exec_src(const bp::api::object &id, const int src_key, const std::string &event, const bp::api::object &data) {
 		dnet_id* raw_id = NULL;
 		dnet_id conv_id;
+
+		std::string str_data;
+		if (data.ptr() != Py_None) {
+			bp::extract<std::string> get_data(data);
+			str_data = get_data();
+		}
+
 		if (id.ptr() != Py_None) {
 			auto eid = elliptics_id::convert(id);
 			session::transform(eid);
@@ -449,10 +456,10 @@ public:
 			raw_id = &conv_id;
 		}
 
-		return create_result(std::move(session::exec(raw_id, src_key, event, data_pointer::copy(data))));
+		return create_result(std::move(session::exec(raw_id, src_key, event, data_pointer::copy(str_data))));
 	}
 
-	python_exec_result exec(const bp::api::object &id, const std::string &event, const std::string &data) {
+	python_exec_result exec(const bp::api::object &id, const std::string &event, const bp::api::object &data) {
 		return exec_src(id, -1, event, data);
 	}
 

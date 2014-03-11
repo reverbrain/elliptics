@@ -506,6 +506,7 @@ class srw {
 
 				reply->event_size = event.size();
 				reply->data_size = s.size();
+				memcpy(&reply->addr, &st->n->addrs[0], sizeof(struct dnet_addr));
 
 				tmp += event;
 				tmp += s;
@@ -536,6 +537,7 @@ class srw {
 
 				upstream->reply(final, (char *)sph, sizeof(struct sph) + sph->event_size + sph->data_size);
 
+				memcpy(&sph->addr, &st->n->addrs[0], sizeof(struct dnet_addr));
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: completed: job: %d, total-size: %zd, finish: %d\n",
 						id_str, sph_str, event.c_str(), sph->src_key, total_size(sph), final);
 

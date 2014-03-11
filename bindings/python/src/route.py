@@ -198,13 +198,13 @@ class RouteList(object):
 
             # Insert implicit first route if needed
             if group_routes[0].key.id != smallest_id:
-                group_routes.insert(0,
-                                    Route(Id(smallest_id, group),
-                                          last_address))
+                route = Route(Id(smallest_id, group), last_address)
+                group_routes.insert(0, route)
 
             # Insert implicit last route if needed
             if group_routes[-1].key.id != biggest_id:
-                group_routes.append(Route(Id(biggest_id, group), last_address))
+                route = Route(Id(biggest_id, group), last_address)
+                group_routes.append(route)
 
             # Extend route list
             merged_routes.extend(group_routes)
@@ -218,8 +218,8 @@ class RouteList(object):
     def filter_by_address(self, address):
         """
         Filters routes for specified address\n
-        routes = routes.filter_by_address(
-            Address.from_host_port_family('host.com:1025:2'))
+        address = Address.from_host_port_family('host.com:1025:2')
+        routes = routes.filter_by_address(address)
         """
         return RouteList([route for route in self.routes
                           if route.address == address])
