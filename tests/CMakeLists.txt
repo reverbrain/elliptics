@@ -59,7 +59,7 @@ if(WITH_COCAINE)
     set_target_properties(dnet_cpp_srw_test_app ${TEST_PROPERTIES})
     target_link_libraries(dnet_cpp_srw_test_app elliptics_cpp ${CocaineNative_LIBRARIES} ${Boost_LIBRARIES} ${LIBEV_LIBRARIES})
 
-    set(WITHOUT_COCAINE "")
+    #set(WITHOUT_COCAINE "")
 
     add_custom_command(TARGET dnet_cpp_srw_test_app
         POST_BUILD

@@ -823,6 +823,7 @@ int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl
 int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *ctl);
 
 int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl);
+int dnet_request_cmd_id(struct dnet_session *s, struct dnet_id *id, struct dnet_trans_control *ctl);
 
 int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, const int sock_type, const int proto);
 
