@@ -95,7 +95,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 		}
 	}
 
-	dnet_set_sockopt(s);
+	dnet_set_sockopt(n, s);
 
 	dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d, socket: %d.\n",
 		dnet_server_convert_addr(sa, salen),
@@ -853,7 +853,7 @@ void dnet_sock_close(struct dnet_node *n, int s)
 	close(s);
 }
 
-void dnet_set_sockopt(int s)
+void dnet_set_sockopt(struct dnet_node *n, int s)
 {
 	struct linger l;
 	int opt;
@@ -861,12 +861,11 @@ void dnet_set_sockopt(int s)
 	opt = 1;
 	setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &opt, 4);
 
-	opt = 3;
-	setsockopt(s, IPPROTO_TCP, TCP_KEEPCNT, &opt, 4);
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPCNT, &n->keep_cnt, 4);
 	opt = 10;
-	setsockopt(s, IPPROTO_TCP, TCP_KEEPIDLE, &opt, 4);
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPIDLE, &n->keep_idle, 4);
 	opt = 10;
-	setsockopt(s, IPPROTO_TCP, TCP_KEEPINTVL, &opt, 4);
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPINTVL, &n->keep_interval, 4);
 
 	l.l_onoff = 1;
 	l.l_linger = 1;

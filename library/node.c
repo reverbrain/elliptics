@@ -559,6 +559,10 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	n->wait_ts.tv_sec = cfg->wait_timeout;
 
+	n->keep_cnt = 3;
+	n->keep_idle = 10;
+	n->keep_interval = 10;
+
 	n->cb = cfg->cb;
 
 	n->notify_hash_size = cfg->hash_size;
@@ -852,6 +856,13 @@ void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)
 {
 	n->wait_ts.tv_sec = wait_timeout;
 	n->check_timeout = check_timeout;
+}
+
+void dnet_set_keepalive(struct dnet_node *n, int idle, int cnt, int interval)
+{
+	n->keep_cnt = cnt;
+	n->keep_idle = idle;
+	n->keep_interval = interval;
 }
 
 struct dnet_node *dnet_session_get_node(struct dnet_session *s)
