@@ -1001,7 +1001,8 @@ static inline void dnet_convert_defrag_ctl(struct dnet_defrag_ctl *ctl)
 }
 
 struct dnet_monitor_stat_request {
-	int			category;
+	int		category;
+	int		reserved_int; // reserved for packing
 	uint64_t	reserved[4];
 } __attribute__ ((packed));
 
