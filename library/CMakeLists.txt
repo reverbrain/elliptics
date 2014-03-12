@@ -32,7 +32,7 @@ set_target_properties(elliptics PROPERTIES
     VERSION ${ELLIPTICS_VERSION}
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     LINKER_LANGUAGE CXX
-)
+    )
 target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids elliptics_monitor)
 
 
@@ -42,7 +42,7 @@ set_target_properties(elliptics_client PROPERTIES
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     )
 #target_link_libraries(elliptics_client ${ELLIPTICS_LIBRARIES})
-target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} elliptics_monitor)
 
 install(TARGETS elliptics
     LIBRARY DESTINATION lib${LIB_SUFFIX}

@@ -31,7 +31,7 @@ option(HAVE_MODULE_BACKEND_SUPPORT "Build ioserv with shared library backend sup
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -std=gnu++0x")
 include(CheckLargefile)
 include(CheckAtomic)
 include(CheckSendfile)
@@ -151,7 +151,7 @@ install(FILES
 set(INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
 set(INSTALL_LIBRARY_DIR "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
 
-export(TARGETS elliptics_client elliptics_cpp
+export(TARGETS elliptics_monitor elliptics_client elliptics_cpp
     FILE "${PROJECT_BINARY_DIR}/EllipticsTargets.cmake")
 
 #export(PACKAGE Elliptics)

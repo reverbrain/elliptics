@@ -424,6 +424,9 @@ struct dnet_io {
 	// condition variable for waiting when io pools are able to process packets
 	pthread_mutex_t		full_lock;
 	pthread_cond_t		full_wait;
+	int					blocked;
+
+	struct list_stat	output_stats;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);

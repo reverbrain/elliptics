@@ -761,6 +761,27 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 	void *priv);
 
 /*
+ * Request monitor statistics from the node corresponding to given ID.
+ * If @id is NULL statistics will be requested from all connected nodes.
+ * @category specifies category of requested statistics.
+ *
+ * Function will sleep and print into DNET_LOG_INFO log level short
+ * statistics if no @complete function is provided, otherwise it returns
+ * after queueing all transactions and appropriate callback will be
+ * invoked asynchronously.
+ *
+ * Function returns number of nodes statistics request was sent to
+ * or negative error code. In case of error callback completion can
+ * still be called.
+ */
+int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
+	int category,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			void *priv),
+	void *priv);
+
+/*
  * Request notifications when given ID is modified.
  * Notifications are sent after update was stored in the IO backend.
  * @id and @complete are not allowed to be NULL.

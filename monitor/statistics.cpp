@@ -20,7 +20,7 @@
 #include "statistics.hpp"
 
 #include "monitor.hpp"
-#include "../cache/cache.hpp"
+#include "cache/cache.hpp"
 
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
@@ -34,7 +34,6 @@ statistics::statistics(monitor& mon)
 , m_indx_update_histograms(default_xs(), default_ys())
 , m_indx_internal_histograms(default_xs(), default_ys()) {
 	memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
-	gettimeofday(&m_start_time, NULL);
 }
 
 void statistics::command_counter(int cmd, const int trans, const int err, const int cache,
@@ -81,7 +80,6 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 
 	if (m_cmd_info_current.size() >= 50000) {
 		std::unique_lock<std::mutex> swap_guard(m_cmd_info_previous_mutex);
-		m_cmd_info_previous.clear();
 		m_cmd_info_current.swap(m_cmd_info_previous);
 	}
 
@@ -135,17 +133,13 @@ std::string statistics::report(int category) {
 	report.SetObject();
 	auto &allocator = report.GetAllocator();
 
-	struct timeval end_time;
-	gettimeofday(&end_time, NULL);
-	auto time = (end_time.tv_sec - m_start_time.tv_sec) * 1000000 +
-	                      (end_time.tv_usec - m_start_time.tv_usec);
-	m_start_time = end_time;
-	report.AddMember("time", time, allocator);
+	struct timeval time;
+	gettimeofday(&time, NULL);
 
-	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_IO_QUEUE) {
-		rapidjson::Value io_queue_value(rapidjson::kObjectType);
-		report.AddMember("io_queue_stat", io_queue_report(io_queue_value, allocator), allocator);
-	}
+	rapidjson::Value timestamp(rapidjson::kObjectType);
+	timestamp.AddMember("tv_sec", time.tv_sec, allocator);
+	timestamp.AddMember("tv_usec", time.tv_usec, allocator);
+	report.AddMember("timestamp", timestamp, allocator);
 
 	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_COMMANDS) {
 		rapidjson::Value commands_value(rapidjson::kObjectType);
@@ -174,30 +168,7 @@ std::string statistics::report(int category) {
 		                 allocator);
 	}
 
-
 	return convert_report(report);
-}
-
-rapidjson::Value& statistics::io_queue_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	auto st = m_monitor.node()->io->recv_pool->list_stats;
-	auto elapsed_seconds = (m_start_time.tv_sec - st.time_base.tv_sec) * 1000000 +
-	                       (m_start_time.tv_usec - st.time_base.tv_usec);
-
-	auto min = st.min_list_size;
-	if (min == ~0ULL)
-		min = 0ULL;
-
-
-	stat_value.AddMember("size", st.list_size, allocator)
-	          .AddMember("volume", st.volume, allocator)
-	          .AddMember("min", min, allocator)
-	          .AddMember("max", st.max_list_size, allocator)
-	          .AddMember("time", elapsed_seconds, allocator);
-	return stat_value;
-}
-
-void statistics::log() {
-	dnet_log(m_monitor.node(), DNET_LOG_ERROR, "%s", report(DNET_MONITOR_ALL).c_str());
 }
 
 rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
@@ -259,6 +230,7 @@ inline rapidjson::Value& history_print(rapidjson::Value &stat_value,
                                        rapidjson::Document::AllocatorType &allocator,
                                        const command_stat_info &info) {
 	stat_value.AddMember(dnet_cmd_string(info.cmd),
+	                     allocator,
 	                     rapidjson::Value(rapidjson::kObjectType)
 	                     .AddMember("internal", (info.internal ? "true" : "false"), allocator)
 	                     .AddMember("cache", (info.cache ? "true" : "false"), allocator)
@@ -279,7 +251,6 @@ rapidjson::Value& statistics::history_report(rapidjson::Value &stat_value, rapid
 			rapidjson::Value cmd_value(rapidjson::kObjectType);
 			stat_value.PushBack(history_print(cmd_value, allocator, *it), allocator);
 		}
-		m_cmd_info_previous.clear();
 	} {
 		std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
 		const auto begin = m_cmd_info_current.begin(), end = m_cmd_info_current.end();
@@ -287,7 +258,6 @@ rapidjson::Value& statistics::history_report(rapidjson::Value &stat_value, rapid
 			rapidjson::Value cmd_value(rapidjson::kObjectType);
 			stat_value.PushBack(history_print(cmd_value, allocator, *it), allocator);
 		}
-		m_cmd_info_current.clear();
 	}
 
 	return stat_value;
