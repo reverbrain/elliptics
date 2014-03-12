@@ -370,6 +370,54 @@ class stat_count_callback : public base_stat_callback<stat_count_result_entry, D
 		}
 };
 
+class monitor_stat_callback
+{
+	public:
+		monitor_stat_callback(const session &sess, const async_result<monitor_stat_result_entry> &result, int category)
+			: sess(sess), cb(sess, result), m_category(category), has_id(false)
+		{
+		}
+
+		virtual ~monitor_stat_callback()
+		{
+		}
+
+		bool start(error_info *error, complete_func func, void *priv)
+		{
+			cb.set_count(unlimited);
+
+			uint64_t cflags_pop = sess.get_cflags();
+			sess.set_cflags(cflags_pop | DNET_ATTR_CNTR_GLOBAL);
+			int err = dnet_request_monitor_stat(sess.get_native(), has_id ? &id : NULL, m_category, func, priv);
+			sess.set_cflags(cflags_pop);
+
+			if (err < 0) {
+				*error = create_error(err, "Failed to request monitor statistics");
+				return true;
+			}
+
+			return cb.set_count(err);
+		}
+
+		bool handle(error_info *error, dnet_net_state *state, dnet_cmd *cmd, complete_func func, void *priv)
+		{
+			(void) error;
+			return cb.handle(state, cmd, func, priv);
+		}
+
+		void finish(const error_info &exc)
+		{
+			cb.complete(exc);
+		}
+
+		dnet_commands command;
+		session sess;
+		default_callback<monitor_stat_result_entry> cb;
+		int m_category;
+		dnet_id id;
+		bool has_id;
+};
+
 template <typename T>
 class multigroup_callback
 {

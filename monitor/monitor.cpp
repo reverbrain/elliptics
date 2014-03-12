@@ -122,3 +122,22 @@ void dnet_monitor_init_io_stat_provider(struct dnet_node *n) {
 	if (real_monitor)
 		real_monitor->get_statistics().add_provider(new ioremap::monitor::io_stat_provider(n), "io");
 }
+
+int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
+{
+	struct dnet_node *n = orig->n;
+	struct dnet_monitor_stat_request *req = static_cast<struct dnet_monitor_stat_request *>(data);
+	dnet_convert_monitor_stat_request(req);
+	const char disabled_reply[] = "{\"monitor\":\"disabled\"}";
+	const unsigned int size = sizeof(disabled_reply) - 1;
+
+	if (!n->monitor)
+		return dnet_send_reply(orig, cmd, const_cast<char*>(disabled_reply), size, 0);
+
+	auto real_monitor = monitor_cast(n->monitor);
+	if (!real_monitor)
+		return dnet_send_reply(orig, cmd, const_cast<char*>(disabled_reply), size, 0);
+
+	auto json = real_monitor->get_statistics().report(req->category);
+	return dnet_send_reply(orig, cmd, &json.front(), json.size(), 0);
+}

@@ -166,6 +166,7 @@ typedef python_async_result<index_entry>				python_check_indexes_result;
 
 typedef python_async_result<stat_result_entry>			python_stat_result;
 typedef python_async_result<stat_count_result_entry>	python_stat_count_result;
+typedef python_async_result<monitor_stat_result_entry>	python_monitor_stat_result;
 
 void init_async_results();
 

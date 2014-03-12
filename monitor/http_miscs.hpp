@@ -47,6 +47,7 @@ const std::string list = "<html>"
 	"GET <a href='/io'>/io</a> - Retrieves statistics about io statistics<br/>"
 	"GET <a href='/commands'>/commands</a> - Retrieves statistics about commands<br/>"
 	"GET <a href='/io_histograms'>/io_histograms</a> - Retrieves statistics about io histograms<br/>"
+	"GET <a href='/backend'>/backend</a> - Retrieves statistics about backend<br/>"
 	"</body>"
 	"</html>";
 }

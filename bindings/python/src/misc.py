@@ -25,6 +25,12 @@ def storage_address(self):
     return Address.from_host_port(self.__storage_address__)
 
 
+@property
+def monitor_statistics(self):
+    from json import loads
+    return loads(self.__statistics__)
+
+
 def wrap_address(classes):
     @property
     def address(self):
@@ -45,6 +51,9 @@ def wrap_address(classes):
 LookupResultEntry.__storage_address__ = LookupResultEntry.storage_address
 LookupResultEntry.storage_address = storage_address
 
+MonitorStatResultEntry.__statistics__ = MonitorStatResultEntry.statistics
+MonitorStatResultEntry.statistics = monitor_statistics
+
 wrap_address([IteratorResultEntry,
               ReadResultEntry,
               LookupResultEntry,
@@ -53,6 +62,7 @@ wrap_address([IteratorResultEntry,
               StatResultEntry,
               AddressStatistics,
               StatCountResultEntry,
+              MonitorStatResultEntry,
               ExecContext
               ])
 

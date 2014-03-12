@@ -65,6 +65,7 @@ enum dnet_commands {
 	DNET_CMD_INDEXES_UPDATE,		/* Update secondary indexes for id */
 	DNET_CMD_INDEXES_INTERNAL,		/* Update identificators table for certain secondary index. Internal usage only */
 	DNET_CMD_INDEXES_FIND,		/* Find all objects by indexes */
+	DNET_CMD_MONITOR_STAT,		/* Gather monitor json statistics */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
@@ -98,6 +99,15 @@ enum dnet_counters {
 	DNET_CNTR_RESERVED7,			/* Reserved for future statistics */
 	DNET_CNTR_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown counters */
 	__DNET_CNTR_MAX,
+};
+
+enum dnet_monitor_categories {
+	DNET_MONITOR_ALL = 0,		/* Category for requesting all available statistics */
+	DNET_MONITOR_CACHE,			/* Category for cache statistics */
+	DNET_MONITOR_IO,			/* Category for IO queue statistics */
+	DNET_MONITOR_COMMANDS,		/* Category for commands statistics */
+	DNET_MONITOR_IO_HISTOGRAMS,	/* Category for IO hisograms statistics */
+	DNET_MONITOR_BACKEND		/* Category for backend statistics */
 };
 
 /*
@@ -988,6 +998,16 @@ static inline void dnet_convert_defrag_ctl(struct dnet_defrag_ctl *ctl)
 	ctl->flags = dnet_bswap64(ctl->flags);
 	ctl->status = dnet_bswap32(ctl->status);
 	ctl->total = dnet_bswap64(ctl->total);
+}
+
+struct dnet_monitor_stat_request {
+	int			category;
+	uint64_t	reserved[4];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_monitor_stat_request(struct dnet_monitor_stat_request *r)
+{
+	r->category = dnet_bswap32(r->category);
 }
 
 #ifdef __cplusplus

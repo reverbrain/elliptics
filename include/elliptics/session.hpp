@@ -557,6 +557,16 @@ class session
 		async_stat_count_result stat_log_count();
 
 		/*!
+		 * Queries monitor statistics information from server nodes.
+		 */
+		async_monitor_stat_result monitor_stat(int category = 0);
+
+		/*!
+		 * Queries monitor statistics information from the server node specified by \a id
+		 */
+		async_monitor_stat_result monitor_stat(const key &id, int category = 0);
+
+		/*!
 		 * Returns the number of session states.
 		 */
 		int			state_num();

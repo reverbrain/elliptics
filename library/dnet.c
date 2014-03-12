@@ -36,7 +36,7 @@
 #include <unistd.h>
 
 #include "elliptics.h"
-#include "../monitor/monitor.h"
+#include "monitor/monitor.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -1139,6 +1139,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (err == -ENOTSUP) {
 				err = dnet_cmd_bulk_read(st, cmd, data);
 			}
+			break;
+		case DNET_CMD_MONITOR_STAT:
+			err = dnet_monitor_process_cmd(st, cmd, data);
 			break;
 		case DNET_CMD_READ:
 		case DNET_CMD_WRITE:

@@ -230,6 +230,7 @@ inline rapidjson::Value& history_print(rapidjson::Value &stat_value,
                                        rapidjson::Document::AllocatorType &allocator,
                                        const command_stat_info &info) {
 	stat_value.AddMember(dnet_cmd_string(info.cmd),
+	                     allocator,
 	                     rapidjson::Value(rapidjson::kObjectType)
 	                     .AddMember("internal", (info.internal ? "true" : "false"), allocator)
 	                     .AddMember("cache", (info.cache ? "true" : "false"), allocator)

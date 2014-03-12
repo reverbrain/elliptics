@@ -153,6 +153,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_INDEXES_UPDATE] = "INDEXES_UPDATE",
 	[DNET_CMD_INDEXES_INTERNAL] = "INDEXES_INTERNAL",
 	[DNET_CMD_INDEXES_FIND] = "INDEXES_FIND",
+	[DNET_CMD_MONITOR_STAT] = "MONITOR_STAT",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
@@ -1586,6 +1587,30 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 	return err;
 }
 
+static int dnet_monitor_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
+{
+	struct dnet_wait *w = priv;
+	int err = -EINVAL;
+	const char *json = NULL;
+
+	if (is_trans_destroyed(state, cmd)) {
+		dnet_wakeup(w, w->cond++);
+		dnet_wait_put(w);
+		return 0;
+	}
+
+	if (cmd->cmd == DNET_CMD_MONITOR_STAT && cmd->size == sizeof(struct dnet_stat)) {
+		json = (const char*)(cmd + 1);
+
+		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: %s\n",
+				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
+				json);
+		err = 0;
+	}
+
+	return err;
+}
+
 static int dnet_request_cmd_single(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl)
 {
 	if (st)
@@ -1671,6 +1696,103 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 	dnet_log(n, DNET_LOG_NOTICE, "stat cmd: %s: %ld usecs, wait_error: %d, num: %d.\n", dnet_cmd_string(cmd), diff, err, num);
+
+	if (err)
+		goto err_out_put;
+
+	dnet_wait_put(w);
+
+	return num;
+
+err_out_put:
+	dnet_wait_put(w);
+err_out_exit:
+	return err;
+}
+
+int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
+	int category,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			void *priv),
+	void *priv)
+{
+	struct dnet_node *n = s->node;
+	struct dnet_trans_control ctl;
+	struct dnet_wait *w = NULL;
+	struct dnet_monitor_stat_request request;
+	int err, num = 0;
+	struct timeval start, end;
+	long diff;
+
+	gettimeofday(&start, NULL);
+
+	if (!complete) {
+		w = dnet_wait_alloc(0);
+		if (!w) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
+
+		complete = dnet_monitor_stat_complete;
+		priv = w;
+	}
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+	memset(&request, 0, sizeof(struct dnet_monitor_stat_request));
+	request.category = category;
+	dnet_convert_monitor_stat_request(&request);
+
+	ctl.cmd = DNET_CMD_MONITOR_STAT;
+	ctl.complete = complete;
+	ctl.priv = priv;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK | dnet_session_get_cflags(s);
+	ctl.data = &request;
+	ctl.size = sizeof(struct dnet_monitor_stat_request);
+
+	if (id) {
+		if (w)
+			dnet_wait_get(w);
+
+		memcpy(&ctl.id, id, sizeof(struct dnet_id));
+
+		err = dnet_request_cmd_single(s, NULL, &ctl);
+		num = 1;
+	} else {
+		struct dnet_net_state *st;
+		struct dnet_group *g;
+
+
+		pthread_mutex_lock(&n->state_lock);
+		list_for_each_entry(g, &n->group_list, group_entry) {
+			list_for_each_entry(st, &g->state_list, state_entry) {
+				if (st == n->st)
+					continue;
+
+				if (w)
+					dnet_wait_get(w);
+
+				dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
+				dnet_request_cmd_single(s, st, &ctl);
+				num++;
+			}
+		}
+		pthread_mutex_unlock(&n->state_lock);
+	}
+
+	if (!w) {
+		gettimeofday(&end, NULL);
+		diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
+		dnet_log(n, DNET_LOG_NOTICE, "monitor stat: %ld usecs, num: %d.\n", diff, num);
+
+		return num;
+	}
+
+	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
+
+	gettimeofday(&end, NULL);
+	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
+	dnet_log(n, DNET_LOG_NOTICE, "monitor stat: %ld usecs, wait_error: %d, num: %d.\n", diff, err, num);
 
 	if (err)
 		goto err_out_put;

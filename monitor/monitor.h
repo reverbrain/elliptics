@@ -47,44 +47,6 @@ extern "C" {
  */
 #define DNET_MONITOR_LIST			-1
 
-// Real monitor categories
-/*!
- * \internal
- *
- * Category for requesting all available statistics
- */
-#define DNET_MONITOR_ALL			0
-/*!
- * \internal
- *
- * Category for cache statistics
- */
-#define DNET_MONITOR_CACHE			1
-/*!
- * \internal
- *
- * Category for IO queue statistics
- */
-#define DNET_MONITOR_IO				2
-/*!
- * \internal
- *
- * Category for commands statistics
- */
-#define DNET_MONITOR_COMMANDS		3
-/*!
- * \internal
- *
- * Category for IO hisograms statistics
- */
-#define DNET_MONITOR_IO_HISTOGRAMS	4
-/*!
- * \internal
- *
- * Category for backend statistics
- */
-#define DNET_MONITOR_BACKEND			5
-
 struct dnet_node;
 struct dnet_config;
 
@@ -178,6 +140,8 @@ void dnet_monitor_init_io_stat_provider(struct dnet_node *n);
 void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans,
                              const int err, const int cache,
                              const uint32_t size, const unsigned long time);
+
+int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data);
 
 #ifdef __cplusplus
 }
