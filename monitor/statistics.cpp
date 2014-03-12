@@ -140,6 +140,7 @@ std::string statistics::report(int category) {
 	timestamp.AddMember("tv_sec", time.tv_sec, allocator);
 	timestamp.AddMember("tv_usec", time.tv_usec, allocator);
 	report.AddMember("timestamp", timestamp, allocator);
+	report.AddMember("monitor_status", "enabled", allocator);
 
 	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_COMMANDS) {
 		rapidjson::Value commands_value(rapidjson::kObjectType);
