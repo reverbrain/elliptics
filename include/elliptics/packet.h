@@ -103,11 +103,12 @@ enum dnet_counters {
 
 enum dnet_monitor_categories {
 	DNET_MONITOR_ALL = 0,		/* Category for requesting all available statistics */
-	DNET_MONITOR_CACHE,			/* Category for cache statistics */
-	DNET_MONITOR_IO,			/* Category for IO queue statistics */
+	DNET_MONITOR_CACHE,		/* Category for cache statistics */
+	DNET_MONITOR_IO,		/* Category for IO queue statistics */
 	DNET_MONITOR_COMMANDS,		/* Category for commands statistics */
 	DNET_MONITOR_IO_HISTOGRAMS,	/* Category for IO hisograms statistics */
-	DNET_MONITOR_BACKEND		/* Category for backend statistics */
+	DNET_MONITOR_BACKEND,		/* Category for backend statistics */
+	__DNET_MONITOR_MAX		/* Paranoidal check */
 };
 
 /*

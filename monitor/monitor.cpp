@@ -131,6 +131,11 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	const char disabled_reply[] = "{\"monitor\":\"disabled\"}";
 	const unsigned int size = sizeof(disabled_reply) - 1;
 
+	if ((req->category >= __DNET_MONITOR_MAX) || (req->category < 0)) {
+		std::string rep = "{\"monitor\":\"invalid category\"}";
+		return dnet_send_reply(orig, cmd, const_cast<char *>(rep.c_str()), rep.size(), 0);
+	}
+
 	if (!n->monitor)
 		return dnet_send_reply(orig, cmd, const_cast<char*>(disabled_reply), size, 0);
 
