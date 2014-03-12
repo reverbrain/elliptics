@@ -203,6 +203,12 @@ int dnet_write_file_id(struct dnet_session *s, const char *file, struct dnet_id 
 int dnet_write_file(struct dnet_session *s, const char *file, const void *remote, int remote_len,
 		uint64_t local_offset, uint64_t remote_offset, uint64_t size);
 
+/*
+ * Log level
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new level
+ * please also add it to elliptics_log_level and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
+ */
 enum dnet_log_level {
 	DNET_LOG_DATA = 0,
 	DNET_LOG_ERROR,
@@ -216,7 +222,12 @@ enum dnet_log_level {
 
 #define DNET_TRACE_BIT         (1<<31)         /*is used in trace_id for ignoring current log level*/
 
-/* cfg->flags */
+/*
+ * cfg->flags
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new flag
+ * please also add it to elliptics_config_flags and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
+ */
 #define DNET_CFG_JOIN_NETWORK		(1<<0)		/* given node joins network and becomes part of the storage */
 #define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
 #define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
