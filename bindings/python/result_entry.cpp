@@ -247,6 +247,10 @@ dnet_stat stat_result_get_statistics(stat_result_entry &result)
 	return *(result.statistics());
 }
 
+std::string monitor_stat_result_get_statistics(monitor_stat_result_entry &result) {
+	return result.statistics();
+}
+
 struct address_statistics {
 	address_statistics(const dnet_addr_stat *stat, int group_id)
 	: stat(stat)
@@ -506,6 +510,14 @@ void init_result_entry() {
 		              "elliptics.Address of the node which the statistics are belonged")
 		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
 		.add_property("error", result_entry_error<stat_count_result_entry>,
+		              "elliptics.Error information")
+	;
+
+	bp::class_<monitor_stat_result_entry>("MonitorStatResultEntry")
+		.add_property("statistics", monitor_stat_result_get_statistics)
+		.add_property("address", result_entry_address<monitor_stat_result_entry>)
+		.add_property("group_id", result_entry_group_id<monitor_stat_result_entry>)
+		.add_property("error", result_entry_error<monitor_stat_result_entry>,
 		              "elliptics.Error information")
 	;
 

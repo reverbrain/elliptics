@@ -255,6 +255,29 @@ struct dnet_addr_stat *stat_count_result_entry::statistics() const
 	DNET_DATA_END(sizeof(dnet_addr_stat));
 }
 
+monitor_stat_result_entry::monitor_stat_result_entry()
+{}
+
+monitor_stat_result_entry::monitor_stat_result_entry(const monitor_stat_result_entry &other)
+: callback_result_entry(other)
+{}
+
+monitor_stat_result_entry::~monitor_stat_result_entry()
+{}
+
+monitor_stat_result_entry &monitor_stat_result_entry::operator =(const monitor_stat_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+std::string monitor_stat_result_entry::statistics() const
+{
+	DNET_DATA_BEGIN();
+	return data().to_string();
+	DNET_DATA_END(0);
+}
+
 exec_result_entry::exec_result_entry()
 {
 }

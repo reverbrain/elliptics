@@ -27,19 +27,30 @@
 
 #include "elliptics.h"
 #include "elliptics/interface.h"
+#include "monitor/monitor.h"
 
 static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 {
 	struct dnet_node *n;
 	int err;
+	void *monitor = NULL;
+
+	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
+		err  = dnet_monitor_init(&monitor, cfg);
+		if (err)
+			return NULL;
+	}
 
 	n = malloc(sizeof(struct dnet_node));
-	if (!n)
-		return NULL;
+	if (!n) {
+		goto err_out_monitor_exit;
+	}
 
 	memset(n, 0, sizeof(struct dnet_node));
 
 	atomic_init(&n->trans, 0);
+
+	n->monitor = monitor;
 
 	err = dnet_log_init(n, cfg->log);
 	if (err)
@@ -102,6 +113,8 @@ err_out_destroy_state:
 	pthread_mutex_destroy(&n->state_lock);
 err_out_free:
 	free(n);
+err_out_monitor_exit:
+	dnet_monitor_exit(monitor);
 	return NULL;
 }
 
@@ -546,6 +559,10 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	n->wait_ts.tv_sec = cfg->wait_timeout;
 
+	n->keep_cnt = 3;
+	n->keep_idle = 10;
+	n->keep_interval = 10;
+
 	n->cb = cfg->cb;
 
 	n->notify_hash_size = cfg->hash_size;
@@ -675,6 +692,8 @@ void dnet_node_destroy(struct dnet_node *n)
 
 	dnet_node_cleanup_common_resources(n);
 	dnet_counter_destroy(n);
+
+	dnet_monitor_exit(n);
 
 	free(n);
 }
@@ -837,6 +856,13 @@ void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)
 {
 	n->wait_ts.tv_sec = wait_timeout;
 	n->check_timeout = check_timeout;
+}
+
+void dnet_set_keepalive(struct dnet_node *n, int idle, int cnt, int interval)
+{
+	n->keep_cnt = cnt;
+	n->keep_idle = idle;
+	n->keep_interval = interval;
 }
 
 struct dnet_node *dnet_session_get_node(struct dnet_session *s)

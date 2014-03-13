@@ -424,6 +424,9 @@ struct dnet_io {
 	// condition variable for waiting when io pools are able to process packets
 	pthread_mutex_t		full_lock;
 	pthread_cond_t		full_wait;
+	int					blocked;
+
+	struct list_stat	output_stats;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
@@ -509,6 +512,10 @@ struct dnet_node
 	struct dnet_net_state	*st;
 
 	int			error;
+
+	int			keep_cnt;
+	int			keep_interval;
+	int			keep_idle;
 
 	struct dnet_log		*log;
 
@@ -657,7 +664,7 @@ struct dnet_config;
 int dnet_socket_create(struct dnet_node *n, char *addr_str, int port, struct dnet_addr *addr, int listening);
 int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr *addr, int listening);
 
-void dnet_set_sockopt(int s);
+void dnet_set_sockopt(struct dnet_node *n, int s);
 void dnet_sock_close(struct dnet_node *n, int s);
 
 enum dnet_join_state {

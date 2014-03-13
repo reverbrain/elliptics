@@ -27,6 +27,7 @@
 
 #include "elliptics.h"
 #include "elliptics/interface.h"
+#include "../monitor/monitor.h"
 
 static char *dnet_work_io_mode_string[] = {
 	[DNET_WORK_IO_MODE_BLOCKING] = "BLOCKING",
@@ -404,7 +405,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	addr.family = orig->addr.family;
 	addr.addr_len = salen;
 
-	dnet_set_sockopt(cs);
+	dnet_set_sockopt(n, cs);
 
 	err = dnet_socket_local_addr(cs, &saddr);
 	if (err) {
@@ -472,6 +473,10 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			list_del(&r->req_entry);
 			pthread_mutex_unlock(&st->send_lock);
 
+			pthread_mutex_lock(&st->n->io->full_lock);
+			list_stat_size_decrease(&st->n->io->output_stats, 1);
+			pthread_mutex_unlock(&st->n->io->full_lock);
+
 			if (atomic_read(&st->send_queue_size) > 0)
 				if (atomic_dec(&st->send_queue_size) == DNET_SEND_WATERMARK_LOW) {
 					dnet_log(st->n, DNET_LOG_DEBUG,
@@ -510,6 +515,9 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 	if (send) {
 		ev.events = EPOLLOUT;
 		fd = st->write_s;
+		pthread_mutex_lock(&st->n->io->full_lock);
+		list_stat_size_increase(&st->n->io->output_stats, 1);
+		pthread_mutex_unlock(&st->n->io->full_lock);
 	} else {
 		ev.events = EPOLLIN;
 		fd = st->read_s;
@@ -717,7 +725,9 @@ static void *dnet_io_process_network(void *data_)
 			}
 			// wait condition variable - io queues has a free slot or some socket has something to send
 			pthread_mutex_lock(&n->io->full_lock);
+			n->io->blocked = 1;
 			pthread_cond_wait(&n->io->full_wait, &n->io->full_lock);
+			n->io->blocked = 0;
 			pthread_mutex_unlock(&n->io->full_lock);
 		}
 	}
@@ -884,6 +894,8 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_free_mutex;
 	}
 
+	list_stat_init(&n->io->output_stats);
+
 	memset(n->io, 0, io_size);
 
 	n->io->net_thread_num = cfg->net_thread_num;
@@ -925,6 +937,8 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 			goto err_out_net_destroy;
 		}
 	}
+
+	dnet_monitor_init_io_stat_provider(n);
 
 	return 0;
 

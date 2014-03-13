@@ -108,7 +108,7 @@ public:
 	 * Returns json string of the real provider statistics
 	 */
 	virtual std::string json() const {
-		return std::string(m_stat.json(m_stat.stat_private));
+		return m_stat.json(m_stat.stat_private);
 	}
 
 	/*!
@@ -348,13 +348,6 @@ public:
 	/*!
 	 * \internal
 	 *
-	 * Outputs generated json statistics into log
-	 */
-	void log();
-
-	/*!
-	 * \internal
-	 *
 	 * Adds executed command properties to different command statistics
 	 * \a cmd - identifier of the command
 	 * \a trans - number of transaction
@@ -374,14 +367,6 @@ public:
 	 */
 	void add_provider(stat_provider *stat, const std::string &name);
 private:
-	/*!
-	 * \internal
-	 *
-	 * Fills \a stat_value by io queue statistics and returns it
-	 * \a allocator - document allocator that is required by rapidjson
-	 */
-	rapidjson::Value& io_queue_report(rapidjson::Value &stat_value,
-	                                  rapidjson::Document::AllocatorType &allocator);
 	/*!
 	 * \internal
 	 *
@@ -420,15 +405,6 @@ private:
 	 * Commands statistics
 	 */
 	boost::array<command_counters, __DNET_CMD_MAX> m_cmd_stats;
-
-	/*!
-	 * \internal
-	 *
-	 * \internal
-	 *
-	 * Timestamp when statistics was created or when was last time requested
-	 */
-	struct timeval					m_start_time;
 
 	/*!
 	 * \internal

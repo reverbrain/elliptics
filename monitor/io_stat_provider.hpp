@@ -17,48 +17,26 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DNET_MONITOR_MONITOR_HPP
-#define __DNET_MONITOR_MONITOR_HPP
+#ifndef __DNET_MONITOR_IO_STAT_PROVIDER_HPP
+#define __DNET_MONITOR_IO_STAT_PROVIDER_HPP
 
-#include "../library/elliptics.h"
-
-#include "server.hpp"
 #include "statistics.hpp"
 
 struct dnet_node;
 
 namespace ioremap { namespace monitor {
 
-class stat_provider;
-
-/*!
- * Main monitoring class which connects different parts of monitoring subsystem
- */
-class monitor {
+class io_stat_provider: public stat_provider {
 public:
+	io_stat_provider(dnet_node *n): m_node(n) {}
 
-	/*!
-	 * Constructor: initializes monitor by \a cfg configuration
-	 */
-	monitor(struct dnet_config *cfg);
-
-	/*!
-	 * Stops monitor: stops listening incoming port, frees all providers etc.
-	 */
-	void stop();
-
-	/*!
-	 * Returns \a m_statistics - provides access to monitor statistics collector
-	 */
-	statistics& get_statistics() { return m_statistics; }
+	virtual std::string json() const;
+	virtual bool check_category(int category) const;
 
 private:
-	server		m_server;
-	statistics	m_statistics;
+	dnet_node *m_node;
 };
-
-void dnet_monitor_add_provider(struct dnet_node *n, stat_provider *provider, const char *name);
 
 }} /* namespace ioremap::monitor */
 
-#endif /* __DNET_MONITOR_MONITOR_HPP */
+#endif /* __DNET_MONITOR_IO_STAT_PROVIDER_HPP */

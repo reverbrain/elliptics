@@ -34,6 +34,12 @@ typedef std::function<bool (const callback_result_entry &)> result_filter;
 typedef std::function<bool (const std::vector<dnet_cmd> &, size_t)> result_checker;
 typedef std::function<void (const error_info &, const std::vector<dnet_cmd> &)> result_error_handler;
 
+/*
+ * Built-in filters.
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new built-in filter
+ * please also add it to elliptics_filters in elliptics_session.cpp
+ */
 namespace filters
 {
 bool positive(const callback_result_entry &entry);
@@ -42,6 +48,12 @@ bool all(const callback_result_entry &entry);
 bool all_with_ack(const callback_result_entry &entry);
 }
 
+/*
+ * Built-in checkers.
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new built-in checker
+ * please also add it to elliptics_checkers in elliptics_session.cpp
+ */
 namespace checkers
 {
 bool no_check(const std::vector<dnet_cmd> &statuses, size_t total);
@@ -155,6 +167,8 @@ class node
 		void			add_remote(const char *addr);
 
 		void			set_timeouts(const int wait_timeout, const int check_timeout);
+
+		void			set_keepalive(int idle, int cnt, int interval);
 
 		bool is_valid() const;
 
@@ -555,6 +569,16 @@ class session
 		 * Returns async_stat_count_result.
 		 */
 		async_stat_count_result stat_log_count();
+
+		/*!
+		 * Queries monitor statistics information from server nodes.
+		 */
+		async_monitor_stat_result monitor_stat(int category);
+
+		/*!
+		 * Queries monitor statistics information from the server node specified by \a id
+		 */
+		async_monitor_stat_result monitor_stat(const key &id, int category);
 
 		/*!
 		 * Returns the number of session states.

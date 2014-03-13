@@ -203,6 +203,12 @@ int dnet_write_file_id(struct dnet_session *s, const char *file, struct dnet_id 
 int dnet_write_file(struct dnet_session *s, const char *file, const void *remote, int remote_len,
 		uint64_t local_offset, uint64_t remote_offset, uint64_t size);
 
+/*
+ * Log level
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new level
+ * please also add it to elliptics_log_level and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
+ */
 enum dnet_log_level {
 	DNET_LOG_DATA = 0,
 	DNET_LOG_ERROR,
@@ -216,7 +222,12 @@ enum dnet_log_level {
 
 #define DNET_TRACE_BIT         (1<<31)         /*is used in trace_id for ignoring current log level*/
 
-/* cfg->flags */
+/*
+ * cfg->flags
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new flag
+ * please also add it to elliptics_config_flags and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
+ */
 #define DNET_CFG_JOIN_NETWORK		(1<<0)		/* given node joins network and becomes part of the storage */
 #define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
 #define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
@@ -444,6 +455,8 @@ uint64_t dnet_session_get_user_flags(struct dnet_session *s);
 
 void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout);
 struct timespec *dnet_session_get_timeout(struct dnet_session *s);
+
+void dnet_set_keepalive(struct dnet_node *n, int idle, int cnt, int interval);
 
 int dnet_session_set_ns(struct dnet_session *s, const char *ns, int nsize);
 
@@ -759,6 +772,27 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 	void *priv);
 
 /*
+ * Request monitor statistics from the node corresponding to given ID.
+ * If @id is NULL statistics will be requested from all connected nodes.
+ * @category specifies category of requested statistics.
+ *
+ * Function will sleep and print into DNET_LOG_INFO log level short
+ * statistics if no @complete function is provided, otherwise it returns
+ * after queueing all transactions and appropriate callback will be
+ * invoked asynchronously.
+ *
+ * Function returns number of nodes statistics request was sent to
+ * or negative error code. In case of error callback completion can
+ * still be called.
+ */
+int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
+	int category,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			void *priv),
+	void *priv);
+
+/*
  * Request notifications when given ID is modified.
  * Notifications are sent after update was stored in the IO backend.
  * @id and @complete are not allowed to be NULL.
@@ -800,6 +834,7 @@ int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl
 int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *ctl);
 
 int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl);
+int dnet_request_cmd_id(struct dnet_session *s, struct dnet_id *id, struct dnet_trans_control *ctl);
 
 int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, const int sock_type, const int proto);
 

@@ -65,6 +65,7 @@ enum dnet_commands {
 	DNET_CMD_INDEXES_UPDATE,		/* Update secondary indexes for id */
 	DNET_CMD_INDEXES_INTERNAL,		/* Update identificators table for certain secondary index. Internal usage only */
 	DNET_CMD_INDEXES_FIND,		/* Find all objects by indexes */
+	DNET_CMD_MONITOR_STAT,		/* Gather monitor json statistics */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
@@ -101,6 +102,23 @@ enum dnet_counters {
 };
 
 /*
+ * dnet_monitor_categories provides ability to request monitor statistics partially or fully.
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new category
+ * please also add it to elliptics_monitor_categories and to init_elliptics_session() in elliptics_session.cpp
+ */
+
+enum dnet_monitor_categories {
+	DNET_MONITOR_ALL = 0,		/* Category for requesting all available statistics */
+	DNET_MONITOR_CACHE,		/* Category for cache statistics */
+	DNET_MONITOR_IO,		/* Category for IO queue statistics */
+	DNET_MONITOR_COMMANDS,		/* Category for commands statistics */
+	DNET_MONITOR_IO_HISTOGRAMS,	/* Category for IO hisograms statistics */
+	DNET_MONITOR_BACKEND,		/* Category for backend statistics */
+	__DNET_MONITOR_MAX		/* Paranoidal check */
+};
+
+/*
  * Transaction ID direction bit.
  * When set, data is a reply for the given transaction.
  */
@@ -108,6 +126,10 @@ enum dnet_counters {
 
 /*
  * Command flags.
+ *
+ * IT IS ALSO PARTIALLY PROVIDED IN PYTHON BINDING so if you want to add new flag
+ * or provided more flags via python bindings
+ * please update elliptics_cflags and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
  */
 
 /*
@@ -268,13 +290,19 @@ static inline void dnet_convert_list(struct dnet_list *l)
 	l->size = dnet_bswap32(l->size);
 }
 
+/*
+ * Input-output operation flags
+ *
+ * IT IS ALSO PARTIALLY PROVIDED IN PYTHON BINDING so if you want to add new flag
+ * or provide more flags via python binding
+ * please also add it to elliptics_ioflags and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
+ */
+
 /* Internal flag, used when we want to skip data sending */
 #define DNET_IO_FLAGS_SKIP_SENDING	(1<<0)
 
 /* Append given data at the end of the object */
 #define DNET_IO_FLAGS_APPEND		(1<<1)
-
-#define DNET_IO_FLAGS_COMPRESS		(1<<2)
 
 /* eblob prepare/commit phase */
 #define DNET_IO_FLAGS_PREPARE		(1<<4)
@@ -748,6 +776,13 @@ static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat 
 	info->mtime.tnsec = 0;
 }
 
+/*
+ * Elliptics status flags
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new flag
+ * please also add it to elliptics_node_status_flags and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
+ */
+
 /* Elliptics node status - if set, status will be changed */
 #define DNET_ATTR_STATUS_CHANGE		(1<<0)
 
@@ -834,6 +869,9 @@ enum {
 /*
  * When set server-side iterator works with data as well as index/metadata,
  * otherwise only index/metadata is stored/sent to back client/disk
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new iterator flag
+ * please also add it to elliptics_iterator_flags and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
  */
 #define DNET_IFLAGS_DATA		(1<<0)
 /* When set key range is used */
@@ -844,6 +882,12 @@ enum {
 #define DNET_IFLAGS_ALL			(DNET_IFLAGS_DATA	\
 		| DNET_IFLAGS_KEY_RANGE | DNET_IFLAGS_TS_RANGE)
 
+/*
+ * Defines how iterator should behave
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new iterator behaviour
+ * please also add it to elliptics_iterator_types and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
+ */
 enum dnet_iterator_types {
 	DNET_ITYPE_FIRST,		/* Sanity */
 	DNET_ITYPE_DISK,		/*
@@ -856,7 +900,9 @@ enum dnet_iterator_types {
 	DNET_ITYPE_LAST,		/* Sanity */
 };
 
-/* Actions that can be passed to iterator */
+/*
+ * Actions that can be passed to iterator
+ */
 enum dnet_iterator_action {
 	DNET_ITERATOR_ACTION_FIRST,	/* Sanity */
 	DNET_ITERATOR_ACTION_START,	/* Start iterator */
@@ -988,6 +1034,17 @@ static inline void dnet_convert_defrag_ctl(struct dnet_defrag_ctl *ctl)
 	ctl->flags = dnet_bswap64(ctl->flags);
 	ctl->status = dnet_bswap32(ctl->status);
 	ctl->total = dnet_bswap64(ctl->total);
+}
+
+struct dnet_monitor_stat_request {
+	int		category;
+	int		reserved_int; // reserved for packing
+	uint64_t	reserved[4];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_monitor_stat_request(struct dnet_monitor_stat_request *r)
+{
+	r->category = dnet_bswap32(r->category);
 }
 
 #ifdef __cplusplus

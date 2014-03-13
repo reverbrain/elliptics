@@ -1384,6 +1384,28 @@ async_stat_count_result session::stat_log_count()
 	return result;
 }
 
+async_monitor_stat_result session::monitor_stat(int category)
+{
+	async_monitor_stat_result result(*this);
+	auto cb = createCallback<monitor_stat_callback>(*this, result, category);
+
+	startCallback(cb);
+	return result;
+}
+
+async_monitor_stat_result session::monitor_stat(const key &id, int category)
+{
+	async_monitor_stat_result result(*this);
+	transform(id);
+
+	auto cb = createCallback<monitor_stat_callback>(*this, result, category);
+	cb->id = id.id();
+	cb->has_id = true;
+
+	startCallback(cb);
+	return result;
+}
+
 int session::state_num(void)
 {
 	return dnet_state_num(m_data->session_ptr);
