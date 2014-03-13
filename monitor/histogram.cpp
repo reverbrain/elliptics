@@ -125,7 +125,7 @@ rapidjson::Value& histogram::report(rapidjson::Value &stat_value,
 }
 
 void histogram::clear_last() {
-	memset(m_last_data.counters.data(), 0, m_last_data.counters.size() * sizeof(m_last_data.counters.front()));
+	m_last_data.counters.assign(m_last_data.counters.size(), 0);
 }
 
 void histogram::validate_snapshots() {

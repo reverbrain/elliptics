@@ -143,5 +143,5 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 		return dnet_send_reply(orig, cmd, const_cast<char*>(disabled_reply.c_str()), disabled_reply.size(), 0);
 
 	auto json = real_monitor->get_statistics().report(req->category);
-	return dnet_send_reply(orig, cmd, &json.front(), json.size(), 0);
+	return dnet_send_reply(orig, cmd, &*json.begin(), json.size(), 0);
 }
