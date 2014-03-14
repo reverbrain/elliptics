@@ -304,8 +304,6 @@ static inline void dnet_convert_list(struct dnet_list *l)
 /* Append given data at the end of the object */
 #define DNET_IO_FLAGS_APPEND		(1<<1)
 
-#define DNET_IO_FLAGS_COMPRESS		(1<<2)
-
 /* eblob prepare/commit phase */
 #define DNET_IO_FLAGS_PREPARE		(1<<4)
 #define DNET_IO_FLAGS_COMMIT		(1<<5)
