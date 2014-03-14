@@ -537,8 +537,6 @@ data_t* slru_cache_t::populate_from_disk(elliptics_unique_lock<std::mutex> &guar
 		guard.unlock();
 	}
 
-	start_action(ACTION_INIT);
-
 	local_session sess(m_node);
 	sess.set_ioflags(DNET_IO_FLAGS_NOCACHE);
 
@@ -549,8 +547,6 @@ data_t* slru_cache_t::populate_from_disk(elliptics_unique_lock<std::mutex> &guar
 	uint64_t user_flags = 0;
 	dnet_time timestamp;
 	dnet_empty_time(&timestamp);
-
-	stop_action(ACTION_INIT);
 
 	start_action(ACTION_LOCAL_READ);
 	ioremap::elliptics::data_pointer data = sess.read(raw_id, &user_flags, &timestamp, err);
@@ -677,8 +673,6 @@ void slru_cache_t::sync_element(data_t *obj) {
 void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, bool lock_guard, data_t *obj) {
 	action_guard sync_after_append_guard(get_time_stats_updater(), ACTION_SYNC_AFTER_APPEND);
 
-	start_action(ACTION_PREPARE);
-
 	std::shared_ptr<raw_data_t> raw_data = obj->data();
 
 	obj->clear_synctime();
@@ -689,8 +683,6 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 
 	uint64_t user_flags = obj->user_flags();
 	dnet_time timestamp = obj->timestamp();
-
-	stop_action(ACTION_PREPARE);
 
 	erase_element(&*obj);
 
