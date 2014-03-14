@@ -171,11 +171,6 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 
 	data += sizeof(struct dnet_io_attr);
 
-	if (io->flags & DNET_IO_FLAGS_COMPRESS) {
-		err = -ENOTSUP;
-		goto err_out_exit;
-	}
-
 	if (io->flags & DNET_IO_FLAGS_APPEND)
 		flags |= BLOB_DISK_CTL_APPEND;
 
