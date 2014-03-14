@@ -92,7 +92,7 @@ SET(ENV{LD_LIBRARY_PATH} ".")
 
 add_custom_command(TARGET test
     POST_BUILD
-    COMMAND virtualenv . &&
+    COMMAND virtualenv -p "${PYTHON_EXECUTABLE}" . &&
         . bin/activate &&
         pip install pytest &&
         export LD_LIBRARY_PATH=.:.. &&
