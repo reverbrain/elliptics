@@ -121,11 +121,6 @@ void node::set_keepalive(int idle, int cnt, int interval)
 		dnet_set_keepalive(m_data->node_ptr, idle, cnt, interval);
 }
 
-bool node::is_valid() const
-{
-	return !!m_data;
-}
-
 logger node::get_log() const
 {
 	return m_data ? m_data->log : logger();
