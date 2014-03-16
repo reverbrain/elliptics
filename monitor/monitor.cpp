@@ -128,21 +128,20 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	struct dnet_node *n = orig->n;
 	struct dnet_monitor_stat_request *req = static_cast<struct dnet_monitor_stat_request *>(data);
 	dnet_convert_monitor_stat_request(req);
-	const char disabled_reply[] = "{\"monitor\":\"disabled\"}";
-	const unsigned int size = sizeof(disabled_reply) - 1;
+	static const std::string disabled_reply = "{\"monitor_status\":\"disabled\"}";
 
 	if ((req->category >= __DNET_MONITOR_MAX) || (req->category < 0)) {
-		std::string rep = "{\"monitor\":\"invalid category\"}";
+		static const std::string rep = "{\"monitor_status\":\"invalid category\"}";
 		return dnet_send_reply(orig, cmd, const_cast<char *>(rep.c_str()), rep.size(), 0);
 	}
 
 	if (!n->monitor)
-		return dnet_send_reply(orig, cmd, const_cast<char*>(disabled_reply), size, 0);
+		return dnet_send_reply(orig, cmd, const_cast<char*>(disabled_reply.c_str()), disabled_reply.size(), 0);
 
 	auto real_monitor = monitor_cast(n->monitor);
 	if (!real_monitor)
-		return dnet_send_reply(orig, cmd, const_cast<char*>(disabled_reply), size, 0);
+		return dnet_send_reply(orig, cmd, const_cast<char*>(disabled_reply.c_str()), disabled_reply.size(), 0);
 
 	auto json = real_monitor->get_statistics().report(req->category);
-	return dnet_send_reply(orig, cmd, &json.front(), json.size(), 0);
+	return dnet_send_reply(orig, cmd, &*json.begin(), json.size(), 0);
 }
