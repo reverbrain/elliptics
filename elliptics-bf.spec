@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.11
+Version:	2.24.15.12
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,26 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Mar 17 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.12
+- Session: added checking groups list for emptiness at iterator operation.
+- tests: common library must be linked against libelliptics_client
+- Monitor: added fogotten files.
+- Python: fixed calling final handler for AsyncResult.
+- Monitor: Moved io statistics provider to c++ code. Added per state statistics to io statistics.
+- Monitor: added projet root dir to include directories. Hid monitor initialization into dnet_node_alloc.
+- Monitor:
+-     Added monitor to export for using it with elliptics-client
+-     Added status of io pool: blocked or not
+-     Added statistics about output queue: current size and total count
+-     Removed monitor dependency from node
+-     Added statistics provider for io pools and output queues
+-     Removed rwlock from monitor
+-     Used timestamp of statistics request instead of elapsed time from previous request
+-     Removed clearing commands history after each statistics request
+- Monitor: Changed name 'io_queue' to 'io'
+- CMake: fixed indent in some CMakeLists files.
+- cache: only log constructor/lock/unlock if times spent is more than 1 ms
+
 * Wed Feb 26 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.11
 - stall: changed default reset-stall-count from 5 to 3
 - stall: fixed stall counter reset. Decrease timed out state weigth by 10 instead of 2.

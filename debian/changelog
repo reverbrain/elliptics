@@ -1,3 +1,26 @@
+elliptics (2.24.15.12) unstable; urgency=low
+
+  * Session: added checking groups list for emptiness at iterator operation.
+  * tests: common library must be linked against libelliptics_client
+  * Monitor: added fogotten files.
+  * Python: fixed calling final handler for AsyncResult.
+  * Monitor: Moved io statistics provider to c++ code. Added per state statistics to io statistics.
+  * Monitor: added projet root dir to include directories. Hid monitor initialization into dnet_node_alloc.
+  * Monitor:
+  *     Added monitor to export for using it with elliptics-client
+  *     Added status of io pool: blocked or not
+  *     Added statistics about output queue: current size and total count
+  *     Removed monitor dependency from node
+  *     Added statistics provider for io pools and output queues
+  *     Removed rwlock from monitor
+  *     Used timestamp of statistics request instead of elapsed time from previous request
+  *     Removed clearing commands history after each statistics request
+  * Monitor: Changed name 'io_queue' to 'io'
+  * CMake: fixed indent in some CMakeLists files.
+  * cache: only log constructor/lock/unlock if times spent is more than 1 ms
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 17 Mar 2014 21:33:46 +0400
+
 elliptics (2.24.15.11) unstable; urgency=low
 
   * stall: changed default reset-stall-count from 5 to 3
