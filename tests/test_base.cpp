@@ -124,7 +124,7 @@ config_data config_data::default_srw_value()
 			("cache_size", 1024 * 1024 * 256)
 			("caches_number", 16)
 			("srw_config", DUMMY_VALUE)
-			("monitor_port", 1027)
+			("monitor_port", DUMMY_VALUE)
 			("backend", "blob")
 			("sync", 5)
 			("data", DUMMY_VALUE)
@@ -314,6 +314,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 	}
 
 	const auto ports = generate_ports(configs.size());
+	const auto monitor_ports = generate_ports(configs.size());
 
 	if (path.empty()) {
 		char buffer[1024];
@@ -395,6 +396,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 				("addr", create_remote(ports[i]))
 				("history", server_path + "/history")
 				("data", server_path + "/blob/data")
+				("monitor_port", monitor_ports[i])
 				;
 
 		server_node server(server_path + "/ioserv.conf", create_remote(ports[i]));

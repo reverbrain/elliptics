@@ -1749,13 +1749,19 @@ async_exec_result session::request(dnet_id *id, const exec_context &context)
 
 async_iterator_result session::iterator(const key &id, const data_pointer& request)
 {
-	transform(id);
 	async_iterator_result result(*this);
-	auto cb = createCallback<iterator_callback>(*this, result);
-	cb->id = id.id();
-	cb->request = request;
 
-	startCallback(cb);
+	if (get_groups().empty()) {
+		async_result_handler<iterator_result_entry> handler(result);
+		handler.complete(create_error(-ENXIO, "iterator: groups list is empty"));
+	} else {
+		transform(id);
+		auto cb = createCallback<iterator_callback>(*this, result);
+		cb->id = id.id();
+		cb->request = request;
+
+		startCallback(cb);
+	}
 	return result;
 }
 

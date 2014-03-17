@@ -471,6 +471,7 @@ struct dnet_node *dnet_session_get_node(struct dnet_session *s);
  */
 int dnet_log_init(struct dnet_node *s, struct dnet_log *l);
 void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, int level, const char *format, ...) DNET_LOG_CHECK;
+void __attribute__((weak)) dnet_log_raw_log_only(struct dnet_log *l, int level, const char *format, ...) DNET_LOG_CHECK;
 
 #define NIP6(addr) \
 	(addr).s6_addr[0], \
