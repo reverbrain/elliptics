@@ -84,6 +84,7 @@ add_custom_command(TARGET test
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp/libelliptics_cpp.so* pytests/
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../library/libelliptics*.so* pytests/
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../srw/libelliptics_cocaine.so* pytests/
+    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../monitor/libelliptics_monitor.so* pytests/
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../example/dnet_ioserv pytests/
     COMMAND cp ${CMAKE_SOURCE_DIR}/bindings/python/src/* pytests/elliptics/
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
