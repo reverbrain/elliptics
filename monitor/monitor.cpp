@@ -51,38 +51,17 @@ void dnet_monitor_add_provider(struct dnet_node *n, stat_provider *provider, con
 
 }} /* namespace ioremap::monitor */
 
-void log(struct dnet_log *l, int level, const char *format, ...) {
-	va_list args;
-	char buf[1024];
-	int buflen = sizeof(buf);
-
-	if (!l->log || l->log_level < level)
-		return;
-
-	va_start(args, format);
-	vsnprintf(buf, buflen, format, args);
-	buf[buflen-1] = '\0';
-	int msg_len = strlen(buf);
-	if (msg_len == buflen - 1) {
-		buf[buflen - 2] = '\n';
-	} else if (buf[msg_len - 1] != '\n') {
-		buf[msg_len - 1] = '\n';
-	}
-	l->log(l->log_private, level, buf);
-	va_end(args);
-}
-
 int dnet_monitor_init(void **monitor, struct dnet_config *cfg) {
 	if (!cfg->monitor_port) {
 		*monitor = NULL;
-		log(cfg->log, DNET_LOG_DATA, "Monitor hasn't been initialized because monitor port is zero.\n");
+		dnet_log_raw_log_only(cfg->log, DNET_LOG_DATA, "Monitor hasn't been initialized because monitor port is zero.\n");
 		return 0;
 	}
 
 	try {
 		*monitor = static_cast<void*>(new ioremap::monitor::monitor(cfg));
 	} catch (const std::exception &e) {
-		log(cfg->log, DNET_LOG_ERROR, "Failed to initialize monitor on port: %d: %s.\n", cfg->monitor_port, e.what());
+		dnet_log_raw_log_only(cfg->log, DNET_LOG_ERROR, "Failed to initialize monitor on port: %d: %s.\n", cfg->monitor_port, e.what());
 		return -ENOMEM;
 	}
 
