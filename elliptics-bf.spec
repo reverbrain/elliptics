@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.12
+Version:	2.24.15.13
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Mar 19 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.13
+- trans: added IO debug into dnet_process_cmd_raw() and to transaction destruction
+- common: get rid of years unused history maps. Convert IO time in dnet_convert_io_attr()
+
 * Mon Mar 17 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.12
 - Session: added checking groups list for emptiness at iterator operation.
 - tests: common library must be linked against libelliptics_client
