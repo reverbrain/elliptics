@@ -493,6 +493,37 @@ static inline int dnet_time_before(struct dnet_time *t1, struct dnet_time *t2)
 }
 #define dnet_time_after(t2, t1) 	dnet_time_before(t1, t2)
 
+static inline void dnet_convert_time(struct dnet_time *tm)
+{
+	tm->tsec = dnet_bswap64(tm->tsec);
+	tm->tnsec = dnet_bswap64(tm->tnsec);
+}
+
+static inline void dnet_current_time(struct dnet_time *t)
+{
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+
+	t->tsec = tv.tv_sec;
+	t->tnsec = tv.tv_usec * 1000;
+}
+
+static inline void dnet_empty_time(struct dnet_time *t)
+{
+	t->tsec = -1;
+	t->tnsec = -1;
+}
+
+static inline int dnet_time_is_empty(struct dnet_time *t)
+{
+	static const uint64_t empty = -1;
+	if (t->tsec == empty && t->tnsec == empty)
+		return 1;
+	return 0;
+}
+
+
 struct dnet_io_attr
 {
 	uint8_t			parent[DNET_ID_SIZE];
@@ -537,62 +568,8 @@ static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 	a->flags = dnet_bswap32(a->flags);
 	a->offset = dnet_bswap64(a->offset);
 	a->size = dnet_bswap64(a->size);
-}
 
-struct dnet_history_entry
-{
-	uint8_t			id[DNET_ID_SIZE];
-	uint32_t		flags;
-	uint64_t		reserved;
-	uint64_t		tsec, tnsec;
-	uint64_t		offset;
-	uint64_t		size;
-} __attribute__ ((packed));
-
-/*
- * Helper structure and set of functions to map history file and perform basic checks.
- */
-struct dnet_history_map
-{
-	struct dnet_history_entry	*ent;
-	long				num;
-	ssize_t				size;
-	int				fd;
-};
-
-static inline void dnet_convert_history_entry(struct dnet_history_entry *a)
-{
-	a->flags = dnet_bswap32(a->flags);
-	a->offset = dnet_bswap64(a->offset);
-	a->size = dnet_bswap64(a->size);
-	a->tsec = dnet_bswap64(a->tsec);
-	a->tnsec = dnet_bswap64(a->tnsec);
-}
-
-static inline void dnet_setup_history_entry(struct dnet_history_entry *e,
-		unsigned char *id, uint64_t size, uint64_t offset,
-		struct timespec *ts, uint32_t flags)
-{
-	if (!ts) {
-		struct timeval tv;
-
-		gettimeofday(&tv, NULL);
-
-		e->tsec = tv.tv_sec;
-		e->tnsec = tv.tv_usec * 1000;
-	} else {
-		e->tsec = ts->tv_sec;
-		e->tnsec = ts->tv_nsec;
-	}
-
-	memcpy(e->id, id, DNET_ID_SIZE);
-
-	e->size = size;
-	e->offset = offset;
-	e->flags = flags;
-	e->reserved = 0;
-
-	dnet_convert_history_entry(e);
+	dnet_convert_time(&a->timestamp);
 }
 
 struct dnet_stat
@@ -715,36 +692,6 @@ static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
 		st[cmd].count++;
 	else
 		st[cmd].err++;
-}
-
-static inline void dnet_convert_time(struct dnet_time *tm)
-{
-	tm->tsec = dnet_bswap64(tm->tsec);
-	tm->tnsec = dnet_bswap64(tm->tnsec);
-}
-
-static inline void dnet_current_time(struct dnet_time *t)
-{
-	struct timeval tv;
-
-	gettimeofday(&tv, NULL);
-
-	t->tsec = tv.tv_sec;
-	t->tnsec = tv.tv_usec * 1000;
-}
-
-static inline void dnet_empty_time(struct dnet_time *t)
-{
-	t->tsec = -1;
-	t->tnsec = -1;
-}
-
-static inline int dnet_time_is_empty(struct dnet_time *t)
-{
-	static const uint64_t empty = -1;
-	if (t->tsec == empty && t->tnsec == empty)
-		return 1;
-	return 0;
 }
 
 struct dnet_file_info {
