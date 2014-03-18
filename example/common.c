@@ -245,65 +245,6 @@ int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int 
 	return 0;
 }
 
-#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_log_raw((n), level, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
-
-int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map)
-{
-	int err;
-	struct stat st;
-
-	map->fd = open(file, O_RDWR | O_CLOEXEC);
-	if (map->fd < 0) {
-		err = -errno;
-		dnet_map_log(n, DNET_LOG_ERROR, "Failed to open history file '%s': %s [%d].\n",
-				file, strerror(errno), errno);
-		goto err_out_exit;
-	}
-
-	err = fstat(map->fd, &st);
-	if (err) {
-		err = -errno;
-		dnet_map_log(n, DNET_LOG_ERROR, "Failed to stat history file '%s': %s [%d].\n",
-				file, strerror(errno), errno);
-		goto err_out_close;
-	}
-
-	if (st.st_size % (int)sizeof(struct dnet_history_entry)) {
-		dnet_map_log(n, DNET_LOG_ERROR, "Corrupted history file '%s', "
-				"its size %llu must be multiple of %zu.\n",
-				file, (unsigned long long)st.st_size,
-				sizeof(struct dnet_history_entry));
-		err = -EINVAL;
-		goto err_out_close;
-	}
-	map->size = st.st_size;
-
-	map->ent = mmap(NULL, map->size, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
-	if (map->ent == MAP_FAILED) {
-		err = -errno;
-		dnet_map_log(n, DNET_LOG_ERROR, "Failed to mmap history file '%s': %s [%d].\n",
-				file, strerror(errno), errno);
-		goto err_out_close;
-	}
-
-	map->num = map->size / sizeof(struct dnet_history_entry);
-
-	dnet_map_log(n, DNET_LOG_NOTICE, "Mapped %ld entries in '%s'.\n", map->num, file);
-
-	return 0;
-
-err_out_close:
-	close(map->fd);
-err_out_exit:
-	return err;
-}
-
-void dnet_unmap_history(struct dnet_node *n __attribute((unused)), struct dnet_history_map *map)
-{
-	munmap(map->ent, map->size);
-	close(map->fd);
-}
-
 int dnet_background(void)
 {
 	pid_t pid;
