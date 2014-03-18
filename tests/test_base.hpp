@@ -89,6 +89,7 @@ public:
 	static config_data default_value();
 
 	bool has_value(const std::string &name) const;
+	bool is_dummy(const std::string &name) const;
 
 protected:
 	std::vector<std::pair<std::string, std::string> >  m_data;
@@ -123,7 +124,7 @@ class server_node
 {
 public:
 	server_node();
-	server_node(const std::string &path, const std::string &remote);
+	server_node(const std::string &path, const std::string &remote, int monitor_port);
 	server_node(server_node &&other);
 
 	server_node &operator =(server_node &&other);
@@ -137,12 +138,14 @@ public:
 	void stop();
 
 	std::string remote() const;
+	int monitor_port() const;
 	dnet_node *get_native();
 
 private:
 	dnet_node *m_node;
 	std::string m_path;
 	std::string m_remote;
+	int m_monitor_port;
 };
 
 #endif // NO_SERVER
