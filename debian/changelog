@@ -1,3 +1,69 @@
+elliptics (2.25.3.0) unstable; urgency=low
+
+  * trans: added IO debug into dnet_process_cmd_raw() and to transaction destruction
+  * common: get rid of years unused history maps. Convert IO time in dnet_convert_io_attr()
+  * client: Don't throw exceptions on log errors
+  * tests: Added run_servers binary
+  * Build: added libelliptics_monitor.so to client files in spec.
+  * Session: added checking groups list for emptiness at iterator operation.
+  * Log: removed duplicating log from monitor.cpp. Added dnet_log_raw_log_only and dnet_log_raw_internal. Made dnet_log_raw to use dnet_log_raw_internal.
+  * Pytests: Turn off pytest recurse discover for tests.
+  * Tests: added generating monitor ports.
+  * Monitor: Added printing error message when monitor initialization is failed.
+  * Build: fixed build on rhels - made elliptics_monitor shared library
+  * node: get rid of unused is_valid() method
+  * Pytest: specified python path at calling virtualenv.
+  * blob: removed unneeded compression check
+  * build: Compilation fixes. Missing define added. 'source' not found in sh
+  * Code: added python binding references to code.
+  * Pytests: renamed WITHOUT_COCAINE to PYTESTS_FLAGS.
+  * Monitor: removed duplicated code of requesting statistics, monitor statistics and common dnet_request_cmd. Temporarily disabled srw test in pytest.
+  * monitor: added category safety checks
+  * build: depend on 0.21.31+ eblob - it adds proper backend statistics
+  * monitor: fixed packing
+  * Monitor: added to elliptics protocol ability to request monitor statistics. Added appropriate methods to C++ and Python bindings.
+  * cache: Redundant monitoring actions removed
+  * Monitor: Moved io statistics provider to c++ code. Added per state statistics to io statistics.
+  * Monitor: added projet root dir to include directories. Hid monitor initialization into dnet_node_alloc.
+  * Monitor:
+  *     Added monitor to export for using it with elliptics-client
+  *     Added status of io pool: blocked or not
+  *     Added statistics about output queue: current size and total count
+  *     Removed monitor dependency from node
+  *     Added statistics provider for io pools and output queues
+  *     Removed rwlock from monitor
+  *     Used timestamp of statistics request instead of elapsed time from previous request
+  *     Removed clearing commands history after each statistics request
+  * Monitor: Changed name 'io_queue' to 'io'
+  * CMake: fixed indent in some CMakeLists files.
+  * Pytests: removed exception strings from checking because they depend on the boost python version.
+  * Pytests: added dependency from python-virtualenv.
+  * Pytests: used virtualenv for installing and runnig pytest.
+  * Pytests: fixed runtime property in cocaine config.
+  * Pytests: Used pip for pytest installation because python-pytest is not available on pure precise, lucid and rhel 5/6.
+  * core: added possibility to set tcp keepalive parameters to client connections
+  * Pytests: added comparing set of flags known and provided by module.
+  * foreign: react submodule updated
+  * Core: provided address to sph, Pytests: fixed fails on checking address from ExecContext.
+  * cache: only log constructor/lock/unlock if times spent is more than 1 ms
+  * Python: fixed calling final handler for AsyncResult.
+  * Pytests: fixed executing cocaine-tool app upload.
+  * Pytests: Merge current Python API tests with ijon test_exec. Added starting Elliptics node with srw and uploading and starting test app in it.
+  * Python: Added ability to set data=None with exec_.
+  * stall: changed default reset-stall-count from 5 to 3
+  * stall: fixed stall counter reset. Decrease timed out state weigth by 10 instead of 2.
+  * stall: reset stall counter in transaction destructor if transaction hasn't timed out
+  * cache: added comment about zero-sized lookup reply
+  * Cache: Lookup in cache is always going to disk.
+  * IOClient: provided cflags in READ io command created by read_file.
+  * Recovery: Added to merge statistics 'local_remove_old*' counters that contains information about keys which were removed without copying because they contain old data of krmation about keys which were removed without copying because they contain old data of keys.
+  * tests: Cache lru eviction test doxygen description added
+  * tests: check of correct test configuration added
+  * tests: Test for lru eviction scheme added
+  * cmake: Project root added to include directories.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 19 Mar 2014 02:40:47 +0400
+
 elliptics (2.25.2.0) unstable; urgency=low
 
   * build: depend on 0.21.30+ eblob where react monitoring support added
