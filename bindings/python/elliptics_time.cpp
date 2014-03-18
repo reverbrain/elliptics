@@ -74,29 +74,24 @@ elliptics_time elliptics_time::now() {
 	return ret;
 }
 
-struct time_pickle : bp::pickle_suite
-{
-	static bp::tuple getinitargs(const elliptics_time& time) {
-		return getstate(time);
+bp::tuple time_pickle::getinitargs(const elliptics_time& time) {
+	return getstate(time);
+}
+
+bp::tuple time_pickle::getstate(const elliptics_time& time) {
+	return bp::make_tuple(time.m_time.tsec, time.m_time.tnsec);
+}
+
+void time_pickle::setstate(elliptics_time& time, bp::tuple state) {
+	if (len(state) != 2) {
+		PyErr_SetObject(PyExc_ValueError,
+			("expected 2-item tuple in call to __setstate__; got %s" % state).ptr());
+		bp::throw_error_already_set();
 	}
 
-	static bp::tuple getstate(const elliptics_time& time) {
-		return bp::make_tuple(time.m_time.tsec, time.m_time.tnsec);
-	}
-
-	static void setstate(elliptics_time& time, bp::tuple state) {
-		if (len(state) != 2) {
-			PyErr_SetObject(PyExc_ValueError,
-				("expected 2-item tuple in call to __setstate__; got %s"
-					% state).ptr()
-				);
-			bp::throw_error_already_set();
-		}
-
-		time.m_time.tsec = bp::extract<uint64_t>(state[0]);
-		time.m_time.tnsec = bp::extract<uint64_t>(state[1]);
-	}
-};
+	time.m_time.tsec = bp::extract<uint64_t>(state[0]);
+	time.m_time.tnsec = bp::extract<uint64_t>(state[1]);
+}
 
 void init_elliptics_time() {
 

@@ -40,6 +40,33 @@ elliptics_io_attr::elliptics_io_attr(const dnet_io_attr &io)
 
 }
 
+bp::tuple io_attr_pickle::getinitargs(const elliptics_io_attr& io) {
+	return getstate(io);
+}
+
+bp::tuple io_attr_pickle::getstate(const elliptics_io_attr& io) {
+	return bp::make_tuple(id_pickle::getstate(io.parent),
+	                      id_pickle::getstate(io.id),
+	                      time_pickle::getstate(io.time),
+	                      io.user_flags, io.size, io.flags);
+}
+
+void io_attr_pickle::setstate(elliptics_io_attr& io, bp::tuple state) {
+	if (len(state) != 6) {
+		PyErr_SetObject(PyExc_ValueError,
+		                ("expected 6-item tuple in call to __setstate__; got %s" % state).ptr());
+		bp::throw_error_already_set();
+	}
+
+	id_pickle::setstate(io.parent, bp::extract<bp::tuple>(state[0]));
+	id_pickle::setstate(io.id, bp::extract<bp::tuple>(state[1]));
+	time_pickle::setstate(io.time, bp::extract<bp::tuple>(state[2]));
+
+	io.user_flags = bp::extract<uint64_t>(state[3]);
+	io.size = bp::extract<uint64_t>(state[4]);
+	io.flags = bp::extract<uint64_t>(state[5]);
+}
+
 void init_elliptics_io_attr() {
 	bp::class_<elliptics_io_attr>(
 		    "IoAttr", "IO attributes of operation")
@@ -74,6 +101,7 @@ void init_elliptics_io_attr() {
 		.def_readwrite("size", &dnet_io_attr::size,
 		    "Size of operation object\n\n"
 		    "io_flags.size = len('object data')")
+		.def_pickle(io_attr_pickle())
 	;
 }
 

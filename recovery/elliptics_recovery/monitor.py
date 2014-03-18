@@ -63,6 +63,7 @@ class StatsProxy(object):
             prefix = '\\'.join([self.prefix, prefix])
         return StatsProxy(self.queue, prefix=prefix)
 
+
 @logged_class
 class Monitor(object):
     """

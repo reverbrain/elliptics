@@ -22,9 +22,10 @@ New recovery mechanism for elliptics that utilizes iterators and metadata.
 For now it supports three recovery methods: `merge` and `dc`:
  * `merge` is used for recovery within hash ring (aka group). It uses all nodes from some hash ring.
  * `dc` is used for recovery across different hash rings thus maintaining replica counts.
+ * 'sdc' is a new version of 'dc' which fully sync all groups at once
 
 More information about recovery process can be found at:
-	http://doc.reverbrain.com/elliptics:replication
+    http://doc.reverbrain.com/elliptics:replication
 """
 
 import os
@@ -54,7 +55,8 @@ log.addHandler(ch)
 
 TYPE_MERGE = 'merge'
 TYPE_DC = 'dc'
-ALLOWED_TYPES = (TYPE_MERGE, TYPE_DC)
+TYPE_SDC = 'sdc'
+ALLOWED_TYPES = (TYPE_MERGE, TYPE_DC, TYPE_SDC)
 
 STAT_NONE = 'none'
 STAT_TEXT = 'text'
@@ -117,6 +119,8 @@ if __name__ == '__main__':
                       help="Number of attempts to recover one key")
     parser.add_option("-o", "--one-node", action="store_true", dest="one_node", default=False,
                       help="Iterate only one node provided by -r/--remote [default: %default]")
+    parser.add_option("-c", "--custom-recover", action="store", dest="custom_recover", default="",
+                      help="Sets custom recover app which accepts file path and returns file path to filtered keys")
 
     (options, args) = parser.parse_args()
 
@@ -134,6 +138,10 @@ if __name__ == '__main__':
     ctx.dry_run = options.dry_run
     ctx.safe = options.safe
     ctx.one_node = options.one_node
+    ctx.custom_recover = options.custom_recover
+
+    if ctx.custom_recover:
+        ctx.custom_recover = os.path.abspath(ctx.custom_recover)
 
     ctx.tmp_dir = options.tmp_dir.replace('%TYPE%', recovery_type)
     if not os.path.exists(ctx.tmp_dir):
@@ -293,6 +301,8 @@ if __name__ == '__main__':
         from elliptics_recovery.types.merge import main
     elif recovery_type == TYPE_DC:
         from elliptics_recovery.types.dc import main
+    elif recovery_type == TYPE_SDC:
+        from elliptics_recovery.types.sdc import main
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
     result = main(ctx)
