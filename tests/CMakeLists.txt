@@ -10,6 +10,10 @@ add_definitions(
     -DCOCAINE_TEST_APP="${CMAKE_CURRENT_BINARY_DIR}/dnet_cpp_srw_test_app.tar"
 )
 
+if(WITH_COCAINE)
+    add_definitions("-DHAVE_COCAINE")
+endif()
+
 add_library(test_common SHARED
     ../example/common.c
     ../example/config.c
@@ -39,14 +43,13 @@ add_executable(dnet_cpp_capped_test capped_test.cpp)
 set_target_properties(dnet_cpp_capped_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_capped_test ${TEST_LIBRARIES})
 
-set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_capped_test dnet_cpp_api_test)
-set(TESTS_DEPS ${TESTS_LIST})
-
 
 set(PYTESTS_FLAGS  --source_dir="${CMAKE_CURRENT_SOURCE_DIR}" --binary_dir="${CMAKE_CURRENT_BINARY_DIR}")
 #if(NOT WITH_COCAINE)
     list(APPEND PYTESTS_FLAGS "--without-cocaine")
 #endif()
+
+set(RUN_SERVERS_LIBRARIES ${TEST_LIBRARIES})
 
 if(WITH_COCAINE)
     include(../cmake/Modules/locate_library.cmake)
@@ -70,7 +73,16 @@ if(WITH_COCAINE)
 
         list(APPEND TESTS_LIST dnet_cpp_srw_test)
         list(APPEND TESTS_DEPS dnet_cpp_srw_test dnet_cpp_srw_test_app)
+
+    list(APPEND RUN_SERVERS_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
 endif()
+
+add_executable(dnet_run_servers run_servers.cpp)
+set_target_properties(dnet_run_servers ${TEST_PROPERTIES})
+target_link_libraries(dnet_run_servers ${RUN_SERVERS_LIBRARIES})
+
+set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_capped_test dnet_cpp_api_test)
+set(TESTS_DEPS ${TESTS_LIST})
 
 add_custom_target(test
     COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" ${TESTS_LIST}

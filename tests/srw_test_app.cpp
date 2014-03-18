@@ -5,6 +5,7 @@
 #include <cocaine/framework/dispatch.hpp>
 #include <cocaine/framework/logging.hpp>
 
+#define NO_UPPLOAD_APPLICATION
 #include "srw_test.hpp"
 
 using namespace ioremap;

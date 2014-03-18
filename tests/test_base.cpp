@@ -101,7 +101,7 @@ config_data &config_data::operator()(const std::string &name, dummy_value_type t
 config_data config_data::default_srw_value()
 {
 	return config_data()
-			("log", "/dev/stderr")
+			("log", DUMMY_VALUE)
 			("log_level", DNET_LOG_DEBUG)
 			("join", 1)
 			("flags", 4)
@@ -153,6 +153,17 @@ bool config_data::has_value(const std::string &name) const
 	return false;
 }
 
+bool config_data::is_dummy(const std::string &name) const
+{
+	for (auto it = m_data.begin(); it != m_data.end(); ++it) {
+		if (it->first == name) {
+			return it->second == "dummy-value";
+		}
+	}
+
+	return false;
+}
+
 config_data_writer::config_data_writer(const config_data_writer &other)
 	: config_data(other), m_path(other.m_path)
 {
@@ -192,7 +203,8 @@ server_node::server_node() : m_node(NULL)
 {
 }
 
-server_node::server_node(const std::string &path, const std::string &remote) : m_node(NULL), m_path(path), m_remote(remote)
+server_node::server_node(const std::string &path, const std::string &remote, int monitor_port)
+	: m_node(NULL), m_path(path), m_remote(remote), m_monitor_port(monitor_port)
 {
 }
 
@@ -242,6 +254,11 @@ std::string server_node::remote() const
 	return m_remote;
 }
 
+int server_node::monitor_port() const
+{
+	return m_monitor_port;
+}
+
 dnet_node *server_node::get_native()
 {
 	return m_node;
@@ -252,16 +269,22 @@ static config_data_writer create_config(config_data base_config, const std::stri
 	return config_data_writer(base_config, path);
 }
 
-static std::vector<std::string> generate_ports(size_t count)
+static std::vector<std::string> generate_ports(size_t count, std::set<std::string> &ports)
 {
-	std::set<std::string> ports;
-	while (ports.size() < count) {
+	std::vector<std::string> result;
+
+	while (result.size() < count) {
 		// Random port from 10000 to 60000
 		int port = 10000 + (rand() % 50000);
-		ports.insert(boost::lexical_cast<std::string>(port));
+		std::string port_str = boost::lexical_cast<std::string>(port);
+		if (ports.find(port_str) != ports.end())
+			continue;
+
+		result.push_back(port_str);
+		ports.insert(port_str);
 	}
 
-	return std::vector<std::string>(ports.begin(), ports.end());
+	return result;
 }
 
 static std::string create_remote(const std::string &port)
@@ -313,8 +336,9 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		run_path = buffer;
 	}
 
-	const auto ports = generate_ports(configs.size());
-	const auto monitor_ports = generate_ports(configs.size());
+	std::set<std::string> all_ports;
+	const auto ports = generate_ports(configs.size(), all_ports);
+	const auto monitor_ports = generate_ports(configs.size(), all_ports);
 
 	if (path.empty()) {
 		char buffer[1024];
@@ -345,7 +369,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		cocaine_remotes += "\"localhost\": " + ports[j];
 	}
 
-	const auto cocaine_locator_ports = generate_ports(configs.size());
+	const auto cocaine_locator_ports = generate_ports(configs.size(), all_ports);
 	// client only needs connection to one (any) locator service
 	data->locator_port = std::stoul(cocaine_locator_ports[0]);
 
@@ -390,16 +414,20 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 			config("srw_config", server_path + "/cocaine.conf");
 		}
 
+		if (config.is_dummy("log"))
+			config("log", server_path + "/log.log");
+
 		create_config(config, server_path + "/ioserv.conf")
 				("auth_cookie", auth_cookie)
-				("log", server_path + "/log.log")
 				("addr", create_remote(ports[i]))
 				("history", server_path + "/history")
 				("data", server_path + "/blob/data")
 				("monitor_port", monitor_ports[i])
 				;
 
-		server_node server(server_path + "/ioserv.conf", create_remote(ports[i]));
+		server_node server(server_path + "/ioserv.conf",
+			create_remote(ports[i]),
+			boost::lexical_cast<int>(monitor_ports[i]));
 
 		server.start();
 		debug_stream << "Started server #" << (i + 1) << std::endl;
