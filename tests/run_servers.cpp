@@ -17,16 +17,20 @@
 # include "srw_test.hpp"
 #endif
 #include "test_base.hpp"
+
+#include <signal.h>
+
 #include <algorithm>
+#include <cstdio>
 #include <iostream>
 
 #include <boost/program_options.hpp>
 #include <boost/asio.hpp>
-#include <cstdio>
-#include "../monitor/rapidjson/document.h"
-#include "../monitor/rapidjson/filestream.h"
-#include "../monitor/rapidjson/writer.h"
-#include "../monitor/rapidjson/stringbuffer.h"
+
+#include "rapidjson/document.h"
+#include "rapidjson/filestream.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
 
 using namespace ioremap::elliptics;
 
@@ -91,9 +95,9 @@ static void setup_signals()
  */
 static int run_servers(const rapidjson::Value &doc)
 {
-#ifdef HAVE_COCAINE
 	bool srw = false;
 
+#ifdef HAVE_COCAINE
 	if (doc.HasMember("srw")) {
 		if (!doc["srw"].IsBool()) {
 			std::cout << "Field \"srw\" must be boolean" << std::endl;
