@@ -718,8 +718,24 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 			goto err_out_exit;
 		}
 
-		if (t->complete)
+		if (t->complete) {
+			if (t->command == DNET_CMD_READ) {
+				if (cmd->size > sizeof(struct dnet_io_attr)) {
+					struct dnet_io_attr *recv_io = (struct dnet_io_attr *)(cmd + 1);
+
+					struct dnet_cmd *local_cmd = (struct dnet_cmd *)(t + 1);
+					struct dnet_io_attr *local_io = (struct dnet_io_attr *)(local_cmd + 1);
+
+					local_io->size = recv_io->size;
+					local_io->offset = recv_io->offset;
+					local_io->user_flags = recv_io->user_flags;
+					local_io->timestamp = recv_io->timestamp;
+
+					dnet_convert_io_attr(local_io);
+				}
+			}
 			t->complete(t->st, cmd, t->priv);
+		}
 
 		dnet_trans_put(t);
 		if (!(cmd->flags & DNET_FLAGS_MORE)) {
