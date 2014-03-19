@@ -729,6 +729,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 					local_io->size = recv_io->size;
 					local_io->offset = recv_io->offset;
 					local_io->user_flags = recv_io->user_flags;
+					local_io->total_size = recv_io->total_size;
 					local_io->timestamp = recv_io->timestamp;
 
 					dnet_convert_io_attr(local_io);
