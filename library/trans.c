@@ -206,7 +206,9 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			localtime_r((time_t *)&io_tv.tv_sec, &tm);
 			strftime(time_str, sizeof(time_str), "%F %R:%S", &tm);
 
-			snprintf(io_buf, sizeof(io_buf), ", io-offset: %llu, io-size: %llu/%llu, io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu'\n",
+			snprintf(io_buf, sizeof(io_buf), ", ioflags: 0x%llx, io-offset: %llu, io-size: %llu/%llu, "
+					"io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu'\n",
+				(unsigned long long)local_io->flags,
 				(unsigned long long)local_io->offset, (unsigned long long)local_io->size, (unsigned long long)local_io->total_size,
 				(unsigned long long)local_io->user_flags,
 				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec);

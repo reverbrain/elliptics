@@ -1061,9 +1061,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	struct dnet_indexes_request *indexes_request;
 #endif
 	struct timeval start, end;
-	char time_str[64];
-	struct tm io_tm;
-	struct timeval io_tv;
 
 #define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
 
@@ -1161,29 +1158,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			io = data;
 			dnet_convert_io_attr(io);
 
-			io_tv.tv_sec = io->timestamp.tsec;
-			io_tv.tv_usec = io->timestamp.tnsec / 1000;
-
-			if (cmd->cmd == DNET_CMD_READ) {
-				dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
-						"node-flags: 0x%x\n",
-						dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
-						(unsigned long long)io->offset, (unsigned long long)io->size,
-						io->flags, (unsigned long long)cmd->flags,
-						n->flags);
-			} else {
-				localtime_r((time_t *)&io_tv.tv_sec, &io_tm);
-				strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
-
-				dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
-						"node-flags: 0x%x, user-flags: 0x%llx ts: %ld.%06ld '%s'\n",
-						dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
-						(unsigned long long)io->offset, (unsigned long long)io->size,
-						io->flags, (unsigned long long)cmd->flags,
-						n->flags, (unsigned long long)io->user_flags,
-						io_tv.tv_sec, io_tv.tv_usec, time_str);
-			}
-
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
 
@@ -1247,6 +1221,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, io ? io->size : 0, diff);
 
 	if ((cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_WRITE)) {
+		char time_str[64];
+		struct tm io_tm;
+		struct timeval io_tv;
+
 		/* io has been already set in the switch above */
 
 		io_tv.tv_sec = io->timestamp.tsec;
@@ -1256,10 +1234,11 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
 
 		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: 0x%llx, "
-				"io-offset: %llu, io-size: %llu/%llu, io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', "
+				"ioflags: 0x%llx, io-offset: %llu, io-size: %llu/%llu, io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', "
 				"time: %ld usecs, err: %d.\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_state_dump_addr(st),
 				tid, (unsigned long long)cmd->flags,
+				(unsigned long long)io->flags,
 				(unsigned long long)io->offset, (unsigned long long)io->size, (unsigned long long)io->total_size,
 				(unsigned long long)io->user_flags,
 				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec,
