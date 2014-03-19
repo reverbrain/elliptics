@@ -724,6 +724,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 					struct dnet_cmd *local_cmd = (struct dnet_cmd *)(t + 1);
 					struct dnet_io_attr *local_io = (struct dnet_io_attr *)(local_cmd + 1);
 
+					local_io->flags = recv_io->flags;
 					local_io->size = recv_io->size;
 					local_io->offset = recv_io->offset;
 					local_io->user_flags = recv_io->user_flags;
