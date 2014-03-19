@@ -1253,11 +1253,12 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
 
 		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: 0x%llx, "
-				"io-offset: %llu, io-size: %llu, io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', "
+				"io-offset: %llu, io-size: %llu/%llu, io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', "
 				"time: %ld usecs, err: %d.\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_state_dump_addr(st),
 				tid, (unsigned long long)cmd->flags,
-				(unsigned long long)io->offset, (unsigned long long)io->size, (unsigned long long)io->user_flags,
+				(unsigned long long)io->offset, (unsigned long long)io->size, (unsigned long long)io->total_size,
+				(unsigned long long)io->user_flags,
 				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec,
 				diff, err);
 	} else {
