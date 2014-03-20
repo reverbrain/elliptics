@@ -38,13 +38,13 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "react/react.hpp"
-
 #include "monitor/rapidjson/document.h"
 #include "monitor/rapidjson/writer.h"
 #include "monitor/rapidjson/stringbuffer.h"
 
 #include "treap.hpp"
+
+#include "elliptics_react.hpp"
 
 namespace ioremap { namespace cache {
 
@@ -466,53 +466,5 @@ private:
 };
 
 }}
-
-namespace ioremap { namespace cache { namespace actions {
-
-extern react::actions_set_t cache_actions;
-
-const extern int ACTION_CACHE;
-const extern int ACTION_WRITE;
-const extern int ACTION_READ;
-const extern int ACTION_REMOVE;
-const extern int ACTION_LOOKUP;
-const extern int ACTION_LOCK;
-const extern int ACTION_FIND;
-const extern int ACTION_ADD_TO_PAGE;
-const extern int ACTION_RESIZE_PAGE;
-const extern int ACTION_SYNC_AFTER_APPEND;
-const extern int ACTION_WRITE_APPEND_ONLY;
-const extern int ACTION_WRITE_AFTER_APPEND_ONLY;
-const extern int ACTION_POPULATE_FROM_DISK;
-const extern int ACTION_CLEAR;
-const extern int ACTION_LIFECHECK;
-const extern int ACTION_CREATE_DATA;
-const extern int ACTION_CAS;
-const extern int ACTION_MODIFY;
-const extern int ACTION_DECREASE_KEY;
-const extern int ACTION_MOVE_RECORD;
-const extern int ACTION_ERASE;
-const extern int ACTION_REMOVE_LOCAL;
-const extern int ACTION_LOCAL_LOOKUP;
-const extern int ACTION_INIT;
-const extern int ACTION_LOCAL_READ;
-const extern int ACTION_PREPARE;
-const extern int ACTION_LOCAL_WRITE;
-const extern int ACTION_PREPARE_SYNC;
-const extern int ACTION_SYNC;
-const extern int ACTION_SYNC_BEFORE_OPERATION;
-const extern int ACTION_ERASE_ITERATE;
-const extern int ACTION_SYNC_ITERATE;
-const extern int ACTION_DNET_OPLOCK;
-const extern int ACTION_DESTRUCT;
-
-}}}
-
-namespace ioremap { namespace cache { namespace local {
-
-extern __thread react::time_stats_updater_t *thread_time_stats_updater;
-
-}}}
-
 
 #endif // CACHE_HPP

@@ -35,6 +35,8 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
+#include "elliptics_react.h"
+
 struct dnet_notify_entry
 {
 	struct list_head		notify_entry;
@@ -57,6 +59,8 @@ static unsigned int dnet_notify_hash(struct dnet_id *id, unsigned int hash_size)
 
 int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
+	start_action(ACTION_DNET_UPDATE_NOTIFY);
+
 	struct dnet_node *n = st->n;
 	unsigned int hash = dnet_notify_hash(&cmd->id, n->notify_hash_size);
 	struct dnet_notify_bucket *b = &n->notify_hash[hash];
@@ -79,6 +83,7 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd, void *da
 	}
 	pthread_rwlock_unlock(&b->notify_lock);
 
+	stop_action(ACTION_DNET_UPDATE_NOTIFY);
 	return 0;
 }
 
@@ -90,6 +95,8 @@ static void dnet_notify_entry_destroy(struct dnet_notify_entry *e)
 
 int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
+	start_action(ACTION_DNET_NOTIFY_ADD);
+
 	struct dnet_node *n = st->n;
 	struct dnet_notify_entry *e;
 	unsigned int hash = dnet_notify_hash(&cmd->id, n->notify_hash_size);
@@ -108,6 +115,7 @@ int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd)
 
 	dnet_log(n, DNET_LOG_INFO, "%s: added notification, hash: 0x%x.\n", dnet_dump_id(&cmd->id), hash);
 
+	stop_action(ACTION_DNET_NOTIFY_ADD);
 	return 0;
 }
 

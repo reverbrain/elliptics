@@ -577,6 +577,8 @@ struct dnet_node
 	void			*monitor;
 	pthread_rwlock_t monitor_rwlock;
 
+	void			*react_manager;
+
 	struct dnet_config_data *config_data;
 };
 

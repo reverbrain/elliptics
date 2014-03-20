@@ -31,45 +31,6 @@
 
 namespace ioremap { namespace cache {
 
-namespace actions {
-
-actions_set_t cache_actions;
-
-const int ACTION_CACHE = cache_actions.define_new_action("CACHE");
-const int ACTION_WRITE = cache_actions.define_new_action("WRITE");
-const int ACTION_READ = cache_actions.define_new_action("READ");
-const int ACTION_REMOVE = cache_actions.define_new_action("REMOVE");
-const int ACTION_LOOKUP = cache_actions.define_new_action("LOOKUP");
-const int ACTION_LOCK = cache_actions.define_new_action("LOCK");
-const int ACTION_FIND = cache_actions.define_new_action("FIND");
-const int ACTION_ADD_TO_PAGE = cache_actions.define_new_action("ADD_TO_PAGE");
-const int ACTION_RESIZE_PAGE = cache_actions.define_new_action("RESIZE_PAGE");
-const int ACTION_SYNC_AFTER_APPEND = cache_actions.define_new_action("SYNC_AFTER_APPEND");
-const int ACTION_WRITE_APPEND_ONLY = cache_actions.define_new_action("WRITE_APPEND_ONLY");
-const int ACTION_WRITE_AFTER_APPEND_ONLY = cache_actions.define_new_action("WRITE_AFTER_APPEND_ONLY");
-const int ACTION_POPULATE_FROM_DISK = cache_actions.define_new_action("POPULATE_FROM_DISK");
-const int ACTION_CLEAR = cache_actions.define_new_action("CLEAR");
-const int ACTION_LIFECHECK = cache_actions.define_new_action("LIFECHECK");
-const int ACTION_CREATE_DATA = cache_actions.define_new_action("CREATE_DATA");
-const int ACTION_CAS = cache_actions.define_new_action("CAS");
-const int ACTION_MODIFY = cache_actions.define_new_action("MODIFY");
-const int ACTION_DECREASE_KEY = cache_actions.define_new_action("DECREASE_KEY");
-const int ACTION_MOVE_RECORD = cache_actions.define_new_action("MOVE_RECORD");
-const int ACTION_ERASE = cache_actions.define_new_action("ERASE");
-const int ACTION_REMOVE_LOCAL = cache_actions.define_new_action("REMOVE_LOCAL");
-const int ACTION_LOCAL_LOOKUP = cache_actions.define_new_action("LOCAL_LOOKUP");
-const int ACTION_LOCAL_READ = cache_actions.define_new_action("LOCAL_READ");
-const int ACTION_LOCAL_WRITE = cache_actions.define_new_action("LOCAL_WRITE");
-const int ACTION_PREPARE_SYNC = cache_actions.define_new_action("PREPARE_SYNC");
-const int ACTION_SYNC = cache_actions.define_new_action("SYNC");
-const int ACTION_SYNC_BEFORE_OPERATION = cache_actions.define_new_action("SYNC_BEFORE_OPERATION");
-const int ACTION_ERASE_ITERATE = cache_actions.define_new_action("ERASE_ITERATE");
-const int ACTION_SYNC_ITERATE = cache_actions.define_new_action("SYNC_ITERATE");
-const int ACTION_DNET_OPLOCK = cache_actions.define_new_action("DNET_OPLOCK");
-const int ACTION_DESTRUCT = cache_actions.define_new_action("DESTRUCT");
-
-}
-
 class cache_stat_provider : public ioremap::monitor::stat_provider {
 public:
 	cache_stat_provider(const cache_manager &manager)
@@ -149,12 +110,9 @@ int cache_manager::indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request
 }
 
 void cache_manager::clear() {
-	time_stats_updater_t time_stats_updater;
-	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		m_caches[i]->clear();
 	}
-	ioremap::cache::local::thread_time_stats_updater = NULL;
 }
 
 size_t cache_manager::cache_size() const {
@@ -211,23 +169,6 @@ rapidjson::Value &cache_manager::get_caches_size_stats_json(rapidjson::Value &st
 	return stat_value;
 }
 
-rapidjson::Value &cache_manager::get_total_caches_time_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
-	time_stats_tree_t total_caches_time_stats(actions::cache_actions);
-	for (size_t i = 0; i < m_caches.size(); ++i) {
-		m_caches[i]->get_time_stats().merge_into(total_caches_time_stats);
-	}
-	total_caches_time_stats.to_json(stat_value, allocator);
-	return stat_value;
-}
-
-rapidjson::Value &cache_manager::get_caches_time_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
-	for (size_t i = 0; i < m_caches.size(); ++i) {
-		rapidjson::Value cache_time_stats(rapidjson::kObjectType);
-		stat_value.AddMember(get_cache_name(i, 2).c_str(), m_caches[i]->get_time_stats().to_json(cache_time_stats, allocator), allocator);
-	}
-	return stat_value;
-}
-
 std::string cache_manager::stat_json() const {
 	rapidjson::Document doc;
 	doc.SetObject();
@@ -238,11 +179,7 @@ std::string cache_manager::stat_json() const {
 	rapidjson::Value size_stats(rapidjson::kObjectType);
 	get_total_caches_size_stats_json(size_stats, allocator);
 
-	rapidjson::Value time_stats(rapidjson::kObjectType);
-	get_total_caches_time_stats_json(time_stats, allocator);
-
 	total_cache.AddMember("size_stats", size_stats, allocator);
-	total_cache.AddMember("time_stats", time_stats, allocator);
 	doc.AddMember("total_cache", total_cache, allocator);
 
 	rapidjson::Value caches(rapidjson::kObjectType);
@@ -263,14 +200,12 @@ size_t cache_manager::idx(const unsigned char *id) {
 
 }} /* namespace ioremap::cache */
 
-namespace ioremap { namespace cache { namespace local {
-	__thread time_stats_updater_t *thread_time_stats_updater = NULL;
-}}}
-
 using namespace ioremap::cache;
 
 int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data)
 {
+	auto cache_guard(make_action_guard(ACTION_CACHE));
+
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
 
@@ -283,8 +218,6 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 	cache_manager *cache = (cache_manager *)n->cache;
 	std::shared_ptr<raw_data_t> d;
-	time_stats_updater_t time_stats_updater;
-	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 
 	try {
 		switch (cmd->cmd) {
@@ -328,12 +261,13 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		err = -ENOENT;
 	}
 
-	ioremap::cache::local::thread_time_stats_updater = NULL;
 	return err;
 }
 
 int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_indexes_request *request)
 {
+	auto cache_guard(make_action_guard(ACTION_CACHE));
+
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
 
@@ -343,8 +277,6 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 	}
 
 	cache_manager *cache = (cache_manager *)n->cache;
-	time_stats_updater_t time_stats_updater;
-	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 
 	try {
 		switch (cmd->cmd) {
@@ -364,12 +296,13 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 		err = -ENOENT;
 	}
 
-	ioremap::cache::local::thread_time_stats_updater = NULL;
 	return err;
 }
 
 int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
+	auto cache_guard(make_action_guard(ACTION_CACHE));
+
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
 
@@ -378,8 +311,6 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	}
 
 	cache_manager *cache = (cache_manager *)n->cache;
-	time_stats_updater_t time_stats_updater;
-	ioremap::cache::local::thread_time_stats_updater = &time_stats_updater;
 
 	try {
 		err = cache->lookup(cmd->id.id, st, cmd);
@@ -389,7 +320,6 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 		err = -ENOENT;
 	}
 
-	ioremap::cache::local::thread_time_stats_updater = NULL;
 	return err;
 }
 

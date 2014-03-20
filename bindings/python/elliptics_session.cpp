@@ -60,7 +60,8 @@ enum elliptics_monitor_categories {
 	elliptics_monitor_categories_io = DNET_MONITOR_IO,
 	elliptics_monitor_categories_commands = DNET_MONITOR_COMMANDS,
 	elliptics_monitor_categories_io_histograms = DNET_MONITOR_IO_HISTOGRAMS,
-	elliptics_monitor_categories_backend = DNET_MONITOR_BACKEND
+	elliptics_monitor_categories_backend = DNET_MONITOR_BACKEND,
+	elliptics_monitor_categories_call_tree = DNET_MONITOR_CALL_TREE
 };
 
 struct write_cas_converter {
@@ -671,18 +672,20 @@ void init_elliptics_session() {
 
 	bp::enum_<elliptics_monitor_categories>("monitor_stat_categories",
 	    "Different categories of monitor statistics that can be requested:\n\n"
-	    "all\n    Category for requesting all available statistics"
-	    "cache\n    Category for cache statistics"
-	    "io\n    Category for IO queue statistics"
-	    "commands\n    Category for commands statistics"
-	    "io_histograms\n    Category for IO hisograms statistics"
-	    "backend\n    Category for backend statistics")
+		"all\n    Category for requesting all available statistics\n"
+		"cache\n    Category for cache statistics\n"
+		"io\n    Category for IO queue statistics\n"
+		"commands\n    Category for commands statistics\n"
+		"io_histograms\n    Category for IO hisograms statistics\n"
+		"backend\n    Category for backend statistics\n"
+		"call_tree\n    Category for react call tree statistics")
 		.value("all", elliptics_monitor_categories_all)
 		.value("cache", elliptics_monitor_categories_cache)
 		.value("io", elliptics_monitor_categories_io)
 		.value("commands", elliptics_monitor_categories_commands)
 		.value("io_histograms", elliptics_monitor_categories_io_histograms)
 		.value("backend", elliptics_monitor_categories_backend)
+		.value("call_tree", elliptics_monitor_categories_call_tree)
 	;
 
 	bp::class_<elliptics_status>("SessionStatus", bp::init<>())
