@@ -28,7 +28,7 @@
 
 #include "elliptics/debug.hpp"
 
-#include "elliptics_react.hpp"
+#include "reverbrain_react.hpp"
 
 #include <mutex>
 

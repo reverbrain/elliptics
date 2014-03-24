@@ -45,7 +45,7 @@
 
 #include "common.h"
 
-#include "elliptics_react.h"
+#include "reverbrain_react.h"
 
 /*
  * FIXME: __unused is used internally by glibc, so it may cause conflicts.

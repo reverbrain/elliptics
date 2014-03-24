@@ -5,4 +5,4 @@ ADD_LIBRARY(elliptics_cache STATIC
 if(UNIX OR MINGW)
     set_target_properties(elliptics_cache PROPERTIES COMPILE_FLAGS "-fPIC")
 endif()
-target_link_libraries(elliptics_cache elliptics_indexes elliptics_react)
+target_link_libraries(elliptics_cache elliptics_indexes reverbrain_react)

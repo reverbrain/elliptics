@@ -41,7 +41,7 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "elliptics_react.h"
+#include "reverbrain_react.h"
 
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 {

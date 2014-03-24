@@ -44,7 +44,7 @@
 
 #include "treap.hpp"
 
-#include "elliptics_react.hpp"
+#include "reverbrain_react.hpp"
 
 namespace ioremap { namespace cache {
 

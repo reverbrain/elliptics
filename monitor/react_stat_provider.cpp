@@ -49,7 +49,7 @@ bool react_stat_provider::check_category(int category) const {
 	return category == DNET_MONITOR_CALL_TREE || category == DNET_MONITOR_ALL;
 }
 
-elliptics_react_manager_t &react_stat_provider::get_react_manager() {
+reverbrain_react_manager_t &react_stat_provider::get_react_manager() {
 	return react_manager;
 }
 

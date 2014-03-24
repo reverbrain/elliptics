@@ -35,7 +35,7 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "elliptics_react.h"
+#include "reverbrain_react.h"
 
 struct dnet_notify_entry
 {
