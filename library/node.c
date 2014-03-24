@@ -52,6 +52,8 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	n->monitor = monitor;
 
+	dnet_monitor_init_react_stat_provider(n);
+
 	err = dnet_log_init(n, cfg->log);
 	if (err)
 		goto err_out_free;
