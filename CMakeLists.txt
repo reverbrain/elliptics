@@ -44,6 +44,9 @@ include(FixRpath)
 create_stdint(${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/react/include/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/react/foreign/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/react/examples/reverbrain/)
 
 # Set id_size
 if (NOT ID_SIZE)
@@ -121,6 +124,7 @@ add_subdirectory(indexes)
 add_subdirectory(library)
 add_subdirectory(bindings)
 add_subdirectory(monitor)
+add_subdirectory(react/examples/reverbrain)
 add_subdirectory(tests)
 if(WITH_EXAMPLES)
     add_subdirectory(example)
@@ -151,7 +155,7 @@ install(FILES
 set(INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
 set(INSTALL_LIBRARY_DIR "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
 
-export(TARGETS elliptics_monitor elliptics_client elliptics_cpp
+export(TARGETS reverbrain_react elliptics_monitor elliptics_client elliptics_cpp
     FILE "${PROJECT_BINARY_DIR}/EllipticsTargets.cmake")
 
 #export(PACKAGE Elliptics)
