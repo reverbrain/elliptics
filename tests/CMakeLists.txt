@@ -44,7 +44,7 @@ set_target_properties(dnet_cpp_capped_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_capped_test ${TEST_LIBRARIES})
 
 
-set(PYTESTS_FLAGS  --source_dir="${CMAKE_CURRENT_SOURCE_DIR}" --binary_dir="${CMAKE_CURRENT_BINARY_DIR}")
+set(PYTESTS_FLAGS "")
 #if(NOT WITH_COCAINE)
     list(APPEND PYTESTS_FLAGS "--without-cocaine")
 #endif()
