@@ -116,7 +116,6 @@ class file_logger_interface : public logger_interface {
 				message += "\"";
 				throw std::ios_base::failure(message);
 			}
-			m_stream.exceptions(std::ofstream::failbit);
 		}
 		~file_logger_interface() {
 		}

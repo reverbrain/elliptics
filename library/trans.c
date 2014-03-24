@@ -179,6 +179,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 	if (st && st->n && t->command != 0) {
 		char str[64];
+		char io_buf[128] = "";
 		struct tm tm;
 
 		if (t->cmd.status != -ETIMEDOUT) {
@@ -193,8 +194,28 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
+		if ((t->command == DNET_CMD_READ) || (t->command == DNET_CMD_WRITE)) {
+			struct dnet_cmd *local_cmd = (struct dnet_cmd *)(t + 1);
+			struct dnet_io_attr *local_io = (struct dnet_io_attr *)(local_cmd + 1);
+			struct timeval io_tv;
+			char time_str[64];
+
+			io_tv.tv_sec = local_io->timestamp.tsec;
+			io_tv.tv_usec = local_io->timestamp.tnsec / 1000;
+
+			localtime_r((time_t *)&io_tv.tv_sec, &tm);
+			strftime(time_str, sizeof(time_str), "%F %R:%S", &tm);
+
+			snprintf(io_buf, sizeof(io_buf), ", ioflags: 0x%llx, io-offset: %llu, io-size: %llu/%llu, "
+					"io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu'\n",
+				(unsigned long long)local_io->flags,
+				(unsigned long long)local_io->offset, (unsigned long long)local_io->size, (unsigned long long)local_io->total_size,
+				(unsigned long long)local_io->user_flags,
+				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec);
+		}
+
 		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, stall: %d, "
-				"weight: %f, mrt: %ld, time: %ld, started: %s.%06lu, cached status: %d.\n",
+				"weight: %f, mrt: %ld, time: %ld, started: %s.%06lu, cached status: %d%s",
 			dnet_dump_id(&t->cmd.id),
 			dnet_cmd_string(t->command),
 			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
@@ -202,7 +223,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			dnet_state_dump_addr(t->st), t->st->stall,
 			st->weight, st->median_read_time, diff,
 			str, t->start.tv_usec,
-			t->cmd.status);
+			t->cmd.status, io_buf);
 	}
 
 

@@ -48,17 +48,10 @@ int dnet_log_init(struct dnet_node *n, struct dnet_log *l)
 	return 0;
 }
 
-void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
-{
-	va_list args;
+static void dnet_log_raw_internal(struct dnet_log *l, int level, const char *format, va_list args) {
 	char buf[1024];
-	struct dnet_log *l = n->log;
 	int buflen = sizeof(buf);
 
-	if (!l->log || ((l->log_level < level) && !(trace_id & DNET_TRACE_BIT)))
-		return;
-
-	va_start(args, format);
 	vsnprintf(buf, buflen, format, args);
 	buf[buflen-1] = '\0';
 	int msg_len = strlen(buf);
@@ -68,5 +61,27 @@ void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
 		buf[msg_len - 1] = '\n';
 	}
 	l->log(l->log_private, level, buf);
+}
+
+void dnet_log_raw_log_only(struct dnet_log *l, int level, const char *format, ...) {
+	va_list args;
+
+	if (!l->log || ((l->log_level < level) && !(trace_id & DNET_TRACE_BIT)))
+		return;
+
+	va_start(args, format);
+	dnet_log_raw_internal(l, level, format, args);
+	va_end(args);
+}
+
+void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
+{
+	va_list args;
+
+	if (!n->log->log || ((n->log->log_level < level) && !(trace_id & DNET_TRACE_BIT)))
+		return;
+
+	va_start(args, format);
+	dnet_log_raw_internal(n->log, level, format, args);
 	va_end(args);
 }

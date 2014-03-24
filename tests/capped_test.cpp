@@ -38,7 +38,6 @@ static void configure_nodes(const std::vector<std::string> &remotes, const std::
 		global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
 			config_data::default_value()
 				("indexes_shard_count", 1)
-				("monitor_port", 1029)
 				("group", 5)
 		}), path);
 	} else

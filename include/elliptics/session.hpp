@@ -170,8 +170,6 @@ class node
 
 		void			set_keepalive(int idle, int cnt, int interval);
 
-		bool is_valid() const;
-
 		logger get_log() const;
 		dnet_node *	get_native();
 		dnet_node *	get_native() const;

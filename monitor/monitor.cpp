@@ -55,17 +55,14 @@ void dnet_monitor_add_provider(struct dnet_node *n, stat_provider *provider, con
 int dnet_monitor_init(void **monitor, struct dnet_config *cfg) {
 	if (!cfg->monitor_port) {
 		*monitor = NULL;
-		if (cfg->log && cfg->log->log)
-			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Monitor hasn't been initialized "
-			              "because monitor port is zero.\n");
+		dnet_log_raw_log_only(cfg->log, DNET_LOG_DATA, "Monitor hasn't been initialized because monitor port is zero.\n");
 		return 0;
 	}
 
 	try {
 		*monitor = static_cast<void*>(new ioremap::monitor::monitor(cfg));
 	} catch (const std::exception &e) {
-		if (cfg->log && cfg->log->log)
-			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Error during monitor creation\n");
+		dnet_log_raw_log_only(cfg->log, DNET_LOG_ERROR, "Failed to initialize monitor on port: %d: %s.\n", cfg->monitor_port, e.what());
 		return -ENOMEM;
 	}
 
