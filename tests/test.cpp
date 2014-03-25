@@ -33,12 +33,14 @@ static void configure_nodes(const std::vector<std::string> &remotes, const std::
 {
 #ifndef NO_SERVER
 	if (remotes.empty()) {
-		global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
-			config_data::default_value()
-				("group", 1),
+		global_data = start_nodes(results_reporter::get_stream(), std::vector<server_config>({
+			server_config::default_value().apply_options(config_data()
+				("group", 1)
+			),
 
-			config_data::default_value()
+			server_config::default_value().apply_options(config_data()
 				("group", 2)
+			)
 		}), path);
 	} else
 #endif // NO_SERVER
