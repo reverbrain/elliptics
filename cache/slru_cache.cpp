@@ -684,9 +684,11 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 void slru_cache_t::life_check(void) {
 
 	while (!dnet_need_exit(m_node)) {
-		void *call_tree;
-		init_call_tree(&call_tree);
-		init_updater(call_tree);
+		void *call_tree = NULL;
+		if (m_node->monitor) {
+			init_call_tree(&call_tree);
+			init_updater(call_tree);
+		}
 		{
 			start_action(ACTION_CACHE_LIFECHECK);
 
@@ -791,9 +793,11 @@ void slru_cache_t::life_check(void) {
 			}
 			stop_action(ACTION_CACHE_LIFECHECK);
 		}
-		cleanup_updater();
-		merge_call_tree(call_tree, m_node->react_manager);
-		cleanup_call_tree(call_tree);
+		if (m_node->monitor) {
+			cleanup_updater();
+			merge_call_tree(call_tree, m_node->react_manager);
+			cleanup_call_tree(call_tree);
+		}
 		std::this_thread::sleep_for( std::chrono::milliseconds(1000) );
 	}
 
