@@ -1,0 +1,60 @@
+{
+	"loggers": {
+		"type": "/dev/stderr",
+		"root": [
+			{
+				"formatter": {
+					"type": "string",
+					"pattern": "[%(timestamp)s]: %(message)s [%(...L)s]"
+				},
+				"sink": {
+					"type": "files",
+					"path": "blackhole.log",
+					"autoflush": true,
+					"rotation": {
+						"pattern": "blackhole.log.%Y%m%d%H%M%S.%N",
+						"backups": 5,
+						"size": 1024000
+					}             
+				}
+			}
+		]
+	},
+	"options": {
+		"join": 1,
+		"flags": 4,
+		"group": 2,
+		"remote": [
+			"1.2.3.4:1025:2",
+			"2.3.4.5:2345:2",
+			"autodiscovery:224.0.0.5:1025:2"
+		],
+		"address": [
+			"localhost:1025:2-0",
+			"10.10.0.1:1025:2-1"
+		],
+		"wait_timeout": 60,
+		"check_timeout": 60,
+		"io_thread_num": 16,
+		"nonblocking_io_thread_num": 16,
+		"net_thread_num": 16,
+		"daemon": 0,
+		"auth_cookie": "qwerty",
+		"bg_ionice_class": 3,
+		"bg_ionice_prio": 0,
+		"server_net_prio": 1,
+		"client_net_prio": 6,
+		"cache_size": 102400,
+		"indexes_shard_count": 2,
+		"monitor_port": 20000
+	},
+	"backends": [
+		{
+			"type": "filesystem",
+			"history": "/tmp/history",
+			"directory_bit_number": "8",
+			"root": "/tmp/root",
+			"sync": "0"
+		}
+	]
+}

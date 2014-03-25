@@ -38,11 +38,11 @@ public:
 /**
  * This is not exception safe module implementation, it can throw.
  */
-module_backend_api_t * uncomplicated_handler_constructor_throw(module_backend_config_t */*module_backend_config*/)
+module_backend_api_t * uncomplicated_handler_constructor_throw(module_backend_config_t *module_backend_config)
 {
 	std::unique_ptr<uncomplicated_handler> uncomplicated_handler(new test_uncomplicated_handler());
 	/// register module_backend_config in module_backend_api_t
-	return setup_handler(std::move(uncomplicated_handler));
+	return setup_handler(module_backend_config->log, std::move(uncomplicated_handler));
 }
 
 }
@@ -58,5 +58,5 @@ module_backend_api_t * uncomplicated_handler_constructor(module_backend_config_t
 	/// bind function to use it in decorate_exception
 	std::function<module_backend_api_t *()> module_constructor=std::bind(uncomplicated_handler_constructor_throw, module_backend_config);
 	/// prevent exception leaving C++ code, in C it will crash stack
-	return decorate_exception<module_backend_api_t *>(module_constructor, NULL);
+	return decorate_exception<module_backend_api_t *>(module_backend_config->log, module_constructor, NULL);
 }

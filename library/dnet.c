@@ -1093,13 +1093,16 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 	void *thread_call_tree;
 	int call_tree_was_created = 0;
-	if (!call_tree_is_set()) {
-		err = init_call_tree(&thread_call_tree);
-		if (err) {
-			dnet_log(st->n, DNET_LOG_ERROR, "Failed to init call tree\n");
-		} else {
-			init_updater(thread_call_tree);
-			call_tree_was_created = 1;
+
+	if (n->monitor) {
+		if (!call_tree_is_set()) {
+			err = init_call_tree(&thread_call_tree);
+			if (err) {
+				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init call tree\n");
+			} else {
+				init_updater(thread_call_tree);
+				call_tree_was_created = 1;
+			}
 		}
 	}
 

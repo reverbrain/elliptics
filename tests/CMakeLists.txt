@@ -16,7 +16,7 @@ endif()
 
 add_library(test_common SHARED
     ../example/common.c
-    ../example/config.c
+    ../example/config.cpp
     ../example/file_backend.c
     ../example/backends.c
     ../example/eblob_backend.c
