@@ -135,22 +135,20 @@ static int run_servers(const rapidjson::Value &doc)
 		return 1;
 	}
 
-	std::vector<tests::config_data> configs;
-	configs.resize(servers.Size(), srw ? tests::config_data::default_srw_value() : tests::config_data::default_value());
+	std::vector<tests::server_config> configs;
+	configs.resize(servers.Size(), srw ? tests::server_config::default_srw_value() : tests::server_config::default_value());
 
 	for (rapidjson::SizeType i = 0; i < servers.Size(); ++i) {
 		const rapidjson::Value &server = servers[i];
 
-		tests::config_data &config = configs[i];
+		tests::config_data config;
 
 		for (auto it = server.MemberBegin(); it != server.MemberEnd(); ++it) {
 			const std::string name(it->name.GetString(), it->name.GetStringLength());
 			const rapidjson::Value &value = it->value;
 
-			if (value.IsNull()) {
-				config(name, tests::NULL_VALUE);
-			} else if (value.IsNumber()) {
-				config(name, value.GetInt());
+			if (value.IsUint64()) {
+				config(name, value.GetUint64());
 			} else if (value.IsString()) {
 				config(name, std::string(value.GetString(), value.GetStringLength()));
 			} else {
@@ -158,6 +156,9 @@ static int run_servers(const rapidjson::Value &doc)
 				return 1;
 			}
 		}
+
+		configs[i].apply_options(config);
+		configs[i].log_path = "/dev/stderr";
 	}
 
 	try {

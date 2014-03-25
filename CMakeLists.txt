@@ -47,6 +47,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/react/include/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/react/foreign/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/foreign/blackhole/src)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/monitor)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/react/examples/reverbrain/)
 
 # Set id_size

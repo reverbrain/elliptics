@@ -238,11 +238,14 @@ static int dnet_backend_stat_provider_init(struct dnet_node *n)
 	return 0;
 }
 
-struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, struct dnet_config *cfg, struct dnet_addr *addrs, int addr_num)
+struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 {
 	struct dnet_node *n;
 	struct dnet_raw_id *ids = NULL;
 	int id_num = 0;
+	struct dnet_config *cfg = &cfg_data->cfg_state;
+	struct dnet_addr *addrs = cfg_data->cfg_addrs;
+	int addr_num = cfg_data->cfg_addr_num;
 	int err = -ENOMEM;
 
 	sigset_t previous_sigset;
@@ -383,13 +386,8 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_local_addr_cleanup(n);
 	dnet_notify_exit(n);
 
-	if (n->config_data) {
-		free(n->config_data->logger_value);
-		free(n->config_data->cfg_addrs);
-		free(n->config_data->cfg_remotes);
-		free(n->config_data->cfg_backend);
-		free(n->config_data);
-	}
+	if (n->config_data)
+		dnet_config_data_destroy(n->config_data);
 
 	free(n);
 }

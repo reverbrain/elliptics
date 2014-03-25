@@ -2,6 +2,7 @@
 #define TEST_BASE_HPP
 
 #include <elliptics/cppdef.h>
+#include <boost/variant.hpp>
 
 namespace tests {
 
@@ -76,48 +77,42 @@ void create_directory(const std::string &path);
 
 #ifndef NO_SERVER
 
-enum dummy_value_type { DUMMY_VALUE, NULL_VALUE };
+class server_config;
 
 class config_data
 {
 public:
+	config_data &operator() (const std::string &name, const std::vector<std::string> &value);
 	config_data &operator() (const std::string &name, const std::string &value);
+	config_data &operator() (const std::string &name, const char *value);
+	config_data &operator() (const std::string &name, uint64_t value);
 	config_data &operator() (const std::string &name, int value);
-	config_data &operator() (const std::string &name, dummy_value_type);
-
-	static config_data default_srw_value();
-	static config_data default_value();
 
 	bool has_value(const std::string &name) const;
-	bool is_dummy(const std::string &name) const;
+	std::string string_value(const std::string &name) const;
 
 protected:
-	std::vector<std::pair<std::string, std::string> >  m_data;
+	typedef boost::variant<std::vector<std::string>, std::string, unsigned long long> variant;
+
+	config_data &operator() (const std::string &name, const variant &value);
+	const variant *value_impl(const std::string &name) const;
+
+	std::vector<std::pair<std::string, variant> >  m_data;
+	friend class server_config;
 };
 
-class config_data_writer : public config_data
+class server_config
 {
 public:
-	config_data_writer() = delete;
-	config_data_writer &operator =(const config_data_writer &other) = delete;
+	static server_config default_srw_value();
+	static server_config default_value();
 
-	config_data_writer(const config_data_writer &other);
-	config_data_writer(const config_data &other, const std::string &path);
+	void write(const std::string &path);
+	server_config &apply_options(const config_data &data);
 
-	~config_data_writer();
-
-	template <typename T>
-	config_data_writer &operator() (const std::string &name, const T &value)
-	{
-		config_data::operator ()(name, value);
-
-		return *this;
-	}
-
-	void write();
-
-private:
-	std::string m_path;
+	config_data options;
+	std::vector<config_data> backends;
+	std::string log_path;
 };
 
 class server_node
@@ -168,7 +163,7 @@ struct nodes_data
 
 #ifndef NO_SERVER
 
-nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs, const std::string &path);
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server_config> &configs, const std::string &path);
 
 #endif // NO_SERVER
 

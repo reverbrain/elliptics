@@ -1,3 +1,6 @@
 [submodule "react"]
 	path = react
 	url = git://github.com/reverbrain/react.git
+[submodule "foreign/blackhole"]
+	path = foreign/blackhole
+	url = git://github.com/3Hren/blackhole.git

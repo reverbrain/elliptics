@@ -35,10 +35,11 @@ static void configure_nodes(const std::vector<std::string> &remotes, const std::
 {
 #ifndef NO_SERVER
 	if (remotes.empty()) {
-		global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
-			config_data::default_value()
+		global_data = start_nodes(results_reporter::get_stream(), std::vector<server_config>({
+			server_config::default_value().apply_options(config_data()
 				("indexes_shard_count", 1)
 				("group", 5)
+			)
 		}), path);
 	} else
 #endif // NO_SERVER
