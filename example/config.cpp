@@ -646,9 +646,10 @@ void parse_backends(config_data *data, const rapidjson::Value &backends)
 
 		info->log = data->cfg_state.log;
 
-		std::map<std::string, dnet_config_entry> entries;
+		typedef std::map<std::string, dnet_config_entry> entries_map;
+		entries_map entries;
 		for (int i = 0; i < info->config.num; ++i) {
-			entries.emplace(info->config.ent[i].key, info->config.ent[i]);
+			entries.insert(entries_map::value_type(info->config.ent[i].key, info->config.ent[i]));
 		}
 
 		for (auto it = backend.MemberBegin(); it != backend.MemberEnd(); ++it) {
