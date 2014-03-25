@@ -42,15 +42,7 @@ public:
 
 	cache_stats get_cache_stats() const;
 
-	const time_stats_tree_t get_time_stats() const;
-
 private:
-
-	void start_action(const int action_code);
-
-	void stop_action(const int action_code);
-
-	time_stats_updater_t *get_time_stats_updater();
 
 	struct dnet_node *m_node;
 	std::mutex m_lock;
@@ -61,7 +53,6 @@ private:
 	std::thread m_lifecheck;
 	treap_t m_treap;
 	mutable cache_stats m_cache_stats;
-	mutable concurrent_time_stats_tree_t m_time_stats;
 	bool m_clear_occured;
 
 	slru_cache_t(const slru_cache_t &) = delete;

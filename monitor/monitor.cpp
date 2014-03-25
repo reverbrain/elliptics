@@ -24,6 +24,7 @@
 
 #include "library/elliptics.h"
 #include "io_stat_provider.hpp"
+#include "react_stat_provider.hpp"
 
 namespace ioremap { namespace monitor {
 
@@ -93,8 +94,12 @@ void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw sta
 
 	auto real_monitor = monitor_cast(n->monitor);
 	if (real_monitor) {
-		auto provider = new ioremap::monitor::raw_provider(stat);
-		real_monitor->get_statistics().add_provider(provider, std::string(name));
+		try {
+			auto provider = new ioremap::monitor::raw_provider(stat);
+			real_monitor->get_statistics().add_provider(provider, std::string(name));
+		} catch (std::exception &e) {
+			std::cerr << e.what() << std::endl;
+		}
 	} else
 		stat.stop(stat.stat_private);
 }
@@ -116,12 +121,35 @@ void dnet_monitor_init_io_stat_provider(struct dnet_node *n) {
 		return;
 
 	auto real_monitor = monitor_cast(n->monitor);
-	if (real_monitor)
-		real_monitor->get_statistics().add_provider(new ioremap::monitor::io_stat_provider(n), "io");
+	if (real_monitor) {
+		try {
+			real_monitor->get_statistics().add_provider(new ioremap::monitor::io_stat_provider(n), "io");
+		} catch (std::exception &e) {
+			std::cerr << e.what() << std::endl;
+		}
+	}
+}
+
+void dnet_monitor_init_react_stat_provider(struct dnet_node *n) {
+	if (!n->monitor)
+		return;
+
+	auto real_monitor = monitor_cast(n->monitor);
+	if (real_monitor) {
+		try {
+			auto provider = new ioremap::monitor::react_stat_provider();
+			real_monitor->get_statistics().add_provider(provider, "call_tree");
+			n->react_manager = static_cast<void*> (&provider->get_react_manager());
+		} catch (std::exception &e) {
+			std::cerr << e.what() << std::endl;
+		}
+	}
 }
 
 int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
+	auto monitor_process_cmd_guard(make_action_guard(ACTION_DNET_MONITOR_PROCESS_CMD));
+
 	struct dnet_node *n = orig->n;
 	struct dnet_monitor_stat_request *req = static_cast<struct dnet_monitor_stat_request *>(data);
 	dnet_convert_monitor_stat_request(req);
