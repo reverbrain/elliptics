@@ -432,7 +432,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		create_directory(base_path);
 		data->directory = directory_handler(base_path, true);
 	} else {
-		base_path = path;
+		base_path = boost::filesystem::absolute(path).string();
 
 		create_directory(base_path);
 		data->directory = directory_handler(base_path, false);
@@ -468,7 +468,8 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 	for (size_t i = 0; i < configs.size(); ++i) {
 		debug_stream << "Starting server #" << (i + 1) << std::endl;
 
-		const std::string server_path = base_path + "/server-" + boost::lexical_cast<std::string>(i + 1);
+		const std::string server_suffix = "/server-" + boost::lexical_cast<std::string>(i + 1);
+		const std::string server_path = base_path + server_suffix;
 
 		create_directory(server_path);
 		create_directory(server_path + "/blob");
@@ -487,7 +488,9 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 			config.options("remote", remotes);
 
 		if (config.options.has_value("srw_config")) {
-			create_directory(server_path + "/run");
+			const std::string server_run_path = run_path + server_suffix;
+
+			create_directory(server_run_path);
 
 			const substitute_context cocaine_variables = {
 				{ "COCAINE_LOCATOR_PORT", cocaine_locator_ports[i] },
@@ -495,7 +498,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 				{ "ELLIPTICS_REMOTES", cocaine_remotes },
 				{ "ELLIPTICS_GROUPS", cocaine_groups },
 				{ "COCAINE_LOG_PATH", server_path + "/cocaine.log" },
-				{ "COCAINE_RUN_PATH", run_path }
+				{ "COCAINE_RUN_PATH", server_run_path }
 			};
 			create_cocaine_config(server_path + "/cocaine.conf", cocaine_config_template, cocaine_variables);
 
