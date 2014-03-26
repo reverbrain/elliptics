@@ -90,7 +90,7 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 {
 	Json::Value nodes(args["nodes"]);
 
-	if (nodes.empty() || !nodes.isObject() || !nodes.isArray()) {
+	if (nodes.empty() || (!nodes.isObject() && !nodes.isArray())) {
 		throw storage_error_t("no nodes has been specified");
 	}
 
