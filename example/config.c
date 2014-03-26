@@ -57,7 +57,7 @@
 #define DNET_CONF_COMMENT	'#'
 #define DNET_CONF_DELIMITER	'='
 
-extern __thread uint32_t trace_id;
+extern __thread uint64_t trace_id;
 
 static char *dnet_skip_line(char *line)
 {

@@ -58,6 +58,12 @@
 #error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE"
 #endif
 
+extern __thread int64_t trace_id;
+
+int64_t get_trace_id()
+{
+	return trace_id;
+}
 
 struct eblob_read_params {
 	int			fd;
@@ -1064,6 +1070,8 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	err = eblob_backend_storage_stat(c, &st);
 	if (err)
 		goto err_out_last_read_lock_destroy;
+
+	eblob_set_trace_id_function(&get_trace_id);
 
 	c->vm_total = st.vm_total * st.vm_total * 1024 * 1024;
 

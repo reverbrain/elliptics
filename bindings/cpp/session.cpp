@@ -24,7 +24,7 @@
 
 #include "node_p.hpp"
 
-extern __thread uint32_t trace_id;
+extern __thread uint64_t trace_id;
 
 namespace ioremap { namespace elliptics {
 
