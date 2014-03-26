@@ -45,9 +45,9 @@ target_link_libraries(dnet_cpp_capped_test ${TEST_LIBRARIES})
 
 
 set(PYTESTS_FLAGS "")
-#if(NOT WITH_COCAINE)
+if(NOT WITH_COCAINE)
     list(APPEND PYTESTS_FLAGS "--without-cocaine")
-#endif()
+endif()
 
 set(RUN_SERVERS_LIBRARIES ${TEST_LIBRARIES})
 
@@ -94,10 +94,6 @@ add_custom_command(TARGET test
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/pytests/elliptics
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../bindings/python/core.so* pytests/elliptics/
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp/libelliptics_cpp.so* pytests/
-    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../library/libelliptics*.so* pytests/
-    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../srw/libelliptics_cocaine.so* pytests/
-    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../monitor/libelliptics_monitor.so* pytests/
-    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../example/dnet_ioserv pytests/
     COMMAND cp ${CMAKE_SOURCE_DIR}/bindings/python/src/* pytests/elliptics/
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 

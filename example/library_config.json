@@ -4,40 +4,40 @@
         "plugins": "/opt/elliptics/build/lib/cocaine",
         "runtime": "/opt/elliptics/build/tmp/cocaine/ipc",
         "spool": "/opt/elliptics/build/tmp/cocaine/spool"
-    },  
+    },
     "services": {
         "logging": {
             "type": "logging",
             "args": {
 		"port": 12501
-            }   
+            }
         }
     },
     "storages": {
         "core": {
             "type": "elliptics",
             "args": {
-                "nodes": {
-                    "localhost": 1025
-                },
+                "nodes": [
+                    "localhost:1025:2"
+                ],
                 "groups": [2],
                 "verbosity": 2
             }
-        },  
+        },
         "cache": {
             "type": "files",
             "args": {
                 "path": "/opt/elliptics/build/tmp/cocaine/cache"
-            }   
-        }   
-    },  
+            }
+        }
+    },
     "loggers": {
         "core": {
             "type": "files",
             "args": {
 		"path": "/tmp/cocaine.log",
 		"verbosity": "error"
-            }   
+            }
         },
         "slave": {
             "type": "remote",
