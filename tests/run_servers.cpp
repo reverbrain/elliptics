@@ -177,6 +177,24 @@ static int run_servers(const rapidjson::Value &doc)
 			global_data.reset();
 			return 1;
 		}
+		try {
+			session sess(*global_data->node);
+			sess.set_groups(std::vector<int>(1, 1));
+			tests::start_application(sess, tests::application_name());
+		} catch (std::exception &exc) {
+			std::cerr << "Can not start application: " << exc.what() << std::endl;
+			global_data.reset();
+			return 1;
+		}
+		try {
+			session sess(*global_data->node);
+			sess.set_groups(std::vector<int>(1, 1));
+			tests::init_application_impl(sess, tests::application_name(), *global_data);
+		} catch (std::exception &exc) {
+			std::cerr << "Can not init application: " << exc.what() << std::endl;
+			global_data.reset();
+			return 1;
+		}
 	}
 #endif
 
