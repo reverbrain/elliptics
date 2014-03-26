@@ -220,11 +220,15 @@ static int run_servers(const rapidjson::Value &doc)
 			rapidjson::Value server;
 			server.SetObject();
 
-			server.AddMember("remote", node.remote().c_str(), info.GetAllocator());
-			server.AddMember("monitor", node.monitor_port(), info.GetAllocator());
-
 			rapidjson::Value remote(node.remote().c_str(), node.remote().size(), info.GetAllocator());
-			servers.PushBack(remote, info.GetAllocator());
+			remote.SetString(node.remote().c_str(), info.GetAllocator());
+			server.AddMember("remote", remote, info.GetAllocator());
+
+			rapidjson::Value monitor_port;
+			monitor_port.SetInt(node.monitor_port());
+			server.AddMember("monitor", monitor_port, info.GetAllocator());
+
+			servers.PushBack(server, info.GetAllocator());
 		}
 
 		info.AddMember("servers", servers, info.GetAllocator());
