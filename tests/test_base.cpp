@@ -296,7 +296,7 @@ server_node::server_node(const std::string &path, const std::string &remote, int
 }
 
 server_node::server_node(server_node &&other) :
-	m_node(other.m_node), m_path(std::move(other.m_path)), m_remote(std::move(other.m_remote))
+	m_node(other.m_node), m_path(std::move(other.m_path)), m_remote(std::move(other.m_remote)), m_monitor_port(other.monitor_port())
 {
 	other.m_node = NULL;
 }
@@ -306,6 +306,7 @@ server_node &server_node::operator =(server_node &&other)
 	std::swap(m_node, other.m_node);
 	std::swap(m_path, other.m_path);
 	std::swap(m_remote, other.m_remote);
+	std::swap(m_monitor_port, other.m_monitor_port);
 
 	return *this;
 }

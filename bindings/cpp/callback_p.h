@@ -469,7 +469,7 @@ class multigroup_callback
 
 			dnet_log_raw(sess.get_native_node(),
 				DNET_LOG_DEBUG, "multigroup_callback::iterate_groups: group: %d: %zd/%zd, error: %d, priv: %p\n",
-					groups[m_group_index], m_group_index, groups.size(), error->code(), priv);
+					m_group_index < groups.size() ? groups[m_group_index] : -1, m_group_index, groups.size(), error->code(), priv);
 			// try next group
 			while (m_group_index < groups.size()) {
 				struct dnet_id id = kid.id();
