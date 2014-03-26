@@ -51,6 +51,9 @@ endif()
 
 set(RUN_SERVERS_LIBRARIES ${TEST_LIBRARIES})
 
+set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_capped_test dnet_cpp_api_test)
+set(TESTS_DEPS ${TESTS_LIST})
+
 if(WITH_COCAINE)
     include(../cmake/Modules/locate_library.cmake)
     LOCATE_LIBRARY(LIBEV "ev++.h" "ev" "libev")
@@ -80,9 +83,6 @@ endif()
 add_executable(dnet_run_servers run_servers.cpp)
 set_target_properties(dnet_run_servers ${TEST_PROPERTIES})
 target_link_libraries(dnet_run_servers ${RUN_SERVERS_LIBRARIES})
-
-set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_capped_test dnet_cpp_api_test)
-set(TESTS_DEPS ${TESTS_LIST})
 
 add_custom_target(test
     COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" ${TESTS_LIST}
