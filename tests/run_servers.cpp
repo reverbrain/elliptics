@@ -138,10 +138,18 @@ static int run_servers(const rapidjson::Value &doc)
 	std::vector<tests::server_config> configs;
 	configs.resize(servers.Size(), srw ? tests::server_config::default_srw_value() : tests::server_config::default_value());
 
+	std::set<int> unique_groups;
+
 	for (rapidjson::SizeType i = 0; i < servers.Size(); ++i) {
 		const rapidjson::Value &server = servers[i];
 
 		tests::config_data config;
+
+		if (server.HasMember("group")) {
+			const auto &group = server["group"];
+			if (group.IsInt())
+				unique_groups.insert(group.GetInt());
+		}
 
 		for (auto it = server.MemberBegin(); it != server.MemberEnd(); ++it) {
 			const std::string name(it->name.GetString(), it->name.GetStringLength());
@@ -170,6 +178,8 @@ static int run_servers(const rapidjson::Value &doc)
 
 #ifdef HAVE_COCAINE
 	if (srw) {
+		const std::vector<int> groups(unique_groups.begin(), unique_groups.end());
+
 		try {
 			tests::upload_application(global_data->locator_port, global_data->directory.path());
 		} catch (std::exception &exc) {
@@ -179,7 +189,7 @@ static int run_servers(const rapidjson::Value &doc)
 		}
 		try {
 			session sess(*global_data->node);
-			sess.set_groups(std::vector<int>(1, 1));
+			sess.set_groups(groups);
 			tests::start_application(sess, tests::application_name());
 		} catch (std::exception &exc) {
 			std::cerr << "Can not start application: " << exc.what() << std::endl;
@@ -188,7 +198,7 @@ static int run_servers(const rapidjson::Value &doc)
 		}
 		try {
 			session sess(*global_data->node);
-			sess.set_groups(std::vector<int>(1, 1));
+			sess.set_groups(groups);
 			tests::init_application_impl(sess, tests::application_name(), *global_data);
 		} catch (std::exception &exc) {
 			std::cerr << "Can not init application: " << exc.what() << std::endl;
