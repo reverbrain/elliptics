@@ -37,6 +37,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <fstream>
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -710,8 +711,53 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		if (!data)
 			throw std::bad_alloc();
 
-		if (doc.HasParseError())
-			throw config_error(doc.GetParseError());
+		if (doc.HasParseError()) {
+			std::ifstream in;
+			in.open(file);
+			if (in) {
+				size_t offset = doc.GetErrorOffset();
+				std::vector<char> buffer(offset);
+				in.read(buffer.data(), offset);
+
+				std::string data(buffer.begin(), buffer.end());
+				std::string line;
+
+				if (std::getline(in, line))
+					data += line;
+
+				/*
+				 * Produce a pretty output about the error
+				 * including the line and certain place where
+				 * the error occured.
+				 */
+
+				size_t line_offset = data.find_last_of('\n');
+				if (line_offset == std::string::npos)
+					line_offset = 0;
+
+				for (size_t i = line_offset; i < data.size(); ++i) {
+					if (data[i] == '\t') {
+						data.replace(i, 1, std::string(4, ' '));
+
+						if (offset > i)
+							offset += 3;
+					}
+				}
+
+				const size_t line_number = std::count(data.begin(), data.end(), '\n') + 1;
+				const size_t dash_count = line_offset < offset ? offset - line_offset - 1 : 0;
+
+				std::stringstream error;
+				error << "parser error at line " << line_number << ": " << doc.GetParseError() << std::endl;
+				error << data.substr(line_offset + 1) << std::endl;
+				error << std::string(dash_count, ' ') << '^' << std::endl;
+				error << std::string(dash_count, '~') << '+' << std::endl;
+
+				throw config_error(error.str());
+			}
+
+			throw config_error(std::string("parser error: at unknown line: ") + doc.GetParseError());
+		}
 
 		const rapidjson::Value &loggers = json_get_object(doc, "loggers", "'loggers'");
 		const rapidjson::Value &options = json_get_object(doc, "options", "'options'");
@@ -742,7 +788,7 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		if (err)
 			throw config_error("failed to connect to remotes");
 	} catch (std::exception &exc) {
-		dnet_backend_log(data->cfg_state.log, DNET_LOG_ERROR, "cnf: failed to read config file '%s': %s.\n", file, exc.what());
+		dnet_backend_log(data->cfg_state.log, DNET_LOG_ERROR, "cnf: failed to read config file '%s': %s\n", file, exc.what());
 
 		if (node)
 			dnet_server_node_destroy(node);
@@ -751,225 +797,6 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 	}
 
 	return node;
-
-//	FILE *f;
-//	int buf_size = 1024 * 1024;
-//	char *buf, *ptr, *value, *key;
-//	int err, i, len;
-//	int line_num = 0;
-//	struct dnet_node *n;
-
-//	sigset_t sig;
-//	sigfillset(&sig);
-//	pthread_sigmask(SIG_BLOCK, &sig, NULL);
-//	sigprocmask(SIG_BLOCK, &sig, NULL);
-
-//	dnet_cur_cfg_data = reinterpret_cast<dnet_config_data *>(malloc(sizeof(struct dnet_config_data)));
-//	if (!dnet_cur_cfg_data) {
-//		err = -ENOMEM;
-//		goto err_out_exit;
-//	}
-
-//	memset(dnet_cur_cfg_data, 0, sizeof(struct dnet_config_data));
-//	dnet_cur_cfg_data->cfg_entries = dnet_cfg_entries;
-//	dnet_cur_cfg_data->cfg_size = ARRAY_SIZE(dnet_cfg_entries);
-
-//	f = fopen(file, "r");
-//	if (!f) {
-//		err = -errno;
-//		fprintf(stderr, "cnf: failed to open config file '%s': %s.\n", file, strerror(errno));
-//		goto err_out_free_data;
-//	}
-
-//	buf = reinterpret_cast<char *>(malloc(buf_size));
-//	if (!buf) {
-//		err = -ENOMEM;
-//		goto err_out_close;
-//	}
-
-//	dnet_cur_cfg_data->backend_logger.log_level = DNET_LOG_DEBUG;
-//	dnet_cur_cfg_data->backend_logger.log = dnet_common_log;
-//	dnet_cur_cfg_data->cfg_state.log = &dnet_cur_cfg_data->backend_logger;
-//	dnet_cur_cfg_data->cfg_state.caches_number = DNET_DEFAULT_CACHES_NUMBER;
-//	dnet_cur_cfg_data->cfg_state.cache_pages_number = DNET_DEFAULT_CACHE_PAGES_NUMBER;
-//	dnet_cur_cfg_data->cfg_state.cache_pages_proportions = (unsigned int*) calloc(DNET_DEFAULT_CACHE_PAGES_NUMBER, sizeof(unsigned int));
-
-//	if (!dnet_cur_cfg_data->cfg_state.cache_pages_proportions) {
-//		err = -ENOMEM;
-//		goto err_out_free_buf;
-//	}
-
-//	for (i = 0; i < DNET_DEFAULT_CACHE_PAGES_NUMBER; ++i) {
-//		dnet_cur_cfg_data->cfg_state.cache_pages_proportions[i] = 1;
-//	}
-
-//	err = dnet_file_backend_init();
-//	if (err)
-//		goto err_out_free_proportions;
-
-//#ifdef HAVE_MODULE_BACKEND_SUPPORT
-//	err = dnet_module_backend_init();
-//#endif
-//	if (err)
-//		goto err_out_file_exit;
-
-//	err = dnet_eblob_backend_init();
-//	if (err)
-//		goto err_out_module_exit;
-
-//	while (1) {
-//		ptr = fgets(buf, buf_size, f);
-//		if (!ptr) {
-//			if (feof(f))
-//				break;
-
-//			err = -errno;
-//			dnet_backend_log(DNET_LOG_ERROR, "cnf: failed to read config file '%s': %s.\n", file, strerror(errno));
-//			goto err_out_free;
-//		}
-
-//		line_num++;
-
-//		ptr = dnet_skip_line(ptr);
-//		if (!ptr)
-//			continue;
-
-//		len = strlen(ptr);
-
-//		if (len > 1) {
-//			if (ptr[len - 1] == '\r' || ptr[len - 1] == '\n') {
-//				ptr[len - 1] = '\0';
-//				len--;
-//			}
-//		}
-
-//		if (len > 2) {
-//			if (ptr[len - 2] == '\r' || ptr[len - 2] == '\n') {
-//				ptr[len - 2] = '\0';
-//				len--;
-//			}
-//		}
-
-//		key = value = NULL;
-//		err = 0;
-//		for (i=0; i<len; ++i) {
-//			if (isspace(ptr[i])) {
-//				if (key)
-//					ptr[i] = '\0';
-//				continue;
-//			}
-
-//			if (!key) {
-//				key = ptr + i;
-//				continue;
-//			}
-
-//			if (!value) {
-//				if (ptr[i] == DNET_CONF_DELIMITER) {
-//					value = ptr;
-//					ptr[i] = '\0';
-//					continue;
-//				}
-
-//				if (ptr[i] ==  DNET_CONF_COMMENT) {
-//					key = value = NULL;
-//					break;
-//				}
-
-//				continue;
-//			} else {
-//				value = ptr + i;
-//				break;
-//			}
-
-//			key = value = NULL;
-//			err = -EINVAL;
-//			fprintf(stderr, "cnf: error in line %d: %s.\n", line_num, ptr);
-//			goto err_out_free;
-//		}
-
-//		if (err)
-//			goto err_out_free;
-//		if (!key || !value)
-//			continue;
-
-//		for (i=0; i<dnet_cur_cfg_data->cfg_size; ++i) {
-//			if (!strcmp(key, dnet_cur_cfg_data->cfg_entries[i].key)) {
-//				err = dnet_cur_cfg_data->cfg_entries[i].callback(dnet_cur_cfg_data->cfg_current_backend, key, value);
-//				dnet_backend_log(DNET_LOG_INFO, "backend: %s, key: %s, value: %s, err: %d\n",
-//						(dnet_cur_cfg_data->cfg_current_backend) ? dnet_cur_cfg_data->cfg_current_backend->name : "root level",
-//						ptr, value, err);
-//				if (err)
-//					goto err_out_free;
-
-//				break;
-//			}
-//		}
-//	}
-
-//	if (!dnet_cur_cfg_data->cfg_current_backend) {
-//		err = -EINVAL;
-//		goto err_out_free;
-//	}
-
-//	if (dnet_cur_cfg_data->daemon_mode && !mon)
-//		dnet_background();
-
-//	err = dnet_cur_cfg_data->cfg_current_backend->init(dnet_cur_cfg_data->cfg_current_backend, &dnet_cur_cfg_data->cfg_state);
-//	if (err)
-//		goto err_out_free;
-
-//	fclose(f);
-//	f = NULL;
-
-//	if (!dnet_cur_cfg_data->cfg_addr_num) {
-//		dnet_backend_log(DNET_LOG_ERROR, "No local address specified, exiting.\n");
-//		goto err_out_free;
-//	}
-
-//	n = dnet_server_node_create(dnet_cur_cfg_data);
-//	if (!n) {
-//		/* backend cleanup is already called */
-//		goto err_out_free;
-//	}
-
-//	err = dnet_common_add_remote_addr(n, dnet_cur_cfg_data->cfg_remotes);
-//	if (err)
-//		goto err_out_node_destroy;
-
-//	free(buf);
-
-//	return n;
-
-//err_out_node_destroy:
-//	// dnet_cur_cfg_data will be destroyed by dnet_server_node_destroy
-//	dnet_cur_cfg_data = NULL;
-//	dnet_server_node_destroy(n);
-//err_out_free:
-//	if (dnet_cur_cfg_data)
-//		free(dnet_cur_cfg_data->cfg_remotes);
-
-////err_out_eblob_exit:
-//	dnet_eblob_backend_exit();
-//err_out_module_exit:
-//#ifdef HAVE_MODULE_BACKEND_SUPPORT
-//	dnet_module_backend_exit();
-//#endif
-//err_out_file_exit:
-//	dnet_file_backend_exit();
-//err_out_free_proportions:
-//	if (dnet_cur_cfg_data)
-//		free(dnet_cur_cfg_data->cfg_state.cache_pages_proportions);
-//err_out_free_buf:
-//	free(buf);
-//err_out_close:
-//	if (f)
-//		fclose(f);
-//err_out_free_data:
-//	free(dnet_cur_cfg_data);
-//err_out_exit:
-//	dnet_cur_cfg_data = NULL;
-//	return NULL;
 }
 
 extern "C" int dnet_backend_check_log_level(dnet_log *l, int level)
