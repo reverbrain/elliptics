@@ -32,6 +32,7 @@ class Server:
                  indexes_shard_count=2, locator_port=20053, plugin_path="", without_cocaine=False,
                  monitor_port=20000):
         from socket import gethostname
+	self.p = None
         self.name = 'server_{0}'.format(port)
         self.without_cocaine = without_cocaine
         self.log_path = '/dev/stderr'
@@ -124,11 +125,13 @@ class Server:
         return 0
 
     def stop(self):
-        self.p.terminate()
-        self.p.wait()
-        assert self.p.poll() == 0
-        import shutil
-        shutil.rmtree(self.name)
+	if self.p and self.p.poll() is None:
+            self.p.terminate()
+            self.p.wait()
+            assert self.p.poll() == 0
+
+            import shutil
+            shutil.rmtree(self.name)
 
     def get_addr(self):
         return '{0}:{1}:2'.format(self.addr, self.port)
