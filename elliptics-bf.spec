@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.3.0
+Version:	2.25.4.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -122,6 +122,34 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Mar 27 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.0
+- spec: get rid of <=5 rhel, added cocaine depend
+- tests: use only bindable ports for test servers
+- Pytests: restored copying required libraries from build to pytests.
+- cmake: elliptics client must be linked as c++ object because of monitoring support
+- core: fixed compilation errors on lucid/precise
+- Fixes: deletes scope after lock_guard is destroyed. Turned off srw tests in pytests.
+- Tests: decreased number of threads for each server node. Fixed checking number of init exec's results.
+- Monitor: fixed memory corruption in histogram.
+- react: Fixed memory corruption/leak
+- tests: Added monitor_port to json output
+- client: Fixed reading outside of vector on debug
+- config: Added pretty output on parsing error
+- pytest: do not try to destroy server object if it failed to start
+- run_servers: init application at all nodes
+- foreign/react: moved reacrt into foreign dir
+- foreign/blackhole: updated to master
+- config: updated example ioserv config
+- cocaine: Fixed parsing of remote nodes list
+- Tests: fixed generating srw config.
+- react: Checks in react for turned off monitoring added
+- dnet_ioserv: changed configuration format to json
+- cocaine: Added ability to set list of remotes
+- Pytest: used dnet_run_servers at pytests.
+- Core: Actions monitoring added
+- Monitor: react_stat_provider for exporting react call tree into monitoring added
+- trans: also print total size for IO commands when transaction has been processed on server and destroyed on client
+
 * Wed Mar 19 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.3.0
 - trans: added IO debug into dnet_process_cmd_raw() and to transaction destruction
 - common: get rid of years unused history maps. Convert IO time in dnet_convert_io_attr()
