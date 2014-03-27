@@ -406,10 +406,12 @@ err_out_complete:
 		scope_data *scope = reinterpret_cast<scope_data *>(priv);
 
 		if (is_trans_destroyed(st, cmd)) {
-			std::lock_guard<std::mutex> lock(scope->functor->requests_order_guard);
+			{
+				std::lock_guard<std::mutex> lock(scope->functor->requests_order_guard);
 
-			if (0 == --scope->functor->requests_in_progress) {
-				dnet_send_ack(scope->functor->state, &scope->functor->cmd, cmd->status, 0);
+				if (0 == --scope->functor->requests_in_progress) {
+					dnet_send_ack(scope->functor->state, &scope->functor->cmd, cmd->status, 0);
+				}
 			}
 
 			delete scope;

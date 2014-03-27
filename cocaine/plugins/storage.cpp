@@ -90,7 +90,7 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 {
 	Json::Value nodes(args["nodes"]);
 
-	if (nodes.empty() || (!nodes.isObject() && !nodes.isArray())) {
+	if (nodes.empty() || !nodes.isArray()) {
 		throw storage_error_t("no nodes has been specified");
 	}
 
@@ -98,11 +98,7 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 
 	for (auto it = nodes.begin(); it != nodes.end(); ++it) {
 		try {
-			if (nodes.isArray()) {
-				m_node.add_remote((*it).asCString());
-			} else {
-				m_node.add_remote(it.key().asCString(), (*it).asInt());
-			}
+			m_node.add_remote((*it).asCString());
 			have_remotes = true;
 		} catch (...) {
 			// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
