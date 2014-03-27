@@ -546,7 +546,8 @@ def main(ctx):
             group_stats.timer('group', 'finished')
             g_ctx.monitor.stats.timer('main', 'finished')
             return False
-        else:
+        except Exception as e:
+            log.error("Caught unexpected exception: {0}".format(e))
             log.info("Closing pool, joining threads.")
             pool.close()
             pool.join()
@@ -556,5 +557,8 @@ def main(ctx):
 
         group_stats.timer('group', 'finished')
 
+    log.info("Closing pool, joining threads.")
+    pool.close()
+    pool.join()
     g_ctx.monitor.stats.timer('main', 'finished')
     return ret
