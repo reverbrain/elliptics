@@ -491,7 +491,7 @@ static void *dnet_reconnect_process(void *data)
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
 		dnet_try_reconnect(n);
-		if (++checks == route_table_checks) {
+		if (!(n->flags & DNET_CFG_NO_ROUTE_LIST) && (++checks == route_table_checks)) {
 			checks = 0;
 			dnet_check_route_table(n);
 		}
