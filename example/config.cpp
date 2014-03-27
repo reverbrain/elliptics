@@ -101,6 +101,8 @@ extern "C" dnet_config_data *dnet_config_data_create()
 	memset(static_cast<dnet_config_data *>(data), 0, sizeof(dnet_config_data));
 	memset(&data->logger_impl, 0, sizeof(data->logger_impl));
 
+	data->destroy_config_data = dnet_config_data_destroy;
+
 	data->logger_impl.log_level = DNET_LOG_DEBUG;
 	data->logger_impl.log = dnet_common_log;
 	data->cfg_state.log = &data->logger_impl;

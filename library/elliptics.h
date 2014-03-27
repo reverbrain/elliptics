@@ -459,8 +459,10 @@ void dnet_opunlock(struct dnet_node *n, struct dnet_id *key);
 int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 
 struct dnet_config_data {
-    struct dnet_config_backend *cfg_current_backend;
-    
+	void (*destroy_config_data) (struct dnet_config_data *);
+
+	struct dnet_config_backend *cfg_current_backend;
+
 	int cfg_addr_num;
 	struct dnet_addr *cfg_addrs;
 
