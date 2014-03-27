@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.13
+Version:	2.24.15.14
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Mar 27 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.14
+- tests: use only bindable ports for test servers
+- cmake: elliptics client must be linked as c++ object because of monitoring support
+- Recovery: fixed returncode for merge.
+- Build: added cxx language property to monitor target.
+- trans: also print total size for IO commands when transaction has been processed on server and destroyed on client
+
 * Wed Mar 19 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.13
 - trans: added IO debug into dnet_process_cmd_raw() and to transaction destruction
 - common: get rid of years unused history maps. Convert IO time in dnet_convert_io_attr()

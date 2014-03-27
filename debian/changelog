@@ -1,3 +1,13 @@
+elliptics (2.24.15.14) unstable; urgency=low
+
+  * tests: use only bindable ports for test servers
+  * cmake: elliptics client must be linked as c++ object because of monitoring support
+  * Recovery: fixed returncode for merge.
+  * Build: added cxx language property to monitor target.
+  * trans: also print total size for IO commands when transaction has been processed on server and destroyed on client
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 27 Mar 2014 19:57:50 +0400
+
 elliptics (2.24.15.13) unstable; urgency=low
 
   * trans: added IO debug into dnet_process_cmd_raw() and to transaction destruction
