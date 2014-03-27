@@ -3,6 +3,7 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/version.hpp>
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/prettywriter.h>
@@ -433,7 +434,12 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		create_directory(base_path);
 		data->directory = directory_handler(base_path, true);
 	} else {
-		base_path = boost::filesystem::absolute(path).string();
+#if BOOST_VERSION >= 104600
+		boost::filesystem::path boost_path = boost::filesystem::absolute(path);
+#else
+		boost::filesystem::path boost_path = boost::filesystem::complete(path, boost::filesystem::current_path());
+#endif
+		base_path = boost_path.string();
 
 		create_directory(base_path);
 		data->directory = directory_handler(base_path, false);
