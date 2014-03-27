@@ -135,22 +135,28 @@ static int run_servers(const rapidjson::Value &doc)
 		return 1;
 	}
 
-	std::vector<tests::config_data> configs;
-	configs.resize(servers.Size(), srw ? tests::config_data::default_srw_value() : tests::config_data::default_value());
+	std::vector<tests::server_config> configs;
+	configs.resize(servers.Size(), srw ? tests::server_config::default_srw_value() : tests::server_config::default_value());
+
+	std::set<int> unique_groups;
 
 	for (rapidjson::SizeType i = 0; i < servers.Size(); ++i) {
 		const rapidjson::Value &server = servers[i];
 
-		tests::config_data &config = configs[i];
+		tests::config_data config;
+
+		if (server.HasMember("group")) {
+			const auto &group = server["group"];
+			if (group.IsInt())
+				unique_groups.insert(group.GetInt());
+		}
 
 		for (auto it = server.MemberBegin(); it != server.MemberEnd(); ++it) {
 			const std::string name(it->name.GetString(), it->name.GetStringLength());
 			const rapidjson::Value &value = it->value;
 
-			if (value.IsNull()) {
-				config(name, tests::NULL_VALUE);
-			} else if (value.IsNumber()) {
-				config(name, value.GetInt());
+			if (value.IsUint64()) {
+				config(name, value.GetUint64());
 			} else if (value.IsString()) {
 				config(name, std::string(value.GetString(), value.GetStringLength()));
 			} else {
@@ -158,6 +164,9 @@ static int run_servers(const rapidjson::Value &doc)
 				return 1;
 			}
 		}
+
+		configs[i].apply_options(config);
+		configs[i].log_path = "/dev/stderr";
 	}
 
 	try {
@@ -169,10 +178,30 @@ static int run_servers(const rapidjson::Value &doc)
 
 #ifdef HAVE_COCAINE
 	if (srw) {
+		const std::vector<int> groups(unique_groups.begin(), unique_groups.end());
+
 		try {
 			tests::upload_application(global_data->locator_port, global_data->directory.path());
 		} catch (std::exception &exc) {
 			std::cerr << "Can not upload application: " << exc.what() << std::endl;
+			global_data.reset();
+			return 1;
+		}
+		try {
+			session sess(*global_data->node);
+			sess.set_groups(groups);
+			tests::start_application(sess, tests::application_name());
+		} catch (std::exception &exc) {
+			std::cerr << "Can not start application: " << exc.what() << std::endl;
+			global_data.reset();
+			return 1;
+		}
+		try {
+			session sess(*global_data->node);
+			sess.set_groups(groups);
+			tests::init_application_impl(sess, tests::application_name(), *global_data);
+		} catch (std::exception &exc) {
+			std::cerr << "Can not init application: " << exc.what() << std::endl;
 			global_data.reset();
 			return 1;
 		}
@@ -191,11 +220,15 @@ static int run_servers(const rapidjson::Value &doc)
 			rapidjson::Value server;
 			server.SetObject();
 
-			server.AddMember("remote", node.remote().c_str(), info.GetAllocator());
-			server.AddMember("monitor", node.monitor_port(), info.GetAllocator());
-
 			rapidjson::Value remote(node.remote().c_str(), node.remote().size(), info.GetAllocator());
-			servers.PushBack(remote, info.GetAllocator());
+			remote.SetString(node.remote().c_str(), info.GetAllocator());
+			server.AddMember("remote", remote, info.GetAllocator());
+
+			rapidjson::Value monitor_port;
+			monitor_port.SetInt(node.monitor_port());
+			server.AddMember("monitor", monitor_port, info.GetAllocator());
+
+			servers.PushBack(server, info.GetAllocator());
 		}
 
 		info.AddMember("servers", servers, info.GetAllocator());

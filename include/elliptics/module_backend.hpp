@@ -39,18 +39,18 @@ public:
 	virtual ~uncomplicated_handler() {};
 };
 
-module_backend_api_t * setup_handler(std::unique_ptr<honest_command_handler> honest_command_handler);
-module_backend_api_t * setup_handler(std::unique_ptr<uncomplicated_handler> uncomplicated_handler);
+module_backend_api_t * setup_handler(struct dnet_log *log, std::unique_ptr<honest_command_handler> honest_command_handler);
+module_backend_api_t * setup_handler(struct dnet_log *log, std::unique_ptr<uncomplicated_handler> uncomplicated_handler);
 
 template<typename T>
-T decorate_exception(std::function<T()> function, const T &error_value)
+T decorate_exception(struct dnet_log *log, std::function<T()> function, const T &error_value)
 {
 	try {
 		return function();
 	} catch (const std::exception &e) {
-		report_module_backend_error(e.what());
+		report_module_backend_error(log, e.what());
 	} catch (...) {
-		report_module_backend_error("Unknown exception: ...");
+		report_module_backend_error(log, "Unknown exception: ...");
 	}
 	return error_value;
 }

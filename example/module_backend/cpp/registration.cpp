@@ -82,16 +82,18 @@ int decorate_elliptics_exception(std::function<int()> function)
 
 int command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
+	module_backend_t *r = static_cast<module_backend_t *>(priv);
 	std::function<int()> handler = std::bind(command_handler_throw, state, priv, cmd, data);
 	std::function<int()> decorated_handler = std::bind(decorate_elliptics_exception, handler);
-	return ell::decorate_exception<int>(decorated_handler, -EINVAL);
+	return ell::decorate_exception<int>(r->config.log, decorated_handler, -EINVAL);
 }
 
 int iterator(dnet_iterator_ctl *ictl)
 {
+	module_backend_t *r = static_cast<module_backend_t *>(ictl->iterate_private);
 	std::function<int()> handler = std::bind(iterator_throw, ictl);
 	std::function<int()> decorated_handler = std::bind(decorate_elliptics_exception, handler);
-	return ell::decorate_exception<int>(decorated_handler, -EINVAL);
+	return ell::decorate_exception<int>(r->config.log, decorated_handler, -EINVAL);
 }
 
 int meta_write_handler(void *priv, struct dnet_raw_id *id, void *data, size_t size)
@@ -104,16 +106,20 @@ int meta_remove_handler(void *priv, struct dnet_raw_id *id, int real_remove)
        return ::dnet_module_db_remove(priv, id, real_remove);
 }
 
-module_backend_api_t * setup_handler_throw(std::unique_ptr<ell::uncomplicated_handler> &uncomplicated_handler)
+module_backend_api_t * setup_handler_throw(struct dnet_log *log,
+	std::unique_ptr<ell::uncomplicated_handler> &uncomplicated_handler)
 {
 	std::unique_ptr<ell::honest_command_handler> honest_command_handler(new ell::honest_command_handler_adaptee(std::move(uncomplicated_handler)));
-	return setup_handler(std::move(honest_command_handler));
+	return setup_handler(log, std::move(honest_command_handler));
 }
 
 }
 
-module_backend_api_t* ell::setup_handler(std::unique_ptr<honest_command_handler> honest_command_handler)
+module_backend_api_t* ell::setup_handler(struct dnet_log *log,
+	std::unique_ptr<honest_command_handler> honest_command_handler)
 {
+	(void) log;
+
 	std::unique_ptr<module_backend_api_t> module_backend_api(new module_backend_api_t);
 	module_backend_api->destroy_handler = destroy_module_backend;
 	module_backend_api->command_handler = command_handler;
@@ -122,10 +128,10 @@ module_backend_api_t* ell::setup_handler(std::unique_ptr<honest_command_handler>
 	return module_backend_api.release();
 }
 
-module_backend_api_t* ell::setup_handler(
+module_backend_api_t* ell::setup_handler(struct dnet_log *log,
 	std::unique_ptr<uncomplicated_handler> uncomplicated_handler
 )
 {
-	std::function<module_backend_api_t *()> function = std::bind(&setup_handler_throw, std::ref(uncomplicated_handler));
-	return decorate_exception<module_backend_api_t *>(function, NULL);
+	std::function<module_backend_api_t *()> function = std::bind(&setup_handler_throw, log, std::ref(uncomplicated_handler));
+	return decorate_exception<module_backend_api_t *>(log, function, NULL);
 }

@@ -39,11 +39,12 @@ static void destroy_global_data()
 
 static void configure_nodes(const std::string &path)
 {
-	global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
-		config_data::default_value()
+	global_data = start_nodes(results_reporter::get_stream(), std::vector<server_config>({
+		server_config::default_value().apply_options(config_data()
 			("group", 5)
 			("cache_size", 100000)
 			("caches_number", 1)
+		)
 	}), path);
 }
 

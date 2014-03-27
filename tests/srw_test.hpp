@@ -5,6 +5,24 @@
 #include <msgpack.hpp>
 #include "test_base.hpp"
 
+#ifndef BOOST_REQUIRE_EQUAL
+# define BOOST_REQUIRE_EQUAL(a, b) do { \
+		if ((a) != (b)) { \
+			std::stringstream error_stream; \
+			error_stream << "error occured at function: " << __PRETTY_FUNCTION__ \
+				<< ", line: " << __LINE__  << ": " << #a << " != " << #b \
+				<< " (" << (a) << " != " << (b) << ")"; \
+			throw std::runtime_error(error_stream.str()); \
+		} \
+	} while (false)
+
+# undef ELLIPTICS_REQUIRE
+# define ELLIPTICS_REQUIRE(result, command) \
+	auto result = (command); \
+	result.wait(); \
+	result.error().throw_error();
+#endif
+
 namespace tests {
 
 struct node_info
@@ -12,6 +30,20 @@ struct node_info
 	std::string path;
 	std::vector<std::string> remotes;
 	std::vector<int> groups;
+
+#ifndef NO_UPPLOAD_APPLICATION
+	static node_info create(nodes_data &data, const std::vector<int> &groups)
+	{
+		node_info info;
+
+		info.groups = groups;
+		info.path = data.directory.path();
+		for (auto it = data.nodes.begin(); it != data.nodes.end(); ++it)
+			info.remotes.push_back(it->remote());
+
+		return info;
+	}
+#endif
 
 	void unpack(const std::string &data)
 	{
@@ -42,11 +74,33 @@ struct node_info
 };
 
 #ifndef NO_UPPLOAD_APPLICATION
+static std::string application_name()
+{
+	return "dnet_cpp_srw_test_app";
+}
+
+static void start_application(session &sess, const std::string &app_name)
+{
+	ELLIPTICS_REQUIRE(result, sess.exec(NULL, app_name + "@start-task", data_pointer()));
+}
+
+static void init_application_impl(session &sess, const std::string &app_name, nodes_data &data)
+{
+	node_info info = node_info::create(data, sess.get_groups());
+
+	ELLIPTICS_REQUIRE(exec_result, sess.exec(NULL, app_name + "@init", info.pack()));
+
+	sync_exec_result result = exec_result;
+	BOOST_REQUIRE_EQUAL(result.size(), sess.get_groups().size());
+	for (auto it = result.begin(); it != result.end(); ++it)
+		BOOST_REQUIRE_EQUAL(it->context().data().to_string(), "inited");
+}
+
 static void upload_application(int locator_port, const std::string &path)
 {
 	using namespace cocaine::framework;
 
-	const std::string app_name("dnet_cpp_srw_test_app");
+	const std::string app_name = application_name();
 
 	service_manager_t::endpoint_t endpoint("127.0.0.1", locator_port);
 	auto manager = service_manager_t::create(endpoint);
