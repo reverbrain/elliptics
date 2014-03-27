@@ -1,6 +1,3 @@
-%if %{defined rhel} && 0%{?rhel} < 6
-%define __python /usr/bin/python2.6
-%endif
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 %{!?python_sitearch: %global python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
 
@@ -15,20 +12,13 @@ URL:		http://www.ioremap.net/projects/elliptics
 Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-%if %{defined rhel} && 0%{?rhel} < 6
-BuildRequires:	python26-devel
-BuildRequires:	gcc44 gcc44-c++
-%else
 BuildRequires:	python-devel
-%endif
+BuildRequires:	libcocaine-core2-devel >= 0.11.2.1
+BuildRequires:  cocaine-framework-native-devel >= 0.11.0.1
 BuildRequires:	eblob-devel >= 0.21.31
 BuildRequires:	cmake msgpack-devel
 
-%if %{defined rhel} && 0%{?rhel} < 6
-%define boost_ver 141
-%else
 %define boost_ver %{nil}
-%endif
 
 BuildRequires:	boost%{boost_ver}-devel, boost%{boost_ver}-iostreams, boost%{boost_ver}-python, boost%{boost_ver}-system, boost%{boost_ver}-thread, boost%{boost_ver}-filesystem
 BuildRequires:	python-virtualenv
@@ -77,14 +67,7 @@ Elliptics client library (C++/Python bindings), devel files
 %build
 export LDFLAGS="-Wl,-z,defs"
 export DESTDIR="%{buildroot}"
-%if %{defined rhel} && 0%{?rhel} < 6
-export PYTHON=/usr/bin/python26
-export CC=gcc44
-export CXX=g++44
-CXXFLAGS="-pthread -I/usr/include/boost%{boost_ver}" LDFLAGS="-L/usr/lib64/boost%{boost_ver}" %{cmake} -DBoost_LIB_DIR=/usr/lib64/boost%{boost_ver} -DBoost_INCLUDE_DIR=/usr/include/boost%{boost_ver} -DBoost_LIBRARYDIR=/usr/lib64/boost%{boost_ver} -DBOOST_LIBRARYDIR=/usr/lib64/boost%{boost_ver} -DWITH_COCAINE=NO -DHAVE_MODULE_BACKEND_SUPPORT=no .
-%else
-%{cmake} -DWITH_COCAINE=NO -DHAVE_MODULE_BACKEND_SUPPORT=no .
-%endif
+%{cmake} -DHAVE_MODULE_BACKEND_SUPPORT=no .
 
 make %{?_smp_mflags}
 
