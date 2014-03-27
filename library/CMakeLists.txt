@@ -40,6 +40,7 @@ add_library(elliptics_client SHARED ${ELLIPTICS_CLIENT_SRCS})
 set_target_properties(elliptics_client PROPERTIES
     VERSION ${ELLIPTICS_VERSION}
     SOVERSION ${ELLIPTICS_VERSION_ABI}
+    LINKER_LANGUAGE CXX
     )
 #target_link_libraries(elliptics_client ${ELLIPTICS_LIBRARIES})
 target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} elliptics_monitor)
