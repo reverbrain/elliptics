@@ -91,7 +91,7 @@ static void init_application_impl(session &sess, const std::string &app_name, no
 	ELLIPTICS_REQUIRE(exec_result, sess.exec(NULL, app_name + "@init", info.pack()));
 
 	sync_exec_result result = exec_result;
-	BOOST_REQUIRE_EQUAL(result.size(), sess.get_groups().size());
+	BOOST_REQUIRE_EQUAL(result.size(), data.nodes.size());
 	for (auto it = result.begin(); it != result.end(); ++it)
 		BOOST_REQUIRE_EQUAL(it->context().data().to_string(), "inited");
 }

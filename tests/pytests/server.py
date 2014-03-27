@@ -24,15 +24,11 @@ sys.path.insert(0, "")  # for running from cmake
 
 class Servers:
     def __init__(self,
-                 log_level=4,
                  groups=[1],
                  without_cocaine=False):
         import json
         import subprocess
-        import time
-        self.log_path = '/dev/stderr'
-        self.log_level = log_level
-        self.path = 'servers'
+        self.path = os.path.join(os.getcwd(), 'servers')
         if os.path.exists(self.path):
             shutil.rmtree(self.path)
         os.mkdir(self.path)
@@ -44,9 +40,7 @@ class Servers:
         for g in groups:
             for i in xrange(3):
                 servers.append({'group': g})
-
         config['servers'] = servers
-
         js = json.dumps(config)
 
         self.p = subprocess.Popen(args=['../dnet_run_servers'],
@@ -54,8 +48,6 @@ class Servers:
                                   stdout=subprocess.PIPE)
 
         self.p.stdin.write(js.lower() + '\0')
-
-        time.sleep(len(groups))
 
         assert self.p.poll() is None
 
@@ -67,13 +59,16 @@ class Servers:
 
         assert self.p.poll() is None
 
-        self.remotes = [str(x) for x in self.config['servers']]
+        self.remotes = [str(x['remote']) for x in self.config['servers']]
+        self.monitors = [str(x['monitor']) for x in self.config['servers']]
 
     def stop(self):
-        self.p.terminate()
-        self.p.wait()
-        assert self.p.poll() == 0
-        shutil.rmtree(self.path)
+        if self.p and self.p.poll() is None:
+            self.p.terminate()
+            self.p.wait()
+
+        if os.path.exists(self.path):
+            shutil.rmtree(self.path)
 
 
 @pytest.fixture(scope='module')
@@ -87,6 +82,7 @@ def server(request):
                       without_cocaine=request.config.option.without_cocaine,)
 
     request.config.option.remotes = servers.remotes
+    request.config.option.monitors = servers.monitors
 
     def fin():
         print "Finilizing Servers"
