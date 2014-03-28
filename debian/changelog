@@ -1,3 +1,10 @@
+elliptics (2.24.15.15) unstable; urgency=low
+
+  * core: do not request route list in reconnect thread if node flags contains DNET_CFG_NO_ROUTE_LIST.
+  * ioclient: added '-f' that provides ability to set node flags.
+
+ -- Kirill Smorodinnikov <shaitan@yandex-team.ru>  Fri, 28 Mar 2014 15:56:21 +0400
+
 elliptics (2.24.15.14) unstable; urgency=low
 
   * tests: use only bindable ports for test servers
