@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.14
+Version:	2.24.15.15
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Mar 28 2014 Kirill Smorodinnikov <shaitan@yandex-team.ru> - 2.24.15.15
+- core: do not request route list in reconnect thread if node flags contains DNET_CFG_NO_ROUTE_LIST.
+- ioclient: added '-f' that provides ability to set node flags.
+
 * Thu Mar 27 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.14
 - tests: use only bindable ports for test servers
 - cmake: elliptics client must be linked as c++ object because of monitoring support
