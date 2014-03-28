@@ -62,6 +62,7 @@ static void dnet_usage(char *p)
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" -m level             - log level\n"
 			" -M level             - set new log level\n"
+			" -f flags             - node flags (see @cfg->flags comments in include/elliptics/interface.h)\n"
 			" -F flags             - change node flags (see @cfg->flags comments in include/elliptics/interface.h)\n"
 			" -O offset            - read/write offset in the file\n"
 			" -S size              - read/write transaction size\n"
@@ -130,7 +131,7 @@ int main(int argc, char *argv[])
 	cfg.wait_timeout = 60;
 	int log_level = DNET_LOG_ERROR;
 
-	while ((ch = getopt(argc, argv, "i:d:C:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:k:I:r:W:R:D:hH")) != -1) {
+	while ((ch = getopt(argc, argv, "i:d:C:A:f:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:k:I:r:W:R:D:hH")) != -1) {
 		switch (ch) {
 			case 'i':
 				ioflags = strtoull(optarg, NULL, 0);
@@ -140,6 +141,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'C':
 				cflags = strtoull(optarg, NULL, 0);
+				break;
+			case 'f':
+				cfg.flags = strtol(optarg, NULL, 0);
 				break;
 			case 'F':
 				node_status.nflags = strtol(optarg, NULL, 0);
@@ -237,6 +241,14 @@ int main(int argc, char *argv[])
 	try {
 		file_logger log(logfile, log_level);
 
+		/*
+		 * Only request stats or start defrag on the single node
+		 */
+		if (single_node_stat && (vfs_stat || io_counter_stat || defrag)) {
+			remote_flags = DNET_CFG_NO_ROUTE_LIST;
+			cfg.flags |= DNET_CFG_NO_ROUTE_LIST;
+		}
+
 		node n(log, cfg);
 		session s(n);
 
@@ -255,12 +267,6 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "You must specify remote address\n");
 			return -EINVAL;
 		}
-
-		/*
-		 * Only request stats or start defrag on the single node
-		 */
-		if (single_node_stat && (vfs_stat || io_counter_stat || defrag))
-			remote_flags = DNET_CFG_NO_ROUTE_LIST;
 
 		err = dnet_add_state(n.get_native(), remote_addr, port, family, remote_flags);
 		if (err)
