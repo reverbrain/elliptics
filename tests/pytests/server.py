@@ -148,43 +148,65 @@ class Server:
         srw_line = 'srw_config = cocaine.cfg'
         if self.without_cocaine:
             srw_line = ''
-        config = '''
-        log = {0}
-        log_level = {1}
-        group = {2}
-        history = {3}
-        io_thread_num = 1
-        net_thread_num = 1
-        nonblocking_io_thread_num = 1
-        join = 1
-        remote = {4}
-        addr = {5}:{6}:2
-        wait_timeout = 5
-        check_timeout = 20
-        auth_cookie = unique_storage_cookie
-        cache_size = 102400
-        indexes_shard_count = 2
-        monitor_port = {7}
-        server_net_prio = 0x20
-        client_net_prio = 6
-        flags = 4
-        {8}
-        backend = blob
-        blob_size = 10M
-        records_in_blob = 10000000
-        blob_flags = 6
-        blob_cache_size = 0
-        defrag_timeout = 3600
-        defrag_percentage = 25
-        sync = 5
-        data = {9}
-        iterate_thread_num = 1
-        '''.format(self.log_path, int(self.log_level), self.group, self.history,
-                   ' '.join(self.remotes), self.addr, self.port, self.monitor_port,
-                   srw_line, self.data_path + '/data')
         config_path = os.path.join(self.name, self.cfg_path)
         with open(config_path, 'w') as f:
-            f.write(config)
+            import json
+            json.dump({
+                "loggers": {
+                        "type": "/dev/stderr",
+                        "level": int(self.log_level),
+                        "root": [
+                                {
+                                        "formatter": {
+                                                "type": "string",
+                                                "pattern": "[%(timestamp)s]: %(message)s [%(...L)s]"
+                                        },
+                                        "sink": {
+                                                "type": "files",
+                                                "path": self.log_path,
+                                                "autoflush": "true"
+                                        }
+                                }
+                        ]
+                },
+                "options": {
+                        "join": 1,
+                        "flags": 4,
+                        "group": self.group,
+                        "remote": self.remotes,
+                        "address": [
+                                '{}:{}:2'.format(self.addr, self.port)
+                        ],
+                        "wait_timeout": 5,
+                        "check_timeout": 20,
+                        "io_thread_num": 1,
+                        "net_thread_num": 1,
+                        "nonblocking_io_thread_num": 1,
+                        "daemon": 0,
+                        "auth_cookie": "unique_storage_cookie",
+                        "bg_ionice_class": 3,
+                        "bg_ionice_prio": 0,
+                        "server_net_prio": 0x20,
+                        "client_net_prio": 6,
+                        "cache_size": 102400,
+                        "indexes_shard_count": 2,
+                        "monitor_port": self.monitor_port,
+                },
+                "backends": [
+                        {
+                                "type": "blob",
+                                "history": self.history,
+                                "data": self.data_path + '/data',
+                                "sync": "5",
+                                "blob_flags": "6",
+                                "blob_size": "10M",
+                                "records_in_blob": "10000000",
+                                "defrag_timeout": "3600",
+                                "defrag_percentage": "25",
+                                "iterate_thread_num": "1"
+                        }
+                ]
+            }, f)
 
     def __create_cocaine_config(self):
         if self.without_cocaine:

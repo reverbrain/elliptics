@@ -125,7 +125,7 @@ class TestSession:
                          getter=getter)
 
     def test_trace_bit(self, server, simple_node):
-        assert elliptics.trace_bit == 2 ** 31
+        assert elliptics.trace_bit == 2 ** 63
 
     def test_resetting_timeout(self, server, simple_node):
         session = elliptics.Session(simple_node)
