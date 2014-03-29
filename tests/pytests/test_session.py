@@ -140,7 +140,7 @@ class TestSession:
                              ('ioflags', 2 ** 32),
                              ('exceptions_policy', 2 ** 32),
                              ('timeout', 2 ** 32),
-                             ('trace_id', 2 ** 32),
+                             ('trace_id', 2 ** 64),
                              ('user_flags', 2 ** 64)])
     def test_properties_out_of_limits(self, server, simple_node, prop, value):
         session = elliptics.Session(simple_node)
