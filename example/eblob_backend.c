@@ -45,7 +45,7 @@
 
 #include "common.h"
 
-#include "reverbrain_react.h"
+#include "react/elliptics_react.h"
 
 /*
  * FIXME: __unused is used internally by glibc, so it may cause conflicts.
@@ -159,7 +159,7 @@ static int blob_iterate(struct eblob_backend_config *c, struct dnet_iterator_ctl
 static int blob_write(struct eblob_backend_config *c, void *state,
 		struct dnet_cmd *cmd, void *data)
 {
-	start_action(ACTION_EBLOB_WRITE);
+	react_start_action(ACTION_BACKEND_EBLOB_WRITE);
 
 	struct dnet_ext_list elist;
 	struct dnet_io_attr *io = data;
@@ -276,14 +276,14 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 
 err_out_exit:
 	dnet_ext_list_destroy(&elist);
-	stop_action(ACTION_EBLOB_WRITE);
+	react_stop_action(ACTION_BACKEND_EBLOB_WRITE);
 	return err;
 }
 
 
 static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data, int last)
 {
-	start_action(ACTION_EBLOB_READ);
+	react_start_action(ACTION_BACKEND_EBLOB_READ);
 
 	struct dnet_ext_list elist;
 	struct dnet_io_attr *io = data;
@@ -418,7 +418,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 err_out_exit:
 	dnet_ext_list_destroy(&elist);
-	stop_action(ACTION_EBLOB_READ);
+	react_stop_action(ACTION_BACKEND_EBLOB_READ);
 	return err;
 }
 
@@ -560,8 +560,8 @@ err_out_exit:
 
 static int blob_read_range(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data)
 {
-	int action_code = (cmd->cmd == DNET_CMD_READ_RANGE) ? ACTION_EBLOB_READ_RANGE : ACTION_EBLOB_DEL_RANGE;
-	start_action(action_code);
+	int action_code = (cmd->cmd == DNET_CMD_READ_RANGE) ? ACTION_BACKEND_EBLOB_READ_RANGE : ACTION_BACKEND_EBLOB_DEL_RANGE;
+	react_start_action(action_code);
 
 	struct eblob_read_range_priv p;
 	struct dnet_io_attr *io = data;
@@ -648,13 +648,13 @@ err_out_exit:
 	if (p.keys)
 		free(p.keys);
 
-	stop_action(action_code);
+	react_stop_action(action_code);
 	return err;
 }
 
 static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 {
-	start_action(ACTION_EBLOB_DEL);
+	react_start_action(ACTION_BACKEND_EBLOB_DEL);
 
 	struct eblob_key key;
 	int err;
@@ -667,13 +667,13 @@ static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 			dnet_dump_id_str(cmd->id.id), err, strerror(-err));
 	}
 
-	stop_action(ACTION_EBLOB_DEL);
+	react_stop_action(ACTION_BACKEND_EBLOB_DEL);
 	return err;
 }
 
 static int blob_file_info(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd)
 {
-	start_action(ACTION_EBLOB_FILE_INFO);
+	react_start_action(ACTION_BACKEND_EBLOB_FILE_INFO);
 
 	struct eblob_backend *b = c->eblob;
 	struct eblob_key key;
@@ -727,7 +727,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 
 err_out_exit:
 	dnet_ext_list_destroy(&elist);
-	stop_action(ACTION_EBLOB_FILE_INFO);
+	react_stop_action(ACTION_BACKEND_EBLOB_FILE_INFO);
 	return err;
 }
 
@@ -770,7 +770,7 @@ err_out_exit:
 
 static int blob_start_defrag(struct eblob_backend_config *c, struct dnet_cmd *cmd, void *data)
 {
-	start_action(ACTION_EBLOB_START_DEFRAG);
+	react_start_action(ACTION_BACKEND_EBLOB_START_DEFRAG);
 
 	struct dnet_defrag_ctl *ctl = data;
 	int err;
@@ -796,13 +796,13 @@ static int blob_start_defrag(struct eblob_backend_config *c, struct dnet_cmd *cm
 	err = ctl->status;
 
 err_out_exit:
-	stop_action(ACTION_EBLOB_START_DEFRAG);
+	react_stop_action(ACTION_BACKEND_EBLOB_START_DEFRAG);
 	return err;
 }
 
 static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
-	start_action(ACTION_EBLOB);
+	react_start_action(ACTION_BACKEND_EBLOB);
 
 	int err;
 	struct eblob_backend_config *c = priv;
@@ -851,7 +851,7 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 			break;
 	}
 
-	stop_action(ACTION_EBLOB);
+	react_stop_action(ACTION_BACKEND_EBLOB);
 	return err;
 }
 

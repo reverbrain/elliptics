@@ -23,7 +23,7 @@
 
 #include "statistics.hpp"
 
-#include "reverbrain_react.hpp"
+#include "react/elliptics_react.hpp"
 
 namespace ioremap { namespace monitor {
 
@@ -34,10 +34,10 @@ public:
 	virtual std::string json() const;
 	virtual bool check_category(int category) const;
 
-	reverbrain_react_manager_t &get_react_manager();
+	react::elliptics_react_manager_t &get_react_manager();
 
 private:
-	reverbrain_react_manager_t react_manager;
+	react::elliptics_react_manager_t react_manager;
 };
 
 }} /* namespace ioremap::monitor */

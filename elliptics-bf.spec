@@ -22,6 +22,7 @@ BuildRequires:	gcc44 gcc44-c++
 BuildRequires:	python-devel
 %endif
 BuildRequires:	eblob-devel >= 0.21.31
+BuildRequires:	react >= 1.0.1
 BuildRequires:	cmake msgpack-devel
 
 %if %{defined rhel} && 0%{?rhel} < 6

@@ -41,7 +41,7 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "reverbrain_react.h"
+#include "react/elliptics_react.h"
 
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 {
@@ -207,7 +207,7 @@ err_out_exit:
 
 static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data __unused)
 {
-	start_action(ACTION_DNET_CMD_REVERSE_LOOKUP);
+	react_start_action(ACTION_DNET_CMD_REVERSE_LOOKUP);
 
 	struct dnet_node *n = st->n;
 	struct dnet_net_state *base;
@@ -244,7 +244,7 @@ err_out_exit:
 		dnet_state_reset(st, err);
 	}
 
-	stop_action(ACTION_DNET_CMD_REVERSE_LOOKUP);
+	react_stop_action(ACTION_DNET_CMD_REVERSE_LOOKUP);
 	return err;
 }
 
@@ -262,7 +262,7 @@ static int dnet_check_connection(struct dnet_node *n, struct dnet_addr *addr)
 
 static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
-	start_action(ACTION_DNET_CMD_JOIN_CLIENT);
+	react_start_action(ACTION_DNET_CMD_JOIN_CLIENT);
 
 	struct dnet_node *n = st->n;
 	struct dnet_addr_container *cnt = data;
@@ -342,13 +342,13 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			idx, cnt->addr_num, n->addr_num, ids_num, err);
 
 err_out_exit:
-	stop_action(ACTION_DNET_CMD_JOIN_CLIENT);
+	react_stop_action(ACTION_DNET_CMD_JOIN_CLIENT);
 	return err;
 }
 
 static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd)
 {
-	start_action(ACTION_DNET_CMD_ROUTE_LIST);
+	react_start_action(ACTION_DNET_CMD_ROUTE_LIST);
 
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
@@ -396,13 +396,13 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 err_out_unlock:
 	pthread_mutex_unlock(&n->state_lock);
 	free(buf);
-	stop_action(ACTION_DNET_CMD_ROUTE_LIST);
+	react_stop_action(ACTION_DNET_CMD_ROUTE_LIST);
 	return err;
 }
 
 static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
-	start_action(ACTION_DNET_CMD_EXEC);
+	react_start_action(ACTION_DNET_CMD_EXEC);
 
 	struct dnet_node *n = st->n;
 	struct sph *e = data;
@@ -425,7 +425,7 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	err = dnet_cmd_exec_raw(st, cmd, e, data);
 
 err_out_exit:
-	stop_action(ACTION_DNET_CMD_EXEC);
+	react_stop_action(ACTION_DNET_CMD_EXEC);
 	return err;
 }
 
@@ -496,7 +496,7 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 
 static int dnet_cmd_stat_count(struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data __unused)
 {
-	start_action(ACTION_DNET_CMD_STAT_COUNT);
+	react_start_action(ACTION_DNET_CMD_STAT_COUNT);
 
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
@@ -530,13 +530,13 @@ err_out_unlock:
 	}
 
 err_out_exit:
-	stop_action(ACTION_DNET_CMD_STAT_COUNT);
+	react_stop_action(ACTION_DNET_CMD_STAT_COUNT);
 	return err;
 }
 
 static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
-	start_action(ACTION_DNET_CMD_STATUS);
+	react_start_action(ACTION_DNET_CMD_STATUS);
 	struct dnet_node *n = orig->n;
 	struct dnet_node_status *st = data;
 
@@ -577,13 +577,13 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 
 	dnet_convert_node_status(st);
 
-	stop_action(ACTION_DNET_CMD_STATUS);
+	react_stop_action(ACTION_DNET_CMD_STATUS);
 	return dnet_send_reply(orig, cmd, st, sizeof(struct dnet_node_status), 1);
 }
 
 static int dnet_cmd_auth(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
-	start_action(ACTION_DNET_CMD_AUTH);
+	react_start_action(ACTION_DNET_CMD_AUTH);
 	struct dnet_node *n = orig->n;
 	struct dnet_auth *a = data;
 	int err = 0;
@@ -602,7 +602,7 @@ static int dnet_cmd_auth(struct dnet_net_state *orig, struct dnet_cmd *cmd __unu
 	}
 
 err_out_exit:
-	stop_action(ACTION_DNET_CMD_AUTH);
+	react_stop_action(ACTION_DNET_CMD_AUTH);
 	return err;
 }
 
@@ -931,7 +931,7 @@ err_out_exit:
  */
 static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
-	start_action(ACTION_DNET_CMD_ITERATOR);
+	react_start_action(ACTION_DNET_CMD_ITERATOR);
 
 	struct dnet_iterator_request *ireq = data;
 	struct dnet_iterator_range *irange = data + sizeof(struct dnet_iterator_request);
@@ -972,7 +972,7 @@ err_out_exit:
 	dnet_log(st->n, DNET_LOG_NOTICE,
 			"%s: finished: %s: id: %" PRIu64 ", action: %d, err: %d\n",
 			__func__, dnet_dump_id(&cmd->id), ireq->id, ireq->action, err);
-	stop_action(ACTION_DNET_CMD_ITERATOR);
+	react_stop_action(ACTION_DNET_CMD_ITERATOR);
 	return err;
 }
 
@@ -1091,22 +1091,28 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	long diff;
 	int handled_in_cache = 0;
 
-	void *thread_call_tree;
 	int call_tree_was_created = 0;
+	struct react_call_tree_t *call_tree = NULL;
+	struct react_call_tree_updater_t *call_tree_updater = NULL;
 
 	if (n->monitor) {
-		if (!call_tree_is_set()) {
-			err = init_call_tree(&thread_call_tree);
-			if (err) {
-				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init call tree\n");
+		if (!react_is_active()) {
+			call_tree = react_create_call_tree();
+			if (call_tree) {
+				call_tree_updater = react_create_call_tree_updater(call_tree);
+			}
+
+			if (!call_tree || !call_tree_updater) {
+				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init react\n");
+				err = -ENOMEM;
+				abort();
 			} else {
-				init_updater(thread_call_tree);
 				call_tree_was_created = 1;
 			}
 		}
 	}
 
-	start_action(ACTION_DNET_PROCESS_CMD_RAW);
+	react_start_action(ACTION_DNET_PROCESS_CMD_RAW);
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
 		dnet_oplock(n, &cmd->id);
@@ -1172,13 +1178,13 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				err = dnet_notify_remove(st, cmd);
 			break;
 		case DNET_CMD_BULK_READ:
-			start_action(ACTION_DNET_CMD_BULK_READ);
+			react_start_action(ACTION_DNET_CMD_BULK_READ);
 			err = n->cb->command_handler(st, n->cb->command_private, cmd, data);
 
 			if (err == -ENOTSUP) {
 				err = dnet_cmd_bulk_read(st, cmd, data);
 			}
-			stop_action(ACTION_DNET_CMD_BULK_READ);
+			react_stop_action(ACTION_DNET_CMD_BULK_READ);
 			break;
 		case DNET_CMD_MONITOR_STAT:
 			err = dnet_monitor_process_cmd(st, cmd, data);
@@ -1297,12 +1303,12 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
 		dnet_opunlock(n, &cmd->id);
 
-	stop_action(ACTION_DNET_PROCESS_CMD_RAW);
+	react_stop_action(ACTION_DNET_PROCESS_CMD_RAW);
 
 	if (call_tree_was_created) {
-		cleanup_updater();
-		merge_call_tree(thread_call_tree, n->react_manager);
-		cleanup_call_tree(thread_call_tree);
+		react_cleanup_call_tree_updater(call_tree_updater);
+		elliptics_react_merge_call_tree(call_tree, n->react_manager);
+		react_cleanup_call_tree(call_tree);
 	}
 
 	return err;

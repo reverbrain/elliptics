@@ -12,7 +12,9 @@ set_target_properties(elliptics_monitor PROPERTIES
     LINKER_LANGUAGE CXX
     )
 
-target_link_libraries(elliptics_monitor ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} reverbrain_react)
+target_link_libraries(elliptics_monitor ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} elliptics_react)
+
+add_subdirectory(react)
 
 install(TARGETS elliptics_monitor
     EXPORT EllipticsTargets
