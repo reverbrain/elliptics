@@ -13,8 +13,8 @@ Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:	python-devel
-BuildRequires:	libcocaine-core2-devel >= 0.11.2.1
-BuildRequires:  cocaine-framework-native-devel >= 0.11.0.1
+#BuildRequires:	libcocaine-core2-devel >= 0.11.2.1
+#BuildRequires:  cocaine-framework-native-devel >= 0.11.0.1
 BuildRequires:	eblob-devel >= 0.21.31
 BuildRequires:	cmake msgpack-devel
 
@@ -67,7 +67,7 @@ Elliptics client library (C++/Python bindings), devel files
 %build
 export LDFLAGS="-Wl,-z,defs"
 export DESTDIR="%{buildroot}"
-%{cmake} -DHAVE_MODULE_BACKEND_SUPPORT=no .
+%{cmake} -DHAVE_MODULE_BACKEND_SUPPORT=no -DWITH_COCAINE=OFF .
 
 make %{?_smp_mflags}
 
