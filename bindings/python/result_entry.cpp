@@ -36,7 +36,7 @@ elliptics_id index_entry_get_index(index_entry &result)
 
 void index_entry_set_index(index_entry &result, const elliptics_id &id)
 {
-	result.index = id.raw_id();
+	memcpy(result.index.id, id.id().id, DNET_ID_SIZE);
 }
 
 std::string index_entry_get_data(index_entry &result)
