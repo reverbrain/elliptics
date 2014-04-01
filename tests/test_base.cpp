@@ -3,6 +3,7 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/version.hpp>
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/prettywriter.h>
@@ -149,9 +150,9 @@ server_config server_config::default_value()
 			("flags", 4)
 			("wait_timeout", 60)
 			("check_timeout", 60)
-			("io_thread_num", 50)
-			("nonblocking_io_thread_num", 16)
-			("net_thread_num", 16)
+			("io_thread_num", 4)
+			("nonblocking_io_thread_num", 4)
+			("net_thread_num", 2)
 			("indexes_shard_count", 16)
 			("daemon", 0)
 			("bg_ionice_class", 3)
@@ -352,9 +353,48 @@ dnet_node *server_node::get_native()
 	return m_node;
 }
 
+static bool is_bindable(int port)
+{
+	const int family = AF_INET;
+	int s = ::socket(family, SOCK_STREAM, IPPROTO_TCP);
+	if (s < 0) {
+		int err = -errno;
+		throw std::runtime_error("Failed to create socket for family: "
+			+ boost::lexical_cast<std::string>(family)
+			+ ", err: "
+			+ ::strerror(-err)
+			+ ", "
+			+ boost::lexical_cast<std::string>(err));
+	}
+
+	dnet_addr addr;
+	addr.addr_len = sizeof(addr.addr);
+	addr.family = family;
+
+	int err = dnet_fill_addr(&addr, "localhost", port, SOCK_STREAM, IPPROTO_TCP);
+
+	if (err) {
+		::close(s);
+		throw std::runtime_error(std::string("Failed to parse address: ") + strerror(-err)
+			+ ", " + boost::lexical_cast<std::string>(err));
+	}
+
+	int salen = addr.addr_len;
+	struct sockaddr *sa = reinterpret_cast<struct sockaddr *>(addr.addr);
+
+	err = 0;
+	::setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &err, 4);
+	err = ::bind(s, sa, salen);
+	::close(s);
+
+	return (err == 0);
+}
+
 static std::vector<std::string> generate_ports(size_t count, std::set<std::string> &ports)
 {
 	std::vector<std::string> result;
+
+	size_t bind_errors_count = 0;
 
 	while (result.size() < count) {
 		// Random port from 10000 to 60000
@@ -362,6 +402,13 @@ static std::vector<std::string> generate_ports(size_t count, std::set<std::strin
 		std::string port_str = boost::lexical_cast<std::string>(port);
 		if (ports.find(port_str) != ports.end())
 			continue;
+
+		if (!is_bindable(port)) {
+			if (++bind_errors_count >= 10) {
+				throw std::runtime_error("Failed to find enough count of bindable ports for elliptics servers");
+			}
+			continue;
+		}
 
 		result.push_back(port_str);
 		ports.insert(port_str);
@@ -433,7 +480,12 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		create_directory(base_path);
 		data->directory = directory_handler(base_path, true);
 	} else {
-		base_path = boost::filesystem::absolute(path).string();
+#if BOOST_VERSION >= 104600
+		boost::filesystem::path boost_path = boost::filesystem::absolute(path);
+#else
+		boost::filesystem::path boost_path = boost::filesystem::complete(path, boost::filesystem::current_path());
+#endif
+		base_path = boost_path.string();
 
 		create_directory(base_path);
 		data->directory = directory_handler(base_path, false);

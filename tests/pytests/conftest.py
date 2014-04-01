@@ -28,10 +28,6 @@ def pytest_addoption(parser):
     parser.addoption('--groups', action='store', help='elliptics groups', default='1,2,3')
     parser.addoption('--loglevel', type='choice', choices=xrange(5), default=1)
 
-    parser.addoption('--source_dir', action='store', default=None,
-                     help='Source dir')
-    parser.addoption('--binary_dir', action='store', default=None,
-                     help='Binary dir')
     parser.addoption('--without-cocaine', action='store_true', default=False,
                      help='Turns off exec tests that are connected with cocaine')
 

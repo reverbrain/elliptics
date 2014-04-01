@@ -387,7 +387,7 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_notify_exit(n);
 
 	if (n->config_data)
-		dnet_config_data_destroy(n->config_data);
+		n->config_data->destroy_config_data(n->config_data);
 
 	free(n);
 }

@@ -516,7 +516,9 @@ def main(ctx):
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
     ret = True
-    for group in g_ctx.groups:
+    if ctx.one_node:
+        ctx.groups = [ctx.address.group_id]
+    for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
         group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
         group_stats.timer('group', 'started')
@@ -524,6 +526,8 @@ def main(ctx):
         ranges = get_ranges(ctx, group)
 
         if ranges is None:
+            log.warning("There is no ranges in group: {0}, skipping this group".format(group))
+            group_stats.timer('group', 'finished')
             continue
 
         pool_results = []
