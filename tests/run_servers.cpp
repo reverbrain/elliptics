@@ -97,7 +97,6 @@ static int run_servers(const rapidjson::Value &doc)
 {
 	bool srw = false;
 
-#ifdef HAVE_COCAINE
 	if (doc.HasMember("srw")) {
 		if (!doc["srw"].IsBool()) {
 			std::cout << "Field \"srw\" must be boolean" << std::endl;
@@ -105,8 +104,9 @@ static int run_servers(const rapidjson::Value &doc)
 		}
 		srw = doc["srw"].GetBool();
 	}
-#else
-	if (doc.HasMember("srw")) {
+
+#ifndef HAVE_COCAINE
+	if (srw) {
 		std::cerr << "There is no srw support" << std::endl;
 		return 1;
 	}

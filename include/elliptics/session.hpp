@@ -729,30 +729,124 @@ class session
 		 */
 		async_write_result bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<std::string> &data);
 
+		/*!
+		 * \brief Set \a indexes for object \a id.
+		 *
+		 * It removes object from all indexes which are not in the list \a indexes.
+		 * All data in existen indexes are replaced by so from \a indexes.
+		 *
+		 * Returns async_set_indexes_result.
+		 */
 		async_set_indexes_result set_indexes(const key &id, const std::vector<index_entry> &indexes);
+		/*!
+		 * \overload
+		 */
 		async_set_indexes_result set_indexes(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
+		/*!
+		 * \brief Update \a indexes for object \a id.
+		 *
+		 * Adds/updates data for \a indexes. This method doesn't modify any indexes not from the \a indexes list.
+		 *
+		 * Returns async_set_indexes_result.
+		 */
 		async_set_indexes_result update_indexes(const key &id, const std::vector<index_entry> &indexes);
+		/*!
+		 * \overload
+		 */
 		async_set_indexes_result update_indexes(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
+		/*!
+		 * \brief Adds object \a id to capped collection \a index.
+		 *
+		 * As object is added to capped collection it displaces the oldest object from it in case if
+		 * the \a limit is reached.
+		 *
+		 * If \a remove_data is true in addition to displacing of the object it's data is also removed from the storage.
+		 *
+		 * \note The \a limit is satisfied for each shard and not for whole collection.
+		 *
+		 * Returns async_generic_result.
+		 */
 		async_generic_result add_to_capped_collection(const key &id, const index_entry &index, int limit, bool remove_data);
+		/*!
+		 * \brief Removes \a id from \a indexes.
+		 *
+		 * It doesn't affect this object in any other indexes.
+		 *
+		 * Returns async_set_indexes_result.
+		 */
 		async_set_indexes_result remove_indexes(const key &id, const std::vector<dnet_raw_id> &indexes);
+		/*!
+		 * \overload
+		 */
 		async_set_indexes_result remove_indexes(const key &id, const std::vector<std::string> &indexes);
+		/*!
+		 * \internal
+		 */
 		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<index_entry> &indexes);
+		/*!
+		 * \internal
+		 */
 		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
+		/*!
+		 * \internal
+		 */
 		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<dnet_raw_id> &indexes);
+		/*!
+		 * \internal
+		 */
 		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<std::string> &indexes);
+		/*!
+		 * \internal
+		 */
 		async_generic_result remove_index_internal(const dnet_raw_id &id);
+		/*!
+		 * \internal
+		 */
 		async_generic_result remove_index_internal(const std::string &id);
+		/*!
+		 * \brief Removes the index \a id.
+		 *
+		 * Removes all objects previously added to index \a id from it.
+		 *
+		 * If \a remove_data is true method also removes all data of that objects from the storage.
+		 *
+		 * Returns async_generic_result.
+		 */
 		async_generic_result remove_index(const dnet_raw_id &id, bool remove_data);
+		/*!
+		 * \overload
+		 */
 		async_generic_result remove_index(const std::string &id, bool remove_data);
 
+		/*!
+		 * \brief Find all objects which contains all indexes from \a indexes.
+		 *
+		 * Returns async_find_indexes_result.
+		 */
 		async_find_indexes_result find_all_indexes(const std::vector<dnet_raw_id> &indexes);
+		/*!
+		 * \overload
+		 */
 		async_find_indexes_result find_all_indexes(const std::vector<std::string> &indexes);
+		/*!
+		 * \brief Find all objects which contains at least one of indexes from \a indexes.
+		 *
+		 * Returns async_find_indexes_result.
+		 */
 		async_find_indexes_result find_any_indexes(const std::vector<dnet_raw_id> &indexes);
+		/*!
+		 * \overload
+		 */
 		async_find_indexes_result find_any_indexes(const std::vector<std::string> &indexes);
 
+		/*!
+		 * \brief List all indexes where \a id is added.
+		 *
+		 * Returns async_list_indexes_result.
+		 */
 		async_list_indexes_result list_indexes(const key &id);
 
 		/*!
