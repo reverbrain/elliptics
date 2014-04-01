@@ -5,7 +5,7 @@ Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
 Build-Depends:	cdbs,
 		cmake (>= 2.6),
 		debhelper (>= 7.0.50~),
-		eblob (>= 0.21.31),
+		eblob (>= 0.21.32),
 		react (>= 1.0.1),
 		libboost-dev,
 		libboost-iostreams-dev,
@@ -29,7 +29,7 @@ XS-Python-Version: >= 2.6
 
 Package: elliptics
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.21.31), elliptics-client (= ${Source-Version}), libcocaine-core2
+Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.21.32), elliptics-client (= ${Source-Version}), libcocaine-core2
 Replaces: elliptics-2.10, srw
 Provides: elliptics-2.10
 XB-Python-Version: >= 2.6
