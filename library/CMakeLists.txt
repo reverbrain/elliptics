@@ -20,7 +20,6 @@ set(ELLIPTICS_SRCS
     server.c
     )
 
-
 add_library(elliptics_ids STATIC ids.cpp)
 if(UNIX OR MINGW)
     set_target_properties(elliptics_ids PROPERTIES COMPILE_FLAGS "-fPIC")
@@ -33,7 +32,7 @@ set_target_properties(elliptics PROPERTIES
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     LINKER_LANGUAGE CXX
     )
-target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids elliptics_monitor reverbrain_react)
+target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids elliptics_monitor elliptics_react)
 
 
 add_library(elliptics_client SHARED ${ELLIPTICS_CLIENT_SRCS})

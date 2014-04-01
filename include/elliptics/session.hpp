@@ -365,8 +365,8 @@ class session
 		/*!
 		 * Sets/gets trace_id for all elliptics commands
 		 */
-		void			set_trace_id(uint32_t trace_id);
-		uint32_t		get_trace_id();
+		void			set_trace_id(uint64_t trace_id);
+		uint64_t get_trace_id();
 
 		/*!
 		 * Read file by key \a id to \a file by \a offset and \a size.

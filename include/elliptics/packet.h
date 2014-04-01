@@ -161,7 +161,7 @@ enum dnet_monitor_categories {
 struct dnet_id {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		group_id;
-	uint32_t		trace_id;
+	uint64_t		trace_id;
 } __attribute__ ((packed));
 
 struct dnet_raw_id {

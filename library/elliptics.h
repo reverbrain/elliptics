@@ -63,7 +63,7 @@ struct dnet_node;
 struct dnet_group;
 struct dnet_net_state;
 
-extern __thread uint32_t trace_id;
+extern __thread uint64_t trace_id;
 
 #define dnet_log(n, level, format, a...)							\
 	do {											\

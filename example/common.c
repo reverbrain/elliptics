@@ -45,7 +45,7 @@
 #define DNET_CONF_DELIM		'='
 #define DNET_CONF_TIME_DELIM	'.'
 
-extern __thread uint32_t trace_id;
+extern __thread uint64_t trace_id;
 
 int dnet_parse_groups(char *value, int **groupsp)
 {
@@ -116,7 +116,7 @@ void dnet_common_log(void *priv, int level, const char *msg)
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	fprintf(stream, "%s.%06lu %u/%ld/%4d %1x: %s", str, tv.tv_usec, trace_id & ~DNET_TRACE_BIT, dnet_get_id(), getpid(), level, msg);
+	fprintf(stream, "%s.%06lu %llu/%ld/%4d %1x: %s", str, tv.tv_usec, trace_id & ~DNET_TRACE_BIT, dnet_get_id(), getpid(), level, msg);
 	fflush(stream);
 }
 
@@ -136,7 +136,7 @@ void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	syslog(prio, "%s.%06lu %u/%ld/%4d %1x: %s", str, tv.tv_usec, trace_id & ~DNET_TRACE_BIT, dnet_get_id(), getpid(), level, msg);
+	syslog(prio, "%s.%06lu %llu/%ld/%4d %1x: %s", str, tv.tv_usec, trace_id & ~DNET_TRACE_BIT, dnet_get_id(), getpid(), level, msg);
 }
 
 int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)

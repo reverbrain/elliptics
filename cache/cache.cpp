@@ -204,7 +204,7 @@ using namespace ioremap::cache;
 
 int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data)
 {
-	auto cache_guard(make_action_guard(ACTION_CACHE));
+	react::action_guard cache_guard(ACTION_CACHE);
 
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
@@ -266,7 +266,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_indexes_request *request)
 {
-	auto cache_guard(make_action_guard(ACTION_CACHE));
+	react::action_guard cache_guard(ACTION_CACHE);
 
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
@@ -301,7 +301,7 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 
 int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
-	auto cache_guard(make_action_guard(ACTION_CACHE));
+	react::action_guard cache_guard(ACTION_CACHE);
 
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
