@@ -510,7 +510,7 @@ static inline char *dnet_server_convert_addr_raw(struct sockaddr *sa, unsigned i
 
 static inline char *dnet_server_convert_addr(struct sockaddr *sa, unsigned int len)
 {
-	static char __inet_addr[128];
+	static __thread char __inet_addr[128];
 	return dnet_server_convert_addr_raw(sa, len, __inet_addr, sizeof(__inet_addr));
 }
 
@@ -541,7 +541,7 @@ static inline char *dnet_server_convert_dnet_addr_raw(const struct dnet_addr *ad
 
 static inline char *dnet_server_convert_dnet_addr(const struct dnet_addr *sa)
 {
-	static char ___inet_addr[128];
+	static __thread char ___inet_addr[128];
 	return dnet_server_convert_dnet_addr_raw(sa, ___inet_addr, sizeof(___inet_addr));
 }
 
@@ -561,7 +561,7 @@ static inline char *dnet_print_time(const struct dnet_time *t)
 	char str[64];
 	struct tm tm;
 
-	static char __dnet_print_time[128];
+	static __thread char __dnet_print_time[128];
 
 	localtime_r((time_t *)&t->tsec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
@@ -638,7 +638,7 @@ static inline char *dnet_dump_id_len_raw(const unsigned char *id, unsigned int l
 
 static inline char *dnet_dump_id_len(const struct dnet_id *id, unsigned int len)
 {
-	static char __dnet_dump_str[2 * DNET_ID_SIZE + 16 + 3];
+	static __thread char __dnet_dump_str[2 * DNET_ID_SIZE + 16 + 3];
 	char tmp[2*DNET_ID_SIZE + 1];
 	char tmp2[2*DNET_ID_SIZE + 1];
 
@@ -665,7 +665,7 @@ static inline char *dnet_dump_id(const struct dnet_id *id)
 
 static inline char *dnet_dump_id_str(const unsigned char *id)
 {
-	static char __dnet_dump_id_str[2 * DNET_ID_SIZE + 1];
+	static __thread char __dnet_dump_id_str[2 * DNET_ID_SIZE + 1];
 	return dnet_dump_id_len_raw(id, DNET_DUMP_NUM, __dnet_dump_id_str);
 }
 
