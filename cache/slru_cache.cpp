@@ -43,8 +43,7 @@ slru_cache_t::~slru_cache_t() {
 }
 
 int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
-	react::action_guard write_guard(ACTION_CACHE_WRITE)
-;
+	react::action_guard write_guard(ACTION_CACHE_WRITE);
 
 	const size_t lifetime = io->start;
 	const size_t size = io->size;
@@ -69,8 +68,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	// Optimization for append-only commands
 	if (!cache_only) {
 		if (append && (!it || it->only_append())) {
-			react::action_guard write_append_only_guard(ACTION_CACHE_WRITE_APPEND_ONLY)
-;
+			react::action_guard write_append_only_guard(ACTION_CACHE_WRITE_APPEND_ONLY);
 
 			bool new_page = false;
 			if (!it) {
@@ -118,8 +116,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 			cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			return dnet_send_file_info_ts_without_fd(st, cmd, data, io->size, &io->timestamp);
 		} else if (it && it->only_append()) {
-			react::action_guard write_after_append_only_guard(ACTION_CACHE_WRITE_AFTER_APPEND_ONLY)
-;
+			react::action_guard write_after_append_only_guard(ACTION_CACHE_WRITE_AFTER_APPEND_ONLY);
 
 			sync_after_append(guard, false, &*it);
 
@@ -158,8 +155,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	raw_data_t &raw = *it->data();
 
 	if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
-		react::action_guard cas_guard(ACTION_CACHE_CAS)
-;
+		react::action_guard cas_guard(ACTION_CACHE_CAS);
 
 		// Data is already in memory, so it's free to use it
 		// raw.size() is zero only if there is no such file on the server
@@ -240,8 +236,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 }
 
 std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
-	react::action_guard read_guard(ACTION_CACHE_READ)
-;
+	react::action_guard read_guard(ACTION_CACHE_READ);
 
 	const bool cache = (io->flags & DNET_IO_FLAGS_CACHE);
 	const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
@@ -292,8 +287,7 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 }
 
 int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
-	react::action_guard remove_guard(ACTION_CACHE_REMOVE)
-;
+	react::action_guard remove_guard(ACTION_CACHE_REMOVE);
 
 	const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
 	bool remove_from_disk = !cache_only;
@@ -349,8 +343,7 @@ int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 }
 
 int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
-	react::action_guard lookup_guard(ACTION_CACHE_LOOKUP)
-;
+	react::action_guard lookup_guard(ACTION_CACHE_LOOKUP);
 
 	int err = 0;
 
@@ -398,8 +391,7 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 }
 
 void slru_cache_t::clear() {
-	react::action_guard clear_guard(ACTION_CACHE_CLEAR)
-;
+	react::action_guard clear_guard(ACTION_CACHE_CLEAR);
 
 	std::vector<size_t> cache_pages_max_sizes = m_cache_pages_max_sizes;
 
@@ -435,8 +427,7 @@ cache_stats slru_cache_t::get_cache_stats() const {
 
 
 void slru_cache_t::sync_if_required(data_t* it, elliptics_unique_lock<std::mutex> &guard) {
-	react::action_guard sync_if_required_guard(ACTION_CACHE_SYNC_BEFORE_OPERATION)
-;
+	react::action_guard sync_if_required_guard(ACTION_CACHE_SYNC_BEFORE_OPERATION);
 
 	if (it && it->is_syncing()) {
 		dnet_id id;
@@ -465,8 +456,7 @@ void slru_cache_t::sync_if_required(data_t* it, elliptics_unique_lock<std::mutex
 }
 
 void slru_cache_t::insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data) {
-	react::action_guard add_to_page_guard(ACTION_CACHE_ADD_TO_PAGE)
-;
+	react::action_guard add_to_page_guard(ACTION_CACHE_ADD_TO_PAGE);
 
 	elliptics_timer timer;
 	size_t size = data->size();
@@ -493,8 +483,7 @@ void slru_cache_t::remove_data_from_page(const unsigned char *id, size_t page_nu
 }
 
 void slru_cache_t::move_data_between_pages(const unsigned char *id, size_t source_page_number, size_t destination_page_number, data_t *data) {
-	react::action_guard move_data_between_pages_guard(ACTION_CACHE_MOVE_RECORD)
-;
+	react::action_guard move_data_between_pages_guard(ACTION_CACHE_MOVE_RECORD);
 
 	if (source_page_number != destination_page_number) {
 		remove_data_from_page(id, source_page_number, data);
@@ -503,8 +492,7 @@ void slru_cache_t::move_data_between_pages(const unsigned char *id, size_t sourc
 }
 
 data_t* slru_cache_t::create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk) {
-	react::action_guard create_guard(ACTION_CACHE_CREATE_DATA)
-;
+	react::action_guard create_guard(ACTION_CACHE_CREATE_DATA);
 
 	size_t last_page_number = m_cache_pages_number - 1;
 
@@ -519,8 +507,7 @@ data_t* slru_cache_t::create_data(const unsigned char *id, const char *data, siz
 }
 
 data_t* slru_cache_t::populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err) {
-	react::action_guard populate_from_disk_guard(ACTION_CACHE_POPULATE_FROM_DISK)
-;
+	react::action_guard populate_from_disk_guard(ACTION_CACHE_POPULATE_FROM_DISK);
 
 	if (guard.owns_lock()) {
 		guard.unlock();
@@ -562,8 +549,7 @@ bool slru_cache_t::have_enough_space(const unsigned char *id, size_t page_number
 }
 
 void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size_t reserve) {
-	react::action_guard resize_page_guard(ACTION_CACHE_RESIZE_PAGE)
-;
+	react::action_guard resize_page_guard(ACTION_CACHE_RESIZE_PAGE);
 
 	size_t removed_size = 0;
 	size_t &cache_size = m_cache_pages_sizes[page_number];
@@ -606,8 +592,7 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 }
 
 void slru_cache_t::erase_element(data_t *obj) {
-	react::action_guard erase_element_guard(ACTION_CACHE_ERASE)
-;
+	react::action_guard erase_element_guard(ACTION_CACHE_ERASE);
 
 	if (obj->will_be_erased()) {
 		if (!obj->remove_from_cache()) {
@@ -638,8 +623,7 @@ void slru_cache_t::erase_element(data_t *obj) {
 }
 
 void slru_cache_t::sync_element(const dnet_id &raw, bool after_append, const std::vector<char> &data, uint64_t user_flags, const dnet_time &timestamp) {
-	react::action_guard sync_guard(ACTION_CACHE_SYNC)
-;
+	react::action_guard sync_guard(ACTION_CACHE_SYNC);
 
 	local_session sess(m_node);
 	sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | (after_append ? DNET_IO_FLAGS_APPEND : 0));
@@ -663,8 +647,7 @@ void slru_cache_t::sync_element(data_t *obj) {
 }
 
 void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, bool lock_guard, data_t *obj) {
-	react::action_guard sync_after_append_guard(ACTION_CACHE_SYNC_AFTER_APPEND)
-;
+	react::action_guard sync_after_append_guard(ACTION_CACHE_SYNC_AFTER_APPEND);
 
 	std::shared_ptr<raw_data_t> raw_data = obj->data();
 

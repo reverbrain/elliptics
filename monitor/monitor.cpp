@@ -148,8 +148,7 @@ void dnet_monitor_init_react_stat_provider(struct dnet_node *n) {
 
 int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
-	react::action_guard monitor_process_cmd_guard(ACTION_DNET_MONITOR_PROCESS_CMD)
-;
+	react::action_guard monitor_process_cmd_guard(ACTION_DNET_MONITOR_PROCESS_CMD);
 
 	struct dnet_node *n = orig->n;
 	struct dnet_monitor_stat_request *req = static_cast<struct dnet_monitor_stat_request *>(data);

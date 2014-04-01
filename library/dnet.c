@@ -1102,10 +1102,8 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				call_tree_updater = react_create_call_tree_updater(call_tree);
 			}
 
-			if (!call_tree || !call_tree_updater) {
+			if (!call_tree_updater) {
 				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init react\n");
-				err = -ENOMEM;
-				abort();
 			} else {
 				call_tree_was_created = 1;
 			}
