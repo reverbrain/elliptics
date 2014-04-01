@@ -13,16 +13,14 @@
  * GNU Lesser General Public License for more details.
  */
 
+#include "srw_test.hpp"
 #include "test_base.hpp"
 #include <algorithm>
-#include <cocaine/framework/services/storage.hpp>
 
 #define BOOST_TEST_NO_MAIN
 #include <boost/test/included/unit_test.hpp>
 
 #include <boost/program_options.hpp>
-
-#include "srw_test.hpp"
 
 using namespace ioremap::elliptics;
 using namespace boost::unit_test;
@@ -34,95 +32,19 @@ static std::shared_ptr<nodes_data> global_data;
 static void configure_nodes(const std::vector<std::string> &remotes, const std::string &path)
 {
 	if (remotes.empty()) {
-		global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
-			config_data::default_srw_value()
+		global_data = start_nodes(results_reporter::get_stream(), std::vector<server_config>({
+			server_config::default_srw_value().apply_options(config_data()
 				("group", 1)
-				("srw_config", "some_path")
+			)
 		}), path);
 	} else {
 		global_data = start_nodes(results_reporter::get_stream(), remotes, path);
 	}
 }
 
-static void upload_application(const std::string &app_name)
-{
-	using namespace cocaine::framework;
-
-	service_manager_t::endpoint_t endpoint("127.0.0.1", global_data->locator_port);
-	auto manager = service_manager_t::create(endpoint);
-
-	auto storage = manager->get_service<storage_service_t>("storage");
-
-	const std::vector<std::string> app_tags = {
-		"apps"
-	};
-	const std::vector<std::string> profile_tags = {
-		"profiles"
-	};
-
-	msgpack::sbuffer buffer;
-	{
-		msgpack::packer<msgpack::sbuffer> packer(buffer);
-		packer.pack_map(1);
-		packer << std::string("isolate");
-		packer.pack_map(2);
-		packer << std::string("type");
-		packer << std::string("process");
-		packer << std::string("args");
-		packer.pack_map(1);
-		packer << std::string("spool");
-		packer << global_data->directory.path();
-	}
-	std::string profile(buffer.data(), buffer.size());
-	{
-		buffer.clear();
-		msgpack::packer<msgpack::sbuffer> packer(buffer);
-		packer.pack_map(2);
-		packer << std::string("type");
-		packer << std::string("binary");
-		packer << std::string("slave");
-		packer << app_name;
-	}
-	std::string manifest(buffer.data(), buffer.size());
-	{
-		buffer.clear();
-		msgpack::packer<msgpack::sbuffer> packer(buffer);
-		packer << read_file(COCAINE_TEST_APP);
-	}
-	std::string app(buffer.data(), buffer.size());
-
-	storage->write("manifests", app_name, manifest, app_tags).next();
-	storage->write("profiles", app_name, profile, profile_tags).next();
-	storage->write("apps", app_name, app, profile_tags).next();
-}
-
-static void start_application(session &sess, const std::string &app_name)
-{
-	key key_id = app_name;
-	key_id.transform(sess);
-	dnet_id id = key_id.id();
-
-	ELLIPTICS_REQUIRE(result, sess.exec(&id, app_name + "@start-task", data_pointer()));
-}
-
 static void init_application(session &sess, const std::string &app_name)
 {
-	key key_id = app_name;
-	key_id.transform(sess);
-	dnet_id id = key_id.id();
-
-	node_info info;
-	info.groups = { 1 };
-	info.path = global_data->directory.path();
-
-	for (auto it = global_data->nodes.begin(); it != global_data->nodes.end(); ++it)
-		info.remotes.push_back(it->remote());
-
-	ELLIPTICS_REQUIRE(exec_result, sess.exec(&id, app_name + "@init", info.pack()));
-
-	sync_exec_result result = exec_result;
-	BOOST_REQUIRE_EQUAL(result.size(), 1);
-	BOOST_REQUIRE_EQUAL(result[0].context().data().to_string(), "inited");
+	init_application_impl(sess, app_name, *global_data);
 }
 
 static void send_echo(session &sess, const std::string &app_name, const std::string &data)
@@ -140,11 +62,11 @@ static void send_echo(session &sess, const std::string &app_name, const std::str
 
 bool register_tests(test_suite *suite, node n)
 {
-	ELLIPTICS_TEST_CASE(upload_application, "dnet_cpp_srw_test_app");
-	ELLIPTICS_TEST_CASE(start_application, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app");
-	ELLIPTICS_TEST_CASE(init_application, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app");
-	ELLIPTICS_TEST_CASE(send_echo, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app", "some-data");
-	ELLIPTICS_TEST_CASE(send_echo, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app", "some-data and long-data.. like this");
+	ELLIPTICS_TEST_CASE(upload_application, global_data->locator_port, global_data->directory.path());
+	ELLIPTICS_TEST_CASE(start_application, create_session(n, { 1 }, 0, 0), application_name());
+	ELLIPTICS_TEST_CASE(init_application, create_session(n, { 1 }, 0, 0), application_name());
+	ELLIPTICS_TEST_CASE(send_echo, create_session(n, { 1 }, 0, 0), application_name(), "some-data");
+	ELLIPTICS_TEST_CASE(send_echo, create_session(n, { 1 }, 0, 0), application_name(), "some-data and long-data.. like this");
 
 	return true;
 }

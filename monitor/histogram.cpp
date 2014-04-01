@@ -68,9 +68,11 @@ size_t histogram::get_indx(uint64_t x, uint64_t y) {
 	auto indx_x = std::lower_bound(m_xs.begin(), m_xs.end(), x, lower_cmp());
 	auto indx_y = std::lower_bound(m_ys.begin(), m_ys.end(), y, lower_cmp());
 
-	auto x_coord = std::distance(m_xs.begin(), indx_x);
-	auto y_coord = std::distance(m_ys.begin(), indx_y);
+	size_t x_coord = std::distance(m_xs.begin(), indx_x);
+	size_t y_coord = std::distance(m_ys.begin(), indx_y);
 	auto line_size = m_xs.size() - 1;
+	if (y_coord == m_ys.size())
+		y_coord -= 1;
 
 	return x_coord * line_size + y_coord;
 }
@@ -125,7 +127,7 @@ rapidjson::Value& histogram::report(rapidjson::Value &stat_value,
 }
 
 void histogram::clear_last() {
-	memset(m_last_data.counters.data(), 0, m_last_data.counters.size() * sizeof(m_last_data.counters.front()));
+	m_last_data.counters.assign(m_last_data.counters.size(), 0);
 }
 
 void histogram::validate_snapshots() {

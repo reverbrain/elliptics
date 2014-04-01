@@ -31,7 +31,7 @@ option(HAVE_MODULE_BACKEND_SUPPORT "Build ioserv with shared library backend sup
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -std=gnu++0x")
 include(CheckLargefile)
 include(CheckAtomic)
 include(CheckSendfile)
@@ -42,7 +42,14 @@ include(CreateStdint)
 include(FixRpath)
 
 create_stdint(${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/foreign/react)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/foreign/react/include/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/foreign/react/foreign/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/foreign/blackhole/src)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/monitor)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/foreign/react/examples/reverbrain/)
 
 # Set id_size
 if (NOT ID_SIZE)
@@ -120,6 +127,7 @@ add_subdirectory(indexes)
 add_subdirectory(library)
 add_subdirectory(bindings)
 add_subdirectory(monitor)
+add_subdirectory(foreign/react/examples/reverbrain)
 add_subdirectory(tests)
 if(WITH_EXAMPLES)
     add_subdirectory(example)
@@ -133,14 +141,14 @@ install(FILES
         include/elliptics/interface.h
         include/elliptics/packet.h
         include/elliptics/srw.h
-	include/elliptics/async_result.hpp
+        include/elliptics/async_result.hpp
         include/elliptics/cppdef.h
-	include/elliptics/debug.hpp
-	include/elliptics/error.hpp
-	include/elliptics/result_entry.hpp
-	include/elliptics/session.hpp
-	include/elliptics/utils.hpp
-	include/elliptics/backends.h
+        include/elliptics/debug.hpp
+        include/elliptics/error.hpp
+        include/elliptics/result_entry.hpp
+        include/elliptics/session.hpp
+        include/elliptics/utils.hpp
+        include/elliptics/backends.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h
         include/elliptics/module_backend.h
         include/elliptics/module_backend.hpp
@@ -150,7 +158,7 @@ install(FILES
 set(INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
 set(INSTALL_LIBRARY_DIR "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
 
-export(TARGETS elliptics_client elliptics_cpp
+export(TARGETS reverbrain_react elliptics_monitor elliptics_client elliptics_cpp
     FILE "${PROJECT_BINARY_DIR}/EllipticsTargets.cmake")
 
 #export(PACKAGE Elliptics)
@@ -176,15 +184,15 @@ if(DOXYGEN_FOUND)
     set(DOC_TARGET "doc")
     configure_file(doc/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
     configure_file(doc/DoxygenLayout.xml.in ${CMAKE_CURRENT_BINARY_DIR}/DoxygenLayout.xml @ONLY)
-    add_custom_target(${DOC_TARGET} ALL
+    add_custom_target(${DOC_TARGET}
         ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
         COMMENT "Building documentation"
         SOURCE doc/Doxyfile.in doc/DoxygenLayout.xml)
 
-	install( DIRECTORY
-		${CMAKE_CURRENT_BINARY_DIR}/doc/html
-		${CMAKE_CURRENT_BINARY_DIR}/doc/qch
-		DESTINATION share/elliptics/doc
-        )
+#	install( DIRECTORY
+#		${CMAKE_CURRENT_BINARY_DIR}/doc/html
+#		${CMAKE_CURRENT_BINARY_DIR}/doc/qch
+#		DESTINATION share/elliptics/doc
+#        )
 endif()
 

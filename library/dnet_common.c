@@ -153,6 +153,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_INDEXES_UPDATE] = "INDEXES_UPDATE",
 	[DNET_CMD_INDEXES_INTERNAL] = "INDEXES_INTERNAL",
 	[DNET_CMD_INDEXES_FIND] = "INDEXES_FIND",
+	[DNET_CMD_MONITOR_STAT] = "MONITOR_STAT",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
@@ -640,7 +641,7 @@ err_out_free:
 err_out_exit:
 	*errp = err;
 	if (s >= 0)
-		dnet_sock_close(s);
+		dnet_sock_close(n, s);
 	return NULL;
 }
 
@@ -1121,6 +1122,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 
 	ctl.io.size = io_size;
 	ctl.io.offset = io_offset;
+	ctl.io.flags = s->ioflags;
 
 	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
 	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
@@ -1130,7 +1132,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 	ctl.fd = -1;
 	ctl.complete = dnet_read_file_complete;
 	ctl.cmd = DNET_CMD_READ;
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.cflags = s->cflags | DNET_FLAGS_NEED_ACK;
 
 	c = malloc(sizeof(struct dnet_io_completion) + len + 1 + sizeof(DNET_HISTORY_SUFFIX));
 	if (!c) {
@@ -1519,72 +1521,6 @@ int dnet_version_compare(struct dnet_net_state *st, int *version)
 	return 0;
 }
 
-static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
-{
-	struct dnet_wait *w = priv;
-	float la[3];
-	struct dnet_stat *st;
-	int err = -EINVAL;
-
-	if (is_trans_destroyed(state, cmd)) {
-		dnet_wakeup(w, w->cond++);
-		dnet_wait_put(w);
-		return 0;
-	}
-
-	if (cmd->cmd == DNET_CMD_STAT && cmd->size == sizeof(struct dnet_stat)) {
-		st = (struct dnet_stat *)(cmd + 1);
-
-		dnet_convert_stat(st);
-
-		la[0] = (float)st->la[0] / 100.0;
-		la[1] = (float)st->la[1] / 100.0;
-		la[2] = (float)st->la[2] / 100.0;
-
-		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: la: %.2f %.2f %.2f.\n",
-				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
-				la[0], la[1], la[2]);
-		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: mem: "
-				"total: %llu kB, free: %llu kB, cache: %llu kB.\n",
-				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
-				(unsigned long long)st->vm_total,
-				(unsigned long long)st->vm_free,
-				(unsigned long long)st->vm_cached);
-		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: fs: "
-				"total: %llu mB, avail: %llu mB, files: %llu, fsid: 0x%llx.\n",
-				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
-				(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
-				(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),
-				(unsigned long long)st->files, (unsigned long long)st->fsid);
-		err = 0;
-	} else if (cmd->size >= sizeof(struct dnet_addr_stat) && cmd->cmd == DNET_CMD_STAT_COUNT) {
-		struct dnet_addr_stat *as = (struct dnet_addr_stat *)(cmd + 1);
-		int i;
-
-		dnet_convert_addr_stat(as, 0);
-
-		for (i=0; i<as->num; ++i) {
-			if (as->num > as->cmd_num) {
-				if (i == 0)
-					dnet_log(state->n, DNET_LOG_DATA, "%s: %s: Storage commands\n",
-						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
-				if (i == as->cmd_num)
-					dnet_log(state->n, DNET_LOG_DATA, "%s: %s: Proxy commands\n",
-						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
-				if (i == as->cmd_num * 2)
-					dnet_log(state->n, DNET_LOG_DATA, "%s: %s: Counters\n",
-						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
-			}
-			dnet_log(state->n, DNET_LOG_DATA, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
-					dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
-					dnet_counter_string(i, as->cmd_num),
-					(unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
-		}
-	}
-
-	return err;
-}
-
 static int dnet_request_cmd_single(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl)
 {
 	if (st)
@@ -1600,25 +1536,7 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 			void *priv),
 	void *priv)
 {
-	struct dnet_node *n = s->node;
 	struct dnet_trans_control ctl;
-	struct dnet_wait *w = NULL;
-	int err, num = 0;
-	struct timeval start, end;
-	long diff;
-
-	gettimeofday(&start, NULL);
-
-	if (!complete) {
-		w = dnet_wait_alloc(0);
-		if (!w) {
-			err = -ENOMEM;
-			goto err_out_exit;
-		}
-
-		complete = dnet_stat_complete;
-		priv = w;
-	}
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
@@ -1627,61 +1545,32 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 	ctl.priv = priv;
 	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK | dnet_session_get_cflags(s);
 
-	if (id) {
-		if (w)
-			dnet_wait_get(w);
+	return dnet_request_cmd_id(s, id, &ctl);
+}
 
-		memcpy(&ctl.id, id, sizeof(struct dnet_id));
+int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
+	int category,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			void *priv),
+	void *priv)
+{
+	struct dnet_trans_control ctl;
+	struct dnet_monitor_stat_request request;
 
-		err = dnet_request_cmd_single(s, NULL, &ctl);
-		num = 1;
-	} else {
-		struct dnet_net_state *st;
-		struct dnet_group *g;
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+	memset(&request, 0, sizeof(struct dnet_monitor_stat_request));
+	request.category = category;
+	dnet_convert_monitor_stat_request(&request);
 
+	ctl.cmd = DNET_CMD_MONITOR_STAT;
+	ctl.complete = complete;
+	ctl.priv = priv;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK | dnet_session_get_cflags(s);
+	ctl.data = &request;
+	ctl.size = sizeof(struct dnet_monitor_stat_request);
 
-		pthread_mutex_lock(&n->state_lock);
-		list_for_each_entry(g, &n->group_list, group_entry) {
-			list_for_each_entry(st, &g->state_list, state_entry) {
-				if (st == n->st)
-					continue;
-
-				if (w)
-					dnet_wait_get(w);
-
-				dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
-				dnet_request_cmd_single(s, st, &ctl);
-				num++;
-			}
-		}
-		pthread_mutex_unlock(&n->state_lock);
-	}
-
-	if (!w) {
-		gettimeofday(&end, NULL);
-		diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-		dnet_log(n, DNET_LOG_NOTICE, "stat cmd: %s: %ld usecs, num: %d.\n", dnet_cmd_string(cmd), diff, num);
-
-		return num;
-	}
-
-	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
-
-	gettimeofday(&end, NULL);
-	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_NOTICE, "stat cmd: %s: %ld usecs, wait_error: %d, num: %d.\n", dnet_cmd_string(cmd), diff, err, num);
-
-	if (err)
-		goto err_out_put;
-
-	dnet_wait_put(w);
-
-	return num;
-
-err_out_put:
-	dnet_wait_put(w);
-err_out_exit:
-	return err;
+	return dnet_request_cmd_id(s, id, &ctl);
 }
 
 struct dnet_request_cmd_priv {
@@ -1784,6 +1673,20 @@ struct dnet_update_status_priv {
 	struct dnet_node_status status;
 	atomic_t refcnt;
 };
+
+int dnet_request_cmd_id(struct dnet_session *s, struct dnet_id *id, struct dnet_trans_control *ctl) {
+	int err = 0;
+
+	if (id) {
+		memcpy(&ctl->id, id, sizeof(struct dnet_id));
+		err = dnet_request_cmd_single(s, NULL, ctl);
+		if (err)
+			return err;
+		else
+			return 1;
+	} else
+		return dnet_request_cmd(s, ctl);
+}
 
 static int dnet_update_status_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
 {

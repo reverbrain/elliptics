@@ -33,12 +33,14 @@ static void configure_nodes(const std::vector<std::string> &remotes, const std::
 {
 #ifndef NO_SERVER
 	if (remotes.empty()) {
-		global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
-			config_data::default_value()
-				("group", 1),
+		global_data = start_nodes(results_reporter::get_stream(), std::vector<server_config>({
+			server_config::default_value().apply_options(config_data()
+				("group", 1)
+			),
 
-			config_data::default_value()
+			server_config::default_value().apply_options(config_data()
 				("group", 2)
+			)
 		}), path);
 	} else
 #endif // NO_SERVER
@@ -188,7 +190,7 @@ static void test_recovery(session &sess, const std::string &id, const std::strin
 
 static void test_indexes(session &sess)
 {
-	std::vector<std::string> indexes = {
+	const std::vector<std::string> indexes = {
 		"fast",
 		"elliptics",
 		"distributive",
@@ -196,12 +198,17 @@ static void test_indexes(session &sess)
 		"falt-tolerante"
 	};
 
-	std::vector<data_pointer> data(indexes.size());
+	const std::vector<data_pointer> data(indexes.size());
 
-	std::string key = "elliptics";
+	const std::string key = "elliptics";
 
 	ELLIPTICS_REQUIRE(clear_indexes_result, sess.set_indexes(key, std::vector<std::string>(), std::vector<data_pointer>()));
 	ELLIPTICS_REQUIRE(set_indexes_result, sess.set_indexes(key, indexes, data));
+
+	ELLIPTICS_REQUIRE(list_indexes_result, sess.list_indexes(key));
+	sync_list_indexes_result list_result = list_indexes_result;
+
+	BOOST_REQUIRE_EQUAL(list_result.size(), indexes.size());
 
 	ELLIPTICS_REQUIRE(all_indexes_result, sess.find_all_indexes(indexes));
 	sync_find_indexes_result all_result = all_indexes_result.get();
@@ -209,10 +216,10 @@ static void test_indexes(session &sess)
 	ELLIPTICS_REQUIRE(any_indexes_result, sess.find_any_indexes(indexes));
 	sync_find_indexes_result any_result = any_indexes_result.get();
 
-	BOOST_CHECK_EQUAL(all_result.size(), any_result.size());
-	BOOST_CHECK_EQUAL(all_result.size(), 1);
-	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), any_result[0].indexes.size());
+	BOOST_REQUIRE_EQUAL(all_result.size(), 1);
+	BOOST_REQUIRE_EQUAL(any_result.size(), 1);
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), indexes.size());
+	BOOST_CHECK_EQUAL(any_result[0].indexes.size(), indexes.size());
 }
 
 static void test_more_indexes(session &sess)
@@ -241,8 +248,8 @@ static void test_more_indexes(session &sess)
 	ELLIPTICS_REQUIRE(any_indexes_result, sess.find_any_indexes(indexes));
 	sync_find_indexes_result any_result = any_indexes_result.get();
 
-	BOOST_CHECK_EQUAL(all_result.size(), any_result.size());
-	BOOST_CHECK_EQUAL(all_result.size(), 256);
+	BOOST_REQUIRE_EQUAL(all_result.size(), any_result.size());
+	BOOST_REQUIRE_EQUAL(all_result.size(), 256);
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), any_result[0].indexes.size());
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), indexes.size());
 }
@@ -867,6 +874,11 @@ static void test_partial_lookup(session &sess, const std::string &id)
 	BOOST_REQUIRE_EQUAL(sync_lookup_result[1].file_info()->size, data.size());
 }
 
+static void test_read_latest_non_existing(session &sess, const std::string &id)
+{
+	ELLIPTICS_REQUIRE_ERROR(read_data, sess.read_latest(id, 0, 0), -ENOENT);
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
@@ -907,6 +919,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_indexes_update, create_session(n, {2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_prepare_latest, create_session(n, {1, 2}, 0, 0), "prepare-latest-key");
 	ELLIPTICS_TEST_CASE(test_partial_lookup, create_session(n, {1, 2}, 0, 0), "partial-lookup-key");
+	ELLIPTICS_TEST_CASE(test_read_latest_non_existing, create_session(n, {1, 2}, 0, 0), "read-latest-non-existing");
 
 	return true;
 }

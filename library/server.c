@@ -26,9 +26,8 @@
 #include <signal.h>
 
 #include "elliptics.h"
-#include "../monitor/monitor.h"
-
 #include "elliptics/interface.h"
+#include "monitor/monitor.h"
 
 static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned long long storage_free)
 {
@@ -52,6 +51,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 		err = -ENOMEM;
 		goto err_out_close;
 	}
+	memset(buf, 0, size);
 
 	num = storage_free / q + 1;
 	for (i=0; i<num; ++i) {
@@ -205,11 +205,47 @@ err_out_exit:
 	return err;
 }
 
-struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, struct dnet_config *cfg, struct dnet_addr *addrs, int addr_num)
+static const char* dnet_backend_stat_json(void *priv)
+{
+	struct dnet_backend_callbacks* cb = (struct dnet_backend_callbacks*) priv;
+
+	char* json_stat;
+	size_t size;
+
+	cb->storage_stat_json(cb->command_private, &json_stat, &size);
+	return json_stat;
+}
+
+static void dnet_backend_stat_stop(void *priv)
+{
+	(void) priv;
+}
+
+static int dnet_backend_stat_check_category(void *priv, int category)
+{
+	(void) priv;
+	return category == DNET_MONITOR_BACKEND || category == DNET_MONITOR_ALL;
+}
+
+static int dnet_backend_stat_provider_init(struct dnet_node *n)
+{
+	struct stat_provider_raw stat_provider;
+	stat_provider.stat_private = n->cb;
+	stat_provider.json = &dnet_backend_stat_json;
+	stat_provider.stop = &dnet_backend_stat_stop;
+	stat_provider.check_category = &dnet_backend_stat_check_category;
+	dnet_monitor_add_provider(n, stat_provider, "backend");
+	return 0;
+}
+
+struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 {
 	struct dnet_node *n;
 	struct dnet_raw_id *ids = NULL;
 	int id_num = 0;
+	struct dnet_config *cfg = &cfg_data->cfg_state;
+	struct dnet_addr *addrs = cfg_data->cfg_addrs;
+	int addr_num = cfg_data->cfg_addr_num;
 	int err = -ENOMEM;
 
 	sigset_t previous_sigset;
@@ -242,13 +278,13 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, str
 				n->notify_hash_size);
 	}
 
-	err  = dnet_monitor_init(n, cfg);
+	err = dnet_backend_stat_provider_init(n);
 	if (err)
 		goto err_out_notify_exit;
 
 	err = dnet_cache_init(n);
 	if (err)
-		goto err_out_monitor_exit;
+		goto err_out_backend_stat_provider_exit;
 
 	err = dnet_local_addr_add(n, addrs, addr_num);
 	if (err)
@@ -279,7 +315,6 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, str
 
 		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &la, s, &err, DNET_JOIN, -1, dnet_state_accept_process);
 		if (!n->st) {
-			close(s);
 			goto err_out_state_destroy;
 		}
 
@@ -314,8 +349,7 @@ err_out_addr_cleanup:
 	dnet_local_addr_cleanup(n);
 err_out_cache_cleanup:
 	dnet_cache_cleanup(n);
-err_out_monitor_exit:
-	dnet_monitor_exit(n);
+err_out_backend_stat_provider_exit:
 err_out_notify_exit:
 	dnet_notify_exit(n);
 err_out_node_destroy:
@@ -336,7 +370,6 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	 *
 	 * After all of them finish destroying the node, all it's counters and so on.
 	 */
-	dnet_monitor_exit(n);
 	dnet_node_cleanup_common_resources(n);
 
 	dnet_srw_cleanup(n);
@@ -353,13 +386,8 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_local_addr_cleanup(n);
 	dnet_notify_exit(n);
 
-	if (n->config_data) {
-		free(n->config_data->logger_value);
-		free(n->config_data->cfg_addrs);
-		free(n->config_data->cfg_remotes);
-		free(n->config_data->cfg_backend);
-		free(n->config_data);
-	}
+	if (n->config_data)
+		n->config_data->destroy_config_data(n->config_data);
 
 	free(n);
 }

@@ -36,10 +36,12 @@
 #include <unistd.h>
 
 #include "elliptics.h"
-#include "../monitor/monitor.h"
+#include "monitor/monitor.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
+
+#include "reverbrain_react.h"
 
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 {
@@ -205,6 +207,8 @@ err_out_exit:
 
 static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data __unused)
 {
+	start_action(ACTION_DNET_CMD_REVERSE_LOOKUP);
+
 	struct dnet_node *n = st->n;
 	struct dnet_net_state *base;
 	int err = -ENXIO;
@@ -240,6 +244,7 @@ err_out_exit:
 		dnet_state_reset(st, err);
 	}
 
+	stop_action(ACTION_DNET_CMD_REVERSE_LOOKUP);
 	return err;
 }
 
@@ -251,12 +256,14 @@ static int dnet_check_connection(struct dnet_node *n, struct dnet_addr *addr)
 	if (s < 0)
 		return s;
 
-	dnet_sock_close(s);
+	dnet_sock_close(n, s);
 	return 0;
 }
 
 static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
+	start_action(ACTION_DNET_CMD_JOIN_CLIENT);
+
 	struct dnet_node *n = st->n;
 	struct dnet_addr_container *cnt = data;
 	struct dnet_addr laddr;
@@ -335,11 +342,14 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			idx, cnt->addr_num, n->addr_num, ids_num, err);
 
 err_out_exit:
+	stop_action(ACTION_DNET_CMD_JOIN_CLIENT);
 	return err;
 }
 
 static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd)
 {
+	start_action(ACTION_DNET_CMD_ROUTE_LIST);
+
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
@@ -386,11 +396,14 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 err_out_unlock:
 	pthread_mutex_unlock(&n->state_lock);
 	free(buf);
+	stop_action(ACTION_DNET_CMD_ROUTE_LIST);
 	return err;
 }
 
 static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
+	start_action(ACTION_DNET_CMD_EXEC);
+
 	struct dnet_node *n = st->n;
 	struct sph *e = data;
 	int err = -ENOTSUP;
@@ -412,6 +425,7 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	err = dnet_cmd_exec_raw(st, cmd, e, data);
 
 err_out_exit:
+	stop_action(ACTION_DNET_CMD_EXEC);
 	return err;
 }
 
@@ -482,6 +496,8 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 
 static int dnet_cmd_stat_count(struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data __unused)
 {
+	start_action(ACTION_DNET_CMD_STAT_COUNT);
+
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
 	struct dnet_addr_stat *as;
@@ -514,11 +530,13 @@ err_out_unlock:
 	}
 
 err_out_exit:
+	stop_action(ACTION_DNET_CMD_STAT_COUNT);
 	return err;
 }
 
 static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
+	start_action(ACTION_DNET_CMD_STATUS);
 	struct dnet_node *n = orig->n;
 	struct dnet_node_status *st = data;
 
@@ -559,11 +577,13 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 
 	dnet_convert_node_status(st);
 
+	stop_action(ACTION_DNET_CMD_STATUS);
 	return dnet_send_reply(orig, cmd, st, sizeof(struct dnet_node_status), 1);
 }
 
 static int dnet_cmd_auth(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
+	start_action(ACTION_DNET_CMD_AUTH);
 	struct dnet_node *n = orig->n;
 	struct dnet_auth *a = data;
 	int err = 0;
@@ -582,6 +602,7 @@ static int dnet_cmd_auth(struct dnet_net_state *orig, struct dnet_cmd *cmd __unu
 	}
 
 err_out_exit:
+	stop_action(ACTION_DNET_CMD_AUTH);
 	return err;
 }
 
@@ -910,6 +931,8 @@ err_out_exit:
  */
 static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
+	start_action(ACTION_DNET_CMD_ITERATOR);
+
 	struct dnet_iterator_request *ireq = data;
 	struct dnet_iterator_range *irange = data + sizeof(struct dnet_iterator_request);
 	int err = 0;
@@ -949,6 +972,7 @@ err_out_exit:
 	dnet_log(st->n, DNET_LOG_NOTICE,
 			"%s: finished: %s: id: %" PRIu64 ", action: %d, err: %d\n",
 			__func__, dnet_dump_id(&cmd->id), ireq->id, ireq->action, err);
+	stop_action(ACTION_DNET_CMD_ITERATOR);
 	return err;
 }
 
@@ -1061,14 +1085,28 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	struct dnet_indexes_request *indexes_request;
 #endif
 	struct timeval start, end;
-	char time_str[64];
-	struct tm io_tm;
-	struct timeval io_tv;
 
 #define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
 
 	long diff;
 	int handled_in_cache = 0;
+
+	void *thread_call_tree;
+	int call_tree_was_created = 0;
+
+	if (n->monitor) {
+		if (!call_tree_is_set()) {
+			err = init_call_tree(&thread_call_tree);
+			if (err) {
+				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init call tree\n");
+			} else {
+				init_updater(thread_call_tree);
+				call_tree_was_created = 1;
+			}
+		}
+	}
+
+	start_action(ACTION_DNET_PROCESS_CMD_RAW);
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
 		dnet_oplock(n, &cmd->id);
@@ -1134,11 +1172,16 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				err = dnet_notify_remove(st, cmd);
 			break;
 		case DNET_CMD_BULK_READ:
+			start_action(ACTION_DNET_CMD_BULK_READ);
 			err = n->cb->command_handler(st, n->cb->command_private, cmd, data);
 
 			if (err == -ENOTSUP) {
 				err = dnet_cmd_bulk_read(st, cmd, data);
 			}
+			stop_action(ACTION_DNET_CMD_BULK_READ);
+			break;
+		case DNET_CMD_MONITOR_STAT:
+			err = dnet_monitor_process_cmd(st, cmd, data);
 			break;
 		case DNET_CMD_READ:
 		case DNET_CMD_WRITE:
@@ -1157,28 +1200,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			}
 			io = data;
 			dnet_convert_io_attr(io);
-
-			io_tv.tv_sec = io->timestamp.tsec;
-			io_tv.tv_usec = io->timestamp.tnsec / 1000;
-
-			if (cmd->cmd == DNET_CMD_READ) {
-				dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
-						"node-flags: 0x%x\n",
-						dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
-						(unsigned long long)io->offset, (unsigned long long)io->size,
-						io->flags, (unsigned long long)cmd->flags,
-						n->flags);
-			} else {
-				localtime_r((time_t *)&io_tv.tv_sec, &io_tm);
-				strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
-
-				dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
-						"node-flags: 0x%x, ts: %ld.%06ld '%s'\n",
-						dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
-						(unsigned long long)io->offset, (unsigned long long)io->size,
-						io->flags, (unsigned long long)cmd->flags,
-						n->flags, io_tv.tv_sec, io_tv.tv_usec, time_str);
-			}
 
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
@@ -1241,14 +1262,48 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 	diff = DIFF(start, end);
 	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, io ? io->size : 0, diff);
-	dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.\n",
-			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), tid,
-			(unsigned long long)cmd->flags, diff, err);
+
+	if ((cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_WRITE)) {
+		char time_str[64];
+		struct tm io_tm;
+		struct timeval io_tv;
+
+		/* io has been already set in the switch above */
+
+		io_tv.tv_sec = io->timestamp.tsec;
+		io_tv.tv_usec = io->timestamp.tnsec / 1000;
+
+		localtime_r((time_t *)&io_tv.tv_sec, &io_tm);
+		strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
+
+		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: 0x%llx, "
+				"ioflags: 0x%llx, io-offset: %llu, io-size: %llu/%llu, io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', "
+				"time: %ld usecs, err: %d.\n",
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_state_dump_addr(st),
+				tid, (unsigned long long)cmd->flags,
+				(unsigned long long)io->flags,
+				(unsigned long long)io->offset, (unsigned long long)io->size, (unsigned long long)io->total_size,
+				(unsigned long long)io->user_flags,
+				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec,
+				diff, err);
+	} else {
+		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.\n",
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_state_dump_addr(st),
+				tid, (unsigned long long)cmd->flags, diff, err);
+	}
 
 	err = dnet_send_ack(st, cmd, err, recursive);
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
 		dnet_opunlock(n, &cmd->id);
+
+	stop_action(ACTION_DNET_PROCESS_CMD_RAW);
+
+	if (call_tree_was_created) {
+		cleanup_updater();
+		merge_call_tree(thread_call_tree, n->react_manager);
+		cleanup_call_tree(thread_call_tree);
+	}
 
 	return err;
 }

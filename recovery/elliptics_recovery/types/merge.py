@@ -64,6 +64,9 @@ class RecoverStat(object):
         self.remove_failed = 0
         self.remove_retries = 0
         self.removed_bytes = 0
+        self.remove_old = 0
+        self.remove_old_failed = 0
+        self.remove_old_bytes = 0
 
     def apply(self, stats):
         if self.skipped:
@@ -98,6 +101,12 @@ class RecoverStat(object):
             stats.counter("local_remove_retries", self.remove_retries)
         if self.removed_bytes:
             stats.counter("local_removed_bytes", self.removed_bytes)
+        if self.remove_old:
+            stats.counter('local_removes_old', self.remove_old)
+        if self.remove_old_failed:
+            stats.counter('local_removes_old', -self.remove_old_failed)
+        if self.remove_old_bytes:
+            stats.counter('local_removes_old_bytes', self.remove_old_bytes)
 
     def __add__(a, b):
         ret = RecoverStat()
@@ -117,6 +126,9 @@ class RecoverStat(object):
         ret.remove_failed = a.remove_failed + b.remove_failed
         ret.remove_retries = a.remove_retries + b.remove_retries
         ret.removed_bytes = a.removed_bytes + b.removed_bytes
+        ret.remove_old = a.remove_old + b.remove_old
+        ret.remove_old_failed = a.remove_old_failed + b.remove_old_failed
+        ret.remove_old_bytes = a.remove_old_bytes + b.remove_old_bytes
         return ret
 
 
@@ -136,6 +148,7 @@ class Recovery(object):
         self.result = True
         self.attempt = 0
         self.data_size = it_response.size
+        self.just_remove = False
         log.debug("Created Recovery object for key: {0}, node: {1}"
                   .format(repr(it_response.key), address))
 
@@ -183,10 +196,9 @@ class Recovery(object):
                 self.stats.lookup += 1
 
             if error.code == 0 and self.it_response.timestamp < results[0].timestamp:
-                log.debug("Key: {0} on node: {1} is newer. "
-                            "Just removing it from node: {2}."
-                            .format(repr(self.it_response.key),
-                                    self.dest_address, self.address))
+                self.just_remove = True
+                log.debug("Key: {0} on node: {1} is newer. Just removing it from node: {2}."
+                          .format(repr(self.it_response.key), self.dest_address, self.address))
                 if self.ctx.dry_run:
                     log.debug("Dry-run mode is turned on. Skipping removing stage.")
                     return
@@ -330,11 +342,18 @@ class Recovery(object):
                           .format(repr(self.it_response.key),
                                   self.address, error))
                 self.result = False
-                self.stats.remove_failed += 1
+                if self.just_remove:
+                    self.stats.remove_old_failed += 1
+                else:
+                    self.stats.remove_failed += 1
                 return
 
-            self.stats.remove += 1
-            self.stats.removed_bytes += self.data_size
+            if self.just_remove:
+                self.stats.remove_old += 1
+                self.stats.remove_old_bytes += self.data_size
+            else:
+                self.stats.remove += 1
+                self.stats.removed_bytes += self.data_size
         except Exception as e:
             log.error("Onremove exception: {0}".format(e))
             self.result = False
@@ -381,10 +400,11 @@ def iterate_node(ctx, node, address, ranges, eid, stats):
     try:
         log.debug("Running iterator on node: {0}".format(address))
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
+        key_ranges = [IdRange(r[0], r[1]) for r in ranges]
         result, result_len = Iterator.iterate_with_stats(node=node,
                                                          eid=eid,
                                                          timestamp_range=timestamp_range,
-                                                         key_ranges=[IdRange(r[0], r[1]) for r in ranges],
+                                                         key_ranges=key_ranges,
                                                          tmp_dir=ctx.tmp_dir,
                                                          address=address,
                                                          batch_size=ctx.batch_size,
@@ -496,7 +516,9 @@ def main(ctx):
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
     ret = True
-    for group in g_ctx.groups:
+    if ctx.one_node:
+        ctx.groups = [ctx.address.group_id]
+    for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
         group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
         group_stats.timer('group', 'started')
@@ -504,6 +526,8 @@ def main(ctx):
         ranges = get_ranges(ctx, group)
 
         if ranges is None:
+            log.warning("There is no ranges in group: {0}, skipping this group".format(group))
+            group_stats.timer('group', 'finished')
             continue
 
         pool_results = []

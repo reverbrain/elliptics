@@ -3,6 +3,10 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/version.hpp>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/prettywriter.h>
 
 #include <fstream>
 #include <set>
@@ -63,7 +67,57 @@ void create_directory(const std::string &path)
 
 #ifndef NO_SERVER
 
+config_data &config_data::operator() (const std::string &name, const std::vector<std::string> &value)
+{
+	return (*this)(name, variant(value));
+}
+
 config_data &config_data::operator()(const std::string &name, const std::string &value)
+{
+	return (*this)(name, variant(value));
+}
+
+config_data &config_data::operator()(const std::string &name, const char *value)
+{
+	return (*this)(name, std::string(value));
+}
+
+config_data &config_data::operator()(const std::string &name, uint64_t value)
+{
+	return (*this)(name, variant(value));
+}
+
+config_data &config_data::operator()(const std::string &name, int value)
+{
+	return (*this)(name, variant(value));
+}
+
+bool config_data::has_value(const std::string &name) const
+{
+	return value_impl(name);
+}
+
+struct stringify_visitor : public boost::static_visitor<std::string>
+{
+	template <typename T>
+	std::string operator() (const T &value) const
+	{
+		return boost::lexical_cast<std::string>(value);
+	}
+
+	std::string operator() (const std::vector<std::string> &) const
+	{
+		return std::string();
+	}
+};
+
+std::string config_data::string_value(const std::string &name) const
+{
+	auto value = value_impl(name);
+	return value ? boost::apply_visitor(stringify_visitor(), *value) : std::string();
+}
+
+config_data &config_data::operator()(const std::string &name, const config_data::variant &value)
 {
 	for (auto it = m_data.begin(); it != m_data.end(); ++it) {
 		if (it->first == name) {
@@ -77,125 +131,173 @@ config_data &config_data::operator()(const std::string &name, const std::string 
 	return *this;
 }
 
-config_data &config_data::operator()(const std::string &name, int value)
+const config_data::variant *config_data::value_impl(const std::string &name) const
 {
-	return (*this)(name, boost::lexical_cast<std::string>(value));
-}
-
-config_data &config_data::operator()(const std::string &name, dummy_value_type type)
-{
-	if (type == NULL_VALUE) {
-		for (auto it = m_data.begin(); it != m_data.end(); ++it) {
-			if (it->first == name) {
-				m_data.erase(it);
-				return *this;
-			}
+	for (auto it = m_data.begin(); it != m_data.end(); ++it) {
+		if (it->first == name) {
+			return &it->second;
 		}
-
-		return *this;
 	}
 
-	return (*this)(name, "dummy-value");
+	return NULL;
 }
 
-config_data config_data::default_srw_value()
+server_config server_config::default_value()
 {
-	return config_data()
-			("log", "/dev/stderr")
-			("log_level", DNET_LOG_DEBUG)
+	server_config data;
+	data.options
 			("join", 1)
 			("flags", 4)
-			("group", DUMMY_VALUE)
-			("addr", DUMMY_VALUE)
-			("remote", DUMMY_VALUE)
 			("wait_timeout", 60)
 			("check_timeout", 60)
-			("io_thread_num", 50)
-			("nonblocking_io_thread_num", 16)
-			("net_thread_num", 16)
-			("history", DUMMY_VALUE)
+			("io_thread_num", 4)
+			("nonblocking_io_thread_num", 4)
+			("net_thread_num", 2)
+			("indexes_shard_count", 16)
 			("daemon", 0)
-			("auth_cookie", DUMMY_VALUE)
 			("bg_ionice_class", 3)
 			("bg_ionice_prio", 0)
 			("server_net_prio", 1)
 			("client_net_prio", 6)
 			("cache_size", 1024 * 1024 * 256)
-			("caches_number", 16)
-			("srw_config", DUMMY_VALUE)
-			("backend", "blob")
+			("caches_number", 16);
+	data.backends.resize(1);
+	data.backends[0]
+			("type", "blob")
 			("sync", 5)
-			("data", DUMMY_VALUE)
-			("data_block_size", 1024)
 			("blob_flags", 6)
 			("iterate_thread_num", 1)
 			("blob_size", "10M")
 			("records_in_blob", 10000000)
 			("defrag_timeout", 3600)
 			("defrag_percentage", 25);
+	return data;
 }
 
-config_data config_data::default_value()
+server_config server_config::default_srw_value()
 {
-	return default_srw_value()("srw_config", NULL_VALUE);
+	server_config config = default_value();
+	config.options("srw_config", "tmp");
+	return config;
 }
 
-bool config_data::has_value(const std::string &name) const
+struct json_value_visitor : public boost::static_visitor<>
 {
-	for (auto it = m_data.begin(); it != m_data.end(); ++it) {
-		if (it->first == name) {
-			return true;
-		}
+	json_value_visitor(const char *name, rapidjson::Value *object, rapidjson::MemoryPoolAllocator<> *allocator) :
+		name(name), object(object), allocator(allocator)
+	{
 	}
 
-	return false;
-}
+	const char *name;
+	rapidjson::Value *object;
+	rapidjson::MemoryPoolAllocator<> *allocator;
 
-config_data_writer::config_data_writer(const config_data_writer &other)
-	: config_data(other), m_path(other.m_path)
-{
-}
+	void operator() (const std::vector<std::string> &value) const
+	{
+		rapidjson::Value result;
+		result.SetArray();
 
-config_data_writer::config_data_writer(const config_data &other, const std::string &path)
-	: config_data(other), m_path(path)
-{
-}
+		for (auto it = value.begin(); it != value.end(); ++it) {
+			rapidjson::Value string;
+			string.SetString(it->c_str(), it->size(), *allocator);
+			result.PushBack(string, *allocator);
+		}
 
-config_data_writer::~config_data_writer()
-{
-	write();
-}
+		object->AddMember(name, result, *allocator);
+	}
 
-void config_data_writer::write()
+	void operator() (const std::string &value) const
+	{
+		rapidjson::Value result;
+		result.SetString(value.c_str(), value.size(), *allocator);
+		object->AddMember(name, result, *allocator);
+	}
+
+	void operator() (unsigned long long value) const
+	{
+		rapidjson::Value result;
+		result.SetUint64(value);
+		object->AddMember(name, result, *allocator);
+	}
+};
+
+void server_config::write(const std::string &path)
 {
+	rapidjson::MemoryPoolAllocator<> allocator;
+	rapidjson::Value server;
+	server.SetObject();
+
+	rapidjson::Value logger;
+	logger.SetObject();
+
+	logger.AddMember("type", log_path.c_str(), allocator);
+	logger.AddMember("level", DNET_LOG_DEBUG, allocator);
+
+	server.AddMember("loggers", logger, allocator);
+
+	rapidjson::Value options_json;
+	options_json.SetObject();
+
+	for (auto it = options.m_data.begin(); it != options.m_data.end(); ++it) {
+		json_value_visitor visitor(it->first.c_str(), &options_json, &allocator);
+		boost::apply_visitor(visitor, it->second);
+	}
+
+	server.AddMember("options", options_json, allocator);
+
+	rapidjson::Value backends_json;
+	backends_json.SetArray();
+
+	for (auto it = backends.begin(); it != backends.end(); ++it) {
+		rapidjson::Value backend;
+		backend.SetObject();
+
+		for (auto jt = it->m_data.begin(); jt != it->m_data.end(); ++jt) {
+			json_value_visitor visitor(jt->first.c_str(), &backend, &allocator);
+			boost::apply_visitor(visitor, jt->second);
+		}
+
+		backends_json.PushBack(backend, allocator);
+	}
+
+	server.AddMember("backends", backends_json, allocator);
+
+	rapidjson::StringBuffer buffer;
+	rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+
+	server.Accept(writer);
+
 	std::ofstream out;
-	out.open(m_path.c_str());
+	out.open(path.c_str());
 
 	if (!out) {
-		throw std::runtime_error("Can not open file \"" + m_path + "\" for writing");
+		throw std::runtime_error("Can not open file \"" + path + "\" for writing");
 	}
 
-	for (auto it = m_data.begin(); it != m_data.end(); ++it) {
-		if (it->second == "dummy-value")
-			throw std::runtime_error("Unset value for key \"" + it->first + "\", file: \"" + m_path + "\"");
+	out.write(buffer.GetString(), buffer.Size());
+	out << std::endl;
+}
 
-		out << it->first << " = " << it->second << std::endl;
+server_config &server_config::apply_options(const config_data &data)
+{
+	for (auto it = data.m_data.begin(); it != data.m_data.end(); ++it) {
+		options(it->first, it->second);
 	}
 
-	out.flush();
-	out.close();
+	return *this;
 }
 
 server_node::server_node() : m_node(NULL)
 {
 }
 
-server_node::server_node(const std::string &path, const std::string &remote) : m_node(NULL), m_path(path), m_remote(remote)
+server_node::server_node(const std::string &path, const std::string &remote, int monitor_port)
+	: m_node(NULL), m_path(path), m_remote(remote), m_monitor_port(monitor_port)
 {
 }
 
 server_node::server_node(server_node &&other) :
-	m_node(other.m_node), m_path(std::move(other.m_path)), m_remote(std::move(other.m_remote))
+	m_node(other.m_node), m_path(std::move(other.m_path)), m_remote(std::move(other.m_remote)), m_monitor_port(other.monitor_port())
 {
 	other.m_node = NULL;
 }
@@ -205,6 +307,7 @@ server_node &server_node::operator =(server_node &&other)
 	std::swap(m_node, other.m_node);
 	std::swap(m_path, other.m_path);
 	std::swap(m_remote, other.m_remote);
+	std::swap(m_monitor_port, other.m_monitor_port);
 
 	return *this;
 }
@@ -231,9 +334,6 @@ void server_node::stop()
 		throw std::runtime_error("Server node \"" + m_path + "\" is already stoped");
 
 	dnet_set_need_exit(m_node);
-	while (!dnet_need_exit(m_node))
-		sleep(1);
-
 	dnet_server_node_destroy(m_node);
 	m_node = NULL;
 }
@@ -243,26 +343,78 @@ std::string server_node::remote() const
 	return m_remote;
 }
 
+int server_node::monitor_port() const
+{
+	return m_monitor_port;
+}
+
 dnet_node *server_node::get_native()
 {
 	return m_node;
 }
 
-static config_data_writer create_config(config_data base_config, const std::string &path)
+static bool is_bindable(int port)
 {
-	return config_data_writer(base_config, path);
-}
-
-static std::vector<std::string> generate_ports(size_t count)
-{
-	std::set<std::string> ports;
-	while (ports.size() < count) {
-		// Random port from 10000 to 60000
-		int port = 10000 + (rand() % 50000);
-		ports.insert(boost::lexical_cast<std::string>(port));
+	const int family = AF_INET;
+	int s = ::socket(family, SOCK_STREAM, IPPROTO_TCP);
+	if (s < 0) {
+		int err = -errno;
+		throw std::runtime_error("Failed to create socket for family: "
+			+ boost::lexical_cast<std::string>(family)
+			+ ", err: "
+			+ ::strerror(-err)
+			+ ", "
+			+ boost::lexical_cast<std::string>(err));
 	}
 
-	return std::vector<std::string>(ports.begin(), ports.end());
+	dnet_addr addr;
+	addr.addr_len = sizeof(addr.addr);
+	addr.family = family;
+
+	int err = dnet_fill_addr(&addr, "localhost", port, SOCK_STREAM, IPPROTO_TCP);
+
+	if (err) {
+		::close(s);
+		throw std::runtime_error(std::string("Failed to parse address: ") + strerror(-err)
+			+ ", " + boost::lexical_cast<std::string>(err));
+	}
+
+	int salen = addr.addr_len;
+	struct sockaddr *sa = reinterpret_cast<struct sockaddr *>(addr.addr);
+
+	err = 0;
+	::setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &err, 4);
+	err = ::bind(s, sa, salen);
+	::close(s);
+
+	return (err == 0);
+}
+
+static std::vector<std::string> generate_ports(size_t count, std::set<std::string> &ports)
+{
+	std::vector<std::string> result;
+
+	size_t bind_errors_count = 0;
+
+	while (result.size() < count) {
+		// Random port from 10000 to 60000
+		int port = 10000 + (rand() % 50000);
+		std::string port_str = boost::lexical_cast<std::string>(port);
+		if (ports.find(port_str) != ports.end())
+			continue;
+
+		if (!is_bindable(port)) {
+			if (++bind_errors_count >= 10) {
+				throw std::runtime_error("Failed to find enough count of bindable ports for elliptics servers");
+			}
+			continue;
+		}
+
+		result.push_back(port_str);
+		ports.insert(port_str);
+	}
+
+	return result;
 }
 
 static std::string create_remote(const std::string &port)
@@ -293,7 +445,7 @@ static void create_cocaine_config(const std::string &config_path, const std::str
 
 static void start_client_nodes(const nodes_data::ptr &data, std::ostream &debug_stream, const std::vector<std::string> &remotes);
 
-nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs, const std::string &path)
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server_config> &configs, const std::string &path)
 {
 	nodes_data::ptr data = std::make_shared<nodes_data>();
 
@@ -314,7 +466,9 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		run_path = buffer;
 	}
 
-	const auto ports = generate_ports(configs.size());
+	std::set<std::string> all_ports;
+	const auto ports = generate_ports(configs.size(), all_ports);
+	const auto monitor_ports = generate_ports(configs.size(), all_ports);
 
 	if (path.empty()) {
 		char buffer[1024];
@@ -326,7 +480,12 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		create_directory(base_path);
 		data->directory = directory_handler(base_path, true);
 	} else {
-		base_path = path;
+#if BOOST_VERSION >= 104600
+		boost::filesystem::path boost_path = boost::filesystem::absolute(path);
+#else
+		boost::filesystem::path boost_path = boost::filesystem::complete(path, boost::filesystem::current_path());
+#endif
+		base_path = boost_path.string();
 
 		create_directory(base_path);
 		data->directory = directory_handler(base_path, false);
@@ -338,14 +497,22 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 	data->run_directory = directory_handler(run_path, true);
 	debug_stream << "Set cocaine run directory: \"" << run_path << "\"" << std::endl;
 
+	std::set<std::string> cocaine_unique_groups;
 	std::string cocaine_remotes;
+	std::string cocaine_groups;
 	for (size_t j = 0; j < configs.size(); ++j) {
 		if (j > 0)
 			cocaine_remotes += ", ";
-		cocaine_remotes += "\"localhost\": " + ports[j];
+		cocaine_remotes += "\"localhost:" + ports[j] + ":2\"";
+		const std::string group = configs[j].options.string_value("group");
+		if (cocaine_unique_groups.find(group) == cocaine_unique_groups.end()) {
+			if (!cocaine_groups.empty())
+				cocaine_groups += ", ";
+			cocaine_groups += group;
+		}
 	}
 
-	const auto cocaine_locator_ports = generate_ports(configs.size());
+	const auto cocaine_locator_ports = generate_ports(configs.size(), all_ports);
 	// client only needs connection to one (any) locator service
 	data->locator_port = std::stoul(cocaine_locator_ports[0]);
 
@@ -354,53 +521,81 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 	for (size_t i = 0; i < configs.size(); ++i) {
 		debug_stream << "Starting server #" << (i + 1) << std::endl;
 
-		const std::string server_path = base_path + "/server-" + boost::lexical_cast<std::string>(i + 1);
+		const std::string server_suffix = "/server-" + boost::lexical_cast<std::string>(i + 1);
+		const std::string server_path = base_path + server_suffix;
 
 		create_directory(server_path);
 		create_directory(server_path + "/blob");
 		create_directory(server_path + "/history");
 
-		std::string remotes;
+		std::vector<std::string> remotes;
 		for (size_t j = 0; j < configs.size(); ++j) {
 			if (j == i)
 				continue;
 
-			remotes += create_remote(ports[j]);
+			remotes.push_back(create_remote(ports[j]));
 		}
 
-		config_data config = configs[i];
-		if (remotes.empty())
-			config("remote", NULL_VALUE);
-		else
-			config("remote", remotes);
+		server_config config = configs[i];
+		if (!remotes.empty())
+			config.options("remote", remotes);
 
-		if (config.has_value("srw_config")) {
-			create_directory(server_path + "/run");
+		if (config.options.has_value("srw_config")) {
+			const std::string server_run_path = run_path + server_suffix;
+
+			create_directory(server_run_path);
 
 			const substitute_context cocaine_variables = {
 				{ "COCAINE_LOCATOR_PORT", cocaine_locator_ports[i] },
 				{ "COCAINE_PLUGINS_PATH", COCAINE_PLUGINS_PATH },
 				{ "ELLIPTICS_REMOTES", cocaine_remotes },
-				{ "ELLIPTICS_GROUPS", "1" },
+				{ "ELLIPTICS_GROUPS", cocaine_groups },
 				{ "COCAINE_LOG_PATH", server_path + "/cocaine.log" },
-				{ "COCAINE_RUN_PATH", run_path }
+				{ "COCAINE_RUN_PATH", server_run_path }
 			};
 			create_cocaine_config(server_path + "/cocaine.conf", cocaine_config_template, cocaine_variables);
 
-			config("srw_config", server_path + "/cocaine.conf");
+			config.options("srw_config", server_path + "/cocaine.conf");
 		}
 
-		create_config(config, server_path + "/ioserv.conf")
+		if (config.log_path.empty())
+			config.log_path = server_path + "/log.log";
+
+		config.options
 				("auth_cookie", auth_cookie)
-				("log", server_path + "/log.log")
-				("addr", create_remote(ports[i]))
+				("address", std::vector<std::string>(1, create_remote(ports[i])))
+				("monitor_port", boost::lexical_cast<int>(monitor_ports[i]))
+				;
+
+		config.backends[0]
 				("history", server_path + "/history")
 				("data", server_path + "/blob/data")
 				;
 
-		server_node server(server_path + "/ioserv.conf", create_remote(ports[i]));
+		config.write(server_path + "/ioserv.conf");
 
-		server.start();
+		server_node server(server_path + "/ioserv.conf",
+			create_remote(ports[i]),
+			boost::lexical_cast<int>(monitor_ports[i]));
+
+		try {
+			server.start();
+		} catch (...) {
+			std::ifstream in;
+			in.open(config.log_path.c_str());
+
+			try {
+				if (in) {
+					std::string line;
+					while (std::getline(in, line))
+						debug_stream << line << std::endl;
+				}
+			} catch (...) {
+			}
+
+			throw;
+		}
+
 		debug_stream << "Started server #" << (i + 1) << std::endl;
 
 		data->nodes.emplace_back(std::move(server));
@@ -469,6 +664,14 @@ std::string read_file(const char *file_path)
 	}
 
 	return result;
+}
+
+nodes_data::~nodes_data()
+{
+#ifndef NO_SERVER
+	for (auto it = nodes.begin(); it != nodes.end(); ++it)
+		dnet_set_need_exit(it->get_native());
+#endif // NO_SERVER
 }
 
 } // namespace tests

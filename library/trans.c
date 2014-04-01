@@ -179,21 +179,51 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 	if (st && st->n && t->command != 0) {
 		char str[64];
+		char io_buf[128] = "";
 		struct tm tm;
+
+		if (t->cmd.status != -ETIMEDOUT) {
+			if (st->stall) {
+				dnet_log(st->n, DNET_LOG_INFO, "%s: reseting state stall counter: weight: %f\n",
+						dnet_state_dump_addr(st), st->weight);
+			}
+
+			st->stall = 0;
+		}
 
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, "
-				"weight: %f, mrt: %ld, time: %ld, started: %s.%06lu, cached status: %d.\n",
+		if ((t->command == DNET_CMD_READ) || (t->command == DNET_CMD_WRITE)) {
+			struct dnet_cmd *local_cmd = (struct dnet_cmd *)(t + 1);
+			struct dnet_io_attr *local_io = (struct dnet_io_attr *)(local_cmd + 1);
+			struct timeval io_tv;
+			char time_str[64];
+
+			io_tv.tv_sec = local_io->timestamp.tsec;
+			io_tv.tv_usec = local_io->timestamp.tnsec / 1000;
+
+			localtime_r((time_t *)&io_tv.tv_sec, &tm);
+			strftime(time_str, sizeof(time_str), "%F %R:%S", &tm);
+
+			snprintf(io_buf, sizeof(io_buf), ", ioflags: 0x%llx, io-offset: %llu, io-size: %llu/%llu, "
+					"io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu'\n",
+				(unsigned long long)local_io->flags,
+				(unsigned long long)local_io->offset, (unsigned long long)local_io->size, (unsigned long long)local_io->total_size,
+				(unsigned long long)local_io->user_flags,
+				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec);
+		}
+
+		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, stall: %d, "
+				"weight: %f, mrt: %ld, time: %ld, started: %s.%06lu, cached status: %d%s",
 			dnet_dump_id(&t->cmd.id),
 			dnet_cmd_string(t->command),
 			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
 			!!(t->trans & ~DNET_TRANS_REPLY),
-			dnet_state_dump_addr(t->st),
+			dnet_state_dump_addr(t->st), t->st->stall,
 			st->weight, st->median_read_time, diff,
 			str, t->start.tv_usec,
-			t->cmd.status);
+			t->cmd.status, io_buf);
 	}
 
 
@@ -345,8 +375,6 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 	}
 	pthread_mutex_unlock(&st->trans_lock);
 
-	dnet_log(st->n, DNET_LOG_DEBUG, "stall check: state: %s, st: %p, transactions-moved: %d\n", dnet_state_dump_addr(st), st, trans_moved);
-
 	return trans_moved;
 }
 
@@ -358,24 +386,13 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 		st->stall++;
 
 		if (st->weight >= 2)
-			st->weight /= 2;
+			st->weight /= 10;
 
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%u, weight: %f\n",
 				dnet_state_dump_addr(st), trans_timeout, st->stall, DNET_DEFAULT_STALL_TRANSACTIONS, st->weight);
 
-		if (st->stall >= st->n->stall_count) {
+		if (st->stall >= st->n->stall_count)
 			dnet_state_reset_nolock_noclean(st, -ETIMEDOUT, head);
-		}
-	} else {
-		st->stall = 0;
-
-		if (st->weight < DNET_STATE_MAX_WEIGHT)
-			st->weight *= 1.2;
-
-		if (st->stall) {
-			dnet_log(st->n, DNET_LOG_INFO, "%s: reseting state stall counter: weight: %f\n",
-					dnet_state_dump_addr(st), st->weight);
-		}
 	}
 }
 
@@ -400,7 +417,7 @@ static int dnet_check_route_table(struct dnet_node *n)
 {
 	int rnd;
 	struct dnet_id id;
-	int *groups;
+	unsigned int *groups;
 	int group_num = 0, i, err;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
@@ -408,10 +425,13 @@ static int dnet_check_route_table(struct dnet_node *n)
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		group_num++;
+
+		if (group_num >= 4096)
+			break;
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	groups = malloc(group_num);
+	groups = calloc(group_num, sizeof(unsigned int));
 	if (!groups) {
 		err = -ENOMEM;
 		goto err_out_exit;
@@ -471,7 +491,7 @@ static void *dnet_reconnect_process(void *data)
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
 		dnet_try_reconnect(n);
-		if (++checks == route_table_checks) {
+		if (!(n->flags & DNET_CFG_NO_ROUTE_LIST) && (++checks == route_table_checks)) {
 			checks = 0;
 			dnet_check_route_table(n);
 		}

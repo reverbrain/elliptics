@@ -162,6 +162,18 @@ class stat_count_result_entry : public callback_result_entry
 		struct dnet_addr_stat *statistics() const;
 };
 
+class monitor_stat_result_entry : public callback_result_entry
+{
+	public:
+		monitor_stat_result_entry();
+		monitor_stat_result_entry(const monitor_stat_result_entry &other);
+		~monitor_stat_result_entry();
+
+		monitor_stat_result_entry &operator =(const monitor_stat_result_entry &other);
+
+		std::string statistics() const;
+};
+
 class exec_context;
 class exec_callback;
 
@@ -257,6 +269,8 @@ typedef async_result<stat_result_entry> async_stat_result;
 typedef std::vector<stat_result_entry> sync_stat_result;
 typedef async_result<stat_count_result_entry> async_stat_count_result;
 typedef std::vector<stat_count_result_entry> sync_stat_count_result;
+typedef async_result<monitor_stat_result_entry> async_monitor_stat_result;
+typedef std::vector<monitor_stat_result_entry> sync_monitor_stat_result;
 
 typedef async_result<iterator_result_entry> async_iterator_result;
 typedef std::vector<iterator_result_entry> sync_iterator_result;

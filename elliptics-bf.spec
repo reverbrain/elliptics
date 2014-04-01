@@ -1,12 +1,9 @@
-%if %{defined rhel} && 0%{?rhel} < 6
-%define __python /usr/bin/python2.6
-%endif
 %{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 %{!?python_sitearch: %global python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.0.0
+Version:	2.25.4.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,22 +12,16 @@ URL:		http://www.ioremap.net/projects/elliptics
 Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-%if %{defined rhel} && 0%{?rhel} < 6
-BuildRequires:	python26-devel
-BuildRequires:	gcc44 gcc44-c++
-%else
-BuildRequires:  python-devel
-%endif
-BuildRequires:	eblob-devel >= 0.21.26
+BuildRequires:	python-devel
+#BuildRequires:	libcocaine-core2-devel >= 0.11.2.1
+#BuildRequires:  cocaine-framework-native-devel >= 0.11.0.1
+BuildRequires:	eblob-devel >= 0.21.31
 BuildRequires:	cmake msgpack-devel
 
-%if %{defined rhel} && 0%{?rhel} < 6
-%define boost_ver 141
-%else
 %define boost_ver %{nil}
-%endif
 
 BuildRequires:	boost%{boost_ver}-devel, boost%{boost_ver}-iostreams, boost%{boost_ver}-python, boost%{boost_ver}-system, boost%{boost_ver}-thread, boost%{boost_ver}-filesystem
+BuildRequires:	python-virtualenv
 
 Obsoletes: srw
 
@@ -46,7 +37,7 @@ Requires: %{name} = %{version}-%{release}
 
 
 %description devel
-Elliptics network is a fault tolerant distributed hash table 
+Elliptics network is a fault tolerant distributed hash table
 object storage.
 
 This package contains libraries, header files and developer documentation
@@ -76,14 +67,7 @@ Elliptics client library (C++/Python bindings), devel files
 %build
 export LDFLAGS="-Wl,-z,defs"
 export DESTDIR="%{buildroot}"
-%if %{defined rhel} && 0%{?rhel} < 6
-export PYTHON=/usr/bin/python26
-export CC=gcc44
-export CXX=g++44
-CXXFLAGS="-pthread -I/usr/include/boost%{boost_ver}" LDFLAGS="-L/usr/lib64/boost%{boost_ver}" %{cmake} -DBoost_LIB_DIR=/usr/lib64/boost%{boost_ver} -DBoost_INCLUDE_DIR=/usr/include/boost%{boost_ver} -DBoost_LIBRARYDIR=/usr/lib64/boost%{boost_ver} -DBOOST_LIBRARYDIR=/usr/lib64/boost%{boost_ver} -DWITH_COCAINE=NO -DHAVE_MODULE_BACKEND_SUPPORT=no .
-%else
-%{cmake} -DWITH_COCAINE=NO -DHAVE_MODULE_BACKEND_SUPPORT=no .
-%endif
+%{cmake} -DHAVE_MODULE_BACKEND_SUPPORT=no -DWITH_COCAINE=OFF .
 
 make %{?_smp_mflags}
 
@@ -121,6 +105,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
+%{_libdir}/libelliptics_monitor.so.*
 %{python_sitelib}/elliptics/core.so.*
 %{python_sitelib}/elliptics_recovery/*
 %{python_sitelib}/elliptics/*.py*
@@ -130,12 +115,156 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/libelliptics_client.so
+%{_libdir}/libelliptics_monitor.so
 %{_libdir}/libelliptics_cpp.so
 %{_datadir}/elliptics/cmake/*
 %{python_sitelib}/elliptics/core.so
 
 
 %changelog
+* Thu Mar 27 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.0
+- spec: get rid of <=5 rhel, added cocaine depend
+- tests: use only bindable ports for test servers
+- Pytests: restored copying required libraries from build to pytests.
+- cmake: elliptics client must be linked as c++ object because of monitoring support
+- core: fixed compilation errors on lucid/precise
+- Fixes: deletes scope after lock_guard is destroyed. Turned off srw tests in pytests.
+- Tests: decreased number of threads for each server node. Fixed checking number of init exec's results.
+- Monitor: fixed memory corruption in histogram.
+- react: Fixed memory corruption/leak
+- tests: Added monitor_port to json output
+- client: Fixed reading outside of vector on debug
+- config: Added pretty output on parsing error
+- pytest: do not try to destroy server object if it failed to start
+- run_servers: init application at all nodes
+- foreign/react: moved reacrt into foreign dir
+- foreign/blackhole: updated to master
+- config: updated example ioserv config
+- cocaine: Fixed parsing of remote nodes list
+- Tests: fixed generating srw config.
+- react: Checks in react for turned off monitoring added
+- dnet_ioserv: changed configuration format to json
+- cocaine: Added ability to set list of remotes
+- Pytest: used dnet_run_servers at pytests.
+- Core: Actions monitoring added
+- Monitor: react_stat_provider for exporting react call tree into monitoring added
+- trans: also print total size for IO commands when transaction has been processed on server and destroyed on client
+
+* Wed Mar 19 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.3.0
+- trans: added IO debug into dnet_process_cmd_raw() and to transaction destruction
+- common: get rid of years unused history maps. Convert IO time in dnet_convert_io_attr()
+- client: Don't throw exceptions on log errors
+- tests: Added run_servers binary
+- Build: added libelliptics_monitor.so to client files in spec.
+- Session: added checking groups list for emptiness at iterator operation.
+- Log: removed duplicating log from monitor.cpp. Added dnet_log_raw_log_only and dnet_log_raw_internal. Made dnet_log_raw to use dnet_log_raw_internal.
+- Pytests: Turn off pytest recurse discover for tests.
+- Tests: added generating monitor ports.
+- Monitor: Added printing error message when monitor initialization is failed.
+- Build: fixed build on rhels - made elliptics_monitor shared library
+- node: get rid of unused is_valid() method
+- Pytest: specified python path at calling virtualenv.
+- blob: removed unneeded compression check
+- build: Compilation fixes. Missing define added. 'source' not found in sh
+- Code: added python binding references to code.
+- Pytests: renamed WITHOUT_COCAINE to PYTESTS_FLAGS.
+- Monitor: removed duplicated code of requesting statistics, monitor statistics and common dnet_request_cmd. Temporarily disabled srw test in pytest.
+- monitor: added category safety checks
+- build: depend on 0.21.31+ eblob - it adds proper backend statistics
+- monitor: fixed packing
+- Monitor: added to elliptics protocol ability to request monitor statistics. Added appropriate methods to C++ and Python bindings.
+- cache: Redundant monitoring actions removed
+- Monitor: Moved io statistics provider to c++ code. Added per state statistics to io statistics.
+- Monitor: added projet root dir to include directories. Hid monitor initialization into dnet_node_alloc.
+- Monitor:
+-     Added monitor to export for using it with elliptics-client
+-     Added status of io pool: blocked or not
+-     Added statistics about output queue: current size and total count
+-     Removed monitor dependency from node
+-     Added statistics provider for io pools and output queues
+-     Removed rwlock from monitor
+-     Used timestamp of statistics request instead of elapsed time from previous request
+-     Removed clearing commands history after each statistics request
+- Monitor: Changed name 'io_queue' to 'io'
+- CMake: fixed indent in some CMakeLists files.
+- Pytests: removed exception strings from checking because they depend on the boost python version.
+- Pytests: added dependency from python-virtualenv.
+- Pytests: used virtualenv for installing and runnig pytest.
+- Pytests: fixed runtime property in cocaine config.
+- Pytests: Used pip for pytest installation because python-pytest is not available on pure precise, lucid and rhel 5/6.
+- core: added possibility to set tcp keepalive parameters to client connections
+- Pytests: added comparing set of flags known and provided by module.
+- foreign: react submodule updated
+- Core: provided address to sph, Pytests: fixed fails on checking address from ExecContext.
+- cache: only log constructor/lock/unlock if times spent is more than 1 ms
+- Python: fixed calling final handler for AsyncResult.
+- Pytests: fixed executing cocaine-tool app upload.
+- Pytests: Merge current Python API tests with ijon test_exec. Added starting Elliptics node with srw and uploading and starting test app in it.
+- Python: Added ability to set data=None with exec_.
+- stall: changed default reset-stall-count from 5 to 3
+- stall: fixed stall counter reset. Decrease timed out state weigth by 10 instead of 2.
+- stall: reset stall counter in transaction destructor if transaction hasn't timed out
+- cache: added comment about zero-sized lookup reply
+- Cache: Lookup in cache is always going to disk.
+- IOClient: provided cflags in READ io command created by read_file.
+- Recovery: Added to merge statistics 'local_remove_old*' counters that contains information about keys which were removed without copying because they contain old data of krmation about keys which were removed without copying because they contain old data of keys.
+- tests: Cache lru eviction test doxygen description added
+- tests: check of correct test configuration added
+- tests: Test for lru eviction scheme added
+- cmake: Project root added to include directories.
+
+* Tue Feb 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.2.0
+- build: depend on 0.21.30+ eblob where react monitoring support added
+- Monitor: Backend statistics provider added.
+
+* Fri Feb 14 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.1.1
+- tests: Don't run srw tests if srw is disabled
+- client: Fixed log output for amd64 platform
+- client: Fixes for x86 platform
+- tests: Fixed compilation error
+- client: Fixed read_latest policy
+- cache: decrease log level if cache is not enabled
+- tests: added missing header
+- cache: define _GLIBCXX_USE_NANOSLEEP to enable sleep_for()
+- test: added server library to test-common itself, since it uses them
+- indexes: there is no nullptr on older compilers
+
+* Thu Feb 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.1.0
+- pool: added comment on how client handles replies in multiple IO threads
+- tests: Don't make artifacts if test is successfull
+- docs: Don't try to install documentation
+- cpp: get rid of get_node calls
+- Added forgotten doc/Doxy*.in files
+- cpp: Changed mix_states behaviour
+- file_logger: do not accept default log-level, force client to provide correct one
+- Tests: running run_tests.py with proper python.
+- logger: logger construction from the interface must *NOT* set default log-level, users should not be tricked here and potentially find out later, that their logging is being done only on INFO and ERROR level
+- Monitor&Doxygen: Added doxygen code documentation to monitor.
+- read-callback: only run read recovery when we have read the whole object. Added read recovery dbug.
+- dnet_io_attr: added total_size field (without ABI changes), which contains total size of the read record.
+- reconnect: fixed groups array allocation. limit group array for random selection by 4096 groups
+- core: added socket close debug
+- client: Added capped collections
+- Core: Missed error notification added
+- client: Make aggregated to handle empty sequence
+- cache: Stop lifecheck thread at node->need_exit
+- Monitor: Added extra check that monitor is still alive after acquiring rwlock.
+- Core: added checking epoll_events
+- Cache: Elements that were removed while being in sync queue don't sync now.
+- Cache: Resize page optimization.
+- Core: Limited size of io queues to the number of io threads * 1000. Added building iterate.cpp from example to main build without installation.
+- Cache: fixed size stats counting for deleting objects
+- Monitor: json allocator for dynamic string added
+- Cache: syncing to disk during requests to cache removed
+- Cache: Append optimization added
+- Cache: concurrent_time_tree, erase from page, time_tree difference
+- Cache: Life check sleep time adjusts to system load
+- Cache: Action names refactored. New actions added.
+- Cache: Actions set added.
+- Cache: time_stats doxygen documentation added
+- Cache: Copy of data before sync added
+- Cache: multiple bugfixes
+
 * Fri Jan 24 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.0.0
 - Python: Fixed typo in docstrings.
 - Python: added ability to clone session.
@@ -278,7 +407,7 @@ rm -rf %{buildroot}
 - Python: provided python level log based on logging.
 - Cpp: Extended comments and notes about write_prepare, write_plain and write_commit.
 - Cpp: fixed write_data by chunks.
-- Relicense Elliptics under LGPL 
+- Relicense Elliptics under LGPL
 
 * Mon Oct 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.21
 - Added more debug info for cache requests.
@@ -921,7 +1050,7 @@ rm -rf %{buildroot}
 -  Only return wait error (usually -ETIMEOUT/-110) if wait internal
 -  status (assigned in write completion handler) was set to something
 -  except -ENXIO.
--     
+-
 -  -ENXIO is set by default and means no transactions were sent
 - dnet_schedule_io() should wakeup only one thread when new packet has been queued
 
@@ -1093,7 +1222,7 @@ rm -rf %{buildroot}
 - Added logical route groups to support multiple addresses in config.
 - Do not try to initialize srw if no config specified. Otherwise fail whole node initialization if srw init failed.
 - Send discovery at startup
-- Use bp=boost::python namespace 
+- Use bp=boost::python namespace
 
 * Mon Feb 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.4.3
 - Use poll() in autodiscovery. Socket must be bound to recv data.
@@ -1482,7 +1611,7 @@ rm -rf %{buildroot}
 * Wed Feb 29 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.12.0.1-1
 - Depend on 0.15 eblob: added new defragmentation parameters into config
 - Propagate prepare_write() and friends return values back to callers - changed API
- 
+
 * Sun Feb 19 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.7-1
 - Get rid of virtually unused and unneded eblob generation tools. It can be replaced by trivial python scripts
 - Updated python scripts to use new eblob class

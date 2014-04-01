@@ -90,22 +90,17 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 {
 	Json::Value nodes(args["nodes"]);
 
-	if(nodes.empty() || !nodes.isObject()) {
+	if (nodes.empty() || !nodes.isArray()) {
 		throw storage_error_t("no nodes has been specified");
 	}
 
-	Json::Value::Members node_names(nodes.getMemberNames());
-
 	bool have_remotes = false;
 
-	for(Json::Value::Members::const_iterator it = node_names.begin();
-		it != node_names.end();
-		++it)
-	{
+	for (auto it = nodes.begin(); it != nodes.end(); ++it) {
 		try {
-			m_node.add_remote(it->c_str(), nodes[*it].asInt());
+			m_node.add_remote((*it).asCString());
 			have_remotes = true;
-		} catch(const ell::error &) {
+		} catch (...) {
 			// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
 		}
 	}

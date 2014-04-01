@@ -115,9 +115,10 @@ void node::set_timeouts(const int wait_timeout, const int check_timeout)
 		dnet_set_timeouts(m_data->node_ptr, wait_timeout, check_timeout);
 }
 
-bool node::is_valid() const
+void node::set_keepalive(int idle, int cnt, int interval)
 {
-	return !!m_data;
+	if (m_data)
+		dnet_set_keepalive(m_data->node_ptr, idle, cnt, interval);
 }
 
 logger node::get_log() const

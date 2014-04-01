@@ -28,12 +28,11 @@ def main():
     source_dir = sys.argv[1]
     binary_dir = sys.argv[2]
 
-    tests = [
-        (binary_dir, 'dnet_cpp_test'),
-        (binary_dir, 'dnet_cpp_cache_test'),
-        (binary_dir, 'dnet_cpp_srw_test'),
-        (binary_dir, 'dnet_cpp_api_test')
-    ]
+    tests = list()
+
+    for i in xrange(3, len(sys.argv)):
+        tests.append((binary_dir, sys.argv[i]))
+
     print('Running {0} tests'.format(len(tests)))
 
     tests_base_dir = binary_dir + '/result'
@@ -62,10 +61,11 @@ def main():
 
         all_ok &= result == 0
 
-        file = tarfile.TarFile.open(artifacts_dir + '/' + test[1] + '.tar.bz2',
-                                    'w:bz2')
-        file.add(tests_base_dir + '/' + test[1], test[1])
-        file.close()
+        if result != 0:
+            file_path = os.path.join(artifacts_dir, test[1] + '.tar.bz2')
+            file = tarfile.TarFile.open(file_path, 'w:bz2')
+            file.add(tests_base_dir + '/' + test[1], test[1])
+            file.close()
 
     print('Tests are finised')
 

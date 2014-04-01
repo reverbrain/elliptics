@@ -208,7 +208,7 @@ class async_result
 		};
 
 		/*!
-		 * Returns an STL-style iterator pointing to the first \i not \i processed item in the async_result.
+		 * Returns an STL-style iterator pointing to the first \em not processed item in the async_result.
 		 *
 		 * \note Iterator doesn't store already processed data, so make sure to store it itself if needed.
 		 */

@@ -25,21 +25,34 @@ def storage_address(self):
     return Address.from_host_port(self.__storage_address__)
 
 
+@property
+def monitor_statistics(self):
+    from json import loads
+    return loads(self.__statistics__)
+
+
 def wrap_address(classes):
     @property
     def address(self):
         """
         Node address as elliptics.Address
         """
-        return Address.from_host_port(self.__address__, self.__group_id__)
+        if hasattr(cls, 'group_id'):
+            return Address.from_host_port(self.__address__, self.__group_id__)
+        else:
+            return Address.from_host_port(self.__address__)
     for cls in classes:
         cls.__address__ = cls.address
-        cls.__group_id__ = cls.group_id
-        del cls.group_id
+        if hasattr(cls, 'group_id'):
+            cls.__group_id__ = cls.group_id
+            del cls.group_id
         cls.address = address
 
 LookupResultEntry.__storage_address__ = LookupResultEntry.storage_address
 LookupResultEntry.storage_address = storage_address
+
+MonitorStatResultEntry.__statistics__ = MonitorStatResultEntry.statistics
+MonitorStatResultEntry.statistics = monitor_statistics
 
 wrap_address([IteratorResultEntry,
               ReadResultEntry,
@@ -48,7 +61,9 @@ wrap_address([IteratorResultEntry,
               CallbackResultEntry,
               StatResultEntry,
               AddressStatistics,
-              StatCountResultEntry
+              StatCountResultEntry,
+              MonitorStatResultEntry,
+              ExecContext
               ])
 
 

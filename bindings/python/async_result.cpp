@@ -143,6 +143,7 @@ void init_async_results() {
 						read_result_entry,
 						stat_result_entry,
 						stat_count_result_entry,
+						monitor_stat_result_entry,
 						iterator_result_entry,
 						exec_result_entry,
 						find_indexes_result_entry,

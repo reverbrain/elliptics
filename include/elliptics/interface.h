@@ -203,6 +203,12 @@ int dnet_write_file_id(struct dnet_session *s, const char *file, struct dnet_id 
 int dnet_write_file(struct dnet_session *s, const char *file, const void *remote, int remote_len,
 		uint64_t local_offset, uint64_t remote_offset, uint64_t size);
 
+/*
+ * Log level
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new level
+ * please also add it to elliptics_log_level and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
+ */
 enum dnet_log_level {
 	DNET_LOG_DATA = 0,
 	DNET_LOG_ERROR,
@@ -216,7 +222,12 @@ enum dnet_log_level {
 
 #define DNET_TRACE_BIT         (1<<31)         /*is used in trace_id for ignoring current log level*/
 
-/* cfg->flags */
+/*
+ * cfg->flags
+ *
+ * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new flag
+ * please also add it to elliptics_config_flags and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
+ */
 #define DNET_CFG_JOIN_NETWORK		(1<<0)		/* given node joins network and becomes part of the storage */
 #define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
 #define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
@@ -266,6 +277,9 @@ struct dnet_backend_callbacks {
 
 	/* fills storage statistics */
 	int			(* storage_stat)(void *priv, struct dnet_stat *st);
+
+	/* fills storage statistics in json format */
+	int			(* storage_stat_json)(void *priv, char **json_stat, size_t *size);
 
 	/* cleanups backend at exit */
 	void			(* backend_cleanup)(void *command_private);
@@ -442,6 +456,8 @@ uint64_t dnet_session_get_user_flags(struct dnet_session *s);
 void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout);
 struct timespec *dnet_session_get_timeout(struct dnet_session *s);
 
+void dnet_set_keepalive(struct dnet_node *n, int idle, int cnt, int interval);
+
 int dnet_session_set_ns(struct dnet_session *s, const char *ns, int nsize);
 
 struct dnet_node *dnet_session_get_node(struct dnet_session *s);
@@ -455,6 +471,7 @@ struct dnet_node *dnet_session_get_node(struct dnet_session *s);
  */
 int dnet_log_init(struct dnet_node *s, struct dnet_log *l);
 void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, int level, const char *format, ...) DNET_LOG_CHECK;
+void __attribute__((weak)) dnet_log_raw_log_only(struct dnet_log *l, int level, const char *format, ...) DNET_LOG_CHECK;
 
 #define NIP6(addr) \
 	(addr).s6_addr[0], \
@@ -493,7 +510,7 @@ static inline char *dnet_server_convert_addr_raw(struct sockaddr *sa, unsigned i
 
 static inline char *dnet_server_convert_addr(struct sockaddr *sa, unsigned int len)
 {
-	static char __inet_addr[128];
+	static __thread char __inet_addr[128];
 	return dnet_server_convert_addr_raw(sa, len, __inet_addr, sizeof(__inet_addr));
 }
 
@@ -524,7 +541,7 @@ static inline char *dnet_server_convert_dnet_addr_raw(const struct dnet_addr *ad
 
 static inline char *dnet_server_convert_dnet_addr(const struct dnet_addr *sa)
 {
-	static char ___inet_addr[128];
+	static __thread char ___inet_addr[128];
 	return dnet_server_convert_dnet_addr_raw(sa, ___inet_addr, sizeof(___inet_addr));
 }
 
@@ -544,12 +561,12 @@ static inline char *dnet_print_time(const struct dnet_time *t)
 	char str[64];
 	struct tm tm;
 
-	static char __dnet_print_time[128];
+	static __thread char __dnet_print_time[128];
 
 	localtime_r((time_t *)&t->tsec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	snprintf(__dnet_print_time, sizeof(__dnet_print_time), "%s.%06lu", str, t->tnsec / 1000);
+	snprintf(__dnet_print_time, sizeof(__dnet_print_time), "%s.%06llu", str, (long long unsigned) t->tnsec / 1000);
 	return __dnet_print_time;
 }
 
@@ -570,7 +587,7 @@ void dnet_session_destroy(struct dnet_session *s);
 
 /* Server node creation/destruction.
  */
-struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, struct dnet_config *cfg, struct dnet_addr *addrs, int addr_num);
+struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data);
 void dnet_server_node_destroy(struct dnet_node *s);
 
 /*
@@ -621,7 +638,7 @@ static inline char *dnet_dump_id_len_raw(const unsigned char *id, unsigned int l
 
 static inline char *dnet_dump_id_len(const struct dnet_id *id, unsigned int len)
 {
-	static char __dnet_dump_str[2 * DNET_ID_SIZE + 16 + 3];
+	static __thread char __dnet_dump_str[2 * DNET_ID_SIZE + 16 + 3];
 	char tmp[2*DNET_ID_SIZE + 1];
 	char tmp2[2*DNET_ID_SIZE + 1];
 
@@ -648,7 +665,7 @@ static inline char *dnet_dump_id(const struct dnet_id *id)
 
 static inline char *dnet_dump_id_str(const unsigned char *id)
 {
-	static char __dnet_dump_id_str[2 * DNET_ID_SIZE + 1];
+	static __thread char __dnet_dump_id_str[2 * DNET_ID_SIZE + 1];
 	return dnet_dump_id_len_raw(id, DNET_DUMP_NUM, __dnet_dump_id_str);
 }
 
@@ -756,6 +773,27 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 	void *priv);
 
 /*
+ * Request monitor statistics from the node corresponding to given ID.
+ * If @id is NULL statistics will be requested from all connected nodes.
+ * @category specifies category of requested statistics.
+ *
+ * Function will sleep and print into DNET_LOG_INFO log level short
+ * statistics if no @complete function is provided, otherwise it returns
+ * after queueing all transactions and appropriate callback will be
+ * invoked asynchronously.
+ *
+ * Function returns number of nodes statistics request was sent to
+ * or negative error code. In case of error callback completion can
+ * still be called.
+ */
+int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
+	int category,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			void *priv),
+	void *priv);
+
+/*
  * Request notifications when given ID is modified.
  * Notifications are sent after update was stored in the IO backend.
  * @id and @complete are not allowed to be NULL.
@@ -797,6 +835,7 @@ int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl
 int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *ctl);
 
 int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl);
+int dnet_request_cmd_id(struct dnet_session *s, struct dnet_id *id, struct dnet_trans_control *ctl);
 
 int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, const int sock_type, const int proto);
 

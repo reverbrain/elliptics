@@ -424,6 +424,9 @@ struct dnet_io {
 	// condition variable for waiting when io pools are able to process packets
 	pthread_mutex_t		full_lock;
 	pthread_cond_t		full_wait;
+	int					blocked;
+
+	struct list_stat	output_stats;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
@@ -456,8 +459,9 @@ void dnet_opunlock(struct dnet_node *n, struct dnet_id *key);
 int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 
 struct dnet_config_data {
-	struct dnet_log backend_logger;
-	char *logger_value;
+	void (*destroy_config_data) (struct dnet_config_data *);
+
+	struct dnet_config_backend *cfg_current_backend;
 
 	int cfg_addr_num;
 	struct dnet_addr *cfg_addrs;
@@ -465,14 +469,10 @@ struct dnet_config_data {
 	struct dnet_config cfg_state;
 	char *cfg_remotes;
 	int daemon_mode;
-
-	struct dnet_config_entry *cfg_entries;
-	int cfg_size;
-	struct dnet_config_backend *cfg_current_backend;
-
-	struct dnet_config_backend *cfg_backend;
-	int cfg_backend_num;
 };
+
+struct dnet_config_data *dnet_config_data_create();
+void dnet_config_data_destroy(struct dnet_config_data *data);
 
 struct dnet_node
 {
@@ -509,6 +509,10 @@ struct dnet_node
 	struct dnet_net_state	*st;
 
 	int			error;
+
+	int			keep_cnt;
+	int			keep_interval;
+	int			keep_idle;
 
 	struct dnet_log		*log;
 
@@ -568,7 +572,8 @@ struct dnet_node
 	void			*cache;
 
 	void			*monitor;
-	pthread_rwlock_t monitor_rwlock;
+
+	void			*react_manager;
 
 	struct dnet_config_data *config_data;
 };
@@ -657,8 +662,8 @@ struct dnet_config;
 int dnet_socket_create(struct dnet_node *n, char *addr_str, int port, struct dnet_addr *addr, int listening);
 int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr *addr, int listening);
 
-void dnet_set_sockopt(int s);
-void dnet_sock_close(int s);
+void dnet_set_sockopt(struct dnet_node *n, int s);
+void dnet_sock_close(struct dnet_node *n, int s);
 
 enum dnet_join_state {
 	DNET_JOIN = 1,			/* Node joined the network */

@@ -80,7 +80,7 @@ struct callback_one_handlers {
 	void on_final(const error_info &err) {
 		gil_guard gstate;
 		try {
-			(*final_handler)(final_handler, error(err.code(), err.message()));
+			(*final_handler)(error(err.code(), err.message()));
 		} catch (const bp::error_already_set& e) {}
 	}
 
@@ -166,6 +166,7 @@ typedef python_async_result<index_entry>				python_check_indexes_result;
 
 typedef python_async_result<stat_result_entry>			python_stat_result;
 typedef python_async_result<stat_count_result_entry>	python_stat_count_result;
+typedef python_async_result<monitor_stat_result_entry>	python_monitor_stat_result;
 
 void init_async_results();
 

@@ -31,6 +31,7 @@ namespace ioremap { namespace elliptics {
 
 typedef async_result_handler<callback_result_entry> async_update_indexes_handler;
 
+#define DNET_INDEXES_FLAGS_CAPPED_COLLECTION (1<<28)
 #define DNET_INDEXES_FLAGS_NOINTERNAL (1 << 29)
 #define DNET_INDEXES_FLAGS_NOUPDATE (1 << 30)
 
@@ -70,7 +71,7 @@ static void on_update_index_finished(async_update_indexes_handler handler, const
  * flags passed as an argument.
  */
 static async_set_indexes_result session_set_indexes(session &orig_sess, const key &request_id,
-		const std::vector<index_entry> &indexes, uint32_t flags)
+		const std::vector<index_entry> &indexes, uint32_t flags, uint64_t limit = 0)
 {
 	orig_sess.transform(request_id);
 
@@ -90,23 +91,24 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 	sess.set_checker(checkers::no_check);
 	sess.set_exceptions_policy(session::no_exceptions);
 
-	uint64_t data_size = 0;
-	uint64_t max_data_size = 0;
+	size_t data_size = 0;
+	size_t max_data_size = 0;
 	for (size_t i = 0; i < indexes.size(); ++i) {
 		data_size += indexes[i].data.size();
 		max_data_size = std::max(max_data_size, indexes[i].data.size());
 	}
 
-	dnet_node *node = sess.get_node().get_native();
+	dnet_node *node = sess.get_native_node();
 	std::list<async_generic_result> results;
 
 	dnet_id indexes_id;
 	memset(&indexes_id, 0, sizeof(indexes_id));
 	dnet_indexes_transform_object_id(node, &request_id.id(), &indexes_id);
 
+	const bool capped = (flags & DNET_INDEXES_FLAGS_CAPPED_COLLECTION);
 	const bool noupdate = (flags & DNET_INDEXES_FLAGS_NOUPDATE);
 	const bool nointernal = (flags & DNET_INDEXES_FLAGS_NOINTERNAL);
-	flags &= ~(DNET_INDEXES_FLAGS_NOUPDATE | DNET_INDEXES_FLAGS_NOINTERNAL);
+	flags &= ~(DNET_INDEXES_FLAGS_CAPPED_COLLECTION | DNET_INDEXES_FLAGS_NOUPDATE | DNET_INDEXES_FLAGS_NOINTERNAL);
 
 	if (!noupdate) {
 		data_buffer buffer(sizeof(dnet_indexes_request) +
@@ -128,6 +130,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 		for (size_t i = 0; i < indexes.size(); ++i) {
 			const index_entry &index = indexes[i];
 			entry.id = index.index;
+			entry.limit = limit;
 			entry.size = index.data.size();
 
 			buffer.write(entry);
@@ -194,8 +197,12 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 			dnet_indexes_transform_index_id(node, &index.index, &tmp_entry_id, shard_id);
 			memcpy(id.id, tmp_entry_id.id, DNET_ID_SIZE);
 
+			entry->limit = limit;
 			entry->size = index.data.size();
 			entry->flags = (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) ? DNET_INDEXES_FLAGS_INTERNAL_INSERT : DNET_INDEXES_FLAGS_INTERNAL_REMOVE;
+			if (capped)
+				entry->flags |= DNET_INDEXES_FLAGS_INTERNAL_CAPPED_COLLECTION;
+
 			control.set_data(data.data(), sizeof(dnet_indexes_request) +
 					sizeof(dnet_indexes_request_entry) + index.data.size());
 			memcpy(entry_data, index.data.data(), index.data.size());
@@ -227,7 +234,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 	result.connect(std::bind(on_update_index_entry, handler, std::placeholders::_1),
 		std::bind(on_update_index_finished, handler, std::placeholders::_1));
 
-	dnet_log(orig_sess.get_node().get_native(), DNET_LOG_INFO, "%s: key: %s, indexes: %zd\n",
+	dnet_log(orig_sess.get_native_node(), DNET_LOG_INFO, "%s: key: %s, indexes: %zd\n",
 			dnet_dump_id(&request_id.id()), request_id.to_string().c_str(), indexes.size());
 
 	return final_result;
@@ -298,9 +305,11 @@ async_set_indexes_result session::update_indexes_internal(const key &id,
 
 async_generic_result session::remove_index_internal(const dnet_raw_id &id)
 {
+	DNET_SESSION_GET_GROUPS(async_generic_result);
+
 	async_generic_result result(*this);
 	auto cb = createCallback<remove_index_callback>(*this, result, id);
-	mix_states(cb->groups);
+	cb->groups = std::move(groups);
 
 	startCallback(cb);
 	return result;
@@ -331,14 +340,14 @@ struct on_remove_index : std::enable_shared_from_this<on_remove_index>
 			std::bind(&on_remove_index::on_remove_index_entry, shared_from_this(), _1),
 			std::bind(&on_remove_index::on_request_finished, shared_from_this(), _1));
 
-		logger log = sess.get_node().get_log();
+		logger log = sess.get_logger();
 		if (log.get_log_level() >= DNET_LOG_DEBUG) {
 			char index_name[2 * DNET_ID_SIZE + 1];
 			char object_name[2 * DNET_ID_SIZE + 1];
 			dnet_dump_id_len_raw(index_id.id, DNET_DUMP_NUM, index_name);
 			dnet_dump_id_len_raw(entry.id.id, DNET_DUMP_NUM, object_name);
 
-			sess.get_node().get_log().print(DNET_LOG_DEBUG, "on_remove_index: Removed index %s from object %s", index_name, object_name);
+			sess.get_logger().print(DNET_LOG_DEBUG, "on_remove_index: Removed index %s from object %s", index_name, object_name);
 		}
 
 		if (remove_data) {
@@ -451,6 +460,94 @@ async_set_indexes_result session::update_indexes(const key &id,
 	return update_indexes(id, raw_indexes);
 }
 
+struct add_to_capped_collection_handler : public std::enable_shared_from_this<add_to_capped_collection_handler>
+{
+	add_to_capped_collection_handler(const session &sess, const async_generic_result &result)
+		: sess(sess), handler(result), counter(1)
+	{
+	}
+
+	void on_entry(const callback_result_entry &entry)
+	{
+		if (!entry.error() && entry.size() >= sizeof(dnet_indexes_reply)) {
+			const dnet_indexes_reply *reply = entry.data<dnet_indexes_reply>();
+			for (uint64_t index = 0; index < reply->entries_count; ++index) {
+				const dnet_indexes_reply_entry &entry = reply->entries[index];
+				if (entry.status == DNET_INDEXES_CAPPED_REMOVED) {
+					using std::placeholders::_1;
+
+					++counter;
+
+					sess.remove(entry.id).connect(
+						std::bind(&add_to_capped_collection_handler::on_removed_entry, shared_from_this(), _1),
+						std::bind(&add_to_capped_collection_handler::on_finished, shared_from_this(), _1));
+				}
+			}
+		}
+
+		handler.process(entry);
+	}
+
+	void on_removed_entry(const callback_result_entry &entry)
+	{
+		handler.process(entry);
+	}
+
+	void on_finished(const error_info &error)
+	{
+		if (error) {
+			std::lock_guard<std::mutex> lock(total_error_mutex);
+			total_error = error;
+		}
+
+		if (0 == --counter)
+			handler.complete(total_error);
+	}
+
+	session sess;
+	async_result_handler<callback_result_entry> handler;
+	std::atomic_size_t counter;
+	std::mutex total_error_mutex;
+	error_info total_error;
+};
+
+async_generic_result session::add_to_capped_collection(const key &id, const index_entry &index, int limit, bool remove_data)
+{
+	transform(id);
+
+	session sess = *this;
+
+	if (remove_data) {
+		sess = clone();
+		sess.set_filter(filters::all_with_ack);
+		sess.set_checker(checkers::no_check);
+		sess.set_exceptions_policy(no_exceptions);
+	}
+
+	async_generic_result indexes_result = session_set_indexes(sess, id, std::vector<index_entry>(1, index),
+		DNET_INDEXES_FLAGS_CAPPED_COLLECTION | DNET_INDEXES_FLAGS_UPDATE_ONLY, limit);
+
+	if (!remove_data) {
+		return indexes_result;
+	}
+
+	session remove_sess = clone();
+	remove_sess.set_filter(filters::all_with_ack);
+	remove_sess.set_checker(checkers::no_check);
+	remove_sess.set_exceptions_policy(no_exceptions);
+
+	async_generic_result result(*this);
+
+	auto handler = std::make_shared<add_to_capped_collection_handler>(remove_sess, result);
+
+	using std::placeholders::_1;
+
+	indexes_result.connect(std::bind(&add_to_capped_collection_handler::on_entry, handler, _1),
+		std::bind(&add_to_capped_collection_handler::on_finished, handler, _1));
+
+	return result;
+}
+
 async_set_indexes_result session::remove_indexes(const key &id, const std::vector<dnet_raw_id> &indexes)
 {
 	std::vector<index_entry> index_entries;
@@ -467,10 +564,10 @@ async_set_indexes_result session::remove_indexes(const key &id, const std::vecto
 	return remove_indexes(id, session_convert_indexes(*this, indexes));
 }
 
-static void on_find_indexes_process(node n, std::shared_ptr<find_indexes_callback::id_map> convert_map,
+static void on_find_indexes_process(session sess, std::shared_ptr<find_indexes_callback::id_map> convert_map,
 	async_result_handler<find_indexes_result_entry> handler, const callback_result_entry &entry)
 {
-	dnet_node *node = n.get_native();
+	dnet_node *node = sess.get_native_node();
 	data_pointer data = entry.data();
 
 	sync_find_indexes_result tmp;
@@ -484,7 +581,7 @@ static void on_find_indexes_process(node n, std::shared_ptr<find_indexes_callbac
 
 			auto converted = convert_map->find(id);
 			if (converted == convert_map->end()) {
-				n.get_log().print(DNET_LOG_ERROR, "%s: on_find_indexes_process, unknown id", dnet_dump_id_str(id.id));
+				sess.get_logger().print(DNET_LOG_ERROR, "%s: on_find_indexes_process, unknown id", dnet_dump_id_str(id.id));
 				continue;
 			}
 
@@ -510,6 +607,10 @@ async_find_indexes_result session::find_indexes_internal(const std::vector<dnet_
 		return result;
 	}
 
+	auto &id = indexes[0];
+
+	DNET_SESSION_GET_GROUPS(async_find_indexes_result);
+
 	session sess = clone();
 	sess.set_filter(filters::positive);
 	sess.set_checker(checkers::no_check);
@@ -519,12 +620,12 @@ async_find_indexes_result session::find_indexes_internal(const std::vector<dnet_
 
 	auto cb = createCallback<find_indexes_callback>(sess, indexes, intersect, raw_result);
 	auto convert_map = std::make_shared<find_indexes_callback::id_map>(/*std::move(*/cb->convert_map/*)*/);
-	mix_states(indexes[0], cb->groups);
+	cb->groups = std::move(groups);
 	startCallback(cb);
 
 	using namespace std::placeholders;
 
-	raw_result.connect(std::bind(on_find_indexes_process, sess.get_node(), convert_map, handler, _1),
+	raw_result.connect(std::bind(on_find_indexes_process, sess, convert_map, handler, _1),
 		std::bind(on_find_indexes_complete, handler, _1));
 
 	return result;
@@ -565,15 +666,16 @@ struct check_indexes_handler
 
 		dnet_indexes result;
 		try {
-			indexes_unpack(sess.get_node().get_native(), &read_result[0].command()->id,
+			indexes_unpack(sess.get_native_node(), &read_result[0].command()->id,
 					read_result[0].file(), &result, "check_indexes_handler");
 		} catch (std::exception &e) {
 			handler.complete(create_error(-EINVAL, request_id, "%s", e.what()));
 			return;
 		}
 
-		for (auto it = result.indexes.begin(); it != result.indexes.end(); ++it)
+		for (auto it = result.indexes.begin(); it != result.indexes.end(); ++it) {
 			handler.process(*it);
+		}
 		handler.complete(error_info());
 	}
 };
@@ -586,7 +688,7 @@ async_list_indexes_result session::list_indexes(const key &request_id)
 
 	dnet_id id;
 	memset(&id, 0, sizeof(id));
-	dnet_indexes_transform_object_id(get_node().get_native(), &request_id.id(), &id);
+	dnet_indexes_transform_object_id(get_native_node(), &request_id.id(), &id);
 
 	check_indexes_handler functor = { *this, request_id, result };
 	read_latest(id, 0, 0).connect(functor);

@@ -22,13 +22,14 @@
 
 #include <exception>
 
-#include "../library/elliptics.h"
+#include "library/elliptics.h"
+#include "io_stat_provider.hpp"
+#include "react_stat_provider.hpp"
 
 namespace ioremap { namespace monitor {
 
-monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
-: m_node(n)
-, m_server(*this, cfg->monitor_port)
+monitor::monitor(struct dnet_config *cfg)
+: m_server(*this, cfg->monitor_port)
 , m_statistics(*this)
 {}
 
@@ -42,33 +43,28 @@ void dnet_monitor_add_provider(struct dnet_node *n, stat_provider *provider, con
 		return;
 	}
 
-	pthread_rwlock_rdlock(&n->monitor_rwlock);
 	auto real_monitor = static_cast<monitor*>(n->monitor);
-	real_monitor->get_statistics().add_provider(provider, name);
-	pthread_rwlock_unlock(&n->monitor_rwlock);
+	if (real_monitor)
+		real_monitor->get_statistics().add_provider(provider, name);
+	else
+		delete provider;
 }
 
 }} /* namespace ioremap::monitor */
 
-int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
+int dnet_monitor_init(void **monitor, struct dnet_config *cfg) {
 	if (!cfg->monitor_port) {
-		n->monitor = NULL;
-		dnet_log(n, DNET_LOG_INFO, "Monitor hasn't been initialized because monitor port is zero\n");
+		*monitor = NULL;
+		dnet_log_raw_log_only(cfg->log, DNET_LOG_DATA, "Monitor hasn't been initialized because monitor port is zero.\n");
 		return 0;
 	}
 
-	pthread_rwlock_init(&n->monitor_rwlock, NULL);
-
-	pthread_rwlock_wrlock(&n->monitor_rwlock);
-
 	try {
-		n->monitor = static_cast<void*>(new ioremap::monitor::monitor(n, cfg));
+		*monitor = static_cast<void*>(new ioremap::monitor::monitor(cfg));
 	} catch (const std::exception &e) {
-		dnet_log(n, DNET_LOG_ERROR, "Could not create monitor: %s\n", e.what());
+		dnet_log_raw_log_only(cfg->log, DNET_LOG_ERROR, "Failed to initialize monitor on port: %d: %s.\n", cfg->monitor_port, e.what());
 		return -ENOMEM;
 	}
-
-	pthread_rwlock_unlock(&n->monitor_rwlock);
 
 	return 0;
 }
@@ -81,13 +77,13 @@ void dnet_monitor_exit(struct dnet_node *n) {
 	if (!n->monitor)
 		return;
 
-	pthread_rwlock_wrlock(&n->monitor_rwlock);
-
-	auto real_monitor = monitor_cast(n->monitor);
-	delete real_monitor;
+	auto monitor = n->monitor;
 	n->monitor = NULL;
 
-	pthread_rwlock_unlock(&n->monitor_rwlock);
+	auto real_monitor = monitor_cast(monitor);
+	if (real_monitor) {
+		delete real_monitor;
+	}
 }
 
 void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw stat, const char *name) {
@@ -96,25 +92,16 @@ void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw sta
 		return;
 	}
 
-	pthread_rwlock_rdlock(&n->monitor_rwlock);
-
 	auto real_monitor = monitor_cast(n->monitor);
-	auto provider = new ioremap::monitor::raw_provider(stat);
-	real_monitor->get_statistics().add_provider(provider, std::string(name));
-
-	pthread_rwlock_unlock(&n->monitor_rwlock);
-}
-
-void dnet_monitor_log(struct dnet_node *n) {
-	if (!n->monitor)
-		return;
-
-	pthread_rwlock_rdlock(&n->monitor_rwlock);
-
-	auto real_monitor = monitor_cast(n->monitor);
-	real_monitor->get_statistics().log();
-
-	pthread_rwlock_unlock(&n->monitor_rwlock);
+	if (real_monitor) {
+		try {
+			auto provider = new ioremap::monitor::raw_provider(stat);
+			real_monitor->get_statistics().add_provider(provider, std::string(name));
+		} catch (std::exception &e) {
+			std::cerr << e.what() << std::endl;
+		}
+	} else
+		stat.stop(stat.stat_private);
 }
 
 void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans,
@@ -123,11 +110,63 @@ void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans
 	if (!n->monitor)
 		return;
 
-	pthread_rwlock_rdlock(&n->monitor_rwlock);
+	auto real_monitor = monitor_cast(n->monitor);
+	if (real_monitor)
+		real_monitor->get_statistics().command_counter(cmd, trans, err,
+		                                               cache, size, time);
+}
+
+void dnet_monitor_init_io_stat_provider(struct dnet_node *n) {
+	if (!n->monitor)
+		return;
 
 	auto real_monitor = monitor_cast(n->monitor);
-	real_monitor->get_statistics().command_counter(cmd, trans, err,
-	                                               cache, size, time);
+	if (real_monitor) {
+		try {
+			real_monitor->get_statistics().add_provider(new ioremap::monitor::io_stat_provider(n), "io");
+		} catch (std::exception &e) {
+			std::cerr << e.what() << std::endl;
+		}
+	}
+}
 
-	pthread_rwlock_unlock(&n->monitor_rwlock);
+void dnet_monitor_init_react_stat_provider(struct dnet_node *n) {
+	if (!n->monitor)
+		return;
+
+	auto real_monitor = monitor_cast(n->monitor);
+	if (real_monitor) {
+		try {
+			auto provider = new ioremap::monitor::react_stat_provider();
+			real_monitor->get_statistics().add_provider(provider, "call_tree");
+			n->react_manager = static_cast<void*> (&provider->get_react_manager());
+		} catch (std::exception &e) {
+			std::cerr << e.what() << std::endl;
+		}
+	}
+}
+
+int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
+{
+	auto monitor_process_cmd_guard(make_action_guard(ACTION_DNET_MONITOR_PROCESS_CMD));
+
+	struct dnet_node *n = orig->n;
+	struct dnet_monitor_stat_request *req = static_cast<struct dnet_monitor_stat_request *>(data);
+	dnet_convert_monitor_stat_request(req);
+	static const std::string disabled_reply = "{\"monitor_status\":\"disabled\"}";
+
+	if ((req->category >= __DNET_MONITOR_MAX) || (req->category < 0)) {
+		static const std::string rep = "{\"monitor_status\":\"invalid category\"}";
+		return dnet_send_reply(orig, cmd, const_cast<char *>(rep.c_str()), rep.size(), 0);
+	}
+
+	if (!n->monitor)
+		return dnet_send_reply(orig, cmd, const_cast<char*>(disabled_reply.c_str()), disabled_reply.size(), 0);
+
+	auto real_monitor = monitor_cast(n->monitor);
+	if (!real_monitor)
+		return dnet_send_reply(orig, cmd, const_cast<char*>(disabled_reply.c_str()), disabled_reply.size(), 0);
+
+	auto json = real_monitor->get_statistics().report(req->category);
+	return dnet_send_reply(orig, cmd, &*json.begin(), json.size(), 0);
 }

@@ -47,38 +47,6 @@ extern "C" {
  */
 #define DNET_MONITOR_LIST			-1
 
-// Real monitor categories
-/*!
- * \internal
- *
- * Category for requesting all available statistics
- */
-#define DNET_MONITOR_ALL			0
-/*!
- * \internal
- *
- * Category for cache statistics
- */
-#define DNET_MONITOR_CACHE			1
-/*!
- * \internal
- *
- * Category for IO queue statistics
- */
-#define DNET_MONITOR_IO_QUEUE		2
-/*!
- * \internal
- *
- * Category for commands statistics
- */
-#define DNET_MONITOR_COMMANDS		3
-/*!
- * \internal
- *
- * Category for IO hisograms statistics
- */
-#define DNET_MONITOR_IO_HISTOGRAMS	4
-
 struct dnet_node;
 struct dnet_config;
 
@@ -134,7 +102,7 @@ struct stat_provider_raw {
  * then n->monitor will contain pointer to it and
  * should be used in c functions
  */
-int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
+int dnet_monitor_init(void **monitor, struct dnet_config *cfg);
 
 /*!
  * \internal
@@ -154,6 +122,20 @@ void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw sta
 /*!
  * \internal
  *
+ * Creates stat provider for io queues and adds it to provider list
+ */
+void dnet_monitor_init_io_stat_provider(struct dnet_node *n);
+
+/*!
+ * \internal
+ *
+ * Creates stat provider for react call tree stats and adds it to provider list
+ */
+void dnet_monitor_init_react_stat_provider(struct dnet_node *n);
+
+/*!
+ * \internal
+ *
  * Sends to \a monitor statistics some properties of executed command:
  * \a cmd - identifier of the command
  * \a trans - number of transaction
@@ -166,12 +148,7 @@ void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans
                              const int err, const int cache,
                              const uint32_t size, const unsigned long time);
 
-/*!
- * \internal
- *
- * Outputs into log all monitor statistics
- */
-void dnet_monitor_log(struct dnet_node *n);
+int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,55 @@
+{
+	"loggers": {
+		"type": "/dev/stderr",
+		"level": 4,
+		"root": [
+			{
+				"formatter": {
+					"type": "string",
+					"pattern": "[%(timestamp)s]: %(message)s [%(...L)s]"
+				},
+				"sink": {
+					"type": "files",
+					"path": "/dev/stdout",
+					"autoflush": true
+				}
+			}
+		]
+	},
+	"options": {
+		"join": 1,
+		"flags": 20,
+		"group": 2,
+		"remote": [
+			"autodiscovery:224.0.0.5:1025:2"
+		],
+		"address": [
+			"localhost:1025:2-0"
+		],
+		"wait_timeout": 60,
+		"check_timeout": 60,
+		"io_thread_num": 16,
+		"nonblocking_io_thread_num": 16,
+		"net_thread_num": 4,
+		"daemon": 0,
+		"auth_cookie": "qwerty",
+		"bg_ionice_class": 3,
+		"bg_ionice_prio": 0,
+		"server_net_prio": 1,
+		"client_net_prio": 6,
+		"cache_size": 68719476736,
+		"indexes_shard_count": 2,
+		"monitor_port": 20000
+	},
+	"backends": [
+		{
+			"type": "blob",
+			"history": "/opt/elliptics/history.2",
+			"data": "/opt/elliptics/eblob.2/data",
+			"sync": "-1",
+			"blob_flags": "158",
+			"blob_size": "10G",
+			"records_in_blob": "1000000"
+		}
+	]
+}
