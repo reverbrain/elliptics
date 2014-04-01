@@ -299,6 +299,8 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 				if (io->size == 0)
 					io->size = d->size() - io->offset;
 
+				io->total_size = d->size();
+
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 				err = dnet_send_read_data(st, cmd, io, (char *)d->data().data() + io->offset, -1, io->offset, 0);
 				break;
