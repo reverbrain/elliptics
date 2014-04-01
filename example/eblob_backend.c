@@ -58,9 +58,9 @@
 #error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE"
 #endif
 
-extern __thread int64_t trace_id;
+extern __thread uint64_t trace_id;
 
-int64_t get_trace_id()
+uint64_t get_trace_id()
 {
 	return trace_id;
 }
