@@ -1,3 +1,10 @@
+elliptics (2.24.15.16) unstable; urgency=low
+
+  * cache: setting total_size
+  * log: finally made dnet_id loggers thread-safe - allocate per-thread temporary buffers instead of plain static
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 02 Apr 2014 02:30:40 +0400
+
 elliptics (2.24.15.15) unstable; urgency=low
 
   * core: do not request route list in reconnect thread if node flags contains DNET_CFG_NO_ROUTE_LIST.
