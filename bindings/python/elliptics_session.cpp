@@ -518,43 +518,47 @@ public:
 		return create_result(std::move(session::bulk_write(ios, wdatas)));
 	}
 
-	python_set_indexes_result set_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
+	python_callback_result set_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 		auto std_datas = convert_to_vector<data_pointer>(datas);
 
 		return create_result(std::move(session::set_indexes(elliptics_id::convert(id), std_indexes, std_datas)));
 	}
 
-	python_set_indexes_result set_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
+	python_callback_result set_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<index_entry>(indexes);
 
 		return create_result(std::move(session::set_indexes(elliptics_id::convert(id), std_indexes)));
 	}
 
-	python_set_indexes_result update_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
+	python_callback_result update_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 		auto std_datas = convert_to_vector<data_pointer>(datas);
 
 		return create_result(std::move(session::update_indexes(elliptics_id::convert(id), std_indexes, std_datas)));
 	}
 
-	python_set_indexes_result update_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
+	python_callback_result update_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<index_entry>(indexes);
 
 		return create_result(std::move(session::update_indexes(elliptics_id::convert(id), std_indexes)));
 	}
 
-	python_set_indexes_result update_indexes_internal(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
+	python_callback_result update_indexes_internal(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 		auto std_datas = convert_to_vector<data_pointer>(datas);
 
 		return create_result(std::move(session::update_indexes_internal(elliptics_id::convert(id), std_indexes, std_datas)));
 	}
 
-	python_set_indexes_result update_indexes_internal_raw(const bp::api::object &id, const bp::api::object &indexes) {
+	python_callback_result update_indexes_internal_raw(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<index_entry>(indexes);
 
 		return create_result(std::move(session::update_indexes_internal(elliptics_id::convert(id), std_indexes)));
+	}
+
+	python_callback_result add_to_capped_collection(const bp::api::object &id, const index_entry &index, int limit, bool remove_data) {
+		return create_result(std::move(session::add_to_capped_collection(elliptics_id::convert(id), index, limit, remove_data)));
 	}
 
 	python_find_indexes_result find_all_indexes(const bp::api::object &indexes) {
@@ -599,24 +603,24 @@ public:
 		return create_result(std::move(session::list_indexes(elliptics_id::convert(id))));
 	}
 
-	python_set_indexes_result remove_indexes(const bp::api::object &id, const bp::api::object &indexes) {
+	python_callback_result remove_indexes(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 
 		return create_result(std::move(session::remove_indexes(elliptics_id::convert(id), std_indexes)));
 	}
 
-	python_set_indexes_result remove_indexes_internal(const bp::api::object &id, const bp::api::object &indexes) {
+	python_callback_result remove_indexes_internal(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 
 		return create_result(std::move(session::remove_indexes_internal(elliptics_id::convert(id), std_indexes)));
 	}
 
-	python_remove_result remove_index_internal(const bp::api::object &id) {
-		return create_result(std::move(session::remove_index_internal(elliptics_id::convert(id).raw_id())));
-	}
-
 	python_remove_result remove_index(const bp::api::object &id, bool remove_data) {
 		return create_result(std::move(session::remove_index(elliptics_id::convert(id).raw_id(), remove_data)));
+	}
+
+	python_remove_result remove_index_internal(const bp::api::object &id) {
+		return create_result(std::move(session::remove_index_internal(elliptics_id::convert(id).raw_id())));
 	}
 
 	python_stat_result stat_log() {
@@ -1493,7 +1497,7 @@ void init_elliptics_session() {
 		.def("update_indexes_internal_raw", &elliptics_session::update_indexes_internal_raw,
 		     (bp::arg("id"), bp::arg("indexes")),
 		    "update_indexes_internal_raw(id, indexes)\n"
-		    "    Adds id to additional indees and or updates data for the id in specified indexes.\n"
+		    "    Adds id to additional indexes and or updates data for the id in specified indexes.\n"
 		    "    It doesn't update list of indexes where id is.\n"
 		    "    Return elliptics.AsyncResult.\n"
 		    "    -- id - string or elliptics.Id\n"
@@ -1511,6 +1515,16 @@ void init_elliptics_session() {
 		    "        indexes_result = result.get()\n"
 		    "    except Exception as e:\n"
 		    "        print 'Set indexes raw has been failed:', e\n")
+
+		.def("add_to_capped_collection", &elliptics_session::add_to_capped_collection,
+		     (bp::arg("id"), bp::arg("index"), bp::arg("limit"), bp::arg("remove_data")),
+		     "add_to_capped_collection(id, index, limit, remove_data)\n"
+		     "    Adds object @id to capped collection @index.\n"
+		     "    As object is added to capped collection it displaces the oldest object from it in case if\n"
+		     "    the @limit is reached.\n"
+		     "    If @remove_data is true in addition to displacing of the object it's data is also removed from the storage.\n"
+		     "    NOTE: The @limit is satisfied for each shard and not for whole collection.\n"
+		     "    Return elliptics.AsyncResult.\n")
 
 		.def("find_all_indexes", &elliptics_session::find_all_indexes,
 		     (bp::arg("indexes")),
@@ -1600,16 +1614,16 @@ void init_elliptics_session() {
 		     "remove_indexes_internal(id, indexes)\n"
 		     "    Removes @id from all @indexes and doesn't change indexes list of @id\n")
 
+		.def("remove_index", &elliptics_session::remove_index,
+		     (bp::args("id", "remove_data")),
+		     "remove_index(id, remove_data)\n"
+		     "    Removes @id from all @indexes and doesn't change indexes list of @id\n")
+
 		.def("remove_index_internal", &elliptics_session::remove_index_internal,
 		     (bp::arg("id")),
 		     "remove_index_internal(id)\n"
 		     "    Removes @id from all indexes which are connected with @id\n"
 		     "    Doesn't change indexes list of @id\n")
-
-		.def("remove_index", &elliptics_session::remove_index,
-		     (bp::args("id", "remove_data")),
-		     "remove_index(id, remove_data)\n"
-		     "    Removes @id from all @indexes and doesn't change indexes list of @id\n")
 
 // Statistics
 

@@ -159,8 +159,8 @@ typedef python_async_result<lookup_result_entry>		python_lookup_result;
 typedef python_async_result<write_result_entry>			python_write_result;
 typedef python_async_result<remove_result_entry>		python_remove_result;
 typedef python_async_result<exec_result_entry>			python_exec_result;
+typedef python_async_result<callback_result_entry>		python_callback_result;
 
-typedef python_async_result<callback_result_entry>		python_set_indexes_result;
 typedef python_async_result<find_indexes_result_entry>	python_find_indexes_result;
 typedef python_async_result<index_entry>				python_check_indexes_result;
 
