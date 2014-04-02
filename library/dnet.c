@@ -709,10 +709,13 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	const uint64_t fsize = dsize;
 	unsigned char *combined = NULL, *position;
 	int err = 0;
+	uint64_t iterated_keys = 0;
 
 	/* Sanity */
 	if (ipriv == NULL || key == NULL || data == NULL || elist == NULL)
 		return -EINVAL;
+
+	iterated_keys = atomic_inc(&ipriv->iterated_keys);
 
 	/* If DNET_IFLAGS_KEY_RANGE is set... */
 	if (ipriv->req->flags & DNET_IFLAGS_KEY_RANGE) {
@@ -758,6 +761,8 @@ key_range_found:
 	response->timestamp = elist->timestamp;
 	response->user_flags = elist->flags;
 	response->size = fsize;
+	response->total_keys = ipriv->total_keys;
+	response->iterated_keys = iterated_keys;
 	dnet_convert_iterator_response(response);
 
 	/* Data */
@@ -869,6 +874,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_iterator_send_private spriv;
 	struct dnet_iterator_file_private fpriv;
 	int err;
+	struct dnet_stat be_stat;
 
 	/* Check flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
@@ -884,6 +890,11 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	if ((err = dnet_iterator_check_key_range(st, cmd, ireq, irange)) ||
 			(err = dnet_iterator_check_ts_range(st, cmd, ireq)))
 		goto err_out_exit;
+
+	atomic_init(&cpriv.iterated_keys, 0);
+
+	st->n->cb->storage_stat(st->n->cb->command_private, &be_stat);
+	cpriv.total_keys = be_stat.node_files;
 
 	switch (ireq->itype) {
 	case DNET_ITYPE_NETWORK:
