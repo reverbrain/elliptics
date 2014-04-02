@@ -15,7 +15,8 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:	python-devel
 #BuildRequires:	libcocaine-core2-devel >= 0.11.2.1
 #BuildRequires:  cocaine-framework-native-devel >= 0.11.0.1
-BuildRequires:	eblob-devel >= 0.21.31
+BuildRequires:	eblob-devel >= 0.21.32
+BuildRequires:	react >= 1.0.1
 BuildRequires:	cmake msgpack-devel
 
 %define boost_ver %{nil}

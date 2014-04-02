@@ -28,7 +28,7 @@
 
 #include "elliptics/debug.hpp"
 
-#include "reverbrain_react.hpp"
+#include "react/elliptics_react.hpp"
 
 #include <mutex>
 
@@ -869,7 +869,7 @@ void dnet_indexes_cleanup(struct dnet_node *)
 
 int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 {
-	auto process_indexes_guard(make_action_guard(ACTION_DNET_PROCESS_INDEXES));
+	react::action_guard process_indexes_guard(ACTION_DNET_PROCESS_INDEXES);
 
 	dnet_indexes_request *request = static_cast<dnet_indexes_request*>(data);
 	int err = -ENOTSUP;

@@ -34,7 +34,7 @@ static char *dnet_work_io_mode_string[] = {
 	[DNET_WORK_IO_MODE_NONBLOCKING] = "NONBLOCKING",
 };
 
-__thread uint32_t trace_id = 0;
+__thread uint64_t trace_id = 0;
 
 static char *dnet_work_io_mode_str(int mode)
 {

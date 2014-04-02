@@ -125,7 +125,7 @@ class TestSession:
                          getter=getter)
 
     def test_trace_bit(self, server, simple_node):
-        assert elliptics.trace_bit == 2 ** 31
+        assert elliptics.trace_bit == 2 ** 63
 
     def test_resetting_timeout(self, server, simple_node):
         session = elliptics.Session(simple_node)
@@ -140,7 +140,7 @@ class TestSession:
                              ('ioflags', 2 ** 32),
                              ('exceptions_policy', 2 ** 32),
                              ('timeout', 2 ** 32),
-                             ('trace_id', 2 ** 32),
+                             ('trace_id', 2 ** 64),
                              ('user_flags', 2 ** 64)])
     def test_properties_out_of_limits(self, server, simple_node, prop, value):
         session = elliptics.Session(simple_node)

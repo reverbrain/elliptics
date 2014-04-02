@@ -199,11 +199,11 @@ public:
 		return convert_to_list(session::get_groups());
 	}
 
-	void set_trace_id(uint32_t trace_id) {
+	void set_trace_id(uint64_t trace_id) {
 		session::set_trace_id(trace_id);
 	}
 
-	uint32_t get_trace_id() {
+	uint64_t get_trace_id() {
 		return session::get_trace_id();
 	}
 

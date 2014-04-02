@@ -1,7 +1,7 @@
 find_package(Boost REQUIRED COMPONENTS python)
-find_package(PythonLibs REQUIRED)
 find_package(PythonInterp REQUIRED)
-find_package(PythonExtensionDir REQUIRED)
+find_package(PythonLibs ${PYTHON_VERSION_STRING} EXACT REQUIRED)
+find_package(PythonExtensionDir ${PYTHON_VERSION_STRING} EXACT REQUIRED)
 message(STATUS "Python includes are situated in (${PYTHON_INCLUDE_PATH}, ${PYTHON_INCLUDE_DIRS})")
 
 include_directories(${PYTHON_INCLUDE_PATH})
