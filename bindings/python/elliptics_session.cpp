@@ -170,6 +170,9 @@ public:
 		if (get_string.check()) {
 			dnet_id id;
 			session::transform(get_string(), id);
+			if (!session::get_groups().empty()) {
+				id.group_id = session::get_groups().front();
+			}
 			return elliptics_id(id);
 		}
 
@@ -455,7 +458,30 @@ public:
 		return create_result(std::move(session::cancel_iterator(transform(id).id(), iterator_id)));
 	}
 
-	python_exec_result exec_src(const bp::api::object &id, const int src_key, const std::string &event, const bp::api::object &data) {
+	python_exec_result exec(const bp::api::object &id, const bp::api::object &context, const int src_key, const std::string &event, const bp::api::object &data) {
+		dnet_id* raw_id = NULL;
+		dnet_id conv_id;
+
+		std::string str_data;
+		if (data.ptr() != Py_None) {
+			bp::extract<std::string> get_data(data);
+			str_data = get_data();
+		}
+
+		if (context.ptr() != Py_None) {
+			bp::extract<exec_context> get_context(context);
+			return create_result(std::move(session::exec(get_context(), event, data_pointer::copy(str_data))));
+		}
+
+		if (id.ptr() != Py_None) {
+			conv_id = transform(id).id();
+			raw_id = &conv_id;
+		}
+
+		return create_result(std::move(session::exec(raw_id, src_key, event, data_pointer::copy(str_data))));
+	}
+
+	python_exec_result push(const bp::api::object &id, const exec_context &context, const std::string &event, const bp::api::object &data) {
 		dnet_id* raw_id = NULL;
 		dnet_id conv_id;
 
@@ -470,11 +496,17 @@ public:
 			raw_id = &conv_id;
 		}
 
-		return create_result(std::move(session::exec(raw_id, src_key, event, data_pointer::copy(str_data))));
+		return create_result(std::move(session::push(raw_id, context, event, data_pointer::copy(str_data))));
 	}
 
-	python_exec_result exec(const bp::api::object &id, const std::string &event, const bp::api::object &data) {
-		return exec_src(id, -1, event, data);
+	python_exec_result reply(const exec_context &context, const bp::api::object &data, exec_context::final_state final_state) {
+		std::string str_data;
+		if (data.ptr() != Py_None) {
+			bp::extract<std::string> get_data(data);
+			str_data = get_data();
+		}
+
+		return create_result(std::move(session::reply(context, data_pointer::copy(str_data), final_state)));
 	}
 
 	python_remove_result remove(const bp::api::object &id) {
@@ -707,6 +739,12 @@ void init_elliptics_session() {
 		.value("io_histograms", elliptics_monitor_categories_io_histograms)
 		.value("backend", elliptics_monitor_categories_backend)
 		.value("call_tree", elliptics_monitor_categories_call_tree)
+	;
+
+	bp::enum_<exec_context::final_state>("exec_context_final_states",
+	    "Final states of exec context\n")
+		.value("progressive", exec_context::final_state::progressive)
+		.value("final", exec_context::final_state::final)
 	;
 
 	bp::class_<elliptics_status>("SessionStatus", bp::init<>())
@@ -1702,10 +1740,28 @@ void init_elliptics_session() {
 		// Couldn't use "exec" as a method name because it's a reserved keyword in python
 
 		.def("exec_", &elliptics_session::exec,
-		      (bp::arg("id"), bp::arg("event"), bp::arg("data") = ""))
-		.def("exec_", &elliptics_session::exec_src,
-		      (bp::arg("id"), bp::arg("src_key"),
-		       bp::arg("event"), bp::arg("data") = ""))
+		    (bp::arg("id")=bp::api::object(), bp::arg("context")=bp::api::object(), bp::arg("src_key") = -1, bp::arg("event"), bp::arg("data") = ""),
+		    "exec_(id=None, context=None, src_key=-1, event, data)\n"
+		    "    Sends execution request of the given @event and @data\n"
+		    "     to the party specified by a given @context or @id.\n"
+		    "     If both @id and @context are None then request will be sended to all nodes.\n"
+		    "     Returns async_exec_result.\n"
+		    "     Result contains all replies sent by nodes processing this event.\n")
+		.def("push", &elliptics_session::push,
+		    (bp::arg("id")=bp::api::object(), bp::arg("context"), bp::arg("event"), bp::arg("data") = ""),
+		    "push(id=None, context, event, data="")\n"
+		    "    Send an @event with @data to @id continuing the process specified by @context.\n"
+		    "    If @id is null event is sent to all groups specified in the session.\n"
+		    "    Returns async_exec_result.\n"
+		    "    Result contains only the information about starting of event procession, so there is no\n"
+		    "    information if it was finally processed successfully.\n")
+		.def("reply", &elliptics_session::reply,
+		    (bp::arg("context"), bp::arg("data"), bp::arg("final_state")),
+		    "reply(context, data, final_state)\n"
+		    "    Reply @data to initial starter of the process specified by @context.\n"
+		    "    If @final_state is equal to elliptics.exec_context_final_states.final it is the last reply, otherwise there will be more.\n"
+		    "    Returns async_reply_result.\n"
+		    "    Result contains information if starter received the reply.\n")
 
 		.def("prepare_latest", &elliptics_session::prepare_latest)
 	;
