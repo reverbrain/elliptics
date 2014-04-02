@@ -911,8 +911,12 @@ struct dnet_iterator_response
 
 static inline void dnet_convert_iterator_response(struct dnet_iterator_response *r)
 {
+	r->id = dnet_bswap64(r->id);
 	r->status = dnet_bswap32(r->status);
 	r->user_flags = dnet_bswap32(r->user_flags);
+	r->size = dnet_bswap64(r->size);
+	r->iterated_keys = dnet_bswap64(r->iterated_keys);
+	r->total_keys = dnet_bswap64(r->total_keys);
 	dnet_convert_time(&r->timestamp);
 }
 

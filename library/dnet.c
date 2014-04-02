@@ -728,17 +728,19 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 				goto key_range_found;
 		}
 		/* no range contains the key */
-		goto err_out_exit;
+		goto key_skipped;
 	}
 
 key_range_found:
 
 	/* If DNET_IFLAGS_TS_RANGE is set... */
-	if (ipriv->req->flags & DNET_IFLAGS_TS_RANGE)
+	if (ipriv->req->flags & DNET_IFLAGS_TS_RANGE) {
 		/* ...skip ts not in ts range */
-			if (dnet_time_cmp(&elist->timestamp, &ipriv->req->time_begin) < 0
-					|| dnet_time_cmp(&elist->timestamp, &ipriv->req->time_end) > 0)
-				goto err_out_exit;
+		if (dnet_time_cmp(&elist->timestamp, &ipriv->req->time_begin) < 0 ||
+		    dnet_time_cmp(&elist->timestamp, &ipriv->req->time_end) > 0) {
+			goto key_skipped;
+		}
+	}
 
 	/* Set data to NULL in case it's not requested */
 	if (!(ipriv->req->flags & DNET_IFLAGS_DATA)) {
@@ -778,6 +780,30 @@ key_range_found:
 
 	/* Check that we are allowed to run */
 	err = dnet_iterator_flow_control(ipriv);
+
+	goto err_out_exit;
+
+key_skipped:
+	if (atomic_inc(&ipriv->skipped_keys) == 10000) {
+		atomic_sub(&ipriv->skipped_keys, 10000);
+		size = response_size;
+		combined = malloc(size);
+		if (combined == NULL) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
+		response = (struct dnet_iterator_response *)combined;
+		memset(response, 0, response_size);
+		response->status = 1;
+		response->total_keys = ipriv->total_keys;
+		response->iterated_keys = iterated_keys;
+		dnet_convert_iterator_response(response);
+
+		/* Finally run next callback */
+		err = ipriv->next_callback(ipriv->next_private, combined, size);
+		if (err)
+			goto err_out_exit;
+	}
 
 err_out_exit:
 	free(combined);
