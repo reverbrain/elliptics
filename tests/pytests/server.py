@@ -28,7 +28,7 @@ class Servers:
                  without_cocaine=False):
         import json
         import subprocess
-        self.path = os.path.join(os.getcwd(), 'servers')
+        self.path = 'servers'
         if os.path.exists(self.path):
             shutil.rmtree(self.path)
         os.mkdir(self.path)
@@ -47,7 +47,7 @@ class Servers:
                                   stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE)
 
-        self.p.stdin.write(js.lower() + '\0')
+        self.p.stdin.write(js + '\0')
 
         assert self.p.poll() is None
 
