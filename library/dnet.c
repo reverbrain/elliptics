@@ -756,6 +756,8 @@ key_range_found:
 		goto err_out_exit;
 	}
 
+	atomic_set(&ipriv->skipped_keys, 0);
+
 	/* Response */
 	response = (struct dnet_iterator_response *)combined;
 	memset(response, 0, response_size);
