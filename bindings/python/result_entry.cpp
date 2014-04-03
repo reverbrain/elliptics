@@ -36,7 +36,7 @@ elliptics_id index_entry_get_index(index_entry &result)
 
 void index_entry_set_index(index_entry &result, const elliptics_id &id)
 {
-	result.index = id.raw_id();
+	memcpy(result.index.id, id.id().id, DNET_ID_SIZE);
 }
 
 std::string index_entry_get_data(index_entry &result)
@@ -77,6 +77,21 @@ uint64_t iterator_response_get_user_flags(dnet_iterator_response *response)
 uint64_t iterator_response_get_size(dnet_iterator_response *response)
 {
 	return response->size;
+}
+
+uint64_t iterator_response_get_total_keys(dnet_iterator_response *response)
+{
+	return response->total_keys;
+}
+
+uint64_t iterator_response_get_iterated_keys(dnet_iterator_response *response)
+{
+	return response->iterated_keys;
+}
+
+int iterator_response_get_status(dnet_iterator_response *response)
+{
+	return response->status;
 }
 
 std::string read_result_get_data(read_result_entry &result)
@@ -384,6 +399,14 @@ void init_result_entry() {
 		              "Custom user-defined flags of iterated key")
 		.add_property("size", iterator_response_get_size,
 		              "Size of iterated key data")
+		.add_property("total_keys", iterator_response_get_total_keys,
+		              "Number of all keys")
+		.add_property("iterated_keys", iterator_response_get_iterated_keys,
+		              "Number of iterated keys")
+		.add_property("status", iterator_response_get_status,
+		              "Status of iterated key:\n"
+		              "0 - common key\n"
+		              "1 - keepalive response")
 	;
 
 	bp::class_<read_result_entry>("ReadResultEntry")

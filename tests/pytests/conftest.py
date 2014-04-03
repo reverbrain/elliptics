@@ -110,6 +110,11 @@ def connect(endpoints, groups, **kw):
 
 
 @pytest.fixture
+def elliptics_remotes(request):
+    return request.config.option.remotes
+
+
+@pytest.fixture
 def elliptics_groups(request):
     return [int(g) for g in request.config.option.groups.split(',')]
 
@@ -123,10 +128,6 @@ def elliptics_client(request):
     remote = request.config.option.remotes
     groups = [int(g) for g in request.config.option.groups.split(',')]
     loglevel = request.config.option.loglevel
-    if not remote:
-        from socket import gethostname
-        remote = gethostname() + ':2025'
-
     return connect(remote, groups, loglevel=loglevel)
     # client = connect([remote], groups, loglevel=loglevel)
     # client.set_filter(elliptics.filters.all_with_ack)

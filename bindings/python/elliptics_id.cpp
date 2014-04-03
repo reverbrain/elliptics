@@ -17,6 +17,8 @@
 
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
+#include <boost/python/return_value_policy.hpp>
+#include <boost/python/manage_new_object.hpp>
 
 namespace ioremap { namespace elliptics { namespace python {
 
@@ -38,59 +40,59 @@ static bp::list convert_to_list(const unsigned char *src, unsigned int size)
 	return result;
 }
 
-elliptics_id::elliptics_id(								) : key() {}
-elliptics_id::elliptics_id(const std::string &remote	) : key(remote) {}
-elliptics_id::elliptics_id(const dnet_id &id			) : key(id) {}
-elliptics_id::elliptics_id(const dnet_raw_id &id		) : key(id) {}
-elliptics_id::elliptics_id(const key &other				) : key(other) {}
-elliptics_id::elliptics_id(const elliptics_id &other	) : key(other) {}
-elliptics_id::elliptics_id(const bp::list &id,
-                           const uint32_t &group_id		) : key() {
-	set_id(id);
+elliptics_id::elliptics_id() {
+	memset(&m_id, 0, sizeof(m_id));
+}
+
+elliptics_id::elliptics_id(const dnet_id &id) {
+	m_id = id;
+}
+
+elliptics_id::elliptics_id(const dnet_raw_id &id) {
+	memset(&m_id, 0, sizeof(m_id));
+	memcpy(m_id.id, id.id, DNET_ID_SIZE);
+}
+
+elliptics_id::elliptics_id(const uint8_t id[DNET_ID_SIZE]) {
+	memset(&m_id, 0, sizeof(m_id));
+	memcpy(&m_id.id, id, DNET_ID_SIZE);
+}
+
+elliptics_id::elliptics_id(const elliptics_id &other) {
+	m_id = other.m_id;
+}
+
+elliptics_id::elliptics_id(const bp::list &id, const uint32_t &group_id) {
+	set_list_id(id);
 	set_group_id(group_id);
 }
 
-elliptics_id::elliptics_id(const uint8_t *raw_id) {
-	dnet_raw_id id;
-	memcpy(id.id, raw_id, sizeof(id.id));
-	key::set_id(id);
+bp::list elliptics_id::list_id() const {
+	return convert_to_list(m_id.id, sizeof(m_id.id));
 }
 
-bp::list elliptics_id::get_id() const {
-	return convert_to_list(id().id, sizeof(id().id));
-}
-
-void elliptics_id::set_id(const bp::list &id) {
+void elliptics_id::set_list_id(const bp::list &id) {
 	dnet_id _id;
 	convert_from_list(id, _id.id, sizeof(_id.id));
-	key::set_id(_id);
+	m_id = _id;
 }
 
 uint32_t elliptics_id::group_id() const {
-	return id().group_id;
+	return m_id.group_id;
 }
 
 void elliptics_id::set_group_id(const uint32_t &group_id) {
-	key::set_group_id(group_id);
+	m_id.group_id = group_id;
 }
 
 int elliptics_id::cmp(const elliptics_id &other) const {
-	return dnet_id_cmp_str(id().id, other.id().id);
+	return dnet_id_cmp_str(m_id.id, other.m_id.id);
 }
 
-elliptics_id elliptics_id::convert(const bp::api::object &id) {
-	bp::extract<elliptics_id> get_id(id);
-	if (get_id.check())
-		return get_id();
-
-	bp::extract<std::string> get_string(id);
-	if (get_string.check())
-		return elliptics_id(get_string());
-
-	PyErr_SetString(PyExc_ValueError, "Couldn't convert id to elliptics id");
-	bp::throw_error_already_set();
-
-	return elliptics_id();
+elliptics_id* elliptics_id::from_hex(const std::string &hex) {
+	dnet_id id;
+	dnet_parse_numeric_id(hex.c_str(), id.id);
+	return new elliptics_id(id);
 }
 
 // Implements __str__ method.
@@ -106,9 +108,7 @@ std::string elliptics_id::to_str() const {
 std::string elliptics_id::to_repr() const {
 	std::string result("<id: ");
 	result += dnet_dump_id_len(&id(), DNET_DUMP_NUM);
-	result += ", '";
-	result += remote();
-	result += "'>";
+	result += ">";
 	return result;
 }
 
@@ -119,7 +119,7 @@ struct id_pickle : bp::pickle_suite
 	}
 
 	static bp::tuple getstate(const elliptics_id& id) {
-		return bp::make_tuple(id.get_id(), id.group_id());
+		return bp::make_tuple(id.id(), id.group_id());
 	}
 
 	static void setstate(elliptics_id& id, bp::tuple state) {
@@ -131,7 +131,7 @@ struct id_pickle : bp::pickle_suite
 			bp::throw_error_already_set();
 		}
 
-		id.set_id(bp::extract<bp::list>(state[0]));
+		id.set_list_id(bp::extract<bp::list>(state[0]));
 		id.set_group_id(bp::extract<uint32_t>(state[1]));
 	}
 };
@@ -145,12 +145,12 @@ void init_elliptics_id() {
 		     "    -- key - list of 64 integers from [0, 255] which represents 512 bit key\n"
 		     "    -- group_id - Elliptics group identificator from which key is considered\n\n"
 		     "    id = elliptics.Id(key=[0] * 64, group_id = 1)"))
-		.def(bp::init<std::string>(bp::args("key"),
-		     "__init__(key)\n"
-		     "    Initializes elliptics.Id\n"
-		     "    -- key - string key\n\n"
-		     "    id = elliptics.Id(key='some key')"))
-		.add_property("id", &elliptics_id::get_id, &elliptics_id::set_id,
+		.def("from_hex", elliptics_id::from_hex, bp::return_value_policy<bp::manage_new_object>(),
+		     "from_hex(hex_string)\n"
+		     "    Converts @hex_string to elliptics.Id\n"
+		     )
+		.staticmethod("from_hex")
+		.add_property("id", &elliptics_id::list_id, &elliptics_id::set_list_id,
 		     "Internal representation of the key\n\n"
 		     "internal_id = id.id\n"
 		     "id.id = [0] * 64")
