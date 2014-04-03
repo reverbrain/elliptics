@@ -904,13 +904,19 @@ struct dnet_iterator_response
 	struct dnet_time		timestamp;	/* Timestamp from extended header */
 	uint64_t			user_flags;	/* User flags set in extended header */
 	uint64_t			size;
-	uint64_t			reserved[4];
+	uint64_t			iterated_keys;
+	uint64_t			total_keys;
+	uint64_t			reserved[2];
 } __attribute__ ((packed));
 
 static inline void dnet_convert_iterator_response(struct dnet_iterator_response *r)
 {
+	r->id = dnet_bswap64(r->id);
 	r->status = dnet_bswap32(r->status);
 	r->user_flags = dnet_bswap32(r->user_flags);
+	r->size = dnet_bswap64(r->size);
+	r->iterated_keys = dnet_bswap64(r->iterated_keys);
+	r->total_keys = dnet_bswap64(r->total_keys);
 	dnet_convert_time(&r->timestamp);
 }
 

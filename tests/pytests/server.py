@@ -71,7 +71,7 @@ class Servers:
             shutil.rmtree(self.path)
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def server(request):
     if request.config.option.remotes:
         return None

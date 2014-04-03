@@ -14,6 +14,7 @@
 # =============================================================================
 
 import logging
+import elliptics
 
 log = logging.getLogger("elliptics")
 
@@ -24,6 +25,40 @@ def logged_class(klass):
     """
     klass.log = logging.getLogger("elliptics")
     return klass
+
+
+class Handler(logging.Handler):
+    def __init__(self, path, level):
+        logging.Handler.__init__(self)
+
+        if level == elliptics.log_level.data:
+            logging.Handler.setLevel(self, logging.CRITICAL)
+        elif level == elliptics.log_level.error:
+            logging.Handler.setLevel(self, logging.ERROR)
+        elif level == elliptics.log_level.info:
+            logging.Handler.setLevel(self, logging.INFO)
+        elif level == elliptics.log_level.notice:
+            logging.Handler.setLevel(self, logging.INFO)
+        elif level == elliptics.log_level.debug:
+            logging.Handler.setLevel(self, logging.DEBUG)
+
+        self.logger = elliptics.Logger(path, level)
+
+    def get_logger(self):
+        return self.logger
+
+    def emit(self, record):
+        level = elliptics.log_level.error
+        if record.levelno <= logging.DEBUG:
+            level = elliptics.log_level.debug
+        elif record.levelno <= logging.INFO:
+            level = elliptics.log_level.info
+        elif record.levelno <= logging.ERROR:
+            level = elliptics.log_level.error
+        else:
+            level = elliptics.log_level.data
+
+        self.logger.log(level, record.msg.format(*record.args))
 
 
 def init_logger():

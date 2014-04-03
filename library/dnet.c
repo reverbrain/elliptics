@@ -709,10 +709,13 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	const uint64_t fsize = dsize;
 	unsigned char *combined = NULL, *position;
 	int err = 0;
+	uint64_t iterated_keys = 0;
 
 	/* Sanity */
 	if (ipriv == NULL || key == NULL || data == NULL || elist == NULL)
 		return -EINVAL;
+
+	iterated_keys = atomic_inc(&ipriv->iterated_keys);
 
 	/* If DNET_IFLAGS_KEY_RANGE is set... */
 	if (ipriv->req->flags & DNET_IFLAGS_KEY_RANGE) {
@@ -725,17 +728,19 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 				goto key_range_found;
 		}
 		/* no range contains the key */
-		goto err_out_exit;
+		goto key_skipped;
 	}
 
 key_range_found:
 
 	/* If DNET_IFLAGS_TS_RANGE is set... */
-	if (ipriv->req->flags & DNET_IFLAGS_TS_RANGE)
+	if (ipriv->req->flags & DNET_IFLAGS_TS_RANGE) {
 		/* ...skip ts not in ts range */
-			if (dnet_time_cmp(&elist->timestamp, &ipriv->req->time_begin) < 0
-					|| dnet_time_cmp(&elist->timestamp, &ipriv->req->time_end) > 0)
-				goto err_out_exit;
+		if (dnet_time_cmp(&elist->timestamp, &ipriv->req->time_begin) < 0 ||
+		    dnet_time_cmp(&elist->timestamp, &ipriv->req->time_end) > 0) {
+			goto key_skipped;
+		}
+	}
 
 	/* Set data to NULL in case it's not requested */
 	if (!(ipriv->req->flags & DNET_IFLAGS_DATA)) {
@@ -751,6 +756,8 @@ key_range_found:
 		goto err_out_exit;
 	}
 
+	atomic_set(&ipriv->skipped_keys, 0);
+
 	/* Response */
 	response = (struct dnet_iterator_response *)combined;
 	memset(response, 0, response_size);
@@ -758,6 +765,8 @@ key_range_found:
 	response->timestamp = elist->timestamp;
 	response->user_flags = elist->flags;
 	response->size = fsize;
+	response->total_keys = ipriv->total_keys;
+	response->iterated_keys = iterated_keys;
 	dnet_convert_iterator_response(response);
 
 	/* Data */
@@ -773,6 +782,30 @@ key_range_found:
 
 	/* Check that we are allowed to run */
 	err = dnet_iterator_flow_control(ipriv);
+
+	goto err_out_exit;
+
+key_skipped:
+	if (atomic_inc(&ipriv->skipped_keys) == 10000) {
+		atomic_sub(&ipriv->skipped_keys, 10000);
+		size = response_size;
+		combined = malloc(size);
+		if (combined == NULL) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
+		response = (struct dnet_iterator_response *)combined;
+		memset(response, 0, response_size);
+		response->status = 1;
+		response->total_keys = ipriv->total_keys;
+		response->iterated_keys = iterated_keys;
+		dnet_convert_iterator_response(response);
+
+		/* Finally run next callback */
+		err = ipriv->next_callback(ipriv->next_private, combined, size);
+		if (err)
+			goto err_out_exit;
+	}
 
 err_out_exit:
 	free(combined);
@@ -869,6 +902,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_iterator_send_private spriv;
 	struct dnet_iterator_file_private fpriv;
 	int err;
+	struct dnet_stat be_stat;
 
 	/* Check flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
@@ -884,6 +918,11 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	if ((err = dnet_iterator_check_key_range(st, cmd, ireq, irange)) ||
 			(err = dnet_iterator_check_ts_range(st, cmd, ireq)))
 		goto err_out_exit;
+
+	atomic_init(&cpriv.iterated_keys, 0);
+
+	st->n->cb->storage_stat(st->n->cb->command_private, &be_stat);
+	cpriv.total_keys = be_stat.node_files;
 
 	switch (ireq->itype) {
 	case DNET_ITYPE_NETWORK:

@@ -17,6 +17,7 @@
 #define ELLIPTICS_PYTHON_ELLIPTICS_ID_HPP
 
 #include <boost/python/list.hpp>
+#include <boost/python/long.hpp>
 
 #include <elliptics/session.hpp>
 
@@ -24,20 +25,21 @@ namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {
 
-class elliptics_id : public key {
+class elliptics_id {
 public:
 	elliptics_id();
-	elliptics_id(const std::string &remote);
 	elliptics_id(const dnet_id &id);
 	elliptics_id(const dnet_raw_id &id);
-	elliptics_id(const key &other);
+	elliptics_id(const uint8_t id[DNET_ID_SIZE]);
 	elliptics_id(const elliptics_id &other);
 	elliptics_id(const bp::list &id, const uint32_t &group_id);
-	elliptics_id(const uint8_t *raw_id);
 
-	bp::list get_id() const;
+	const dnet_id &id() const { return m_id; }
+	const dnet_raw_id &raw_id() const { return *reinterpret_cast<const dnet_raw_id *>(&m_id); }
 
-	void set_id(const bp::list &id);
+	bp::list list_id() const;
+
+	void set_list_id(const bp::list &id);
 
 	uint32_t group_id() const;
 
@@ -45,7 +47,8 @@ public:
 
 	int cmp(const elliptics_id &other) const;
 
-	static elliptics_id convert(const bp::api::object &id);
+	static elliptics_id* from_hex(const std::string &hex);
+
 	// Implements __str__ method.
 	// Always returns printable hex representation of all id bytes
 	std::string to_str() const;
@@ -54,6 +57,8 @@ public:
 	// Returns group, hex id prefix, and original key string
 	// (depending on key's previous history, any of those could be zero or empty).
 	std::string to_repr() const;
+
+	dnet_id m_id;
 };
 
 void init_elliptics_id();

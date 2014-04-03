@@ -64,6 +64,12 @@ class Session(Session):
         return Address.from_host_port(super(Session, self)
                                       .lookup_address(key, group_id), group_id)
 
+    def bulk_write(self, datas):
+        if type(datas) is dict:
+            return super(Session, self).bulk_write(datas.items())
+        else:
+            return super(Session, self).bulk_write(datas)
+
     def set_indexes(self, id, indexes, datas=None):
         """
         set_indexes(id, indexes, datas=None)

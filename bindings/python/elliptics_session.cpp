@@ -138,7 +138,7 @@ elliptics_id dnet_iterator_range_get_key_begin(const dnet_iterator_range *range)
 
 void dnet_iterator_range_set_key_begin(dnet_iterator_range *range, const elliptics_id &id)
 {
-	range->key_begin = id.raw_id();
+	memcpy(range->key_begin.id, id.id().id, DNET_ID_SIZE);
 }
 
 elliptics_id dnet_iterator_range_get_key_end(const dnet_iterator_range *range)
@@ -148,7 +148,7 @@ elliptics_id dnet_iterator_range_get_key_end(const dnet_iterator_range *range)
 
 void dnet_iterator_range_set_key_end(dnet_iterator_range *range, const elliptics_id &id)
 {
-	range->key_end = id.raw_id();
+	memcpy(range->key_end.id, id.id().id, DNET_ID_SIZE);
 }
 
 class elliptics_session: public session, public bp::wrapper<session> {
@@ -161,16 +161,25 @@ public:
 	}
 
 	elliptics_id transform(const bp::api::object &data) {
+		bp::extract<elliptics_id> get_id(data);
 		bp::extract<std::string> get_string(data);
+
+		if (get_id.check())
+			return get_id();
+
 		if (get_string.check()) {
 			dnet_id id;
 			session::transform(get_string(), id);
+			if (!session::get_groups().empty()) {
+				id.group_id = session::get_groups().front();
+			}
 			return elliptics_id(id);
-		} else {
-			elliptics_id id = elliptics_id::convert(data);
-			session::transform(id);
-			return id;
 		}
+
+		PyErr_SetString(PyExc_ValueError, "Couldn't transform value to elliptics.Id");
+		bp::throw_error_already_set();
+
+		return elliptics_id();
 	}
 
 	void set_groups(const bp::api::object &groups) {
@@ -263,12 +272,12 @@ public:
 
 		bp::extract<elliptics_io_attr&> get_io_attr(id);
 		if (!get_io_attr.check())
-			return session::read_file(elliptics_id::convert(id), file, offset, size);
+			return session::read_file(transform(id).id(), file, offset, size);
 
 		elliptics_io_attr &io_attr = get_io_attr;
 		transform_io_attr(io_attr);
 
-		return session::read_file(io_attr.id, file, io_attr.offset, io_attr.size);
+		return session::read_file(io_attr.id.id(), file, io_attr.offset, io_attr.size);
 	}
 
 	void write_file(const bp::api::object &id, const std::string &file, uint64_t local_offset, uint64_t offset, uint64_t size) {
@@ -276,23 +285,23 @@ public:
 
 		bp::extract<elliptics_io_attr&> get_io_attr(id);
 		if (!get_io_attr.check())
-			return session::write_file(elliptics_id::convert(id), file, local_offset, offset, size);
+			return session::write_file(transform(id).id(), file, local_offset, offset, size);
 
 		elliptics_io_attr &io_attr = get_io_attr;
 		transform_io_attr(io_attr);
 
-		return session::write_file(io_attr.id, file, local_offset, io_attr.offset, io_attr.size);
+		return session::write_file(io_attr.id.id(), file, local_offset, io_attr.offset, io_attr.size);
 	}
 
 	python_read_result read_data(const bp::api::object &id, uint64_t offset, uint64_t size) {
 		bp::extract<elliptics_io_attr&> get_io_attr(id);
 		if (!get_io_attr.check())
-			return create_result(std::move(session::read_data(elliptics_id::convert(id), offset, size)));
+			return create_result(std::move(session::read_data(transform(id).id(), offset, size)));
 
 		elliptics_io_attr &io_attr = get_io_attr;
 		transform_io_attr(io_attr);
 
-		return create_result(std::move(session::read_data(io_attr.id, io_attr.offset, io_attr.size)));
+		return create_result(std::move(session::read_data(io_attr.id.id(), io_attr.offset, io_attr.size)));
 	}
 
 	python_read_result read_data_from_groups(const bp::api::object &id, const bp::api::object &groups, uint64_t offset, uint64_t size) {
@@ -300,41 +309,41 @@ public:
 
 		bp::extract<elliptics_io_attr&> get_io_attr(id);
 		if (!get_io_attr.check())
-			return create_result(std::move(session::read_data(elliptics_id::convert(id), std_groups, offset, size)));
+			return create_result(std::move(session::read_data(transform(id).id(), std_groups, offset, size)));
 
 		elliptics_io_attr &io_attr = get_io_attr;
 		transform_io_attr(io_attr);
 
-		return create_result(std::move(session::read_data(io_attr.id, std_groups, io_attr.offset, io_attr.size)));
+		return create_result(std::move(session::read_data(io_attr.id.id(), std_groups, io_attr.offset, io_attr.size)));
 	}
 
 	python_lookup_result prepare_latest(const bp::api::object &id, const bp::api::object &gl) {
 		std::vector<int> groups = convert_to_vector<int>(gl);
 		bp::extract<elliptics_io_attr&> get_io_attr(id);
 		if (!get_io_attr.check())
-			return create_result(std::move(session::prepare_latest(elliptics_id::convert(id), groups)));
+			return create_result(std::move(session::prepare_latest(transform(id).id(), groups)));
 
 		elliptics_io_attr &io_attr = get_io_attr;
 		transform_io_attr(io_attr);
 
-		return create_result(std::move(session::prepare_latest(io_attr.id, groups)));
+		return create_result(std::move(session::prepare_latest(io_attr.id.id(), groups)));
 	}
 
 	python_read_result read_latest(const bp::api::object &id, uint64_t offset, uint64_t size) {
 		bp::extract<elliptics_io_attr&> get_io_attr(id);
 		if (!get_io_attr.check())
-			return create_result(std::move(session::read_latest(elliptics_id::convert(id), offset, size)));
+			return create_result(std::move(session::read_latest(transform(id).id(), offset, size)));
 
 		elliptics_io_attr &io_attr = get_io_attr;
 		transform_io_attr(io_attr);
 
-		return create_result(std::move(session::read_latest(io_attr.id, io_attr.offset, io_attr.size)));
+		return create_result(std::move(session::read_latest(io_attr.id.id(), io_attr.offset, io_attr.size)));
 	}
 
 	python_write_result write_data(const bp::api::object &id, const std::string &data, uint64_t offset) {
 		bp::extract<elliptics_io_attr&> get_io_attr(id);
 		if (!get_io_attr.check())
-			return create_result(std::move(session::write_data(elliptics_id::convert(id), data_pointer::copy(data), offset)));
+			return create_result(std::move(session::write_data(transform(id).id(), data_pointer::copy(data), offset)));
 
 		elliptics_io_attr &io_attr = get_io_attr;
 		transform_io_attr(io_attr);
@@ -348,52 +357,52 @@ public:
 
 		bp::extract<elliptics_io_attr&> get_io_attr(id);
 		if (!get_io_attr.check())
-			return create_result(std::move(session::write_data(elliptics_id::convert(id), data_pointer::copy(data), offset, chunk_size)));
+			return create_result(std::move(session::write_data(transform(id).id(), data_pointer::copy(data), offset, chunk_size)));
 
 		elliptics_io_attr &io_attr = get_io_attr;
 		transform_io_attr(io_attr);
 
-		return create_result(std::move(session::write_data(io_attr.id, data_pointer::copy(data), io_attr.offset, chunk_size)));
+		return create_result(std::move(session::write_data(io_attr.id.id(), data_pointer::copy(data), io_attr.offset, chunk_size)));
 	}
 
 	python_write_result write_cas(const bp::api::object &id, const std::string &data, const elliptics_id &old_csum, uint64_t remote_offset) {
-		return create_result(std::move(session::write_cas(elliptics_id::convert(id), data_pointer::copy(data), old_csum.id(), remote_offset)));
+		return create_result(std::move(session::write_cas(transform(id).id(), data_pointer::copy(data), old_csum.id(), remote_offset)));
 	}
 
 	python_write_result write_cas_callback(const bp::api::object &id, bp::api::object &converter, uint64_t remote_offset, int count) {
 		auto wc_converter = boost::make_shared<write_cas_converter>(converter.ptr());
-		return create_result(std::move(session::write_cas(elliptics_id::convert(id),
+		return create_result(std::move(session::write_cas(transform(id).id(),
 		                     boost::bind(&write_cas_converter::convert, wc_converter, _1),
 		                     remote_offset,
 		                     count)));
 	}
 
 	python_write_result write_prepare(const bp::api::object &id, const std::string &data, uint64_t remote_offset, uint64_t psize) {
-		return create_result(std::move(session::write_prepare(elliptics_id::convert(id), data_pointer::copy(data), remote_offset, psize)));
+		return create_result(std::move(session::write_prepare(transform(id).id(), data_pointer::copy(data), remote_offset, psize)));
 	}
 
 	python_write_result write_plain(const bp::api::object &id, const std::string &data, uint64_t remote_offset) {
-		return create_result(std::move(session::write_plain(elliptics_id::convert(id), data_pointer::copy(data), remote_offset)));
+		return create_result(std::move(session::write_plain(transform(id).id(), data_pointer::copy(data), remote_offset)));
 	}
 
 	python_write_result write_commit(const bp::api::object &id, const std::string &data, uint64_t remote_offset, uint64_t csize) {
-		return create_result(std::move(session::write_commit(elliptics_id::convert(id), data_pointer::copy(data), remote_offset, csize)));
+		return create_result(std::move(session::write_commit(transform(id).id(), data_pointer::copy(data), remote_offset, csize)));
 	}
 
 	python_write_result write_cache(const bp::api::object &id, const std::string &data, long timeout) {
-		return create_result(std::move(session::write_cache(elliptics_id::convert(id), data_pointer::copy(data), timeout)));
+		return create_result(std::move(session::write_cache(transform(id).id(), data_pointer::copy(data), timeout)));
 	}
 
 	std::string lookup_address(const bp::api::object &id, const int group_id) {
-		return session::lookup_address(elliptics_id::convert(id), group_id);
+		return session::lookup_address(transform(id).id(), group_id);
 	}
 
 	python_lookup_result lookup(const bp::api::object &id) {
-		return create_result(std::move(session::lookup(elliptics_id::convert(id))));
+		return create_result(std::move(session::lookup(transform(id).id())));
 	}
 
 	elliptics_status update_status(const bp::api::object &id, elliptics_status &status) {
-		session::update_status(elliptics_id::convert(id), &status);
+		session::update_status(transform(id).id(), &status);
 		return status;
 	}
 
@@ -434,22 +443,45 @@ public:
 	                                      const elliptics_time& time_end = elliptics_time(-1, -1)) {
 		std::vector<dnet_iterator_range> std_ranges = convert_to_vector<dnet_iterator_range>(ranges);
 
-		return create_result(std::move(session::start_iterator(elliptics_id::convert(id), std_ranges, type, flags, time_begin.m_time, time_end.m_time)));
+		return create_result(std::move(session::start_iterator(transform(id).id(), std_ranges, type, flags, time_begin.m_time, time_end.m_time)));
 	}
 
 	python_iterator_result pause_iterator(const bp::api::object &id, const uint64_t &iterator_id) {
-		return create_result(std::move(session::pause_iterator(elliptics_id::convert(id), iterator_id)));
+		return create_result(std::move(session::pause_iterator(transform(id).id(), iterator_id)));
 	}
 
 	python_iterator_result continue_iterator(const bp::api::object &id, const uint64_t &iterator_id) {
-		return create_result(std::move(session::continue_iterator(elliptics_id::convert(id), iterator_id)));
+		return create_result(std::move(session::continue_iterator(transform(id).id(), iterator_id)));
 	}
 
 	python_iterator_result cancel_iterator(const bp::api::object &id, const uint64_t &iterator_id) {
-		return create_result(std::move(session::cancel_iterator(elliptics_id::convert(id), iterator_id)));
+		return create_result(std::move(session::cancel_iterator(transform(id).id(), iterator_id)));
 	}
 
-	python_exec_result exec_src(const bp::api::object &id, const int src_key, const std::string &event, const bp::api::object &data) {
+	python_exec_result exec(const bp::api::object &id, const bp::api::object &context, const int src_key, const std::string &event, const bp::api::object &data) {
+		dnet_id* raw_id = NULL;
+		dnet_id conv_id;
+
+		std::string str_data;
+		if (data.ptr() != Py_None) {
+			bp::extract<std::string> get_data(data);
+			str_data = get_data();
+		}
+
+		if (context.ptr() != Py_None) {
+			bp::extract<exec_context> get_context(context);
+			return create_result(std::move(session::exec(get_context(), event, data_pointer::copy(str_data))));
+		}
+
+		if (id.ptr() != Py_None) {
+			conv_id = transform(id).id();
+			raw_id = &conv_id;
+		}
+
+		return create_result(std::move(session::exec(raw_id, src_key, event, data_pointer::copy(str_data))));
+	}
+
+	python_exec_result push(const bp::api::object &id, const exec_context &context, const std::string &event, const bp::api::object &data) {
 		dnet_id* raw_id = NULL;
 		dnet_id conv_id;
 
@@ -460,21 +492,25 @@ public:
 		}
 
 		if (id.ptr() != Py_None) {
-			auto eid = elliptics_id::convert(id);
-			session::transform(eid);
-			conv_id = eid.id();
+			conv_id = transform(id).id();
 			raw_id = &conv_id;
 		}
 
-		return create_result(std::move(session::exec(raw_id, src_key, event, data_pointer::copy(str_data))));
+		return create_result(std::move(session::push(raw_id, context, event, data_pointer::copy(str_data))));
 	}
 
-	python_exec_result exec(const bp::api::object &id, const std::string &event, const bp::api::object &data) {
-		return exec_src(id, -1, event, data);
+	python_exec_result reply(const exec_context &context, const bp::api::object &data, exec_context::final_state final_state) {
+		std::string str_data;
+		if (data.ptr() != Py_None) {
+			bp::extract<std::string> get_data(data);
+			str_data = get_data();
+		}
+
+		return create_result(std::move(session::reply(context, data_pointer::copy(str_data), final_state)));
 	}
 
 	python_remove_result remove(const bp::api::object &id) {
-		return create_result(std::move(session::remove(elliptics_id::convert(id))));
+		return create_result(std::move(session::remove(transform(id).id())));
 	}
 
 	struct dnet_id_comparator {
@@ -518,43 +554,47 @@ public:
 		return create_result(std::move(session::bulk_write(ios, wdatas)));
 	}
 
-	python_set_indexes_result set_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
+	python_callback_result set_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 		auto std_datas = convert_to_vector<data_pointer>(datas);
 
-		return create_result(std::move(session::set_indexes(elliptics_id::convert(id), std_indexes, std_datas)));
+		return create_result(std::move(session::set_indexes(transform(id).raw_id(), std_indexes, std_datas)));
 	}
 
-	python_set_indexes_result set_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
+	python_callback_result set_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<index_entry>(indexes);
 
-		return create_result(std::move(session::set_indexes(elliptics_id::convert(id), std_indexes)));
+		return create_result(std::move(session::set_indexes(transform(id).raw_id(), std_indexes)));
 	}
 
-	python_set_indexes_result update_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
+	python_callback_result update_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 		auto std_datas = convert_to_vector<data_pointer>(datas);
 
-		return create_result(std::move(session::update_indexes(elliptics_id::convert(id), std_indexes, std_datas)));
+		return create_result(std::move(session::update_indexes(transform(id).raw_id(), std_indexes, std_datas)));
 	}
 
-	python_set_indexes_result update_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
+	python_callback_result update_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<index_entry>(indexes);
 
-		return create_result(std::move(session::update_indexes(elliptics_id::convert(id), std_indexes)));
+		return create_result(std::move(session::update_indexes(transform(id).raw_id(), std_indexes)));
 	}
 
-	python_set_indexes_result update_indexes_internal(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
+	python_callback_result update_indexes_internal(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 		auto std_datas = convert_to_vector<data_pointer>(datas);
 
-		return create_result(std::move(session::update_indexes_internal(elliptics_id::convert(id), std_indexes, std_datas)));
+		return create_result(std::move(session::update_indexes_internal(transform(id).raw_id(), std_indexes, std_datas)));
 	}
 
-	python_set_indexes_result update_indexes_internal_raw(const bp::api::object &id, const bp::api::object &indexes) {
+	python_callback_result update_indexes_internal_raw(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<index_entry>(indexes);
 
-		return create_result(std::move(session::update_indexes_internal(elliptics_id::convert(id), std_indexes)));
+		return create_result(std::move(session::update_indexes_internal(transform(id).raw_id(), std_indexes)));
+	}
+
+	python_callback_result add_to_capped_collection(const bp::api::object &id, const index_entry &index, int limit, bool remove_data) {
+		return create_result(std::move(session::add_to_capped_collection(transform(id).raw_id(), index, limit, remove_data)));
 	}
 
 	python_find_indexes_result find_all_indexes(const bp::api::object &indexes) {
@@ -568,9 +608,7 @@ public:
 		std_indexes.reserve(bp::len(indexes));
 
 		for (bp::stl_input_iterator<bp::api::object> it(indexes), end; it != end; ++it) {
-			auto e_id = elliptics_id::convert(*it);
-			session::transform(e_id);
-			std_indexes.push_back(e_id.raw_id());
+			std_indexes.push_back(transform(*it).raw_id());
 		}
 
 		return create_result(std::move(session::find_all_indexes(std_indexes)));
@@ -587,16 +625,34 @@ public:
 		std_indexes.reserve(bp::len(indexes));
 
 		for (bp::stl_input_iterator<bp::api::object> it(indexes), end; it != end; ++it) {
-			auto e_id = elliptics_id::convert(*it);
-			session::transform(e_id);
-			std_indexes.push_back(e_id.raw_id());
+			std_indexes.push_back(transform(*it).raw_id());
 		}
 
 		return create_result(std::move(session::find_any_indexes(std_indexes)));
 	}
 
 	python_check_indexes_result list_indexes(const bp::api::object &id) {
-		return create_result(std::move(session::list_indexes(elliptics_id::convert(id))));
+		return create_result(std::move(session::list_indexes(transform(id).raw_id())));
+	}
+
+	python_callback_result remove_indexes(const bp::api::object &id, const bp::api::object &indexes) {
+		auto std_indexes = convert_to_vector<std::string>(indexes);
+
+		return create_result(std::move(session::remove_indexes(transform(id).raw_id(), std_indexes)));
+	}
+
+	python_callback_result remove_indexes_internal(const bp::api::object &id, const bp::api::object &indexes) {
+		auto std_indexes = convert_to_vector<std::string>(indexes);
+
+		return create_result(std::move(session::remove_indexes_internal(transform(id).raw_id(), std_indexes)));
+	}
+
+	python_remove_result remove_index(const bp::api::object &id, bool remove_data) {
+		return create_result(std::move(session::remove_index(transform(id).raw_id(), remove_data)));
+	}
+
+	python_remove_result remove_index_internal(const bp::api::object &id) {
+		return create_result(std::move(session::remove_index_internal(transform(id).raw_id())));
 	}
 
 	python_stat_result stat_log() {
@@ -604,14 +660,14 @@ public:
 	}
 
 	python_stat_result stat_log_id(const bp::api::object &id) {
-		return create_result(std::move(session::stat_log(elliptics_id::convert(id))));
+		return create_result(std::move(session::stat_log(transform(id).id())));
 	}
 
 	python_monitor_stat_result monitor_stat(const bp::api::object &id, int category) {
 		if (id.ptr() == Py_None)
 			return create_result(std::move(session::monitor_stat(category)));
 
-		return create_result(std::move(session::monitor_stat(elliptics_id::convert(id), category)));
+		return create_result(std::move(session::monitor_stat(transform(id).id(), category)));
 	}
 
 	python_stat_count_result stat_log_count() {
@@ -620,9 +676,6 @@ public:
 
 private:
 	void transform_io_attr(elliptics_io_attr &io_attr) {
-		session::transform(io_attr.parent);
-		session::transform(io_attr.id);
-
 		auto& io = static_cast<dnet_io_attr&>(io_attr);
 
 		memcpy(io.parent, io_attr.parent.id().id, sizeof(io.parent));
@@ -638,7 +691,7 @@ private:
 		}
 		else {
 			elliptics_io_attr io_attr;
-			io_attr.id = elliptics_id::convert(obj);
+			io_attr.id = transform(obj);
 			return io_attr;
 		}
 	}
@@ -688,6 +741,12 @@ void init_elliptics_session() {
 		.value("call_tree", elliptics_monitor_categories_call_tree)
 	;
 
+	bp::enum_<exec_context::final_state>("exec_context_final_states",
+	    "Final states of exec context\n")
+		.value("progressive", exec_context::final_state::progressive)
+		.value("final", exec_context::final_state::final)
+	;
+
 	bp::class_<elliptics_status>("SessionStatus", bp::init<>())
 		.def_readwrite("nflags", &dnet_node_status::nflags)
 		.def_readwrite("status_flags", &dnet_node_status::status_flags)
@@ -733,11 +792,8 @@ void init_elliptics_session() {
 		     "    cloned_session = session.clone()\n")
 		.def("transform", &elliptics_session::transform, (bp::args("data")),
 		     "transform(data)\n"
-		     "    Transforms data to elliptics.Id\n"
-		     "    Data can be a string or elliptics.Id\n\n"
-		     "    id = session.transform('some data')\n"
-		     "    new_id = elliptics.Id('some data')\n"
-		     "    new_id = session.transform(new_id)\n")
+		     "    Transforms string data to elliptics.Id\n\n"
+		     "    id = session.transform('some data')\n")
 
 		.add_property("groups",
 		              &elliptics_session::get_groups,
@@ -1473,7 +1529,7 @@ void init_elliptics_session() {
 		.def("update_indexes_internal_raw", &elliptics_session::update_indexes_internal_raw,
 		     (bp::arg("id"), bp::arg("indexes")),
 		    "update_indexes_internal_raw(id, indexes)\n"
-		    "    Adds id to additional indees and or updates data for the id in specified indexes.\n"
+		    "    Adds id to additional indexes and or updates data for the id in specified indexes.\n"
 		    "    It doesn't update list of indexes where id is.\n"
 		    "    Return elliptics.AsyncResult.\n"
 		    "    -- id - string or elliptics.Id\n"
@@ -1491,6 +1547,16 @@ void init_elliptics_session() {
 		    "        indexes_result = result.get()\n"
 		    "    except Exception as e:\n"
 		    "        print 'Set indexes raw has been failed:', e\n")
+
+		.def("add_to_capped_collection", &elliptics_session::add_to_capped_collection,
+		     (bp::arg("id"), bp::arg("index"), bp::arg("limit"), bp::arg("remove_data")),
+		     "add_to_capped_collection(id, index, limit, remove_data)\n"
+		     "    Adds object @id to capped collection @index.\n"
+		     "    As object is added to capped collection it displaces the oldest object from it in case if\n"
+		     "    the @limit is reached.\n"
+		     "    If @remove_data is true in addition to displacing of the object it's data is also removed from the storage.\n"
+		     "    NOTE: The @limit is satisfied for each shard and not for whole collection.\n"
+		     "    Return elliptics.AsyncResult.\n")
 
 		.def("find_all_indexes", &elliptics_session::find_all_indexes,
 		     (bp::arg("indexes")),
@@ -1569,6 +1635,27 @@ void init_elliptics_session() {
 		     "            print 'Data:', index.data\n"
 		     "    excep Exception as e:\n"
 		     "        print 'List indexes failed:', e\n")
+
+		.def("remove_indexes", &elliptics_session::remove_indexes,
+		     (bp::args("id", "indexes")),
+		     "remove_indexes(id, indexes)\n"
+		     "    Removes @id from all @indexes and remove @indexes from indexes list of @id")
+
+		.def("remove_indexes_internal", &elliptics_session::remove_indexes_internal,
+		     (bp::args("id", "indexes")),
+		     "remove_indexes_internal(id, indexes)\n"
+		     "    Removes @id from all @indexes and doesn't change indexes list of @id\n")
+
+		.def("remove_index", &elliptics_session::remove_index,
+		     (bp::args("id", "remove_data")),
+		     "remove_index(id, remove_data)\n"
+		     "    Removes @id from all @indexes and doesn't change indexes list of @id\n")
+
+		.def("remove_index_internal", &elliptics_session::remove_index_internal,
+		     (bp::arg("id")),
+		     "remove_index_internal(id)\n"
+		     "    Removes @id from all indexes which are connected with @id\n"
+		     "    Doesn't change indexes list of @id\n")
 
 // Statistics
 
@@ -1653,10 +1740,28 @@ void init_elliptics_session() {
 		// Couldn't use "exec" as a method name because it's a reserved keyword in python
 
 		.def("exec_", &elliptics_session::exec,
-		      (bp::arg("id"), bp::arg("event"), bp::arg("data") = ""))
-		.def("exec_", &elliptics_session::exec_src,
-		      (bp::arg("id"), bp::arg("src_key"),
-		       bp::arg("event"), bp::arg("data") = ""))
+		    (bp::arg("id")=bp::api::object(), bp::arg("context")=bp::api::object(), bp::arg("src_key") = -1, bp::arg("event"), bp::arg("data") = ""),
+		    "exec_(id=None, context=None, src_key=-1, event, data)\n"
+		    "    Sends execution request of the given @event and @data\n"
+		    "     to the party specified by a given @context or @id.\n"
+		    "     If both @id and @context are None then request will be sended to all nodes.\n"
+		    "     Returns async_exec_result.\n"
+		    "     Result contains all replies sent by nodes processing this event.\n")
+		.def("push", &elliptics_session::push,
+		    (bp::arg("id")=bp::api::object(), bp::arg("context"), bp::arg("event"), bp::arg("data") = ""),
+		    "push(id=None, context, event, data="")\n"
+		    "    Send an @event with @data to @id continuing the process specified by @context.\n"
+		    "    If @id is null event is sent to all groups specified in the session.\n"
+		    "    Returns async_exec_result.\n"
+		    "    Result contains only the information about starting of event procession, so there is no\n"
+		    "    information if it was finally processed successfully.\n")
+		.def("reply", &elliptics_session::reply,
+		    (bp::arg("context"), bp::arg("data"), bp::arg("final_state")),
+		    "reply(context, data, final_state)\n"
+		    "    Reply @data to initial starter of the process specified by @context.\n"
+		    "    If @final_state is equal to elliptics.exec_context_final_states.final it is the last reply, otherwise there will be more.\n"
+		    "    Returns async_reply_result.\n"
+		    "    Result contains information if starter received the reply.\n")
 
 		.def("prepare_latest", &elliptics_session::prepare_latest)
 	;

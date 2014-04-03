@@ -245,6 +245,9 @@ class Iterator(object):
                 # TODO: Here we can add throttling
                 if record.status != 0:
                     raise RuntimeError("Iteration status check failed: {0}".format(record.status))
+                #skipping keepalive responses
+                if record.response.status != 0:
+                    continue
                 result.append(record)
                 last = num + 1
                 if last % batch_size == 0:
