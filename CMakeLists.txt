@@ -91,6 +91,12 @@ if (HAVE_MODULE_BACKEND_SUPPORT)
     add_definitions(-DHAVE_MODULE_BACKEND_SUPPORT=1)
 endif()
 
+# Find react
+include(cmake/Modules/locate_library.cmake)
+locate_library(REACT "react/react.hpp" "react")
+include_directories(${REACT_INCLUDE_DIRS})
+link_directories(${REACT_LIBRARY_DIRS})
+
 option(WITH_DOXYGEN "Generate documentation by Doxygen" ON)
 
 if(WITH_DOXYGEN)

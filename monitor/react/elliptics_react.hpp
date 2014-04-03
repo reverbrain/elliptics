@@ -17,6 +17,7 @@
 #define ELLIPTICS_REACT_HPP
 
 #include <mutex>
+#include <memory>
 
 #include <react/react.hpp>
 
@@ -24,19 +25,15 @@
 
 namespace react {
 
-typedef concurrent_call_tree_t<call_tree_t> concurrent_call_tree;
-
 class elliptics_react_manager_t {
 public:
 	elliptics_react_manager_t();
 
-	void add_tree(concurrent_call_tree &call_tree);
-	const unordered_call_tree_t &get_total_call_tree() const;
-	const call_tree_t &get_last_call_tree() const;
+	void add_tree(concurrent_call_tree_t &call_tree);
+	std::shared_ptr<call_tree_t> get_last_call_tree() const;
 private:
-	std::mutex mutex;
-	unordered_call_tree_t total_call_tree;
-	call_tree_t last_call_tree;
+	mutable std::mutex mutex;
+	std::shared_ptr<call_tree_t> last_call_tree;
 };
 
 } // namespace react

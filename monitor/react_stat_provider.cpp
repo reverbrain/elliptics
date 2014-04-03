@@ -31,12 +31,8 @@ std::string react_stat_provider::json() const {
 	doc.SetObject();
 	auto &allocator = doc.GetAllocator();
 
-	rapidjson::Value total_call_tree(rapidjson::kObjectType);
-	react_manager.get_total_call_tree().to_json(total_call_tree, allocator);
-	doc.AddMember("total_call_tree", total_call_tree, allocator);
-
 	rapidjson::Value last_call_tree(rapidjson::kObjectType);
-	react_manager.get_last_call_tree().to_json(last_call_tree, allocator);
+	react_manager.get_last_call_tree()->to_json(last_call_tree, allocator);
 	doc.AddMember("last_call_tree", last_call_tree, allocator);
 
 	rapidjson::StringBuffer buffer;
