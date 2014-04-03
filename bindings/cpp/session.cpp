@@ -24,7 +24,7 @@
 
 #include "node_p.hpp"
 
-extern __thread uint64_t trace_id;
+extern __thread trace_id_t trace_id;
 
 namespace ioremap { namespace elliptics {
 
@@ -576,13 +576,13 @@ long session::get_timeout(void) const
 	return tm->tv_sec;
 }
 
-void session::set_trace_id(uint64_t trace_id)
+void session::set_trace_id(trace_id_t trace_id)
 {
 	m_data->trace_id = trace_id;
 	::trace_id = trace_id;
 }
 
-uint64_t session::get_trace_id()
+trace_id_t session::get_trace_id()
 {
 	return m_data->trace_id;
 }

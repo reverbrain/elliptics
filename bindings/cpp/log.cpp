@@ -21,7 +21,7 @@
 
 using namespace ioremap::elliptics;
 
-extern __thread uint64_t trace_id;
+extern __thread trace_id_t trace_id;
 
 class ioremap::elliptics::logger_data {
 	public:

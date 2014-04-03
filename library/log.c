@@ -36,7 +36,7 @@
 
 #include "elliptics.h"
 
-extern __thread uint64_t trace_id;
+extern __thread trace_id_t trace_id;
 
 int dnet_log_init(struct dnet_node *n, struct dnet_log *l)
 {

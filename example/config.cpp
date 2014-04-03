@@ -69,7 +69,7 @@
 #define DNET_CONF_COMMENT	'#'
 #define DNET_CONF_DELIMITER	'='
 
-extern __thread uint64_t trace_id;
+extern __thread trace_id_t trace_id;
 
 namespace ioremap { namespace elliptics { namespace config {
 class config_error : public std::runtime_error

@@ -45,7 +45,7 @@
 #define DNET_CONF_DELIM		'='
 #define DNET_CONF_TIME_DELIM	'.'
 
-extern __thread uint64_t trace_id;
+extern __thread trace_id_t trace_id;
 
 int dnet_parse_groups(char *value, int **groupsp)
 {

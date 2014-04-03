@@ -158,6 +158,9 @@ enum dnet_monitor_categories {
 /* Currently only valid flag for LOOKUP command - when set, don't check fileinfo in cache */
 #define DNET_FLAGS_NOCACHE		(1<<6)
 
+typedef uint64_t trace_id_t;
+#define DNET_TRACE_BIT		(1ll<<63)		/*is used in trace_id for ignoring current log level*/
+
 struct dnet_id {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		group_id;
