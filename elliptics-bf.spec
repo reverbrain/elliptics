@@ -107,6 +107,7 @@ rm -rf %{buildroot}
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
 %{_libdir}/libelliptics_monitor.so.*
+%{_libdir}/libelliptics_react.a
 %{python_sitelib}/elliptics/core.so.*
 %{python_sitelib}/elliptics_recovery/*
 %{python_sitelib}/elliptics/*.py*
