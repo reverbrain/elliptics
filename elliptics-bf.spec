@@ -16,7 +16,7 @@ BuildRequires:	python-devel
 #BuildRequires:	libcocaine-core2-devel >= 0.11.2.1
 #BuildRequires:  cocaine-framework-native-devel >= 0.11.0.1
 BuildRequires:	eblob-devel >= 0.21.32
-BuildRequires:	react-dev >= 1.0.2
+BuildRequires:	react-devel >= 1.0.2
 BuildRequires:	cmake msgpack-devel
 
 %define boost_ver %{nil}
@@ -107,6 +107,7 @@ rm -rf %{buildroot}
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
 %{_libdir}/libelliptics_monitor.so.*
+%{_libdir}/libelliptics_react.a
 %{python_sitelib}/elliptics/core.so.*
 %{python_sitelib}/elliptics_recovery/*
 %{python_sitelib}/elliptics/*.py*
@@ -117,6 +118,7 @@ rm -rf %{buildroot}
 %{_includedir}/*
 %{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_monitor.so
+%{_libdir}/libelliptics_react.a
 %{_libdir}/libelliptics_cpp.so
 %{_datadir}/elliptics/cmake/*
 %{python_sitelib}/elliptics/core.so

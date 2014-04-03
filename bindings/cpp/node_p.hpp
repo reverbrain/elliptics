@@ -45,7 +45,7 @@ class session_data
 		result_checker		checker;
 		result_error_handler	error_handler;
 		uint32_t		policy;
-		uint64_t		trace_id;
+		trace_id_t		trace_id;
 };
 
 }} // namespace ioremap::elliptics
