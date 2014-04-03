@@ -22,7 +22,7 @@ int elliptics_react_merge_call_tree(react_call_tree_t *call_tree, void *elliptic
 
 	try {
 		reinterpret_cast<react::elliptics_react_manager_t*> (elliptics_react_manager)->add_tree(
-					*reinterpret_cast<react::concurrent_call_tree*> (call_tree)
+					*reinterpret_cast<react::concurrent_call_tree_t*> (call_tree)
 				);
 	} catch (std::exception& e) {
 		std::cerr << e.what() << std::endl;
@@ -34,23 +34,16 @@ int elliptics_react_merge_call_tree(react_call_tree_t *call_tree, void *elliptic
 
 namespace react {
 
-elliptics_react_manager_t::elliptics_react_manager_t():
-	total_call_tree(get_actions_set()), last_call_tree(get_actions_set()) {
+elliptics_react_manager_t::elliptics_react_manager_t(): last_call_tree() {
 }
 
-void elliptics_react_manager_t::add_tree(concurrent_call_tree &call_tree) {
-	mutex.lock();
-	auto call_tree_copy = call_tree.copy_time_stats_tree();
-	call_tree_copy.merge_into(total_call_tree);
-	last_call_tree.set(call_tree_copy);
-	mutex.unlock();
+void elliptics_react_manager_t::add_tree(concurrent_call_tree_t &call_tree) {
+	std::lock_guard<std::mutex> guard(mutex);
+	last_call_tree = std::make_shared<call_tree_t>(call_tree.copy_call_tree());
 }
 
-const unordered_call_tree_t &elliptics_react_manager_t::get_total_call_tree() const {
-	return total_call_tree;
-}
-
-const call_tree_t &elliptics_react_manager_t::get_last_call_tree() const {
+std::shared_ptr<call_tree_t> elliptics_react_manager_t::get_last_call_tree() const {
+	std::lock_guard<std::mutex> guard(mutex);
 	return last_call_tree;
 }
 
