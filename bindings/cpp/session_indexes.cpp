@@ -62,7 +62,7 @@ static void on_update_index_finished(async_update_indexes_handler handler, const
 	handler.complete(error);
 }
 
-/*
+/*!
  * There are several modifying index methods with similiar behaviour.
  * Some of them send requests to 'object's list of indexes', other to
  * 'index's list of objects', some to both of them.
