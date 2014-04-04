@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.0
+Version:	2.25.4.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -123,6 +123,37 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 04 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.1
+- route: added route update timing
+- doc: Added documentation for secondary indexes
+- client: Add headers to sources list
+- rpm: depend on react-devel instead of react-dev
+- log: Fixed removing of last char if it's not \n
+- cmake: get rid of the rest of react static build
+- cmake: elliptics_react is compiled into elliptics_monitor
+- tests: Fixed data sent to dnet_start_servers
+- log: trace_id_t typedef added for easy editing trace_id type
+- Iterator: added resetting skipped_keys if it founds proper key.
+- Python: added ability to use dict with bulk_write. Pytests: separated test_session into several test_session_* tests that covers subfeatures. Added bone for testing indexes, iterator and monitor&statistics.
+- Iterator: added sending keepalive iterator response with status=1 when 10K keys are skipped in a row.
+- Iterator: added total and iterated keys counters to iterator response.
+- Python: added push and reply.
+- cache: setting total_size
+- Python: Replaced inheritance elliptics_id from key by dnet_id aggregation that simplifies using elliptics.Id.
+- build: depend on 0.21.32+ eblob
+- Python: Added add_to_capped_collection to python binding. Added logging Handler that outputs logs into ellitpics.Logger.
+- client: added documentation for indexes
+- react: Error handling on react creation in dnet_process_cmd_raw changed.
+- Do not request route list in reconnect thread if node flags contains DNET_CFG_NO_ROUTE_LIST. Added ability to set node flags in dnet_ioclient by '-f'.
+- log: finally made dnet_id loggers thread-safe - allocate per-thread temporary buffers instead of plain static
+- spec: turn off cocaine support, there is no cocaine core RHEL RPM yet
+- python: CMake fixed to use the same version of python
+- tests: python Overflow test boundary for trace_id changed to 2**64
+- core: trace_id migrated to uint64_t
+- tests: Elliptics in python tests migrated to json.
+- foreign: React is now shared library.
+- tests: Check the value of srw in run_servers
+
 * Thu Mar 27 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.0
 - spec: get rid of <=5 rhel, added cocaine depend
 - tests: use only bindable ports for test servers
