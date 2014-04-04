@@ -59,13 +59,18 @@ void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
 		return;
 
 	va_start(args, format);
-	vsnprintf(buf, buflen, format, args);
-	buf[buflen-1] = '\0';
-	int msg_len = strlen(buf);
+	int msg_len = vsnprintf(buf, buflen, format, args);
+	if (msg_len < 0)
+		return;
+
+	if (msg_len >= buflen)
+		msg_len = buflen - 1;
+
 	if (msg_len == buflen - 1) {
 		buf[buflen - 2] = '\n';
 	} else if (buf[msg_len - 1] != '\n') {
-		buf[msg_len - 1] = '\n';
+		buf[msg_len] = '\n';
+		buf[msg_len + 1] = '\0';
 	}
 	l->log(l->log_private, level, buf);
 	va_end(args);

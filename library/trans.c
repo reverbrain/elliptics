@@ -179,7 +179,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 	if (st && st->n && t->command != 0) {
 		char str[64];
-		char io_buf[128] = "\n";
+		char io_buf[128] = "";
 		struct tm tm;
 
 		if (t->cmd.status != -ETIMEDOUT) {
