@@ -51,12 +51,12 @@ int dnet_log_init(struct dnet_node *n, struct dnet_log *l)
 static void dnet_log_raw_internal(struct dnet_log *l, int level, const char *format, va_list args) {
 	char buf[1024];
 	int buflen = sizeof(buf);
-	int msglen = vsnprintf(buf, buflen, format, args);
+	int msg_len = vsnprintf(buf, buflen, format, args);
 
-	if (msglen < 0) {
+	if (msg_len < 0) {
 		return;
-	} else if (msglen > buflen - 1) {
-		msglen = buflen - 1;
+	} else if (msg_len > buflen - 1) {
+		msg_len = buflen - 1;
 	}
 
 	if (msg_len == buflen - 1) {
