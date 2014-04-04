@@ -18,6 +18,22 @@ set(ELLIPTICS_CPP_SRCS
     session_indexes.hpp
     exception.cpp
     key.cpp
+# Added includes for better IDE's experience
+    ../../include/elliptics/module_backend.hpp
+    ../../include/elliptics/interface.h
+    ../../include/elliptics/utils.hpp
+    ../../include/elliptics/module_backend.h
+    ../../include/elliptics/cppdef.h
+    ../../include/elliptics/backends.h
+    ../../include/elliptics/session.hpp
+    ../../include/elliptics/result_entry.hpp
+    ../../include/elliptics/srw.h
+    ../../include/elliptics/typedefs.h
+    ../../include/elliptics/core.h
+    ../../include/elliptics/debug.hpp
+    ../../include/elliptics/error.hpp
+    ../../include/elliptics/async_result.hpp
+    ../../include/elliptics/packet.h
     )
 add_library(elliptics_cpp SHARED ${ELLIPTICS_CPP_SRCS})
 set_target_properties(elliptics_cpp PROPERTIES
