@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.16
+Version:	2.24.15.17
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 04 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.17
+- log: fixed final logging byte
+- route: added route update timing
+
 * Wed Apr 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.16
 - cache: setting total_size
 - log: finally made dnet_id loggers thread-safe - allocate per-thread temporary buffers instead of plain static

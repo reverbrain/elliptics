@@ -1,3 +1,10 @@
+elliptics (2.24.15.17) unstable; urgency=low
+
+  * log: fixed final logging byte
+  * route: added route update timing
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 04 Apr 2014 23:53:24 +0400
+
 elliptics (2.24.15.16) unstable; urgency=low
 
   * cache: setting total_size
