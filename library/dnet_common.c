@@ -320,6 +320,9 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 	struct dnet_raw_id *ids;
 	char server_addr[128], rem_addr[128];
 	int i, err;
+	struct timeval start, convert, total;
+
+	gettimeofday(&start, NULL);
 
 	dnet_server_convert_dnet_addr_raw(&st->addr, server_addr, sizeof(server_addr));
 	dnet_server_convert_dnet_addr_raw(&cnt->addrs[0], rem_addr, sizeof(rem_addr));
@@ -356,12 +359,19 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 		}
 	}
 
+	gettimeofday(&convert, NULL);
+
 	if (!err) {
 		err = dnet_add_received_state(st, cnt, group_id, ids, ids_num);
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: recv-addr-num: %d, local-addr-num: %d, idx: %d, err: %d\n",
-			server_addr, cnt->addr_num, n->addr_num, st->idx, err);
+	gettimeofday(&total, NULL);
+
+#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
+
+	dnet_log(n, DNET_LOG_INFO, "%s: route reply: recv-addr-num: %d, local-addr-num: %d, idx: %d, convert-time: %ld, total-time: %ld, err: %d\n",
+			server_addr, cnt->addr_num, n->addr_num, st->idx,
+			DIFF(start, convert), DIFF(start, total), err);
 
 err_out_exit:
 	return err;
