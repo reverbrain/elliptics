@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.1
+Version:	2.25.4.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -123,6 +123,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Apr 09 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.2
+- debian: elliptics-dev should depend on react-dev
+
 * Fri Apr 04 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.1
 - route: added route update timing
 - doc: Added documentation for secondary indexes
