@@ -822,7 +822,7 @@ class session
 		async_generic_result remove_index(const std::string &id, bool remove_data);
 
 		/*!
-		 * \brief Find all objects which contains all indexes from \a indexes.
+		 * \brief Find all objects which contain all indexes from \a indexes.
 		 *
 		 * Returns async_find_indexes_result.
 		 */
@@ -832,7 +832,7 @@ class session
 		 */
 		async_find_indexes_result find_all_indexes(const std::vector<std::string> &indexes);
 		/*!
-		 * \brief Find all objects which contains at least one of indexes from \a indexes.
+		 * \brief Find all objects which contain at least one of indexes from \a indexes.
 		 *
 		 * Returns async_find_indexes_result.
 		 */
