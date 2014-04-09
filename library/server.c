@@ -263,16 +263,23 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 
 	n->config_data = cfg_data;
 
-	err = dnet_node_check_stack(n);
+	err = dnet_monitor_init(&n->monitor, cfg);
 	if (err)
 		goto err_out_node_destroy;
+
+	dnet_monitor_init_io_stat_provider(n);
+	dnet_monitor_init_react_stat_provider(n);
+
+	err = dnet_node_check_stack(n);
+	if (err)
+		goto err_out_monitor_destroy;
 
 	if (!n->notify_hash_size) {
 		n->notify_hash_size = DNET_DEFAULT_NOTIFY_HASH_SIZE;
 
 		err = dnet_notify_init(n);
 		if (err)
-			goto err_out_node_destroy;
+			goto err_out_monitor_destroy;
 
 		dnet_log(n, DNET_LOG_NOTICE, "No notify hash size provided, using default %d.\n",
 				n->notify_hash_size);
@@ -352,6 +359,8 @@ err_out_cache_cleanup:
 err_out_backend_stat_provider_exit:
 err_out_notify_exit:
 	dnet_notify_exit(n);
+err_out_monitor_destroy:
+	dnet_monitor_exit(n);
 err_out_node_destroy:
 	dnet_node_destroy(n);
 err_out_exit:
@@ -388,6 +397,8 @@ void dnet_server_node_destroy(struct dnet_node *n)
 
 	if (n->config_data)
 		n->config_data->destroy_config_data(n->config_data);
+
+	dnet_monitor_exit(n);
 
 	free(n);
 }
