@@ -125,6 +125,8 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
 
 	memset(t, 0, sizeof(struct dnet_trans) + size);
 
+	t->alloc_size = size;
+
 	atomic_init(&t->refcnt, 1);
 	INIT_LIST_HEAD(&t->trans_list_entry);
 
@@ -194,7 +196,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		if ((t->command == DNET_CMD_READ) || (t->command == DNET_CMD_WRITE)) {
+		if (((t->command == DNET_CMD_READ) || (t->command == DNET_CMD_WRITE)) && (t->alloc_size >= sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr))) {
 			struct dnet_cmd *local_cmd = (struct dnet_cmd *)(t + 1);
 			struct dnet_io_attr *local_io = (struct dnet_io_attr *)(local_cmd + 1);
 			struct timeval io_tv;

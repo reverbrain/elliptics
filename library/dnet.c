@@ -1217,7 +1217,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	diff = DIFF(start, end);
 	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, io ? io->size : 0, diff);
 
-	if ((cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_WRITE)) {
+	if (((cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_WRITE)) && io) {
 		char time_str[64];
 		struct tm io_tm;
 		struct timeval io_tv;

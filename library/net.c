@@ -566,20 +566,6 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 	return 0;
 }
 
-static struct dnet_trans *dnet_trans_new(struct dnet_net_state *st)
-{
-	struct dnet_trans *t;
-
-	t = dnet_trans_alloc(st->n, 0);
-	if (!t)
-		goto err_out_exit;
-
-	return t;
-
-err_out_exit:
-	return NULL;
-}
-
 int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsigned int join_state)
 {
 	struct dnet_addr_storage *a, *it;
@@ -763,7 +749,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 		goto out;
 	}
 
-	t = dnet_trans_new(st);
+	t = dnet_trans_alloc(st->n, 0);
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_put_forward;
