@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.17
+Version:	2.24.15.18
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 11 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.18
+- trans: only log IO transactions if it was correctly allocated and initialized
+
 * Fri Apr 04 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.17
 - log: fixed final logging byte
 - route: added route update timing
