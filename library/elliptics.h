@@ -681,6 +681,7 @@ struct dnet_trans
 	struct timespec			wait_ts;
 
 	struct dnet_net_state		*orig; /* only for forward */
+	size_t				alloc_size;
 
 	struct dnet_net_state		*st;
 	uint64_t			trans, rcv_trans;
