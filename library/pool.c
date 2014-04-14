@@ -938,8 +938,6 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		}
 	}
 
-	dnet_monitor_init_io_stat_provider(n);
-
 	return 0;
 
 err_out_net_destroy:

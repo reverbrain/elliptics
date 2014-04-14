@@ -42,7 +42,7 @@ set_target_properties(elliptics_client PROPERTIES
     LINKER_LANGUAGE CXX
     )
 #target_link_libraries(elliptics_client ${ELLIPTICS_LIBRARIES})
-target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} elliptics_monitor)
+target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES})
 
 install(TARGETS elliptics
     LIBRARY DESTINATION lib${LIB_SUFFIX}
