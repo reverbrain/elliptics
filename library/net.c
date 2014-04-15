@@ -816,6 +816,10 @@ static void dnet_state_remove_and_shutdown(struct dnet_net_state *st, int error)
 
 		shutdown(st->read_s, SHUT_RDWR);
 		shutdown(st->write_s, SHUT_RDWR);
+
+		//Wakes up sleeping threads and makes them exit because state is removed
+		if ((atomic_read(&st->send_queue_size) > 0))
+			pthread_cond_broadcast(&st->send_wait);
 	}
 
 	pthread_mutex_unlock(&st->send_lock);
