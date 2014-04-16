@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.3
+Version:	2.25.4.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -123,6 +123,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Apr 16 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.4
+- Core: added broadcasting send_wait on state removing.
+
 * Fri Apr 11 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.3
 - trans: only log IO transactions if it was correctly allocated and initialized
 
