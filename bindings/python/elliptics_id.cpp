@@ -119,7 +119,7 @@ struct id_pickle : bp::pickle_suite
 	}
 
 	static bp::tuple getstate(const elliptics_id& id) {
-		return bp::make_tuple(id.id(), id.group_id());
+		return bp::make_tuple(id.list_id(), id.group_id());
 	}
 
 	static void setstate(elliptics_id& id, bp::tuple state) {
