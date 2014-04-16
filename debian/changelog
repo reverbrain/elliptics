@@ -1,3 +1,9 @@
+elliptics (2.25.4.5) unstable; urgency=low
+
+  * Python: fixed pickling elliptics.Id
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 17 Apr 2014 02:30:37 +0400
+
 elliptics (2.25.4.4) unstable; urgency=low
 
   * Core: added broadcasting send_wait on state removing.

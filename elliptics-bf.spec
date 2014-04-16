@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.4
+Version:	2.25.4.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -123,6 +123,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Apr 17 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.5
+- Python: fixed pickling elliptics.Id
+
 * Wed Apr 16 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.4
 - Core: added broadcasting send_wait on state removing.
 
