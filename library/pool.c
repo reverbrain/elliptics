@@ -941,6 +941,7 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 	return 0;
 
 err_out_net_destroy:
+	n->need_exit = 1;
 	while (--i >= 0) {
 		pthread_join(n->io->net[i].tid, NULL);
 		close(n->io->net[i].epoll_fd);
@@ -948,6 +949,7 @@ err_out_net_destroy:
 
 	dnet_work_pool_cleanup(n->io->recv_pool_nb);
 err_out_free_recv_pool:
+	n->need_exit = 1;
 	dnet_work_pool_cleanup(n->io->recv_pool);
 err_out_free_cond:
 	pthread_cond_destroy(&n->io->full_wait);
