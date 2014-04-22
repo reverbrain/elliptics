@@ -32,6 +32,9 @@
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 
+#include <sys/wait.h>
+#include <sys/types.h>
+
 using namespace ioremap::elliptics;
 
 /*
@@ -41,10 +44,15 @@ using namespace ioremap::elliptics;
  */
 
 static std::shared_ptr<tests::nodes_data> global_data;
+static int result_status = 0;
 
-static void stop_servers(int, siginfo_t *, void *)
+static void stop_servers(int sig, siginfo_t *, void *)
 {
-	global_data.reset();
+	std::shared_ptr<tests::nodes_data> data;
+	std::swap(global_data, data);
+
+	if (data && sig == SIGCHLD)
+		result_status = 1;
 }
 
 static void setup_signals()
@@ -57,6 +65,7 @@ static void setup_signals()
 	sigemptyset(&sa.sa_mask);
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGCHLD, &sa, NULL);
 
 	signal(SIGTSTP, SIG_DFL);
 	signal(SIGQUIT, SIG_DFL);
@@ -68,6 +77,17 @@ static void setup_signals()
 	sigaddset(&sa.sa_mask, SIGQUIT);
 	pthread_sigmask(SIG_UNBLOCK, &sa.sa_mask, NULL);
 	sigprocmask(SIG_UNBLOCK, &sa.sa_mask, NULL);
+}
+
+static bool read_option(const rapidjson::Value &doc, const std::string &value, bool default_value)
+{
+	if (doc.HasMember(value.c_str())) {
+		if (!doc[value.c_str()].IsBool()) {
+			throw std::runtime_error("Field \"" + value + "\" must be boolean");
+		}
+		return doc[value.c_str()].GetBool();
+	}
+	return default_value;
 }
 
 /*!
@@ -95,7 +115,9 @@ static void setup_signals()
  */
 static int run_servers(const rapidjson::Value &doc)
 {
-	bool srw = false;
+	bool srw = read_option(doc, "srw", false);
+	bool fork = read_option(doc, "fork", false);
+	bool monitor = read_option(doc, "monitor", true);
 
 	if (doc.HasMember("srw")) {
 		if (!doc["srw"].IsBool()) {
@@ -170,7 +192,7 @@ static int run_servers(const rapidjson::Value &doc)
 	}
 
 	try {
-		global_data = tests::start_nodes(std::cerr, configs, std::string(path.GetString(), path.GetStringLength()));
+		global_data = tests::start_nodes(std::cerr, configs, std::string(path.GetString(), path.GetStringLength()), fork, monitor);
 	} catch (std::exception &err) {
 		std::cerr << "Error during startup: " << err.what() << std::endl;
 		return 1;
@@ -245,7 +267,7 @@ static int run_servers(const rapidjson::Value &doc)
 	while (global_data)
 		sleep(1);
 
-	return 0;
+	return result_status;
 }
 
 int main(int, char *[])
@@ -264,6 +286,11 @@ int main(int, char *[])
 		return 1;
 	}
 
-	return run_servers(doc);
+	try {
+		return run_servers(doc);
+	} catch (std::exception &exc) {
+		std::cout << exc.what() << std::endl;
+		return 1;
+	}
 }
 
