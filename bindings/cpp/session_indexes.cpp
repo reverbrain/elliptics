@@ -303,23 +303,17 @@ async_set_indexes_result session::update_indexes_internal(const key &id,
 	return update_indexes_internal(id, raw_indexes);
 }
 
-async_generic_result session::remove_index_internal(const dnet_raw_id &id)
+async_generic_result session::remove_index_internal(const key &id)
 {
+	transform(id);
 	DNET_SESSION_GET_GROUPS(async_generic_result);
 
 	async_generic_result result(*this);
-	auto cb = createCallback<remove_index_callback>(*this, result, id);
+	auto cb = createCallback<remove_index_callback>(*this, result, id.raw_id());
 	cb->groups = std::move(groups);
 
 	startCallback(cb);
 	return result;
-}
-
-async_generic_result session::remove_index_internal(const std::string &id)
-{
-	key kid(id);
-	kid.transform(*this);
-	return remove_index_internal(kid.raw_id());
 }
 
 struct on_remove_index : std::enable_shared_from_this<on_remove_index>
@@ -397,9 +391,10 @@ struct on_remove_index : std::enable_shared_from_this<on_remove_index>
 	error_info error;
 };
 
-async_generic_result session::remove_index(const dnet_raw_id &id, bool remove_data)
+async_generic_result session::remove_index(const key &id, bool remove_data)
 {
 	using namespace std::placeholders;
+	transform(id);
 	async_generic_result result(*this);
 
 	session sess = clone();
@@ -407,22 +402,15 @@ async_generic_result session::remove_index(const dnet_raw_id &id, bool remove_da
 	sess.set_filter(filters::all_with_ack);
 
 	auto functor = std::make_shared<on_remove_index>(sess, result);
-	functor->index_id = id;
-	functor->index_id_list.assign(1, id);
-	functor->index_entry_list.assign(1, index_entry(id, data_pointer()));
+	functor->index_id = id.raw_id();
+	functor->index_id_list.assign(1, id.raw_id());
+	functor->index_entry_list.assign(1, index_entry(id.raw_id(), data_pointer()));
 	functor->remove_data = remove_data;
 	find_all_indexes(functor->index_id_list).connect(
 		std::bind(&on_remove_index::on_find_entry, functor, _1),
 		std::bind(&on_remove_index::on_find_finished, functor, _1));
 
 	return result;
-}
-
-async_generic_result session::remove_index(const std::string &id, bool remove_data)
-{
-	key kid(id);
-	kid.transform(*this);
-	return remove_index(kid.raw_id(), remove_data);
 }
 
 async_set_indexes_result session::remove_indexes_internal(const key &id, const std::vector<dnet_raw_id> &indexes)

@@ -655,7 +655,7 @@ err_out_exit:
 	return NULL;
 }
 
-int dnet_add_state(struct dnet_node *n, char *addr_str, int port, int family, int flags)
+int dnet_add_state(struct dnet_node *n, const char *addr_str, int port, int family, int flags)
 {
 	int s, err, join = DNET_WANT_RECONNECT;
 	struct dnet_addr addr;
@@ -1961,7 +1961,7 @@ struct dnet_read_data_completion {
 	atomic_t			refcnt;
 };
 
-int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen)
+int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, const struct dnet_id *id, int group_id, char *dst, int dlen)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_id raw;
@@ -1970,11 +1970,12 @@ int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, struct
 
 	if (!id) {
 		dnet_transform(s, remote, len, &raw);
-		id = &raw;
+	} else {
+		raw = *id;
 	}
-	id->group_id = group_id;
+	raw.group_id = group_id;
 
-	st = dnet_state_get_first(n, id);
+	st = dnet_state_get_first(n, &raw);
 	if (!st)
 		goto err_out_exit;
 

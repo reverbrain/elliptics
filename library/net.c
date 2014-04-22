@@ -205,7 +205,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_socket_create(struct dnet_node *n, char *addr_str, int port, struct dnet_addr *addr, int listening)
+int dnet_socket_create(struct dnet_node *n, const char *addr_str, int port, struct dnet_addr *addr, int listening)
 {
 	int s, err = -EINVAL;
 	struct dnet_net_state *st;
@@ -1221,7 +1221,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
  * into send queue faster than it could be send over wire.
  */
 int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
-		void *odata, unsigned int size, int more)
+		const void *odata, unsigned int size, int more)
 {
 	struct dnet_net_state *st = state;
 	int err;
@@ -1252,7 +1252,7 @@ int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
 	return err;
 }
 
-int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more)
+int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more)
 {
 	struct dnet_net_state *st = state;
 	struct dnet_cmd *c;
