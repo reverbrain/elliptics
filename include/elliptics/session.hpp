@@ -163,7 +163,9 @@ class node
 
 		node &operator =(const node &other);
 
+		void			add_remote(const std::string &addr, const int port, const int family = AF_INET);
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
+		void			add_remote(const std::string &addr);
 		void			add_remote(const char *addr);
 
 		void			set_timeouts(const int wait_timeout, const int check_timeout);
@@ -171,7 +173,6 @@ class node
 		void			set_keepalive(int idle, int cnt, int interval);
 
 		logger get_log() const;
-		dnet_node *	get_native();
 		dnet_node *	get_native() const;
 
 	protected:
@@ -205,7 +206,7 @@ class key
 		void set_id(const dnet_raw_id &id);
 		void set_group_id(uint32_t group);
 
-		void transform(const session &sess);
+		void transform(const session &sess) const;
 
 		void set_trace_id(trace_id_t trace_id) { m_trace_id = trace_id; }
 		trace_id_t get_trace_id() { return m_trace_id; }
@@ -214,7 +215,7 @@ class key
 		bool m_by_id;
 		std::string m_remote;
 		int m_reserved;
-		dnet_id m_id;
+		mutable dnet_id m_id;
 		trace_id_t m_trace_id;
 };
 
@@ -311,6 +312,10 @@ class session
 		 * in this session so they won't collide with same key in any
 		 * other namespace.
 		 */
+		void set_namespace(const std::string &ns);
+		/*!
+		 * \override
+		 */
 		void			set_namespace(const char *ns, int nsize);
 
 		/*!
@@ -321,7 +326,8 @@ class session
 		/*!
 		 * Stick session to particular remote address.
 		 */
-		void			set_direct_id(dnet_addr remote_addr);
+		void			set_direct_id(const dnet_addr &remote_addr);
+		void			set_direct_id(const std::string &addr, int port, int family);
 		void			set_direct_id(const char *saddr, int port, int family);
 
 		/*!
@@ -348,7 +354,11 @@ class session
 		 * All write operations will use this timestamp, instead of system time.
 		 * If set to zero (default), system time will be used.
 		 */
-		void			set_timestamp(dnet_time *ts);
+		void set_timestamp(const dnet_time &ts);
+		/*!
+		 * \overload
+		 */
+		void set_timestamp(const dnet_time *ts);
 		void			get_timestamp(dnet_time *ts);
 
 		/*!
@@ -801,11 +811,7 @@ class session
 		/*!
 		 * \internal
 		 */
-		async_generic_result remove_index_internal(const dnet_raw_id &id);
-		/*!
-		 * \internal
-		 */
-		async_generic_result remove_index_internal(const std::string &id);
+		async_generic_result remove_index_internal(const key &id);
 		/*!
 		 * \brief Removes the index \a id.
 		 *
@@ -815,11 +821,7 @@ class session
 		 *
 		 * Returns async_generic_result.
 		 */
-		async_generic_result remove_index(const dnet_raw_id &id, bool remove_data);
-		/*!
-		 * \overload
-		 */
-		async_generic_result remove_index(const std::string &id, bool remove_data);
+		async_generic_result remove_index(const key &id, bool remove_data);
 
 		/*!
 		 * \brief Find all objects which contain all indexes from \a indexes.

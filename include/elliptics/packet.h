@@ -269,7 +269,7 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *acmd)
 	dnet_convert_cmd(&acmd->cmd);
 }
 
-static inline int dnet_addr_equal(struct dnet_addr *a1, struct dnet_addr *a2)
+static inline int dnet_addr_equal(const struct dnet_addr *a1, const struct dnet_addr *a2)
 {
 	if (a1->family != a2->family)
 		return 0;

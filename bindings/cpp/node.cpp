@@ -75,6 +75,11 @@ node &node::operator =(const node &other)
 	return *this;
 }
 
+void node::add_remote(const std::string &addr, const int port, const int family)
+{
+	add_remote(addr.c_str(), port, family);
+}
+
 void node::add_remote(const char *addr, const int port, const int family)
 {
 	if (!m_data)
@@ -82,13 +87,18 @@ void node::add_remote(const char *addr, const int port, const int family)
 
 	int err;
 
-	err = dnet_add_state(m_data->node_ptr, (char *)addr, port, family, 0);
+	err = dnet_add_state(m_data->node_ptr, addr, port, family, 0);
 	if (err) {
 		throw_error(err, "Failed to add remote addr %s:%d", addr, port);
 	}
 }
 
-void node::add_remote(const char *orig_addr)
+void node::add_remote(const char *addr)
+{
+	add_remote(std::string(addr));
+}
+
+void node::add_remote(const std::string &addr)
 {
 	if (!m_data)
 		throw_error(-EINVAL, "Failed to add remote addr to null node");
@@ -98,15 +108,18 @@ void node::add_remote(const char *orig_addr)
 	/*
 	 * addr will be modified, so use this ugly hack
 	 */
-	std::string addr(orig_addr);
+	std::vector<char> addr_tmp;
+	addr_tmp.reserve(addr.size() + 1);
+	addr_tmp.assign(addr.begin(), addr.end());
+	addr_tmp.push_back('\0');
 
-	int err = dnet_parse_addr(const_cast<char *>(addr.c_str()), &port, &family);
+	int err = dnet_parse_addr(addr_tmp.data(), &port, &family);
 	if (err)
-		throw_error(err, "Failed to parse remote addr %s", orig_addr);
+		throw_error(err, "Failed to parse remote addr %s", addr.c_str());
 
-	err = dnet_add_state(m_data->node_ptr, const_cast<char *>(addr.c_str()), port, family, 0);
+	err = dnet_add_state(m_data->node_ptr, addr_tmp.data(), port, family, 0);
 	if (err)
-		throw_error(err, "Failed to add remote addr %s", orig_addr);
+		throw_error(err, "Failed to add remote addr %s", addr.c_str());
 }
 
 void node::set_timeouts(const int wait_timeout, const int check_timeout)
@@ -124,11 +137,6 @@ void node::set_keepalive(int idle, int cnt, int interval)
 logger node::get_log() const
 {
 	return m_data ? m_data->log : logger();
-}
-
-dnet_node *node::get_native()
-{
-	return m_data ? m_data->node_ptr : NULL;
 }
 
 dnet_node *node::get_native() const

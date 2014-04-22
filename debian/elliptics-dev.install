@@ -1,3 +1,4 @@
+usr/bin/dnet_run_servers
 usr/include/elliptics/*
 usr/share/elliptics/cmake/*
 usr/lib/libelliptics.so

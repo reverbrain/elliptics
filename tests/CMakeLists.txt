@@ -1,20 +1,24 @@
 find_package(Boost REQUIRED COMPONENTS iostreams thread regex program_options system filesystem)
 
-set(TEST_LINK_FLAGS "-Wl,-rpath,${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_CURRENT_BINARY_DIR}/../:${CMAKE_CURRENT_BINARY_DIR}/../library:${CMAKE_CURRENT_BINARY_DIR}/../srw:${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp:${CMAKE_CURRENT_BINARY_DIR}/../monitor")
+set(TEST_LIBRARY_PATH "${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_CURRENT_BINARY_DIR}/../:${CMAKE_CURRENT_BINARY_DIR}/../library:${CMAKE_CURRENT_BINARY_DIR}/../srw:${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp:${CMAKE_CURRENT_BINARY_DIR}/../monitor")
+set(TEST_LINK_FLAGS "-Wl,-rpath,${TEST_LIBRARY_PATH}")
 set(TEST_PROPERTIES PROPERTIES LINK_FLAGS "${TEST_LINK_FLAGS}" LINKER_LANGUAGE CXX)
 set(TEST_LIBRARIES  test_common elliptics elliptics_client elliptics_cpp ${Boost_LIBRARIES})
+set(TEST_IOSERV_PATH "${CMAKE_CURRENT_BINARY_DIR}/../example/dnet_ioserv")
 
 add_definitions(
     -DCOCAINE_CONFIG_PATH="${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf"
     -DCOCAINE_PLUGINS_PATH="${CMAKE_CURRENT_BINARY_DIR}/../cocaine/plugins"
     -DCOCAINE_TEST_APP="${CMAKE_CURRENT_BINARY_DIR}/dnet_cpp_srw_test_app.tar"
+    -DTEST_LIBRARY_PATH="${TEST_LIBRARY_PATH}"
+    -DTEST_IOSERV_PATH="${TEST_IOSERV_PATH}"
 )
 
 if(WITH_COCAINE)
     add_definitions("-DHAVE_COCAINE")
 endif()
 
-add_library(test_common SHARED
+add_library(test_common STATIC
     ../example/common.c
     ../example/config.cpp
     ../example/file_backend.c
@@ -113,3 +117,6 @@ add_custom_command(TARGET test
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)
+
+install(TARGETS dnet_run_servers
+    RUNTIME DESTINATION bin COMPONENT runtime)

@@ -92,18 +92,27 @@ rm -rf %{buildroot}
 %files
 %defattr(-,root,root,-)
 %doc README
-%{_bindir}/*
+%{_bindir}/dnet_ioserv
 %{_libdir}/libelliptics.so.*
 %{_libdir}/libelliptics_cocaine.so.*
 %{_mandir}/man1/*
 
 %files devel
 %defattr(-,root,root,-)
+%{_bindir}/dnet_run_servers
 %{_libdir}/libelliptics.so
 %{_libdir}/libelliptics_cocaine.so
 
 %files client
 %defattr(-,root,root,-)
+%{_bindir}/dnet_find
+%{_bindir}/dnet_ioclient
+%{_bindir}/dnet_index
+%{_bindir}/dnet_stat
+%{_bindir}/dnet_notify
+%{_bindir}/dnet_ids
+%{_bindir}/dnet_balancer
+%{_bindir}/dnet_recovery
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
 %{_libdir}/libelliptics_monitor.so.*
