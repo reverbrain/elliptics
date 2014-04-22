@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <cstring>
 #include <cstdlib>
+#include <type_traits>
 
 #if __GNUC__ == 4 && __GNUC_MINOR__ < 5
 #  include <cstdatomic>
@@ -32,7 +33,7 @@
 
 namespace ioremap { namespace elliptics {
 
-template <typename atomic_type>
+template <typename atomic_type, bool Mutable>
 class data_pointer_base;
 
 template <typename AtomicType>
@@ -130,7 +131,7 @@ class data_buffer_base
 			m_capacity = nsize;
 		}
 
-		template <typename AtomicClass> friend class data_pointer_base;
+		template <typename AtomicClass, bool Mutable> friend class data_pointer_base;
 
 		char *m_data;
 		size_t m_size;
@@ -138,9 +139,16 @@ class data_buffer_base
 		size_t m_capacity;
 };
 
-template <typename AtomicType>
+template <typename AtomicType, bool Mutable>
 class data_pointer_base
 {
+	template <typename T>
+	struct fix_const
+	{
+		typedef typename std::conditional<Mutable,
+			typename std::remove_const<T>::type,
+			typename std::add_const<T>::type>::type type;
+	};
 	public:
 		typedef AtomicType atomic_type;
 
@@ -269,22 +277,22 @@ class data_pointer_base
 			return tmp;
 		}
 
-		void *data() const
+		typename fix_const<void>::type *data() const
 		{
 			if (m_index > m_size)
 				throw not_found_error("null pointer exception");
 			else if (m_index == m_size)
 				return NULL;
 			else
-				return reinterpret_cast<char*>(m_data) + m_index;
+				return reinterpret_cast<typename fix_const<char *>::type>(m_data) + m_index;
 		}
 
 		template <typename T>
-		T *data() const
+		typename fix_const<T>::type *data() const
 		{
 			if (m_index + sizeof(T) > m_size)
 				throw not_found_error("null pointer exception");
-			return reinterpret_cast<T *>(data());
+			return reinterpret_cast<typename fix_const<T>::type *>(data());
 		}
 
 		void swap(data_pointer_base &other)
@@ -299,11 +307,11 @@ class data_pointer_base
 		size_t size() const { return m_index >= m_size ? 0 : (m_size - m_index); }
 		size_t offset() const { return m_index; }
 		bool empty() const { return m_index >= m_size; }
-		std::string to_string() const { return std::string(reinterpret_cast<char*>(data()), size()); }
+		std::string to_string() const { return std::string(reinterpret_cast<const char *>(data()), size()); }
 
 	private:
 		atomic_type *m_counter;
-		void *m_data;
+		typename fix_const<void>::type *m_data;
 		size_t m_index;
 		size_t m_size;
 };
@@ -313,7 +321,7 @@ class argument_data_base
 {
 public:
     typedef AtomicType atomic_type;
-    typedef data_pointer_base<atomic_type> pointer_type;
+    typedef data_pointer_base<atomic_type, true> pointer_type;
 
 	argument_data_base(const pointer_type &data) :
 		m_data(data)
@@ -347,10 +355,10 @@ public:
 	}
 
 private:
-	data_pointer_base<atomic_type> m_data;
+	data_pointer_base<atomic_type, true> m_data;
 };
 
-typedef data_pointer_base<std::atomic_int_fast32_t> data_pointer;
+typedef data_pointer_base<std::atomic_int_fast32_t, true> data_pointer;
 typedef argument_data_base<std::atomic_int_fast32_t> argument_data;
 typedef data_buffer_base<std::atomic_int_fast32_t> data_buffer;
 

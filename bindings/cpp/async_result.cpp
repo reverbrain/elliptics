@@ -57,6 +57,11 @@ class async_result<T>::data
 };
 
 template <typename T>
+async_result<T>::async_result()
+{
+}
+
+template <typename T>
 async_result<T>::async_result(const session &sess) : m_data(std::make_shared<data>())
 {
 	m_data->filter = sess.get_filter();
@@ -66,14 +71,27 @@ async_result<T>::async_result(const session &sess) : m_data(std::make_shared<dat
 }
 
 template <typename T>
-async_result<T>::async_result(async_result &&other)
+async_result<T>::async_result(async_result &&other) noexcept
 {
 	std::swap(other.m_data, m_data);
 }
 
 template <typename T>
+async_result<T> &async_result<T>::operator =(async_result &&other) noexcept
+{
+	std::swap(other.m_data, m_data);
+	return *this;
+}
+
+template <typename T>
 async_result<T>::~async_result()
 {
+}
+
+template <typename T>
+bool async_result<T>::is_valid() const
+{
+	return !!m_data;
 }
 
 template <typename T>
@@ -555,4 +573,5 @@ template class async_result_handler<exec_result_entry>;
 template class async_result_handler<iterator_result_entry>;
 template class async_result_handler<index_entry>;
 template class async_result_handler<find_indexes_result_entry>;
+
 } }

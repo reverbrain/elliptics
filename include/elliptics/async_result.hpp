@@ -49,6 +49,10 @@ class async_result
 		typedef std::function<void (const error_info &)> final_function;
 
 		/*!
+		 * \brief Constructs invalid async_result.
+		 */
+		async_result();
+		/*!
 		 * Constructs async_result from session.
 		 *
 		 * At this point such session properties as filter, checker and exception policy
@@ -59,12 +63,23 @@ class async_result
 		/*!
 		 * Constructs async_result by moving data from \a other.
 		 */
-		async_result(async_result &&other);
+		async_result(async_result &&other) noexcept;
+		/*!
+		 * \brief Move operator from \a other async_result.
+		 */
+		async_result &operator =(async_result &&other) noexcept;
 
 		/*!
 		 * Destroys async_result.
 		 */
 		~async_result();
+
+		/*!
+		 * \brief Returns if async_result is valid.
+		 *
+		 * It's usually becomes invalid after move operation.
+		 */
+		bool is_valid() const;
 
 		/*!
 		 * Connects receiving of data to callbacks.

@@ -314,7 +314,7 @@ void dnet_idc_destroy_nolock(struct dnet_net_state *st)
 	free(idc);
 }
 
-static int __dnet_idc_search(struct dnet_group *g, struct dnet_id *id)
+static int __dnet_idc_search(struct dnet_group *g, const struct dnet_id *id)
 {
 	int low, high, i, cmp;
 	struct dnet_state_id *sid;
@@ -340,7 +340,7 @@ out:
 	return i;
 }
 
-static struct dnet_state_id *dnet_idc_search(struct dnet_group *g, struct dnet_id *id)
+static struct dnet_state_id *dnet_idc_search(struct dnet_group *g, const struct dnet_id *id)
 {
 	return &g->ids[__dnet_idc_search(g, id)];
 }
@@ -380,7 +380,7 @@ int dnet_search_range(struct dnet_node *n, struct dnet_id *id, struct dnet_raw_i
 	return err;
 }
 
-static struct dnet_state_id *__dnet_state_search_id(struct dnet_node *n, struct dnet_id *id)
+static struct dnet_state_id *__dnet_state_search_id(struct dnet_node *n, const struct dnet_id *id)
 {
 	struct dnet_state_id *sid;
 	struct dnet_group *group;
@@ -396,7 +396,7 @@ static struct dnet_state_id *__dnet_state_search_id(struct dnet_node *n, struct 
 	return sid;
 }
 
-static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, struct dnet_id *id)
+static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, const struct dnet_id *id)
 {
 	struct dnet_state_id *sid = __dnet_state_search_id(n, id);
 
@@ -429,7 +429,7 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	return found;
 }
 
-struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, struct dnet_id *id)
+struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, const struct dnet_id *id)
 {
 	struct dnet_net_state *found;
 
@@ -449,7 +449,7 @@ err_out_exit:
 	return found;
 }
 
-struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id)
+struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, const struct dnet_id *id)
 {
 	struct dnet_net_state *found;
 
@@ -857,7 +857,7 @@ struct dnet_node *dnet_session_get_node(struct dnet_session *s)
 	return s->node;
 }
 
-void dnet_session_set_timestamp(struct dnet_session *s, struct dnet_time *ts)
+void dnet_session_set_timestamp(struct dnet_session *s, const struct dnet_time *ts)
 {
 	s->ts = *ts;
 }
@@ -872,7 +872,7 @@ struct dnet_id *dnet_session_get_direct_id(struct dnet_session *s)
 	return &s->direct_id;
 }
 
-void dnet_session_set_direct_id(struct dnet_session *s, struct dnet_id *id)
+void dnet_session_set_direct_id(struct dnet_session *s, const struct dnet_id *id)
 {
 	s->direct_id = *id;
 }

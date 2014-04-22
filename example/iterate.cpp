@@ -40,7 +40,7 @@ struct Ctx {
 };
 
 void iterate_node(Ctx &ctx, const dnet_addr &node) {
-	std::cout << "Iterating node: " << dnet_server_convert_dnet_addr(const_cast<dnet_addr*>(&node)) << ":" << node.family << std::endl;
+	std::cout << "Iterating node: " << dnet_server_convert_dnet_addr(&node) << ":" << node.family << std::endl;
 	std::vector<dnet_iterator_range> ranges;
 	if (ctx.iflags & DNET_IFLAGS_KEY_RANGE)
 		ranges.push_back(ctx.key_range);
@@ -48,7 +48,7 @@ void iterate_node(Ctx &ctx, const dnet_addr &node) {
 	dnet_id id;
 	bool found = false;
 	for (auto it = ctx.routes.begin(), end = ctx.routes.end(); it != end; ++it) {
-		if (dnet_addr_equal(&it->second, const_cast<dnet_addr*>(&node))) {
+		if (dnet_addr_equal(&it->second, &node)) {
 			id = it->first;
 			found = true;
 			break;
@@ -68,7 +68,7 @@ void iterate_node(Ctx &ctx, const dnet_addr &node) {
 
 	char buffer[2*DNET_ID_SIZE + 1] = {0};
 	for (auto it = res.begin(), end = res.end(); it != end; ++it) {
-		std::cout << "node: "    << dnet_server_convert_dnet_addr(const_cast<dnet_addr*>(&node)) << node.family
+		std::cout << "node: "    << dnet_server_convert_dnet_addr(&node) << node.family
 		          << ", key: "   << dnet_dump_id_len_raw(it->reply()->key.id, DNET_ID_SIZE, buffer)
 		          << ", flags: " << it->reply()->user_flags
 		          << ", ts: "    << it->reply()->timestamp.tsec << "/" << it->reply()->timestamp.tnsec
@@ -140,14 +140,17 @@ dnet_addr parse_addr(const std::string& addr) {
 	int port, family;
 	memset(&ret, 0, sizeof(ret));
 	ret.addr_len = sizeof(ret.addr);
-	std::string str_addr(addr);
-	int err = dnet_parse_addr(const_cast<char *>(str_addr.c_str()), &port, &family);
+
+	std::vector<char> tmp_addr(addr.begin(), addr.end());
+	tmp_addr.push_back('\0');
+
+	int err = dnet_parse_addr(tmp_addr.data(), &port, &family);
 	if (err) {
 		std::cerr << "Wrong remote addr: " << addr << "\n" << std::endl;
 		exit(1);
 	}
 	ret.family = family;
-	dnet_fill_addr(&ret, const_cast<char *>(str_addr.c_str()), port, SOCK_STREAM, IPPROTO_TCP);
+	dnet_fill_addr(&ret, tmp_addr.data(), port, SOCK_STREAM, IPPROTO_TCP);
 	return ret;
 }
 

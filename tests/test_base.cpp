@@ -10,6 +10,10 @@
 
 #include <fstream>
 #include <set>
+#include <signal.h>
+
+#include <sys/types.h>
+#include <sys/wait.h>
 
 namespace tests {
 
@@ -287,19 +291,23 @@ server_config &server_config::apply_options(const config_data &data)
 	return *this;
 }
 
-server_node::server_node() : m_node(NULL)
+server_node::server_node() : m_node(NULL), m_monitor_port(0), m_fork(false), m_kill_sent(false), m_pid(0)
 {
 }
 
-server_node::server_node(const std::string &path, const std::string &remote, int monitor_port)
-	: m_node(NULL), m_path(path), m_remote(remote), m_monitor_port(monitor_port)
+server_node::server_node(const std::string &path, const std::string &remote, int monitor_port, bool fork)
+	: m_node(NULL), m_path(path), m_remote(remote), m_monitor_port(monitor_port), m_fork(fork), m_kill_sent(false), m_pid(0)
 {
 }
 
 server_node::server_node(server_node &&other) :
-	m_node(other.m_node), m_path(std::move(other.m_path)), m_remote(std::move(other.m_remote)), m_monitor_port(other.monitor_port())
+	m_node(other.m_node), m_path(std::move(other.m_path)), m_remote(std::move(other.m_remote)),
+	m_monitor_port(other.monitor_port()), m_fork(other.m_fork), m_kill_sent(other.m_kill_sent), m_pid(other.m_pid)
 {
 	other.m_node = NULL;
+	other.m_fork = false;
+	other.m_kill_sent = false;
+	other.m_pid = 0;
 }
 
 server_node &server_node::operator =(server_node &&other)
@@ -308,34 +316,102 @@ server_node &server_node::operator =(server_node &&other)
 	std::swap(m_path, other.m_path);
 	std::swap(m_remote, other.m_remote);
 	std::swap(m_monitor_port, other.m_monitor_port);
+	std::swap(m_fork, other.m_fork);
+	std::swap(m_kill_sent, other.m_kill_sent);
+	std::swap(m_pid, other.m_pid);
 
 	return *this;
 }
 
 server_node::~server_node()
 {
-	if (m_node)
+	if (is_started()) {
 		stop();
+		wait_to_stop();
+	}
 }
+
+#ifndef TEST_IOSERV_PATH
+#  define TEST_IOSERV_PATH ""
+#  define TEST_LIBRARY_PATH ""
+#  error TEST_IOSERV_PATH is not devined
+#endif
 
 void server_node::start()
 {
-	if (m_node)
+	if (is_started())
 		throw std::runtime_error("Server node \"" + m_path + "\" is already started");
 
-	m_node = dnet_parse_config(m_path.c_str(), 0);
-	if (!m_node)
+	if (m_fork) {
+		m_kill_sent = false;
+		m_pid = fork();
+		if (m_pid == -1) {
+			m_pid = 0;
+			int err = -errno;
+			throw_error(err, "Failed to fork process");
+		} else if (m_pid == 0) {
+			char buffer[4][1024] = {
+				"LD_LIBRARY_PATH=" TEST_LIBRARY_PATH,
+				"-c",
+				"dnet_ioserv",
+				TEST_IOSERV_PATH
+			};
+			std::vector<char> config_path(m_path.begin(), m_path.end());
+			config_path.push_back('\0');
+			char * const args[] = {
+				buffer[2],
+				buffer[1],
+				config_path.data(),
+				NULL
+			};
+			char * const env[] = {
+				buffer[0],
+				NULL
+			};
+			if (execve(buffer[3], args, env) == -1) {
+				int err = -errno;
+				std::cerr << create_error(err, "Failed to start process \"%s\"", buffer[3]).message() << std::endl;
+				std::quick_exit(1);
+			}
+		}
+	} else {
+		m_node = dnet_parse_config(m_path.c_str(), 0);
+	}
+
+	if (!is_started())
 		throw std::runtime_error("Can not start server with config file: \"" + m_path + "\"");
 }
 
 void server_node::stop()
 {
-	if (!m_node)
+	if (!is_started())
 		throw std::runtime_error("Server node \"" + m_path + "\" is already stoped");
 
-	dnet_set_need_exit(m_node);
-	dnet_server_node_destroy(m_node);
-	m_node = NULL;
+	if (m_fork) {
+		if (!m_kill_sent) {
+			m_kill_sent = true;
+			kill(m_pid, SIGTERM);
+		}
+	} else {
+		dnet_set_need_exit(m_node);
+	}
+}
+
+void server_node::wait_to_stop()
+{
+	if (m_fork) {
+		int result;
+		waitpid(m_pid, &result, 0);
+		m_pid = 0;
+	} else if (m_node) {
+		dnet_server_node_destroy(m_node);
+		m_node = NULL;
+	}
+}
+
+bool server_node::is_started() const
+{
+	return ((!m_fork && m_node) || (m_fork && m_pid));
 }
 
 std::string server_node::remote() const
@@ -445,7 +521,7 @@ static void create_cocaine_config(const std::string &config_path, const std::str
 
 static void start_client_nodes(const nodes_data::ptr &data, std::ostream &debug_stream, const std::vector<std::string> &remotes);
 
-nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server_config> &configs, const std::string &path)
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server_config> &configs, const std::string &path, bool fork, bool monitor)
 {
 	nodes_data::ptr data = std::make_shared<nodes_data>();
 
@@ -468,7 +544,9 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 
 	std::set<std::string> all_ports;
 	const auto ports = generate_ports(configs.size(), all_ports);
-	const auto monitor_ports = generate_ports(configs.size(), all_ports);
+	const auto monitor_ports = monitor
+		? generate_ports(configs.size(), all_ports)
+		: std::vector<std::string>(configs.size(), "0");
 
 	if (path.empty()) {
 		char buffer[1024];
@@ -576,7 +654,8 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 
 		server_node server(server_path + "/ioserv.conf",
 			create_remote(ports[i]),
-			boost::lexical_cast<int>(monitor_ports[i]));
+			boost::lexical_cast<int>(monitor_ports[i]),
+			fork);
 
 		try {
 			server.start();
@@ -601,13 +680,18 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		data->nodes.emplace_back(std::move(server));
 	}
 
-	{
+	sleep(1);
+
+	try {
 		std::vector<std::string> remotes;
 		for (size_t i = 0; i < data->nodes.size(); ++i) {
 			remotes.push_back(data->nodes[i].remote());
 		}
 
 		start_client_nodes(data, debug_stream, remotes);
+	} catch (std::exception &e) {
+		debug_stream << "Failed to connect to servers: " << e.what() << std::endl;
+		throw;
 	}
 
 	return data;
@@ -670,7 +754,7 @@ nodes_data::~nodes_data()
 {
 #ifndef NO_SERVER
 	for (auto it = nodes.begin(); it != nodes.end(); ++it)
-		dnet_set_need_exit(it->get_native());
+		it->stop();
 #endif // NO_SERVER
 }
 

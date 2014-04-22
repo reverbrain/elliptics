@@ -442,11 +442,11 @@ uint32_t dnet_session_get_ioflags(struct dnet_session *s);
 void dnet_session_set_cflags(struct dnet_session *s, uint64_t cflags);
 uint64_t dnet_session_get_cflags(struct dnet_session *s);
 
-void dnet_session_set_timestamp(struct dnet_session *s, struct dnet_time *ts);
+void dnet_session_set_timestamp(struct dnet_session *s, const struct dnet_time *ts);
 void dnet_session_get_timestamp(struct dnet_session *s, struct dnet_time *ts);
 
 struct dnet_id *dnet_session_get_direct_id(struct dnet_session *s);
-void dnet_session_set_direct_id(struct dnet_session *s, struct dnet_id *id);
+void dnet_session_set_direct_id(struct dnet_session *s, const struct dnet_id *id);
 
 void dnet_session_set_user_flags(struct dnet_session *s, uint64_t user_flags);
 uint64_t dnet_session_get_user_flags(struct dnet_session *s);
@@ -593,7 +593,7 @@ void dnet_server_node_destroy(struct dnet_node *s);
  * routes are added the less network lookups will be performed to send/receive
  * data requests.
  */
-int dnet_add_state(struct dnet_node *n, char *addr_str, int port, int family, int flags);
+int dnet_add_state(struct dnet_node *n, const char *addr_str, int port, int family, int flags);
 
 /*
  * Returns number of states we are connected to.
@@ -602,7 +602,7 @@ int dnet_add_state(struct dnet_node *n, char *addr_str, int port, int family, in
 
 int dnet_state_num(struct dnet_session *s);
 int dnet_node_state_num(struct dnet_node *n);
-struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id);
+struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, const struct dnet_id *id);
 void dnet_state_put(struct dnet_net_state *st);
 
 #define DNET_DUMP_NUM	6
@@ -745,8 +745,8 @@ static inline int dnet_id_cmp(const struct dnet_id *id1, const struct dnet_id *i
  * If cmd->cmd is DNET_CMD_SYNC then plain data will be sent back, otherwise transaction
  * reply will be generated. So effectively difference is in DNET_TRANS_REPLY bit presence.
  */
-int __attribute__((weak)) dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more);
-int __attribute__((weak)) dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more);
+int __attribute__((weak)) dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
+int __attribute__((weak)) dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
 
 
 /*
@@ -914,7 +914,7 @@ void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_r
 int dnet_indexes_get_shard_id(struct dnet_node *node, const struct dnet_raw_id *object_id);
 int dnet_node_get_indexes_shard_count(struct dnet_node *node);
 
-int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
+int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, const struct dnet_id *id, int group_id, char *dst, int dlen);
 
 struct dnet_id_param {
 	unsigned int		group_id;
