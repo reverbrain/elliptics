@@ -1,3 +1,12 @@
+elliptics (2.25.4.6) unstable; urgency=low
+
+  * Core: stops threads before joining them in case we got some error while creating node.
+  * tests: Added fork and monitor options to dnet_run_servers
+  * API: Removed most of const_cast's uses. Added move semantic to async_result
+  * package: Places binaries to correct packages
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Apr 2014 15:28:39 +0400
+
 elliptics (2.25.4.5) unstable; urgency=low
 
   * Python: fixed pickling elliptics.Id
