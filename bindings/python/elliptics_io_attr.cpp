@@ -17,6 +17,8 @@
 
 #include <boost/python.hpp>
 
+#include "elliptics_id.h"
+
 namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {

@@ -16,6 +16,7 @@
 #ifndef ELLIPTICS_PYTHON_ELLIPTICS_ID_HPP
 #define ELLIPTICS_PYTHON_ELLIPTICS_ID_HPP
 
+#include <boost/python.hpp>
 #include <boost/python/list.hpp>
 #include <boost/python/long.hpp>
 
@@ -59,6 +60,13 @@ public:
 	std::string to_repr() const;
 
 	dnet_id m_id;
+};
+
+struct id_pickle : bp::pickle_suite
+{
+	static bp::tuple getinitargs(const elliptics_id& id);
+	static bp::tuple getstate(const elliptics_id& id);
+	static void setstate(elliptics_id& id, bp::tuple state);
 };
 
 void init_elliptics_id();
