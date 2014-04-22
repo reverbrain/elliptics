@@ -15,6 +15,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#ifdef HAVE_COCAINE
+#  include <cocaine/framework/services/storage.hpp>
+#endif
+
 namespace tests {
 
 ioremap::elliptics::session create_session(ioremap::elliptics::node n, std::initializer_list<int> groups, uint64_t cflags, uint32_t ioflags)
@@ -411,7 +415,28 @@ void server_node::wait_to_stop()
 
 bool server_node::is_started() const
 {
-	return ((!m_fork && m_node) || (m_fork && m_pid));
+	return !is_stopped();
+}
+
+bool server_node::is_stopped() const
+{
+	if (!m_fork)
+		return !m_node;
+
+	if (m_pid) {
+		int result;
+		int err = waitpid(m_pid, &result, WNOHANG);
+		if (err == 0) {
+			return false;
+		} else if (err == -1) {
+			err = -errno;
+			throw_error(err, "Failed to check status of pid: %d", int(m_pid));
+		}
+
+		m_pid = 0;
+	}
+
+	return true;
 }
 
 std::string server_node::remote() const
@@ -488,6 +513,7 @@ static std::vector<std::string> generate_ports(size_t count, std::set<std::strin
 
 		result.push_back(port_str);
 		ports.insert(port_str);
+		bind_errors_count = 0;
 	}
 
 	return result;
@@ -591,8 +617,8 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 	}
 
 	const auto cocaine_locator_ports = generate_ports(configs.size(), all_ports);
-	// client only needs connection to one (any) locator service
-	data->locator_port = std::stoul(cocaine_locator_ports[0]);
+
+	std::vector<int> locator_ports;
 
 	debug_stream << "Starting " << configs.size() << " servers" << std::endl;
 
@@ -622,6 +648,12 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 			const std::string server_run_path = run_path + server_suffix;
 
 			create_directory(server_run_path);
+
+			// client only needs connection to one (any) locator service
+			if (!data->locator_port)
+				data->locator_port = boost::lexical_cast<int>(cocaine_locator_ports[i]);
+
+			locator_ports.push_back(boost::lexical_cast<int>(cocaine_locator_ports[i]));
 
 			const substitute_context cocaine_variables = {
 				{ "COCAINE_LOCATOR_PORT", cocaine_locator_ports[i] },
@@ -680,7 +712,46 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		data->nodes.emplace_back(std::move(server));
 	}
 
+	for (;;) {
+		sleep(1);
+
+		for (size_t i = 0; i < data->nodes.size(); ++i) {
+			if (data->nodes[i].is_stopped()) {
+				debug_stream << "Failed to start server #" << (i + 1) << std::endl;
+				throw std::runtime_error("Failed to configure servers");
+			}
+		}
+
+#ifdef HAVE_COCAINE
+		bool any_failed = false;
+
+		for (size_t i = 0; i < locator_ports.size(); ++i) {
+			try {
+				using namespace cocaine::framework;
+
+				service_manager_t::endpoint_t endpoint("127.0.0.1", locator_ports[i]);
+				auto manager = service_manager_t::create(endpoint);
+				auto storage = manager->get_service<storage_service_t>("storage");
+				(void) storage;
+
+				debug_stream << "Succesfully connected to Cocaine #" << (i + 1) << std::endl;
+			} catch (std::exception &) {
+				any_failed = true;
+				break;
+			}
+		}
+
+		if (any_failed) {
+			debug_stream << "Cocaine has not been started yet, try again in 1 second" << std::endl;
+			continue;
+		}
+#endif
+		break;
+	}
+
+#ifdef HAVE_COCAINE
 	sleep(1);
+#endif
 
 	try {
 		std::vector<std::string> remotes;
@@ -693,6 +764,8 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		debug_stream << "Failed to connect to servers: " << e.what() << std::endl;
 		throw;
 	}
+
+	debug_stream << "Started servers" << std::endl;
 
 	return data;
 }
@@ -753,8 +826,10 @@ std::string read_file(const char *file_path)
 nodes_data::~nodes_data()
 {
 #ifndef NO_SERVER
-	for (auto it = nodes.begin(); it != nodes.end(); ++it)
-		it->stop();
+	for (auto it = nodes.begin(); it != nodes.end(); ++it) {
+		if (!it->is_stopped())
+			it->stop();
+	}
 #endif // NO_SERVER
 }
 

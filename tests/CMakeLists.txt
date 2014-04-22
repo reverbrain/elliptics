@@ -16,6 +16,12 @@ add_definitions(
 
 if(WITH_COCAINE)
     add_definitions("-DHAVE_COCAINE")
+
+    include(../cmake/Modules/locate_library.cmake)
+    LOCATE_LIBRARY(LIBEV "ev++.h" "ev" "libev")
+
+    find_package(CocaineNative REQUIRED)
+    include_directories(${CocaineNative_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS})
 endif()
 
 add_library(test_common STATIC
@@ -29,7 +35,12 @@ add_library(test_common STATIC
     test_base.hpp
     test_base.cpp)
 set_target_properties(test_common ${TEST_PROPERTIES})
-target_link_libraries(test_common elliptics elliptics_client elliptics_cocaine elliptics_cpp dl ${Boost_LIBRARIES})
+set(TEST_COMMON_LIBRARIES elliptics elliptics_client elliptics_cocaine elliptics_cpp dl ${Boost_LIBRARIES})
+if(WITH_COCAINE)
+    list(APPEND TEST_COMMON_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
+    list(APPEND TEST_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
+endif()
+target_link_libraries(test_common ${TEST_COMMON_LIBRARIES})
 
 add_executable(dnet_cpp_test test.cpp)
 set_target_properties(dnet_cpp_test ${TEST_PROPERTIES})
@@ -59,12 +70,6 @@ set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_capped_test dnet_cpp_a
 set(TESTS_DEPS ${TESTS_LIST})
 
 if(WITH_COCAINE)
-    include(../cmake/Modules/locate_library.cmake)
-    LOCATE_LIBRARY(LIBEV "ev++.h" "ev" "libev")
-
-    find_package(CocaineNative REQUIRED)
-    include_directories(${CocaineNative_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS})
-
     add_executable(dnet_cpp_srw_test srw_test.cpp srw_test.hpp)
     set_target_properties(dnet_cpp_srw_test ${TEST_PROPERTIES})
     target_link_libraries(dnet_cpp_srw_test ${TEST_LIBRARIES} ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})

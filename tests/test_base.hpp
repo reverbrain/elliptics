@@ -133,6 +133,7 @@ public:
 	void stop();
 	void wait_to_stop();
 	bool is_started() const;
+	bool is_stopped() const;
 
 	std::string remote() const;
 	int monitor_port() const;
@@ -145,7 +146,7 @@ private:
 	int m_monitor_port;
 	bool m_fork;
 	bool m_kill_sent;
-	pid_t m_pid;
+	mutable pid_t m_pid;
 };
 
 #endif // NO_SERVER
