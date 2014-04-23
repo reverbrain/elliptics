@@ -66,13 +66,8 @@ class IdRange(object):
         return hash((tuple(self.start), tuple(self.stop)))
 
     def check_key(self, key):
-        if type(key) is not elliptics.Id:
-            raise TypeError("Couldn't compare IdRange with {0}"
-                            .format(type(key)))
-
         if key < self.start:
             return -1
-
         if key > self.stop:
             return 1
 

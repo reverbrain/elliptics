@@ -62,15 +62,12 @@ def iterate_node(arg):
             address=address,
             batch_size=ctx.batch_size,
             stats=stats,
-            counters=['iterated_keys'],
             leave_file=True,
             separately=True)
 
     except Exception as e:
         log.error("Iteration failed for: {0}: {1}".format(address, repr(e)))
         stats.counter('iterations', -1)
-        import sys
-        sys.exit(0)
         return None
 
     log.debug("Iterator {0} obtained: {1} record(s)"
