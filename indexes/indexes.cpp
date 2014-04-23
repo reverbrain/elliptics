@@ -80,7 +80,6 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	~update_indexes_functor()
 	{
-		dnet_opunlock(state->n, &cmd.id);
 		dnet_state_put(state);
 	}
 
@@ -890,11 +889,6 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 			if (!(finished && !err)) {
 				// Do not send final ACK, it will be sent when all indexes are fully updated
-
-				// Mark command as no-lock, so that lock will not be released in dnet_process_cmd_raw()
-				// Lock will be releaseed when indexes are fully updated
-				cmd->flags |= DNET_FLAGS_NOLOCK;
-
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
 		}

@@ -257,9 +257,19 @@ bool positive(const callback_result_entry &entry)
 	return entry.status() == 0 && !entry.data().empty();
 }
 
+bool positive_with_ack(const callback_result_entry &entry)
+{
+	return entry.status() == 0;
+}
+
 bool negative(const callback_result_entry &entry)
 {
 	return entry.status() != 0;
+}
+
+bool negative_with_ack(const callback_result_entry &entry)
+{
+	return entry.status() != 0 || entry.data().empty();
 }
 
 bool all(const callback_result_entry &entry)

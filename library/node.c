@@ -563,6 +563,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->removal_delay = cfg->removal_delay;
 	n->flags = cfg->flags;
 	n->cache_size = cfg->cache_size;
+	n->cache_sync_timeout = cfg->cache_sync_timeout;
 	n->caches_number = cfg->caches_number;
 	n->cache_pages_number = cfg->cache_pages_number;
 	n->cache_pages_proportions = cfg->cache_pages_proportions;

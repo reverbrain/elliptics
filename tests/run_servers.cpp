@@ -292,5 +292,7 @@ int main(int, char *[])
 		std::cout << exc.what() << std::endl;
 		return 1;
 	}
+
+	return result_status;
 }
 
