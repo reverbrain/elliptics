@@ -749,10 +749,6 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		break;
 	}
 
-#ifdef HAVE_COCAINE
-	sleep(1);
-#endif
-
 	try {
 		std::vector<std::string> remotes;
 		for (size_t i = 0; i < data->nodes.size(); ++i) {
