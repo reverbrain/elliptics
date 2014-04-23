@@ -279,24 +279,35 @@ class Iterator(object):
                                                           leave_file=leave_file)
 
             ranges = [IdRange.elliptics_range(start, stop) for start, stop in key_ranges]
-            records = self.session.start_iterator(eid, ranges, itype, flags, timestamp_range[0], timestamp_range[1])
-            last = 0
+            records = self.session.start_iterator(eid,
+                                                  ranges,
+                                                  itype,
+                                                  flags,
+                                                  timestamp_range[0],
+                                                  timestamp_range[1])
+            filtered_keys = 0
+            iterated_keys = 0
+            total_keys = 0
 
             for num, record in enumerate(records):
                 # TODO: Here we can add throttling
                 if record.status != 0:
                     raise RuntimeError("Iteration status check failed: {0}".format(record.status))
                 #skipping keepalive responses
+                if record.response.status == 0:
+                    filtered_keys = num + 1
+                iterated_keys = record.response.iterated_keys
+                total_keys = record.response.total_keys
+
+                if iterated_keys % batch_size == 0:
+                    yield (filtered_keys, iterated_keys, total_keys)
                 if record.response.status != 0:
                     continue
                 results[self.get_key_range_id(record.response.key)].append(record)
-                last = num + 1
-                if last % batch_size == 0:
-                    yield batch_size
 
             elapsed_time = records.elapsed_time()
             self.log.debug("Time spended for iterator: {0}/{1}".format(elapsed_time.tsec, elapsed_time.tnsec))
-            yield last % batch_size
+            yield (filtered_keys, iterated_keys, total_keys)
             if self.separately:
                 yield results
             else:
@@ -309,7 +320,7 @@ class Iterator(object):
     @classmethod
     def iterate_with_stats(cls, node, eid, timestamp_range,
                            key_ranges, tmp_dir, address, batch_size,
-                           stats, counters, leave_file=False,
+                           stats, leave_file=False,
                            separately=False):
         iterator = cls(node, address.group_id, separately)
         result = iterator.start(eid=eid,
@@ -329,9 +340,11 @@ class Iterator(object):
                 result = it
                 break
 
-            result_len += it
-            for c in counters:
-                stats.counter(c, it)
+            filtered_keys, iterated_keys, total_keys = it
+            result_len = filtered_keys
+            stats.set_counter('filtered_keys', filtered_keys)
+            stats.set_counter('iterated_keys', iterated_keys)
+            stats.set_counter('total_keys', total_keys)
 
         return result, result_len
 

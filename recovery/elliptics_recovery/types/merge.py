@@ -409,7 +409,6 @@ def iterate_node(ctx, node, address, ranges, eid, stats):
                                                          address=address,
                                                          batch_size=ctx.batch_size,
                                                          stats=stats,
-                                                         counters=['iterated_keys'],
                                                          leave_file=False)
         if result is None:
             return None

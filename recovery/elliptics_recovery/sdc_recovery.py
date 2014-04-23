@@ -272,12 +272,10 @@ class KeyRecover(object):
                     io.id = self.key
                     io.timestamp = elliptics.Time.now()
                     self.write_session.groups = self.diff_groups \
-                        .union(self.missed_groups)\
+                        .union(self.missed_groups) \
                         .union([self.origin_group])
                     log.debug("Writing merged")
-                    self.write_result = self.write_session.write_data(
-                        self.data_to_merge[0].io_attribute,
-                        data)
+                    self.write_result = self.write_session.write_data(io, data)
                     self.write_result.connect(self.on_write)
         except Exception as e:
             log.error("Failed to merge shards for key: {0} exception: {1}"
