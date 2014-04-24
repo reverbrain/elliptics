@@ -9,6 +9,7 @@
 #include <rapidjson/prettywriter.h>
 
 #include <fstream>
+#include <iostream>
 #include <set>
 #include <signal.h>
 
