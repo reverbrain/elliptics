@@ -63,11 +63,11 @@ class async_result
 		/*!
 		 * Constructs async_result by moving data from \a other.
 		 */
-		async_result(async_result &&other) noexcept;
+		async_result(async_result &&other) ELLIPTICS_NOEXCEPT;
 		/*!
 		 * \brief Move operator from \a other async_result.
 		 */
-		async_result &operator =(async_result &&other) noexcept;
+		async_result &operator =(async_result &&other) ELLIPTICS_NOEXCEPT;
 
 		/*!
 		 * Destroys async_result.
