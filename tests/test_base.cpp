@@ -375,7 +375,7 @@ void server_node::start()
 			if (execve(buffer[3], args, env) == -1) {
 				int err = -errno;
 				std::cerr << create_error(err, "Failed to start process \"%s\"", buffer[3]).message() << std::endl;
-				std::quick_exit(1);
+				quick_exit(1);
 			}
 		}
 	} else {
