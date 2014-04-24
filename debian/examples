@@ -1,4 +1,3 @@
-example/EXAMPLE
-example/00-INDEX
 example/ioserv.conf
+example/ioserv.json
 example/library_config.json
