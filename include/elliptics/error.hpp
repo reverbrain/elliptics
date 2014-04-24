@@ -23,6 +23,15 @@
 
 namespace ioremap { namespace elliptics {
 
+#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ < 5
+/*
+ * GCC-4.4 doesn't have noexcept support yet
+ */
+#  define ELLIPTICS_NOEXCEPT throw()
+#else
+#  define ELLIPTICS_NOEXCEPT noexcept
+#endif
+
 #define ELLIPTICS_DISABLE_COPY(CLASS) \
 		CLASS(const CLASS &) = delete; \
 		CLASS &operator =(const CLASS &) = delete;

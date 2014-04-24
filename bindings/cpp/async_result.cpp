@@ -71,13 +71,13 @@ async_result<T>::async_result(const session &sess) : m_data(std::make_shared<dat
 }
 
 template <typename T>
-async_result<T>::async_result(async_result &&other) noexcept
+async_result<T>::async_result(async_result &&other) ELLIPTICS_NOEXCEPT
 {
 	std::swap(other.m_data, m_data);
 }
 
 template <typename T>
-async_result<T> &async_result<T>::operator =(async_result &&other) noexcept
+async_result<T> &async_result<T>::operator =(async_result &&other) ELLIPTICS_NOEXCEPT
 {
 	std::swap(other.m_data, m_data);
 	return *this;
