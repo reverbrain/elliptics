@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.6-1
+Version:	2.25.4.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -132,6 +132,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.7
+- Upped elliptics version
+
 * Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.6-1
 - 
 - Fixed package details
