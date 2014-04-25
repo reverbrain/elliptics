@@ -5,12 +5,13 @@ set(TEST_LINK_FLAGS "-Wl,-rpath,${TEST_LIBRARY_PATH}")
 set(TEST_PROPERTIES PROPERTIES LINK_FLAGS "${TEST_LINK_FLAGS}" LINKER_LANGUAGE CXX)
 set(TEST_LIBRARIES  test_common elliptics elliptics_client elliptics_cpp ${Boost_LIBRARIES})
 set(TEST_IOSERV_PATH "${CMAKE_CURRENT_BINARY_DIR}/../example/dnet_ioserv")
-
-set(ENV{TEST_COCAINE_CONFIG} "${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf")
-set(ENV{TEST_COCAINE_PLUGINS} "${CMAKE_CURRENT_BINARY_DIR}/../cocaine/plugins")
-set(ENV{TEST_COCAINE_APP} "${CMAKE_CURRENT_BINARY_DIR}/dnet_cpp_srw_test_app.tar")
-set(ENV{TEST_IOSERV_PATH} "${TEST_IOSERV_PATH}")
-set(ENV{LD_LIBRARY_PATH} "${TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}")
+set(TEST_ENV
+    TEST_COCAINE_CONFIG=${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf
+    TEST_COCAINE_PLUGINS=${CMAKE_CURRENT_BINARY_DIR}/../cocaine/plugins
+    TEST_COCAINE_APP=${CMAKE_CURRENT_BINARY_DIR}/dnet_cpp_srw_test_app.tar
+    TEST_IOSERV_PATH=${TEST_IOSERV_PATH}
+    LD_LIBRARY_PATH=${TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}
+)
 
 if(WITH_COCAINE)
     add_definitions("-DHAVE_COCAINE")
@@ -91,7 +92,7 @@ add_executable(dnet_run_servers run_servers.cpp)
 target_link_libraries(dnet_run_servers ${RUN_SERVERS_LIBRARIES})
 
 add_custom_target(test
-    COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" ${TESTS_LIST}
+    COMMAND ${TEST_ENV} "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" ${TESTS_LIST}
     DEPENDS ${TESTS_DEPS}
     SOURCES "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py")
 
@@ -110,7 +111,7 @@ add_custom_command(TARGET test
         . bin/activate &&
         pip install pytest &&
         export LD_LIBRARY_PATH=.:.. &&
-        py.test ${CMAKE_CURRENT_SOURCE_DIR}/pytests ${PYTESTS_FLAGS}
+        ${TEST_ENV} py.test ${CMAKE_CURRENT_SOURCE_DIR}/pytests ${PYTESTS_FLAGS}
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
