@@ -1,3 +1,10 @@
+elliptics (2.25.4.9) unstable; urgency=low
+
+  * tests: Configure run_servers by envvars
+  * rpm: Add dependency on libblackhole
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 25 Apr 2014 20:24:14 +0400
+
 elliptics (2.25.4.8) unstable; urgency=low
 
   * Don't set rpath for dnet_run_servers

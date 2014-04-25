@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.8
+Version:	2.25.4.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -132,6 +132,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.9
+- tests: Configure run_servers by envvars
+- rpm: Add dependency on libblackhole
+
 * Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.8
 - Don't set rpath for dnet_run_servers
 
