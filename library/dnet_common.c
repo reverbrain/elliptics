@@ -369,7 +369,7 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 
 #define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
 
-	dnet_log(n, DNET_LOG_INFO, "%s: route reply: recv-addr-num: %d, local-addr-num: %d, idx: %d, convert-time: %ld, total-time: %ld, err: %d\n",
+	dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: recv-addr-num: %d, local-addr-num: %d, idx: %d, convert-time: %ld, total-time: %ld, err: %d\n",
 			server_addr, cnt->addr_num, n->addr_num, st->idx,
 			DIFF(start, convert), DIFF(start, total), err);
 
