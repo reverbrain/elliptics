@@ -1,6 +1,13 @@
 usr/lib/libelliptics_client.so.*
 usr/lib/libelliptics_cpp.so.*
 usr/lib/libelliptics_monitor.so.*
-usr/bin/*
+usr/bin/dnet_find
+usr/bin/dnet_ioclient
+usr/bin/dnet_index
+usr/bin/dnet_stat
+usr/bin/dnet_notify
+usr/bin/dnet_ids
+usr/bin/dnet_balancer
+usr/bin/dnet_recovery
 usr/lib/python*/dist-packages/*
 usr/share/man/man1/*

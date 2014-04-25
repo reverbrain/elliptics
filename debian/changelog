@@ -1,3 +1,29 @@
+elliptics (2.25.4.9) unstable; urgency=low
+
+  * tests: Configure run_servers by envvars
+  * rpm: Add dependency on libblackhole
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 25 Apr 2014 20:24:14 +0400
+
+elliptics (2.25.4.8) unstable; urgency=low
+
+  * Don't set rpath for dnet_run_servers
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 25 Apr 2014 17:54:53 +0400
+
+elliptics (2.25.4.7) unstable; urgency=low
+
+  * Upped elliptics version
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 25 Apr 2014 16:15:47 +0400
+
+elliptics (2.25.4.6-1) unstable; urgency=low
+
+  * 
+  * Fixed package details
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 25 Apr 2014 16:03:10 +0400
+
 elliptics (2.25.4.6) unstable; urgency=low
 
   * Core: stops threads before joining them in case we got some error while creating node.

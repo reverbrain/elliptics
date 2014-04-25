@@ -22,6 +22,33 @@
 
 namespace tests {
 
+static std::string cocaine_config_path()
+{
+	char *result = getenv("TEST_COCAINE_CONFIG");
+	if (!result)
+		throw std::runtime_error("TEST_COCAINE_CONFIG environment variable is no set");
+
+	return result;
+}
+
+static std::string cocaine_config_plugins()
+{
+	char *result = getenv("TEST_COCAINE_PLUGINS");
+	if (!result)
+		throw std::runtime_error("TEST_COCAINE_PLUGINS environment variable is no set");
+
+	return result;
+}
+
+static const char *ioserv_path()
+{
+	char *result = getenv("TEST_IOSERV_PATH");
+	if (!result)
+		return "/usr/bin/dnet_ioserv";
+
+	return result;
+}
+
 ioremap::elliptics::session create_session(ioremap::elliptics::node n, std::initializer_list<int> groups, uint64_t cflags, uint32_t ioflags)
 {
 	session sess(n);
@@ -336,12 +363,6 @@ server_node::~server_node()
 	}
 }
 
-#ifndef TEST_IOSERV_PATH
-#  define TEST_IOSERV_PATH ""
-#  define TEST_LIBRARY_PATH ""
-#  error TEST_IOSERV_PATH is not devined
-#endif
-
 void server_node::start()
 {
 	if (is_started())
@@ -355,27 +376,25 @@ void server_node::start()
 			int err = -errno;
 			throw_error(err, "Failed to fork process");
 		} else if (m_pid == 0) {
-			char buffer[4][1024] = {
-				"LD_LIBRARY_PATH=" TEST_LIBRARY_PATH,
+			char buffer[3][1024] = {
+				"",
 				"-c",
-				"dnet_ioserv",
-				TEST_IOSERV_PATH
+				"dnet_ioserv"
 			};
 			std::vector<char> config_path(m_path.begin(), m_path.end());
 			config_path.push_back('\0');
 			char * const args[] = {
-				buffer[2],
 				buffer[1],
+				buffer[0],
 				config_path.data(),
 				NULL
 			};
 			char * const env[] = {
-				buffer[0],
 				NULL
 			};
-			if (execve(buffer[3], args, env) == -1) {
+			if (execve(ioserv_path(), args, env) == -1) {
 				int err = -errno;
-				std::cerr << create_error(err, "Failed to start process \"%s\"", buffer[3]).message() << std::endl;
+				std::cerr << create_error(err, "Failed to start process \"%s\"", ioserv_path()).message() << std::endl;
 				quick_exit(1);
 			}
 		}
@@ -554,7 +573,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 
 	std::string base_path;
 	std::string auth_cookie;
-	std::string cocaine_config_template = read_file(COCAINE_CONFIG_PATH);
+	std::string cocaine_config_template;
 	std::string run_path;
 
 	{
@@ -648,6 +667,9 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		if (config.options.has_value("srw_config")) {
 			const std::string server_run_path = run_path + server_suffix;
 
+			if (cocaine_config_template.empty())
+				cocaine_config_template = read_file(cocaine_config_path().c_str());
+
 			create_directory(server_run_path);
 
 			// client only needs connection to one (any) locator service
@@ -658,7 +680,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 
 			const substitute_context cocaine_variables = {
 				{ "COCAINE_LOCATOR_PORT", cocaine_locator_ports[i] },
-				{ "COCAINE_PLUGINS_PATH", COCAINE_PLUGINS_PATH },
+				{ "COCAINE_PLUGINS_PATH", cocaine_config_plugins() },
 				{ "ELLIPTICS_REMOTES", cocaine_remotes },
 				{ "ELLIPTICS_GROUPS", cocaine_groups },
 				{ "COCAINE_LOG_PATH", server_path + "/cocaine.log" },

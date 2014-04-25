@@ -29,6 +29,3 @@ binary-install/elliptics-client::
 	cp -r $(cdbs_python_destdir)/usr/lib/python*/site-packages/* $(cdbs_python_destdir)/../elliptics-client/$(PYTHON_LIB_PATH)/; echo -n
 	rm -rf $(cdbs_python_destdir)/usr/lib/python*/site-packages; echo -n
 
-
-binary-post-install/elliptics-client::
-	rm debian/elliptics-client/usr/bin/dnet_ioserv
