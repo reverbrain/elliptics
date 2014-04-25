@@ -1,3 +1,9 @@
+elliptics (2.25.4.8) unstable; urgency=low
+
+  * Don't set rpath for dnet_run_servers
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 25 Apr 2014 17:54:53 +0400
+
 elliptics (2.25.4.7) unstable; urgency=low
 
   * Upped elliptics version
