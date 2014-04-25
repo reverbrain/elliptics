@@ -90,7 +90,6 @@ if(WITH_COCAINE)
 endif()
 
 add_executable(dnet_run_servers run_servers.cpp)
-set_target_properties(dnet_run_servers ${TEST_PROPERTIES})
 target_link_libraries(dnet_run_servers ${RUN_SERVERS_LIBRARIES})
 
 add_custom_target(test
@@ -103,13 +102,10 @@ add_custom_command(TARGET test
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/pytests/elliptics
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../bindings/python/core.so* pytests/elliptics/
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp/libelliptics_cpp.so* pytests/
-    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../library/libelliptics*.so* pytests/
-    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../monitor/libelliptics_monitor.so* pytests/
+    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../*/libelliptics*.so* pytests/
     COMMAND cp ${CMAKE_SOURCE_DIR}/bindings/python/src/* pytests/elliptics/
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-
-SET(ENV{LD_LIBRARY_PATH} ".")
-
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_custom_command(TARGET test
     POST_BUILD
     COMMAND virtualenv -p "${PYTHON_EXECUTABLE}" . &&
@@ -117,7 +113,6 @@ add_custom_command(TARGET test
         pip install pytest &&
         export LD_LIBRARY_PATH=.:.. &&
         py.test ${CMAKE_CURRENT_SOURCE_DIR}/pytests ${PYTESTS_FLAGS}
-    #COMMAND rm -fr *
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
