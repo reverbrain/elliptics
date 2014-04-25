@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.6
+Version:	2.25.4.6-1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -132,6 +132,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.6-1
+- 
+- Fixed package details
+
 * Tue Apr 22 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.6
 - Core: stops threads before joining them in case we got some error while creating node.
 - tests: Added fork and monitor options to dnet_run_servers

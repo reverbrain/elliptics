@@ -1,3 +1,10 @@
+elliptics (2.25.4.6-1) unstable; urgency=low
+
+  * 
+  * Fixed package details
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 25 Apr 2014 16:03:10 +0400
+
 elliptics (2.25.4.6) unstable; urgency=low
 
   * Core: stops threads before joining them in case we got some error while creating node.
