@@ -19,7 +19,6 @@
 	"options": {
 		"join": 1,
 		"flags": 20,
-		"group": 2,
 		"remote": [
 			"autodiscovery:224.0.0.5:1025:2"
 		],
@@ -46,6 +45,7 @@
 	"backends": [
 		{
 			"type": "blob",
+			"group": 2,
 			"history": "/opt/elliptics/history.2",
 			"data": "/opt/elliptics/eblob.2/data",
 			"sync": "-1",
