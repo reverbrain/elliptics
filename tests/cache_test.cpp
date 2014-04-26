@@ -43,7 +43,7 @@ static void configure_nodes(const std::string &path)
 		server_config::default_value().apply_options(config_data()
 			("group", 5)
 			("cache_size", 100000)
-			("caches_number", 1)
+			("cache_shards", 1)
 		)
 	}), path);
 }
