@@ -37,7 +37,9 @@
 		"bg_ionice_prio": 0,
 		"server_net_prio": 1,
 		"client_net_prio": 6,
-		"cache_size": 68719476736,
+		"cache": {
+			"size": 68719476736
+		},
 		"indexes_shard_count": 2,
 		"monitor_port": 20000
 	},

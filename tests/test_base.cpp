@@ -118,12 +118,17 @@ config_data &config_data::operator()(const std::string &name, const char *value)
 	return (*this)(name, std::string(value));
 }
 
-config_data &config_data::operator()(const std::string &name, uint64_t value)
+config_data &config_data::operator()(const std::string &name, int64_t value)
 {
 	return (*this)(name, variant(value));
 }
 
 config_data &config_data::operator()(const std::string &name, int value)
+{
+	return (*this)(name, variant(int64_t(value)));
+}
+
+config_data &config_data::operator()(const std::string &name, bool value)
 {
 	return (*this)(name, variant(value));
 }
@@ -182,7 +187,7 @@ server_config server_config::default_value()
 {
 	server_config data;
 	data.options
-			("join", 1)
+			("join", true)
 			("flags", 4)
 			("wait_timeout", 60)
 			("check_timeout", 60)
@@ -190,7 +195,7 @@ server_config server_config::default_value()
 			("nonblocking_io_thread_num", 4)
 			("net_thread_num", 2)
 			("indexes_shard_count", 16)
-			("daemon", 0)
+			("daemon", false)
 			("bg_ionice_class", 3)
 			("bg_ionice_prio", 0)
 			("server_net_prio", 1)
@@ -249,7 +254,14 @@ struct json_value_visitor : public boost::static_visitor<>
 		object->AddMember(name, result, *allocator);
 	}
 
-	void operator() (unsigned long long value) const
+	void operator() (bool value) const
+	{
+		rapidjson::Value result;
+		result.SetBool(value);
+		object->AddMember(name, result, *allocator);
+	}
+
+	void operator() (int64_t value) const
 	{
 		rapidjson::Value result;
 		result.SetUint64(value);
@@ -274,11 +286,25 @@ void server_config::write(const std::string &path)
 	rapidjson::Value options_json;
 	options_json.SetObject();
 
+	rapidjson::Value cache_json;
+	cache_json.SetNull();
+
 	for (auto it = options.m_data.begin(); it != options.m_data.end(); ++it) {
-		json_value_visitor visitor(it->first.c_str(), &options_json, &allocator);
+		rapidjson::Value *object = &options_json;
+		const char *key = it->first.c_str();
+
+		if (it->first.compare(0, 6, "cache_") == 0) {
+			if (!cache_json.IsObject())
+				cache_json.SetObject();
+			key = it->first.c_str() + 6;
+			object = &cache_json;
+		}
+
+		json_value_visitor visitor(key, object, &allocator);
 		boost::apply_visitor(visitor, it->second);
 	}
 
+	options_json.AddMember("cache", cache_json, allocator);
 	server.AddMember("options", options_json, allocator);
 
 	rapidjson::Value backends_json;
@@ -317,7 +343,10 @@ void server_config::write(const std::string &path)
 server_config &server_config::apply_options(const config_data &data)
 {
 	for (auto it = data.m_data.begin(); it != data.m_data.end(); ++it) {
-		options(it->first, it->second);
+		if (it->first == "group")
+			backends.front()(it->first, it->second);
+		else
+			options(it->first, it->second);
 	}
 
 	return *this;
