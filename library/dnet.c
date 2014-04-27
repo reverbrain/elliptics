@@ -1130,21 +1130,16 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	long diff;
 	int handled_in_cache = 0;
 
-	int call_tree_was_created = 0;
-	struct react_call_tree_t *call_tree = NULL;
-	struct react_call_tree_updater_t *call_tree_updater = NULL;
+	int react_was_activated = 0;
 
 	if (n->monitor) {
 		if (!react_is_active()) {
-			call_tree = react_create_call_tree();
-			if (call_tree) {
-				call_tree_updater = react_create_call_tree_updater(call_tree);
-			}
+			err = react_activate(st->n->react_aggregator);
 
-			if (!call_tree_updater) {
+			if (err) {
 				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init react\n");
 			} else {
-				call_tree_was_created = 1;
+				react_was_activated = 1;
 			}
 		}
 	}
@@ -1342,10 +1337,8 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 	react_stop_action(ACTION_DNET_PROCESS_CMD_RAW);
 
-	if (call_tree_was_created) {
-		react_cleanup_call_tree_updater(call_tree_updater);
-		elliptics_react_merge_call_tree(call_tree, n->react_manager);
-		react_cleanup_call_tree(call_tree);
+	if (react_was_activated) {
+		react_deactivate();
 	}
 
 	return err;

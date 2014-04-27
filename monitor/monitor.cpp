@@ -139,7 +139,7 @@ void dnet_monitor_init_react_stat_provider(struct dnet_node *n) {
 		try {
 			auto provider = new ioremap::monitor::react_stat_provider();
 			real_monitor->get_statistics().add_provider(provider, "call_tree");
-			n->react_manager = static_cast<void*> (&provider->get_react_manager());
+			n->react_aggregator = static_cast<void*> (&provider->get_react_aggregator());
 		} catch (std::exception &e) {
 			std::cerr << e.what() << std::endl;
 		}

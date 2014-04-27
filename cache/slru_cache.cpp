@@ -684,12 +684,8 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 void slru_cache_t::life_check(void) {
 
 	while (!dnet_need_exit(m_node)) {
-		react_call_tree_t *call_tree = NULL;
-		react_call_tree_updater_t *call_tree_updater = NULL;
-
 		if (m_node->monitor) {
-			call_tree = react_create_call_tree();
-			call_tree_updater = react_create_call_tree_updater(call_tree);
+			react_activate(m_node->react_aggregator);
 		}
 		{
 			react_start_action(ACTION_CACHE_LIFECHECK);
@@ -796,9 +792,7 @@ void slru_cache_t::life_check(void) {
 			react_stop_action(ACTION_CACHE_LIFECHECK);
 		}
 		if (m_node->monitor) {
-			react_cleanup_call_tree_updater(call_tree_updater);
-			elliptics_react_merge_call_tree(call_tree, m_node->react_manager);
-			react_cleanup_call_tree(call_tree);
+			react_deactivate();
 		}
 		std::this_thread::sleep_for( std::chrono::milliseconds(1000) );
 	}

@@ -20,6 +20,4 @@
 
 #include "elliptics_react_actions.h"
 
-Q_EXTERN_C int elliptics_react_merge_call_tree(struct react_call_tree_t *call_tree, void *elliptics_react_manager);
-
 #endif // ELLIPTICS_REACT_H
