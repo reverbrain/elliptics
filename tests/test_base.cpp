@@ -657,11 +657,13 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		if (j > 0)
 			cocaine_remotes += ", ";
 		cocaine_remotes += "\"localhost:" + ports[j] + ":2\"";
-		const std::string group = configs[j].options.string_value("group");
-		if (cocaine_unique_groups.find(group) == cocaine_unique_groups.end()) {
-			if (!cocaine_groups.empty())
-				cocaine_groups += ", ";
-			cocaine_groups += group;
+		for (auto it = configs[j].backends.begin(); it != configs[j].backends.end(); ++it) {
+			const std::string group = it->string_value("group");
+			if (cocaine_unique_groups.insert(group).second) {
+				if (!cocaine_groups.empty())
+					cocaine_groups += ", ";
+				cocaine_groups += group;
+			}
 		}
 	}
 

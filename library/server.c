@@ -355,6 +355,7 @@ err_out_locks_destroy:
 err_out_addr_cleanup:
 	dnet_local_addr_cleanup(n);
 err_out_cache_cleanup:
+	n->need_exit = err;
 	dnet_cache_cleanup(n);
 err_out_backend_stat_provider_exit:
 err_out_notify_exit:
