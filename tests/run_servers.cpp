@@ -177,8 +177,8 @@ static int run_servers(const rapidjson::Value &doc)
 			const std::string name(it->name.GetString(), it->name.GetStringLength());
 			const rapidjson::Value &value = it->value;
 
-			if (value.IsUint64()) {
-				config(name, value.GetUint64());
+			if (value.IsInt64()) {
+				config(name, value.GetInt64());
 			} else if (value.IsString()) {
 				config(name, std::string(value.GetString(), value.GetStringLength()));
 			} else {
@@ -292,5 +292,7 @@ int main(int, char *[])
 		std::cout << exc.what() << std::endl;
 		return 1;
 	}
+
+	return result_status;
 }
 

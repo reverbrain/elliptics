@@ -141,7 +141,10 @@ static void upload_application(int locator_port, const std::string &path)
 	{
 		buffer.clear();
 		msgpack::packer<msgpack::sbuffer> packer(buffer);
-		packer << read_file(COCAINE_TEST_APP);
+		const char *cocaine_app = getenv("TEST_COCAINE_APP");
+		if (!cocaine_app)
+			throw std::runtime_error("TEST_COCAINE_APP environment variable is no set");
+		packer << read_file(cocaine_app);
 	}
 	std::string app(buffer.data(), buffer.size());
 

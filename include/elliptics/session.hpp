@@ -43,7 +43,9 @@ typedef std::function<void (const error_info &, const std::vector<dnet_cmd> &)> 
 namespace filters
 {
 bool positive(const callback_result_entry &entry);
+bool positive_with_ack(const callback_result_entry &entry);
 bool negative(const callback_result_entry &entry);
+bool negative_with_ack(const callback_result_entry &entry);
 bool all(const callback_result_entry &entry);
 bool all_with_ack(const callback_result_entry &entry);
 }

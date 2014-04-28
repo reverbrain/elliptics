@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.5
+Version:	2.25.4.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -17,7 +17,7 @@ BuildRequires:	python-devel
 #BuildRequires:  cocaine-framework-native-devel >= 0.11.0.1
 BuildRequires:	eblob-devel >= 0.21.32
 BuildRequires:	react-devel >= 1.0.2
-BuildRequires:	cmake msgpack-devel
+BuildRequires:	cmake msgpack-devel libblackhole-devel
 
 %define boost_ver %{nil}
 
@@ -132,6 +132,26 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.9
+- tests: Configure run_servers by envvars
+- rpm: Add dependency on libblackhole
+
+* Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.8
+- Don't set rpath for dnet_run_servers
+
+* Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.7
+- Upped elliptics version
+
+* Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.6-1
+- 
+- Fixed package details
+
+* Tue Apr 22 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.6
+- Core: stops threads before joining them in case we got some error while creating node.
+- tests: Added fork and monitor options to dnet_run_servers
+- API: Removed most of const_cast's uses. Added move semantic to async_result
+- package: Places binaries to correct packages
+
 * Thu Apr 17 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.5
 - Python: fixed pickling elliptics.Id
 

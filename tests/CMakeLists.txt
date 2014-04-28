@@ -5,17 +5,22 @@ set(TEST_LINK_FLAGS "-Wl,-rpath,${TEST_LIBRARY_PATH}")
 set(TEST_PROPERTIES PROPERTIES LINK_FLAGS "${TEST_LINK_FLAGS}" LINKER_LANGUAGE CXX)
 set(TEST_LIBRARIES  test_common elliptics elliptics_client elliptics_cpp ${Boost_LIBRARIES})
 set(TEST_IOSERV_PATH "${CMAKE_CURRENT_BINARY_DIR}/../example/dnet_ioserv")
-
-add_definitions(
-    -DCOCAINE_CONFIG_PATH="${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf"
-    -DCOCAINE_PLUGINS_PATH="${CMAKE_CURRENT_BINARY_DIR}/../cocaine/plugins"
-    -DCOCAINE_TEST_APP="${CMAKE_CURRENT_BINARY_DIR}/dnet_cpp_srw_test_app.tar"
-    -DTEST_LIBRARY_PATH="${TEST_LIBRARY_PATH}"
-    -DTEST_IOSERV_PATH="${TEST_IOSERV_PATH}"
+set(TEST_ENV
+    TEST_COCAINE_CONFIG=${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf
+    TEST_COCAINE_PLUGINS=${CMAKE_CURRENT_BINARY_DIR}/../cocaine/plugins
+    TEST_COCAINE_APP=${CMAKE_CURRENT_BINARY_DIR}/dnet_cpp_srw_test_app.tar
+    TEST_IOSERV_PATH=${TEST_IOSERV_PATH}
+    LD_LIBRARY_PATH=${TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}
 )
 
 if(WITH_COCAINE)
     add_definitions("-DHAVE_COCAINE")
+
+    include(../cmake/Modules/locate_library.cmake)
+    LOCATE_LIBRARY(LIBEV "ev++.h" "ev" "libev")
+
+    find_package(CocaineNative REQUIRED)
+    include_directories(${CocaineNative_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS})
 endif()
 
 add_library(test_common STATIC
@@ -29,7 +34,12 @@ add_library(test_common STATIC
     test_base.hpp
     test_base.cpp)
 set_target_properties(test_common ${TEST_PROPERTIES})
-target_link_libraries(test_common elliptics elliptics_client elliptics_cocaine elliptics_cpp dl ${Boost_LIBRARIES})
+set(TEST_COMMON_LIBRARIES elliptics elliptics_client elliptics_cocaine elliptics_cpp dl ${Boost_LIBRARIES})
+if(WITH_COCAINE)
+    list(APPEND TEST_COMMON_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
+    list(APPEND TEST_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
+endif()
+target_link_libraries(test_common ${TEST_COMMON_LIBRARIES})
 
 add_executable(dnet_cpp_test test.cpp)
 set_target_properties(dnet_cpp_test ${TEST_PROPERTIES})
@@ -59,12 +69,6 @@ set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_capped_test dnet_cpp_a
 set(TESTS_DEPS ${TESTS_LIST})
 
 if(WITH_COCAINE)
-    include(../cmake/Modules/locate_library.cmake)
-    LOCATE_LIBRARY(LIBEV "ev++.h" "ev" "libev")
-
-    find_package(CocaineNative REQUIRED)
-    include_directories(${CocaineNative_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS})
-
     add_executable(dnet_cpp_srw_test srw_test.cpp srw_test.hpp)
     set_target_properties(dnet_cpp_srw_test ${TEST_PROPERTIES})
     target_link_libraries(dnet_cpp_srw_test ${TEST_LIBRARIES} ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
@@ -85,11 +89,10 @@ if(WITH_COCAINE)
 endif()
 
 add_executable(dnet_run_servers run_servers.cpp)
-set_target_properties(dnet_run_servers ${TEST_PROPERTIES})
 target_link_libraries(dnet_run_servers ${RUN_SERVERS_LIBRARIES})
 
 add_custom_target(test
-    COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" ${TESTS_LIST}
+    COMMAND ${TEST_ENV} "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" ${TESTS_LIST}
     DEPENDS ${TESTS_DEPS}
     SOURCES "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py")
 
@@ -98,21 +101,17 @@ add_custom_command(TARGET test
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/pytests/elliptics
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../bindings/python/core.so* pytests/elliptics/
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp/libelliptics_cpp.so* pytests/
-    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../library/libelliptics*.so* pytests/
-    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../monitor/libelliptics_monitor.so* pytests/
+    COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../*/libelliptics*.so* pytests/
     COMMAND cp ${CMAKE_SOURCE_DIR}/bindings/python/src/* pytests/elliptics/
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-
-SET(ENV{LD_LIBRARY_PATH} ".")
-
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_custom_command(TARGET test
     POST_BUILD
     COMMAND virtualenv -p "${PYTHON_EXECUTABLE}" . &&
         . bin/activate &&
         pip install pytest &&
         export LD_LIBRARY_PATH=.:.. &&
-        py.test ${CMAKE_CURRENT_SOURCE_DIR}/pytests ${PYTESTS_FLAGS}
-    #COMMAND rm -fr *
+        ${TEST_ENV} py.test ${CMAKE_CURRENT_SOURCE_DIR}/pytests ${PYTESTS_FLAGS}
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)

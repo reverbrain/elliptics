@@ -85,14 +85,15 @@ public:
 	config_data &operator() (const std::string &name, const std::vector<std::string> &value);
 	config_data &operator() (const std::string &name, const std::string &value);
 	config_data &operator() (const std::string &name, const char *value);
-	config_data &operator() (const std::string &name, uint64_t value);
+	config_data &operator() (const std::string &name, int64_t value);
 	config_data &operator() (const std::string &name, int value);
+	config_data &operator() (const std::string &name, bool value);
 
 	bool has_value(const std::string &name) const;
 	std::string string_value(const std::string &name) const;
 
 protected:
-	typedef boost::variant<std::vector<std::string>, std::string, unsigned long long> variant;
+	typedef boost::variant<std::vector<std::string>, std::string, bool, int64_t> variant;
 
 	config_data &operator() (const std::string &name, const variant &value);
 	const variant *value_impl(const std::string &name) const;
@@ -133,6 +134,7 @@ public:
 	void stop();
 	void wait_to_stop();
 	bool is_started() const;
+	bool is_stopped() const;
 
 	std::string remote() const;
 	int monitor_port() const;
@@ -145,7 +147,7 @@ private:
 	int m_monitor_port;
 	bool m_fork;
 	bool m_kill_sent;
-	pid_t m_pid;
+	mutable pid_t m_pid;
 };
 
 #endif // NO_SERVER
