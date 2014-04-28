@@ -103,6 +103,8 @@ void init_elliptics_io_attr() {
 		.def_readwrite("size", &dnet_io_attr::size,
 		    "Size of operation object\n\n"
 		    "io_flags.size = len('object data')")
+		.def_readwrite("total_size", &dnet_io_attr::total_size,
+		    "Total size of the object being read.")
 		.def_pickle(io_attr_pickle())
 	;
 }
