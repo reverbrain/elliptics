@@ -84,7 +84,7 @@ void logger::print(int level, const char *format, ...)
 		return;
 
 	va_list args;
-	char buffer[1024];
+	char buffer[2048];
 	const size_t buffer_size = sizeof(buffer);
 
 	va_start(args, format);
