@@ -17,7 +17,7 @@
 		]
 	},
 	"options": {
-		"join": 1,
+		"join": true,
 		"flags": 20,
 		"remote": [
 			"autodiscovery:224.0.0.5:1025:2"
@@ -30,7 +30,7 @@
 		"io_thread_num": 16,
 		"nonblocking_io_thread_num": 16,
 		"net_thread_num": 4,
-		"daemon": 0,
+		"daemon": false,
 		"auth_cookie": "qwerty",
 		"bg_ionice_class": 3,
 		"bg_ionice_prio": 0,
