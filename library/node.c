@@ -697,6 +697,7 @@ struct dnet_session *dnet_session_create(struct dnet_node *n)
 	memset(s, 0, sizeof(struct dnet_session));
 	dnet_empty_time(&s->ts);
 	s->node = n;
+	s->wait_ts = n->wait_ts;
 
 	return s;
 }
