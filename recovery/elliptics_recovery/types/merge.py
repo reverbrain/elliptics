@@ -147,8 +147,10 @@ class Recovery(object):
         self.stats = RecoverStat()
         self.result = True
         self.attempt = 0
-        self.data_size = it_response.size
+        self.total_size = it_response.size
+        self.recovered_size = 0
         self.just_remove = False
+        self.chunked = False
         log.debug("Created Recovery object for key: {0}, node: {1}"
                   .format(repr(it_response.key), address))
 
@@ -217,13 +219,29 @@ class Recovery(object):
                           "Skipping reading, writing and removing stages.")
                 return
             self.attempt = 0
+            if self.total_size > self.ctx.chunk_size:
+                self.chunked = True
+
+            self.read()
+        except Exception as e:
+            log.error("Onlookup exception: {0}".format(e))
+            self.result = False
+
+    def read(self):
+        size = 0
+        try:
             log.debug("Reading key: {0} from node: {1}"
                       .format(repr(self.it_response.key),
                               self.address))
-            self.read_result = self.direct_session.read_data(self.it_response.key)
+            if self.chunked:
+                size = min(self.total_size - self.recovered_size, self.ctx.chunk_size)
+            self.read_result = self.direct_session.read_data(self.it_response.key,
+                                                             offset=self.recovered_size,
+                                                             size=size)
             self.read_result.connect(self.onread)
-        except Exception as e:
-            log.error("Onlookup exception: {0}".format(e))
+        except Exception, e:
+            log.error("Read key:{} by offset: {} and size: {} raised exception: {}"
+                      .format(self.it_response.key, self.recovered_size, size, e))
             self.result = False
 
     def onread(self, results, error):
@@ -241,9 +259,8 @@ class Recovery(object):
                               .format(repr(self.it_response.key), self.attempt,
                                       self.ctx.attempts,
                                       self.direct_session.timeout, old_timeout))
+                    self.read()
                     self.stats.read_retries += 1
-                    self.read_result = self.direct_session.read_data(self.it_response.key)
-                    self.read_result.connect(self.onread)
                     return
                 log.error("Reading key: {0} on the node: {1} failed. "
                           "Skipping it: {2}"
@@ -253,24 +270,48 @@ class Recovery(object):
                 self.stats.read_failed += 1
                 return
 
+            if self.recovered_size == 0:
+                self.session.user_flags = results[0].user_flags
+                self.timestamp = results[0].timestamp
             self.stats.read += 1
-            self.write_io = elliptics.IoAttr()
-            self.write_io.id = results[0].id
-            self.write_io.timestamp = results[0].timestamp
-            self.write_io.user_flags = results[0].user_flags
             self.write_data = results[0].data
-            log.debug("Writing key: {0} to node: {1}"
-                      .format(repr(self.it_response.key),
-                              self.dest_address))
-            self.data_size = len(self.write_data)
-            self.stats.read_bytes += self.data_size
+            self.write_size = results[0].size
+            self.total_size = results[0].io_attribute.total_size
+            self.stats.read_bytes += results[0].size
             self.attempt = 0
-            self.write_result = self.session.write_data(self.write_io,
-                                                        self.write_data)
-            self.write_result.connect(self.onwrite)
+            self.write()
         except Exception as e:
             log.error("Onread exception: {0}".format(e))
             self.result = False
+
+    def write(self):
+        try:
+            log.debug("Writing key: {0} to node: {1}".format(repr(self.it_response.key),
+                                                             self.dest_address))
+            if self.chunked:
+                if self.recovered_size == 0:
+                    self.write_result = self.session.write_prepare(key=self.it_response.key,
+                                                                   data=self.write_data,
+                                                                   remote_offset=self.recovered_size,
+                                                                   psize=self.total_size)
+                elif self.recovered_size + self.write_size < self.total_size:
+                    self.write_result = self.session.write_plain(key=self.it_response.key,
+                                                                 data=self.write_data,
+                                                                 remote_offset=self.recovered_size)
+                else:
+                    self.write_result = self.session.write_commit(key=self.it_response.key,
+                                                                  data=self.write_data,
+                                                                  remote_offset=self.recovered_size,
+                                                                  csize=self.total_size)
+            else:
+                self.write_result = self.session.write_data(key=self.it_response.key,
+                                                            data=self.write_data,
+                                                            offset=self.recovered_size)
+            self.write_result.connect(self.onwrite)
+        except Exception, e:
+            log.error("Write exception: {0}".format(e))
+            self.result = False
+            raise e
 
     def onwrite(self, results, error):
         self.write_result = None
@@ -289,9 +330,7 @@ class Recovery(object):
                                       self.attempt, self.ctx.attempts,
                                       self.direct_session.timeout, old_timeout))
                     self.stats.write_retries += 1
-                    self.write_result = self.session.write_data(self.write_io,
-                                                                self.write_data)
-                    self.write_result.connect(self.onwrite)
+                    self.write()
                     return
                 log.error("Writing key: {0} to node: {1} failed. "
                           "Skipping it: {2}"
@@ -302,18 +341,20 @@ class Recovery(object):
                 return
 
             self.stats.write += 1
-            self.stats.written_bytes += self.data_size
-
-            log.debug("Key: {0} has been copied to node: {1}. "
-                      "So we can delete it from node: {2}"
-                      .format(repr(self.it_response.key),
-                              self.dest_address, self.address))
+            self.stats.written_bytes += self.write_size
+            self.recovered_size += self.write_size
             self.attempt = 0
-            if not self.ctx.safe:
-                log.debug("Removing key: {0} from node: {1}"
-                          .format(repr(self.it_response.key), self.address))
-                self.remove_result = self.direct_session.remove(self.it_response.key)
-                self.remove_result.connect(self.onremove)
+
+            if self.recovered_size < self.total_size:
+                self.read()
+            else:
+                log.debug("Key: {0} has been copied to node: {1}. So we can delete it from node: {2}"
+                          .format(repr(self.it_response.key), self.dest_address, self.address))
+                if not self.ctx.safe:
+                    log.debug("Removing key: {0} from node: {1}"
+                              .format(repr(self.it_response.key), self.address))
+                    self.remove_result = self.direct_session.remove(self.it_response.key)
+                    self.remove_result.connect(self.onremove)
         except Exception as e:
             log.error("Onwrite exception: {0}".format(e))
             self.result = False
@@ -350,10 +391,10 @@ class Recovery(object):
 
             if self.just_remove:
                 self.stats.remove_old += 1
-                self.stats.remove_old_bytes += self.data_size
+                self.stats.remove_old_bytes += self.total_size
             else:
                 self.stats.remove += 1
-                self.stats.removed_bytes += self.data_size
+                self.stats.removed_bytes += self.total_size
         except Exception as e:
             log.error("Onremove exception: {0}".format(e))
             self.result = False
@@ -409,7 +450,6 @@ def iterate_node(ctx, node, address, ranges, eid, stats):
                                                          address=address,
                                                          batch_size=ctx.batch_size,
                                                          stats=stats,
-                                                         counters=['iterated_keys'],
                                                          leave_file=False)
         if result is None:
             return None

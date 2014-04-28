@@ -406,24 +406,24 @@ void server_node::start()
 			throw_error(err, "Failed to fork process");
 		} else if (m_pid == 0) {
 			char buffer[3][1024] = {
-				"",
-				"-c",
-				"dnet_ioserv"
+				" ",
+				"-c"
 			};
-			std::vector<char> config_path(m_path.begin(), m_path.end());
-			config_path.push_back('\0');
+			std::string ios_path = ioserv_path();
 			char * const args[] = {
+				const_cast<char*>(ios_path.c_str()),
 				buffer[1],
-				buffer[0],
-				config_path.data(),
+				const_cast<char*>(m_path.c_str()),
 				NULL
 			};
+			auto ld_path = std::string("LD_LIBRARY_PATH=") + getenv("LD_LIBRARY_PATH");
 			char * const env[] = {
+				const_cast<char*>(ld_path.c_str()),
 				NULL
 			};
-			if (execve(ioserv_path(), args, env) == -1) {
+			if (execve(ios_path.data(), args, env) == -1) {
 				int err = -errno;
-				std::cerr << create_error(err, "Failed to start process \"%s\"", ioserv_path()).message() << std::endl;
+				std::cerr << create_error(err, "Failed to start process \"%s\"", ios_path.c_str()).message() << std::endl;
 				quick_exit(1);
 			}
 		}
@@ -657,11 +657,13 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		if (j > 0)
 			cocaine_remotes += ", ";
 		cocaine_remotes += "\"localhost:" + ports[j] + ":2\"";
-		const std::string group = configs[j].options.string_value("group");
-		if (cocaine_unique_groups.find(group) == cocaine_unique_groups.end()) {
-			if (!cocaine_groups.empty())
-				cocaine_groups += ", ";
-			cocaine_groups += group;
+		for (auto it = configs[j].backends.begin(); it != configs[j].backends.end(); ++it) {
+			const std::string group = it->string_value("group");
+			if (cocaine_unique_groups.insert(group).second) {
+				if (!cocaine_groups.empty())
+					cocaine_groups += ", ";
+				cocaine_groups += group;
+			}
 		}
 	}
 

@@ -14,434 +14,325 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-"""
-Data Center recovery type - recovers keys at the expense of keys from other group.
-
- * Find ranges that host is responsible for now.
- * Start metadata-only iterator for the found ranges on local and remote hosts (from non-local groups).
- * Sort iterators' outputs.
- * Computes diff between local and remote iterator.
- * Recover keys provided by diff using bulk APIs.
-"""
-
-import sys
-import os
 import logging
-
-from itertools import groupby
 from multiprocessing import Pool
-
-from ..iterator import Iterator, IteratorResult
+from ..utils.misc import worker_init, elliptics_create_node
+from ..range import IdRange
 from ..etime import Time
-from ..utils.misc import elliptics_create_node, elliptics_create_session, worker_init, mk_container_name
+from ..iterator import Iterator, MergeData, KeyInfo, IteratorResult
 
-# XXX: change me before BETA
-sys.path.insert(0, "bindings/python/")
+import os
+import pickle
+
 import elliptics
 
 log = logging.getLogger(__name__)
 
 
-def run_iterator(ctx, address, eid, ranges, stats):
-    """
-    Runs iterator for all ranges on node specified by address
-    """
-    node = elliptics_create_node(address=address, elog=ctx.elog, wait_timeout=ctx.wait_timeout)
+def iterate_node(arg):
+    address, ranges = arg
+    ctx = g_ctx
+    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+    stats_name = 'iterate_{0}'.format(address)
+    stats = ctx.monitor.stats[stats_name]
+    stats.timer('process', 'started')
+    log.info("Running iterator")
+    log.debug("Ranges:")
+    for range in ranges:
+        log.debug(repr(range))
+    stats.timer('process', 'iterate')
+
+    node_id = ctx.routes.get_address_id(address)
+
+    node = elliptics_create_node(address=address,
+                                 elog=ctx.elog,
+                                 wait_timeout=ctx.wait_timeout,
+                                 net_thread_num=4,
+                                 io_thread_num=1)
 
     try:
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
 
         log.debug("Running iterator on node: {0}".format(address))
-        result, result_len = Iterator.iterate_with_stats(node=node,
-                                                         eid=eid,
-                                                         timestamp_range=timestamp_range,
-                                                         key_ranges=ranges,
-                                                         tmp_dir=ctx.tmp_dir,
-                                                         address=address,
-                                                         batch_size=ctx.batch_size,
-                                                         stats=stats,
-                                                         counters=['iterated_keys'],
-                                                         leave_file=True
-                                                         )
-
-        if result is None:
-            raise RuntimeError("Iterator result is None")
-        log.debug("Iterator {0} obtained: {1} record(s)".format(result.address, result_len))
-        stats.counter('iterations', 1)
-        return result
+        results, results_len = Iterator.iterate_with_stats(
+            node=node,
+            eid=node_id,
+            timestamp_range=timestamp_range,
+            key_ranges=ranges,
+            tmp_dir=ctx.tmp_dir,
+            address=address,
+            batch_size=ctx.batch_size,
+            stats=stats,
+            leave_file=True,
+            separately=True)
 
     except Exception as e:
         log.error("Iteration failed for: {0}: {1}".format(address, repr(e)))
         stats.counter('iterations', -1)
         return None
 
-
-def sort(ctx, result, stats):
-    """
-    Runs sort routine for all iterator result
-    """
-    if len(result) == 0:
-        log.debug("Sort skipped iterator results are empty")
-        return None
-    try:
-        log.info("Processing sorting ranges for: {0}".format(result.address))
-        result.container.sort()
-        stats.counter('sort', 1)
-        return result
-    except Exception as e:
-        log.error("Sort of {0} failed: {1}".format(result.address, e))
-        stats.counter('sort', -1)
-    return None
-
-
-def diff(ctx, local, remote, stats):
-    """
-    Compute differences between local and remote results.
-    """
-    try:
-        if remote is None or len(remote) == 0:
-            log.info("Remote container is empty, skipping")
-            return None
-        elif local is None or len(local) == 0:
-            log.info("Local container is empty, recovering full range")
-            result = remote
-        else:
-            log.info("Computing differences for: {0}".format(remote.address))
-            result = local.diff(remote)
-        result.leave_file = True
-        diff_len = len(result)
-        stats.counter('diff', diff_len)
-        log.info("Found {0} differences".format(diff_len))
-        return result
-    except Exception as e:
-        log.error("Diff for {0} failed: {1}".format(remote.address, e))
-        stats.counter('diff', -1)
-        return None
-
-
-def recover((address, )):
-    """
-    Recovers difference between remote and local data.
-    """
-
-    ctx = g_ctx
-
-    result = True
-    stats_name = 'recover_{0}'.format(address)
-    stats = ctx.monitor.stats[stats_name]
-    log.info("Recovering ranges for: {0}".format(address))
-    stats.timer('recover', 'started')
-
-    filename = os.path.join(ctx.tmp_dir, mk_container_name(address, "merge_"))
-    diff = IteratorResult.load_filename(filename,
-                                        address=address,
-                                        is_sorted=True,
-                                        tmp_dir=ctx.tmp_dir,
-                                        leave_file=False
-                                        )
-    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
-
-    local_node = elliptics_create_node(address=ctx.address,
-                                       elog=ctx.elog,
-                                       io_thread_num=10,
-                                       net_thread_num=10,
-                                       nonblocking_io_thread_num=10,
-                                       wait_timeout=ctx.wait_timeout
-                                       )
-    log.debug("Creating direct session: {0}".format(ctx.address))
-    local_session = elliptics_create_session(node=local_node,
-                                             group=ctx.group_id,
-                                             )
-    local_session.set_direct_id(*ctx.address)
-
-    remote_node = elliptics_create_node(address=diff.address,
-                                        elog=ctx.elog,
-                                        io_thread_num=10,
-                                        net_thread_num=10,
-                                        nonblocking_io_thread_num=10,
-                                        wait_timeout=ctx.wait_timeout
-                                        )
-    log.debug("Creating direct session: {0}".format(diff.address))
-    remote_session = elliptics_create_session(node=remote_node,
-                                              group=diff.address.group_id,
-                                              )
-    remote_session.set_direct_id(*diff.address)
-
-    for batch_id, batch in groupby(enumerate(diff), key=lambda x: x[0] / ctx.batch_size):
-        result &= recover_keys(ctx=ctx,
-                               address=diff.address,
-                               group_id=diff.address.group_id,
-                               keys=[r.key for _, r in batch],
-                               local_session=local_session,
-                               remote_session=remote_session,
-                               stats=stats)
-
-    stats.timer('recover', 'finished')
-    return result
-
-
-def recover_keys(ctx, address, group_id, keys, local_session, remote_session, stats):
-    """
-    Bulk recovery of keys.
-    """
-    keys_len = len(keys)
-
-    log.debug("Copying {0} keys".format(keys_len))
-
-    async_write_results = []
-    batch = None
-
-    try:
-        batch = remote_session.bulk_read(keys)
-        it = iter(batch)
-    except Exception as e:
-        log.error("Bulk read failed: {0} keys: {1}".format(keys_len, e))
-        stats.counter('read_keys', -keys_len)
-        stats.counter('recovered_keys', -keys_len)
-        return False
-
-    failed = 0
-
-    while True:
-        try:
-            b = next(it)
-            io = elliptics.IoAttr()
-            io.id = b.id
-            io.timestamp = b.timestamp
-            io.user_flags = b.user_flags
-            async_write_results.append((local_session.write_data(io, b.data),
-                                        len(b.data)))
-        except StopIteration:
-            break
-        except Exception as e:
-            failed += 1
-            log.error("Write failed: {0}".format(e))
-
-    read_len = len(async_write_results)
-    stats.counter('read_keys', read_len)
-    stats.counter('read_keys', -failed)
-    stats.counter('skipped_keys', keys_len - read_len - failed)
-
-    successes, successes_size, failures_size = (0, 0, 0)
-    for r, bsize in async_write_results:
-        try:
-            r.wait()
-            if r.successful():
-                successes_size += bsize
-                successes += 1
-            else:
-                failures_size += bsize
-                failed += 1
-        except Exception as e:
-            log.error("Write failed: {0}".format(e))
-            failures_size += bsize
-            failed += 1
-
-    log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(successes + failed, keys_len, successes_size, failures_size))
-
-    stats.counter('recovered_keys', successes)
-    stats.counter('recovered_keys', -failed)
-    stats.counter('recovered_bytes', successes_size)
-    stats.counter('recovered_bytes', -failures_size)
-
-    return failed == 0
-
-
-def iterate_node(address_ranges):
-    """Iterates node range, sorts it and returns"""
-    ctx = g_ctx
-    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
-
-    stats_name = 'iterate_{0}'.format(address_ranges.address)
-    if address_ranges.address == ctx.address:
-        stats_name = 'iterate_local'
-    stats = ctx.monitor.stats[stats_name]
-    stats.timer('process', 'started')
-
-    log.info("Running iterator")
-    stats.timer('process', 'iterate')
-    result = run_iterator(ctx=ctx,
-                          address=address_ranges.address,
-                          eid=address_ranges.eid,
-                          ranges=address_ranges.id_ranges,
-                          stats=stats
-                          )
-    if result is None or len(result) == 0:
-        log.warning("Iterator result is empty, skipping")
-        stats.timer('process', 'finished')
-        return None
+    log.debug("Iterator {0} obtained: {1} record(s)"
+              .format(address, results_len))
+    stats.counter('iterations', 1)
 
     stats.timer('process', 'sort')
-    sorted_result = sort(ctx=ctx,
-                         result=result,
-                         stats=stats)
-    assert len(result) >= len(sorted_result)
-
-    log.info("Sorted successfully: {0} result(s)".format(len(sorted_result)))
-
-    if sorted_result is None or len(sorted_result) == 0:
-        log.warning("Sorted results are empty, skipping")
-        stats.timer('process', 'finished')
-        return None
+    for range_id in results:
+        results[range_id].sort()
 
     stats.timer('process', 'finished')
-    return (sorted_result.address, sorted_result.filename)
+    return [(range_id, container.filename, container.address)
+            for range_id, container in results.items()]
 
 
-def process_diff((local, remote)):
-    log.debug('Looking for differences between local and remote nodes')
-    if remote is None:
-        log.debug('Remote container is empty, skipping')
-        return None
+def transpose_results(results):
+    result_tree = dict()
 
+    # for each address iterator results
+    for res_dict in results:
+        # for each range
+        for range_id, filepath, address in res_dict:
+            # if it first time with this range
+            if range_id not in result_tree:
+                # initialize it
+                result_tree[range_id] = []
+            # add iterator result to tree
+            result_tree[range_id].append((filepath, address))
+
+    return result_tree
+
+
+def merge_results(arg):
+    import heapq
     ctx = g_ctx
-    remote_address, remote_filename = remote
 
-    stats_name = 'diff_remote_{0}'.format(remote_address)
-    stats = ctx.monitor.stats[stats_name]
-    stats.timer('process', 'start')
+    range_id, results = arg
+    results = [IteratorResult.load_filename(
+        filename=r[0],
+        address=r[1],
+        is_sorted=True,
+        tmp_dir=ctx.tmp_dir)
+        for r in results]
+    filename = os.path.join(ctx.tmp_dir, 'merge_{0}'.format(range_id))
+    with open(filename, 'w') as f:
+        pickler = pickle.Pickler(f)
 
-    if local is None:
-        log.info("Local container is empty, recovering full range")
-        stats.timer('process', 'finished')
-        return remote
+        heap = []
 
-    local_address, local_filename = local
+        for d in results:
+            try:
+                heapq.heappush(heap, MergeData(d, None))
+            except StopIteration:
+                pass
 
-    log.debug("Loading local result")
-    local_result = None
-    if local:
-        local_result = IteratorResult.load_filename(local_filename,
-                                                    address=ctx.address,
-                                                    is_sorted=True,
-                                                    tmp_dir=ctx.tmp_dir,
-                                                    leave_file=True
-                                                    )
+        while len(heap):
+            min_data = heapq.heappop(heap)
+            key_data = (min_data.value.key,
+                        [KeyInfo(min_data.address,
+                                 min_data.value.timestamp,
+                                 min_data.value.size,
+                                 min_data.value.user_flags)])
+            same_datas = [min_data]
+            while len(heap) and min_data.value.key == heap[0].value.key:
+                key_data[1].append(KeyInfo(heap[0].address,
+                                           heap[0].value.timestamp,
+                                           heap[0].value.size,
+                                           heap[0].value.user_flags))
+                same_datas.append(heapq.heappop(heap))
+            pickler.dump(key_data)
+            for i in same_datas:
+                try:
+                    i.next()
+                    heapq.heappush(heap, i)
+                except StopIteration:
+                    pass
 
-    log.debug("Loading remote result")
-    remote_result = None
-    if remote:
-        remote_result = IteratorResult.load_filename(remote_filename,
-                                                     address=remote_address,
-                                                     is_sorted=True,
-                                                     tmp_dir=ctx.tmp_dir
-                                                     )
+    return filename
 
-    stats.timer('process', 'diff')
-    diff_result = diff(ctx, local_result, remote_result, stats)
 
-    if diff_result is None or len(diff_result) == 0:
-        log.warning("Diff result is empty, skipping")
-        stats.timer('process', 'finished')
-        return None
-    assert len(remote_result) >= len(diff_result)
-    log.info("Computed differences: {0} diff(s)".format(len(diff_result)))
+def get_ranges(ctx):
+    routes = ctx.routes.filter_by_group_ids(ctx.groups)
+    addresses = dict()
+    groups_number = len(routes.groups())
+    prev_key = None
+    ranges = []
+    for i in range(groups_number):
+        route = routes[i]
+        addresses[route.key.group_id] = route.address
+        prev_key = route.key
 
-    stats.timer('process', 'finished')
-    return (diff_result.address, diff_result.filename)
+    for i in range(groups_number, len(routes) - groups_number + 1):
+        route = routes[i]
+        ranges.append((prev_key, routes[i].key, addresses.values()))
+        prev_key = route.key
+        addresses[route.key.group_id] = route.address
+
+    if ctx.one_node:
+        ranges = [x for x in ranges if ctx.address in x[2]]
+
+    address_range = dict()
+
+    for i, rng in enumerate(ranges):
+        for addr in rng[2]:
+            val = IdRange(rng[0], rng[1])
+            if addr not in address_range:
+                address_range[addr] = []
+            address_range[addr].append(val)
+
+    return address_range
 
 
 def main(ctx):
     global g_ctx
     g_ctx = ctx
-    g_ctx.monitor.stats.timer('main', 'started')
-    g_ctx.group_id = g_ctx.address.group_id
-    result = True
-
-    log.warning("Searching for ranges that %s store" % g_ctx.address)
-    all_ranges = g_ctx.routes.get_local_ranges_by_address(g_ctx.address)
-    log.debug("Recovery nodes: {0}".format(len(all_ranges)))
-    if len(all_ranges) <= 1:
-        log.warning("No ranges to recover for address %s" % g_ctx.address)
-        g_ctx.monitor.stats.timer('main', 'finished')
-        return result
-
-    log.debug("Processing nodes: {0}".format([str(r.address) for r in all_ranges]))
-
-    processes = min(g_ctx.nprocess, len(all_ranges))
+    ctx.monitor.stats.timer('main', 'started')
+    ret = True
+    if len(ctx.routes.groups()) < 2:
+        log.error("There is only one group in route list: {0}. "
+                  "sdc recovery could not be made."
+                  .format(ctx.routes.groups()))
+        return False
+    processes = min(g_ctx.nprocess, len(g_ctx.routes.addresses()))
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
 
-    local_ranges = next((r for r in all_ranges if r.address == g_ctx.address), None)
-    assert local_ranges, 'Local ranges is absent in route table'
-    ctx.monitor.stats.counter('iterations', len(all_ranges))
-
-    local_iter_result = pool.apply_async(iterate_node, (local_ranges, ))
-    remote_ranges = (range for range in all_ranges
-                     if range.address != g_ctx.address and
-                        range.address.group_id in g_ctx.groups)
-    iter_result = pool.imap_unordered(iterate_node, remote_ranges)
+    ranges = get_ranges(ctx)
+    results = None
 
     try:
-        timeout = 2147483647
-        local_it_result = local_iter_result.get(timeout)
-        diff_async_results = pool.imap_unordered(process_diff, ((local_it_result, result) for result in iter_result if result))
-
+        results = pool.map(iterate_node,
+                           ((addr, ranges[addr], ) for addr in ranges))
     except KeyboardInterrupt:
-        log.error("Caught Ctrl+C. Terminating")
+        log.error("Caught Ctrl+C. Terminating.")
         pool.terminate()
         pool.join()
-        g_ctx.monitor.stats.timer('main', 'finished')
+        ctx.monitor.stats.timer('main', 'finished')
         return False
 
-    def unpack_diff_result(result):
-        address, filename = result
-        dres = IteratorResult.load_filename(filename,
-                                            address=address,
-                                            is_sorted=True,
-                                            tmp_dir=g_ctx.tmp_dir
-                                            )
-        return dres
+    ctx.monitor.stats.timer('main', 'transpose')
+    results = transpose_results(results)
+    ctx.monitor.stats.timer('main', 'merge')
 
     try:
-        diff_results = [unpack_diff_result(diff_r) for diff_r in diff_async_results if diff_r]
-        diff_results = [diff_r for diff_r in diff_results if diff_r]
+        results = pool.map(merge_results, (x for x in results.items()))
     except KeyboardInterrupt:
-        log.error("Caught Ctrl+C. Terminating")
+        log.error("Caught Ctrl+C. Terminating.")
         pool.terminate()
         pool.join()
-        g_ctx.monitor.stats.timer('main', 'finished')
+        ctx.monitor.stats.timer('main', 'finished')
         return False
 
-    if len(diff_results) == 0:
-        log.warning("Local node has up-to-date data")
-        pool.terminate()
-        pool.join()
-        g_ctx.monitor.stats.timer('main', 'finished')
-        return True
+    ctx.merged_filename = os.path.join(ctx.tmp_dir, 'merged_result')
 
-    diff_length = sum([len(diff) for diff in diff_results])
+    with open(ctx.merged_filename, 'w') as m_file:
+        for res in results:
+            if res:
+                with open(res, 'r') as r_file:
+                    m_file.write(r_file.read())
 
-    log.warning('Computing merge and splitting by node all remote results')
-    g_ctx.monitor.stats.timer('main', 'merge_and_split')
-    splitted_results = IteratorResult.merge(diff_results, g_ctx.tmp_dir)
-    g_ctx.monitor.stats.timer('main', 'finished')
+    ctx.monitor.stats.timer('main', 'filter')
+    log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir:%s",
+              ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
 
-    merged_diff_length = 0
-    for spl in splitted_results:
-        spl_len = len(spl)
-        merged_diff_length += spl_len
-        g_ctx.monitor.stats.counter('merged_diffs_{0}'.format(spl.address), spl_len)
+    if ctx.dry_run:
+        return ret
 
-    assert diff_length >= merged_diff_length
-    g_ctx.monitor.stats.counter('merged_diffs', merged_diff_length)
+    if ctx.custom_recover == '':
+        from ..dc_recovery import recover
+        recover(ctx)
+    else:
+        import imp
+        log.debug("Loading module: {0}".format(ctx.custom_recover))
+        imp.acquire_lock()
+        custom_recover = imp.load_source('custom_recover', ctx.custom_recover)
+        imp.release_lock()
+        custom_recover.recover(ctx)
 
-    if not g_ctx.dry_run:
-        try:
-            results = pool.map(recover, ((r.address, ) for r in splitted_results if r))
-        except KeyboardInterrupt:
-            log.error("Caught Ctrl+C. Terminating.")
-            pool.terminate()
-            pool.join()
-            g_ctx.monitor.stats.timer('main', 'merge_and_split')
-            return False
-        else:
-            log.info("Closing pool, joining threads")
-            pool.close()
-            pool.join()
-        result &= all(results)
+    ctx.monitor.stats.timer('main', 'finished')
+    return ret
 
-    g_ctx.monitor.stats.timer('main', 'finished')
-    log.debug("Result: %s" % result)
 
-    return result
+def lookup_keys(ctx):
+    log.info("Start looking up keys")
+    stats = ctx.monitor.stats["lookup"]
+    stats.timer('process', 'started')
+    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+    node = elliptics_create_node(address=ctx.address,
+                                 elog=ctx.elog,
+                                 wait_timeout=ctx.wait_timeout,
+                                 net_thread_num=1,
+                                 io_thread_num=1)
+    session = elliptics.Session(node)
+    filename = os.path.join(ctx.tmp_dir, 'merged_result')
+    merged_f = open(filename, 'w')
+    pickler = pickle.Pickler(merged_f)
+    with open(ctx.dump_file, 'r') as dump:
+        for str_id in dump:
+            id = elliptics.Id(str_id)
+            lookups = []
+            for g in ctx.groups:
+                session.groups = [g]
+                lookups.append(session.read_data(id, size=1))
+            key_infos = []
+
+            for i, l in enumerate(lookups):
+                try:
+                    result = l.get()[0]
+                    address = result.address
+                    address.group_id = ctx.groups[i]
+                    key_infos.append(KeyInfo(address,
+                                             result.timestamp,
+                                             result.size,
+                                             result.user_flags))
+                except Exception, e:
+                    log.error("Failed to lookup key: {} in group: {}: {}".format(id,
+                                                                                 ctx.groups[i],
+                                                                                 e))
+                    stats.counter("lookups", -1)
+            if len(key_infos) > 0:
+                key_data = (id, key_infos)
+                pickler.dump(key_data)
+                stats.counter("lookups", len(key_infos))
+            else:
+                log.error("Key: {} is missing in all specified groups: {}. It won't be recovered."
+                          .format(id, ctx.groups))
+    stats.timer('process', 'finished')
+    return filename
+
+
+def dump_main(ctx):
+    global g_ctx
+    g_ctx = ctx
+    ctx.monitor.stats.timer('main', 'started')
+    ret = True
+    if len(ctx.routes.groups()) < 2:
+        log.error("There is only one group in route list: {0}. "
+                  "sdc recovery could not be made."
+                  .format(ctx.routes.groups()))
+        return False
+
+    try:
+        ctx.merged_filename = lookup_keys(ctx)
+    except KeyboardInterrupt:
+        log.error("Caught Ctrl+C. Terminating.")
+        ctx.monitor.stats.timer('main', 'finished')
+        return False
+
+    log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir:%s",
+              ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
+
+    if ctx.dry_run:
+        return ret
+
+    if ctx.custom_recover == '':
+        from ..dc_recovery import recover
+        recover(ctx)
+    else:
+        import imp
+        log.debug("Loading module: {0}".format(ctx.custom_recover))
+        imp.acquire_lock()
+        custom_recover = imp.load_source('custom_recover', ctx.custom_recover)
+        imp.release_lock()
+        custom_recover.recover(ctx)
+
+    ctx.monitor.stats.timer('main', 'finished')
+    return ret

@@ -35,6 +35,8 @@ class Servers:
 
         config = dict()
         config['srw'] = not without_cocaine
+        config['fork'] = True
+        config['monitor'] = True
         config['path'] = self.path
         servers = []
         for g in groups:
@@ -43,6 +45,7 @@ class Servers:
         config['servers'] = servers
         js = json.dumps(config)
 
+        print js
         self.p = subprocess.Popen(args=['../dnet_run_servers'],
                                   stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE)

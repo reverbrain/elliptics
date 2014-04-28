@@ -22,35 +22,39 @@ from collections import namedtuple
 from .utils.misc import logged_class
 
 import sys
-sys.path.insert(0, "bindings/python/") # XXX
+sys.path.insert(0, "bindings/python/")  # XXX
 import elliptics
+
 
 @logged_class
 class IdRange(object):
     """
     More python'ish ID ranges
     """
-    __slots__ = ('start', 'stop')
+    __slots__ = ('range_id', 'start', 'stop')
 
-    ID_MIN = elliptics.Id([0]*64, 0)
-    ID_MAX = elliptics.Id([255]*64, 0)
+    ID_MIN = elliptics.Id([0] * 64, 0)
+    ID_MAX = elliptics.Id([255] * 64, 0)
 
-    def __init__(self, start, stop):
+    def __init__(self, start, stop, range_id=0):
         assert start <= stop
         self.start = start
         self.stop = stop
+        self.range_id = range_id
 
     def __iter__(self):
         return iter((self.start, self.stop))
 
     def __repr__(self):
-        return "IdRange({0}, {1})".format(repr(self.start), repr(self.stop))
+        return "IdRange({0}, {1}, {2})" .format(self.range_id,
+                                                repr(self.start),
+                                                repr(self.stop))
 
     def __str__(self):
-        return "{0}:{1}".format(self.start, self.stop)
+        return "{0}@{1}:{2}".format(self.range_id, self.start, self.stop)
 
     def __eq__(self, other):
-        return tuple(self) == tuple(other)
+        return (self.start, self.stop) == (other.start, other.stop)
 
     def __ne__(self, other):
         return not self == other
@@ -60,6 +64,14 @@ class IdRange(object):
 
     def __hash__(self):
         return hash((tuple(self.start), tuple(self.stop)))
+
+    def check_key(self, key):
+        if key < self.start:
+            return -1
+        if key > self.stop:
+            return 1
+
+        return 0
 
     @staticmethod
     def elliptics_range(key_begin, key_end):

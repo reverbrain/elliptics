@@ -29,6 +29,13 @@ struct elliptics_io_attr: public dnet_io_attr {
 	elliptics_time time;
 };
 
+struct io_attr_pickle : bp::pickle_suite
+{
+	static bp::tuple getinitargs(const elliptics_io_attr& io);
+	static bp::tuple getstate(const elliptics_io_attr& io);
+	static void setstate(elliptics_io_attr& io, bp::tuple state);
+};
+
 void init_elliptics_io_attr();
 
 } } } // namespace ioremap::elliptics::python

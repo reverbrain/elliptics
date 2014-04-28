@@ -16,9 +16,13 @@
 #ifndef ELLIPTICS_PYTHON_ELLIPTICS_TIME_HPP
 #define ELLIPTICS_PYTHON_ELLIPTICS_TIME_HPP
 
+#include <boost/python.hpp>
+
 #include <elliptics/packet.h>
 
 #include <string>
+
+namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {
 
@@ -44,6 +48,13 @@ struct elliptics_time {
 	static elliptics_time now();
 
 	dnet_time m_time;
+};
+
+struct time_pickle : bp::pickle_suite
+{
+	static bp::tuple getinitargs(const elliptics_time& time);
+	static bp::tuple getstate(const elliptics_time& time);
+	static void setstate(elliptics_time& time, bp::tuple state);
 };
 
 void init_elliptics_time();

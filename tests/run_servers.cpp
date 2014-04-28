@@ -119,14 +119,6 @@ static int run_servers(const rapidjson::Value &doc)
 	bool fork = read_option(doc, "fork", false);
 	bool monitor = read_option(doc, "monitor", true);
 
-	if (doc.HasMember("srw")) {
-		if (!doc["srw"].IsBool()) {
-			std::cout << "Field \"srw\" must be boolean" << std::endl;
-			return 1;
-		}
-		srw = doc["srw"].GetBool();
-	}
-
 #ifndef HAVE_COCAINE
 	if (srw) {
 		std::cerr << "There is no srw support" << std::endl;

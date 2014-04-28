@@ -114,6 +114,9 @@ public:
 		return *this;
 	}
 
+	virtual ~config_error() throw()
+	{}
+
 private:
 	std::stringstream m_stream;
 	std::string m_message;

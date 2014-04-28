@@ -39,7 +39,8 @@ class StatsProxy(object):
     Also it provides access to sub-stats via []
     """
     COUNTER = 1
-    TIMER = 2
+    SET_COUNTER = 2
+    TIMER = 3
 
     def __init__(self, queue, prefix=''):
         self.queue = queue
@@ -48,6 +49,12 @@ class StatsProxy(object):
     def counter(self, name, value):
         try:
             self.queue.put_nowait((self.prefix, self.COUNTER, name, value))
+        except Exception as e:
+            self.log.error("Got an error during counter update: {0}".format(e))
+
+    def set_counter(self, name, value):
+        try:
+            self.queue.put_nowait((self.prefix, self.SET_COUNTER, name, value))
         except Exception as e:
             self.log.error("Got an error during counter update: {0}".format(e))
 
@@ -63,10 +70,12 @@ class StatsProxy(object):
             prefix = '\\'.join([self.prefix, prefix])
         return StatsProxy(self.queue, prefix=prefix)
 
+
 @logged_class
 class Monitor(object):
     """
-    Contains monitoring data and provides interface for manipulating it from detached threads/processes
+    Contains monitoring data and provides interface for manipulating it
+    from detached threads/processes
     """
     def __init__(self, ctx, port):
         self.ctx = ctx
@@ -109,7 +118,8 @@ class Monitor(object):
         with open(stats_file_tmp, 'w') as f:
             f.write(str(self.__stats))
             f.write('\n')
-        os.rename(stats_file_tmp, self.stats_file + '.txt')
+        if os.path.exists(stats_file_tmp):
+            os.rename(stats_file_tmp, self.stats_file + '.txt')
 
     def data_thread(self):
         """
@@ -142,6 +152,13 @@ class Monitor(object):
                         counter += value
                     else:
                         counter -= -value
+                elif flavour == StatsProxy.SET_COUNTER:
+                    _, _, name, value = data
+                    counter = getattr(stats.counter, name)
+                    if value > 0:
+                        counter.success = value
+                    else:
+                        counter.failures = -value
                 elif flavour == StatsProxy.TIMER:
                     _, _, name, milestone, ts = data
                     timer = getattr(stats.timer, name, ts)

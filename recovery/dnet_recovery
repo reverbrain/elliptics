@@ -24,7 +24,7 @@ For now it supports three recovery methods: `merge` and `dc`:
  * `dc` is used for recovery across different hash rings thus maintaining replica counts.
 
 More information about recovery process can be found at:
-	http://doc.reverbrain.com/elliptics:replication
+    http://doc.reverbrain.com/elliptics:replication
 """
 
 import os
@@ -117,6 +117,12 @@ if __name__ == '__main__':
                       help="Number of attempts to recover one key")
     parser.add_option("-o", "--one-node", action="store_true", dest="one_node", default=False,
                       help="Iterate only one node provided by -r/--remote [default: %default]")
+    parser.add_option("-c", "--chunk-size", action='store', dest='chunk_size', default=1024 * 1024,
+                      help="Size of chunk by which all object will be read and recovered [default: %default]")
+    parser.add_option("-C", "--custom-recover", action="store", dest="custom_recover", default="",
+                      help="Sets custom recover app which accepts file path and returns file path to filtered keys")
+    parser.add_option("-f", '--dump-file', action='store', dest='dump_file', default='',
+                      help='Sets dump file which contains hex ids of object that should be recovered')
 
     (options, args) = parser.parse_args()
 
@@ -134,6 +140,16 @@ if __name__ == '__main__':
     ctx.dry_run = options.dry_run
     ctx.safe = options.safe
     ctx.one_node = options.one_node
+    ctx.custom_recover = options.custom_recover
+
+    if ctx.custom_recover:
+        ctx.custom_recover = os.path.abspath(ctx.custom_recover)
+
+    try:
+        ctx.chunk_size = int(options.chunk_size)
+    except Exception, e:
+        raise ValueError("Can't parse chunk_size: '{}': {}"
+                         .format(options.chunk_size, e))
 
     ctx.tmp_dir = options.tmp_dir.replace('%TYPE%', recovery_type)
     if not os.path.exists(ctx.tmp_dir):
@@ -188,10 +204,12 @@ if __name__ == '__main__':
         if options.elliptics_groups:
             ctx.groups = map(int, options.elliptics_groups.split(','))
         else:
-            ctx.groups = []
+            ctx.groups = None
     except Exception as e:
         raise ValueError("Can't parse grouplist: '{0}': {1}".format(
             options.elliptics_groups, repr(e)))
+    if not ctx.groups:
+        raise ValueError("No group was specified")
     log.info("Using group list: {0}".format(ctx.groups))
 
     try:
@@ -255,6 +273,13 @@ if __name__ == '__main__':
     log.info("Initializing monitor")
     ctx.monitor = Monitor(ctx, ctx.monitor_port)
 
+    if options.dump_file:
+        if not os.path.exists(options.dump_file):
+            raise ValueError('Dump file:`{}` does not exsists'.format(options.dump_file))
+        ctx.dump_file = options.dump_file
+    else:
+        ctx.dump_file = None
+
     try:
         log.info("Starting cleanup...")
         cleanup(ctx.tmp_dir)
@@ -292,7 +317,10 @@ if __name__ == '__main__':
     if recovery_type == TYPE_MERGE:
         from elliptics_recovery.types.merge import main
     elif recovery_type == TYPE_DC:
-        from elliptics_recovery.types.dc import main
+        if ctx.dump_file:
+            from elliptics_recovery.types.dc import dump_main as main
+        else:
+            from elliptics_recovery.types.dc import main
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
     result = main(ctx)

@@ -112,29 +112,26 @@ std::string elliptics_id::to_repr() const {
 	return result;
 }
 
-struct id_pickle : bp::pickle_suite
-{
-	static bp::tuple getinitargs(const elliptics_id& id) {
-		return getstate(id);
+bp::tuple id_pickle::getinitargs(const elliptics_id& id) {
+	return getstate(id);
+}
+
+bp::tuple id_pickle::getstate(const elliptics_id& id) {
+	return bp::make_tuple(id.list_id(), id.group_id());
+}
+
+void id_pickle::setstate(elliptics_id& id, bp::tuple state) {
+	if (len(state) != 2) {
+		PyErr_SetObject(PyExc_ValueError,
+			("expected 2-item tuple in call to __setstate__; got %s"
+				% state).ptr()
+			);
+		bp::throw_error_already_set();
 	}
 
-	static bp::tuple getstate(const elliptics_id& id) {
-		return bp::make_tuple(id.list_id(), id.group_id());
-	}
-
-	static void setstate(elliptics_id& id, bp::tuple state) {
-		if (len(state) != 2) {
-			PyErr_SetObject(PyExc_ValueError,
-				("expected 2-item tuple in call to __setstate__; got %s"
-					% state).ptr()
-				);
-			bp::throw_error_already_set();
-		}
-
-		id.set_list_id(bp::extract<bp::list>(state[0]));
-		id.set_group_id(bp::extract<uint32_t>(state[1]));
-	}
-};
+	id.set_list_id(bp::extract<bp::list>(state[0]));
+	id.set_group_id(bp::extract<uint32_t>(state[1]));
+}
 
 void init_elliptics_id() {
 	bp::class_<elliptics_id>(
