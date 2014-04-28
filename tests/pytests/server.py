@@ -40,10 +40,12 @@ class Servers:
         config['path'] = self.path
         servers = []
         for g in groups:
-            servers.append({'group': g})
+            for i in xrange(3):
+                servers.append({'group': g})
         config['servers'] = servers
         js = json.dumps(config)
 
+        print js
         self.p = subprocess.Popen(args=['../dnet_run_servers'],
                                   stdin=subprocess.PIPE,
                                   stdout=subprocess.PIPE)
