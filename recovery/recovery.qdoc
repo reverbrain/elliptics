@@ -1,0 +1,228 @@
+/*
+ * 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
+ *
+ * This file is part of Elliptics.
+ *
+ * Elliptics is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Elliptics is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+
+/*!
+  \page recovery.html Recovery
+  \brief Synchronization data within one group and between different groups
+
+  \tableofcontents
+
+
+  \section introduction Introduction
+
+  Recovery is a process of restoring data consistency within one group and/or between groups.
+  Recovery support 3 modes: `merge` and `dc`. Each of them solves his problem.
+  - `merge` mode restores consistency within one group and redistributes data between all nodes
+  - `dc` mode restores consistency between groups (replicas)
+  Main tool for recovering data is dnet_recovery. It is distributed with elliptics-client package.
+  Usually recovery consists of number of parallel steps:
+  - determination of which key ranges needed to be recovered and from which nodes
+  - running iterators on those nodes for particular ranges
+  - computation of difference between local and remote iterator results
+  - and finally recovery of resulting difference
+  This process somehow varies between `merge` and `dc`.
+  but this still describes it enogh for high-level overview.
+
+
+  \section options Recovery options
+
+  dnet_recovery has follow options:
+  - <b>-r ELLIPTICS_REMOTE, --remote=ELLIPTICS_REMOTE</b> - elliptics node address.
+    Entrypoint into elliptics cluster.It has to be in Elliptics format adress:port:family.
+    On Linux IPv4 family specified with 2 and IPv6 with 10.
+    This is mandatory option which should be always specified.
+    Most likely dnet_recovery will be run via cron with -r $(hostname -f):1025:2
+  - <b>-g ELLIPTICS_GROUPS, --groups=ELLIPTICS_GROUPS</b> - Comma separated list of groups.
+    This is mandatory option which should be always specified.
+  - <b>-n NPROCESS, --nprocess=NPROCESS</b> - Number of subprocesses. This parameter influence on recovery speed.
+    Each subprocess will parallel iterate, sort iteration results and recover object from one node.
+    Former should be set to number of disks in RAID for IO-bound workloads and to number of CPUs
+    for cpu-bound workloads (of cause if system needs to be able to serve requests at the time
+    of recovery this option should be bounded even more). <b>[default: 1]</b>
+  - <b>-o, --one-node</b> - recovery will iterates only one node provided by <b>-r/--remote</b>, so only it's keys will be recovered.
+  - <b>-b BATCH_SIZE, --batch-size=BATCH_SIZE</b> - Number of keys which will be read/write/remove at once by one subprocess.
+    While bigger values speed up recovery they also consume more memory (memory consumption can be computed as avg_record_size * batch size * 2). <b>[default: 1024]</b>
+  - <b>-t TIMESTAMP, --time=TIMESTAMP</b> - Recover keys modified since `time`. Can be specified
+    as timestamp or as time difference e.g.: `1368940603`, `12h`, `1d`, or `4w`.
+    Latter is useful for cron jobs - for example one can put a cron job to recover only keys
+    modified within last month running each week - this will have pretty decent speed but also most likely be equivalent to full recovery.
+  - <b>-D DIR, --dir=DIR</b> - Temporary directory for iterators' results, statistics and other temporary files
+    By default script uses /var/tmp/dnet_recovery_%MODE% temporary directory.
+  - <b>-l FILE, --log=FILE</b> - Output log messages from library to file <b>[default: dnet_recovery.log]</b>
+  - <b>-L ELLIPTICS_LOG_LEVEL, --log-level=ELLIPTICS_LOG_LEVEL</b> - Elliptics client verbosity <b>[default: 1]</b>
+  - <b>-k LOCKFILE, --lock=LOCKFILE</b> - Lock file used for recovery <b>[default: dnet_recovery.lock]</b>
+    By default only one instance of any recovery type can be run.
+  - <b>-N, --dry-run</b> - Enable test mode: only count diffs without recovering. No data will be read or written or removed.
+  - <b>-s STAT, --stat=STAT</b> - Statistics output format: none/text <b>[default: text]</b>
+  - <b>-S, --safe</b> - Do not remove recovered keys after merge.
+  - <b>-e, --no-exit</b> - Will be waiting for user input at the finish.
+  - <b>-m MONITOR_PORT, --monitor-port=MONITOR_PORT</b> - Enable remote monitoring on provided port.
+  - <b>-w WAIT_TIMEOUT, --wait-timeout=WAIT_TIMEOUT</b> - Wait timeout for elliptics operations <b>[default: 3600]</b>
+  - <b>-a ATTEMPTS, --attemps=ATTEMPTS</b> - Number of attempts to recover one key
+  - <b>-c CHUNK_SIZE, --chunk-size=CHUNK_SIZE</b> - Size of chunk by which all object will be read and recovered <b>[default: 1048576]</b>
+  - <b>-C CUSTOM_RECOVER, --custom-recover=CUSTOM_RECOVER</b> - Sets custom recover app
+    that will be used by `dc` for recovering data.
+  - <b>-f DUMP_FILE, --dump-file=DUMP_FILE</b> - Sets dump file which contains hex ids of object that should be recovered.
+    This option is used only by `dc`. Instead of scanning all existing keys `dc` will check and recover only keys from dump file.
+
+
+  \section statistics Common approach to statistics
+
+  Recovery stats has several section each describes some stage of recovering except main secion. All counters in stats has 3 values:
+  - <b>some_counter_success</b> - count of succeeded operations or number of keys which was successfully read or written
+  - <b>some_counter_failed</b> - count of failed operations or number of keys which hasn't been read or written
+  - <b>some_counter_total = counter_success + counter_failed</b>
+
+  For simplifing reading statistics if `some_counter_failed` value is zero it will be hided from output statistics,
+  also `some_counter_total` will be hided and `some_counter_success` will be shortened to `some_counter`.
+
+  Main section has title “monitor” and contains information about all recovery:
+  - <b>main_started</b> - when recovery was started
+  - <b>main_finished</b> - when recovery was finished
+
+  Other statistics has mode-relative nature and will be described later.
+
+
+  \section merge Merge recovery
+
+  Mege recovery restores data consistency within one group.
+  The reason for that could be hardware failure or extending cluster by adding empty nodes to the group.
+
+  \subsection merge_algo How merge recovery works
+
+  For each nodes merge recovery makes follow steps:
+  -# from route list determines which ranges don't covered by the node
+  -# run iterator on the node and collect keys with metadata that shouldn't be on the node
+  -# for each collected key:
+    -# make lookup to the proper node
+    -# compare timestamp and size of key on proper node (if the key exists on proper node)
+    -# if it is necessary copy key from origin node to proper node
+    -# remove key from origin node (this step can be skipped if run dnet_recovery with '-S' option)
+
+  By option '<b>-o, --one-node</b>' recovery can be limited to iterate only one node specified by <b>-r/--remote</b>.
+  It means that only node specified by <b>-r/--remote</b> will be iterated and only its keys which shouldn't be on it will be moved to the proper node.
+  By default, merge will process all nodes from groups specified by <b>-g/groups</b>.
+
+
+  \subsection merge_statistics Merge statistics
+
+  - <b>group_%group%</b> section:
+    - <b>group_started</b> = time when processing group was started
+    - <b>started_finished</b> = time spent on processing group started
+  - <b>node_%ip%:%port%:%family% %group%</b> section:
+    - <b>filtered_keys</b> - number of keys that were selected by iterator
+    - <b>iterated_keys</b> - number of keys that were processed by iterator
+    - <b>total_keys</b> - total number of keys on the node
+    - <b>iterations</b> - number of iterations
+    - <b>local_read_bytes</b> - number of bytes that was read from the node
+    - <b>local_reads</b> - number of read operations
+    - <b>local_remove_retries</b> - number of extra retries to remove object
+    - <b>local_removed_bytes</b> - number of bytes that was removed from the node
+    - <b>local_removes</b> - number of removes from the node
+    - <b>local_removes_old</b> - number of object that was just removed from the node.
+    - <b>remote_lookups</b> - number of remote lookups
+    - <b>remote_writes</b> - number of remote writes
+    - <b>process_started</b> - time when processing node was started
+    - <b>process_started...iterate</b> - time spent on preparation
+    - <b>process_iterate...recover</b> - time spent on iteration and sorting results
+    - <b>process_recover...finished</b> - time spent on recovering (reading/writting/removing) objects
+
+
+  \subsection merge_logs Merge logs
+
+
+  \section dc DC recovery
+
+  DC recovery restores data consistency between groups (replicas). It copies key/data from replica
+  that contains new version of object to replicas with outdated or missed keys.
+
+
+  \subsection dc_algo How DC recovery works
+
+  For specified node `dc` recovery makes follow steps:
+  -# from route list determines which ranges are covered by the node
+  -# for all found ranges determines nodes from other groups (specified by -g)
+    and intersects ranges for origin node and nodes from other groups.
+    Thus we determines number of small ranges that are covered by origin node and
+    for each range keeps which node from other groups covers it
+  -# run iterator on collected node for determined ranges
+  -# goes throw iterated results and fill merged result:
+    for each keys it saves key with information on which node and with which timestamp/size/user_flags it exists.
+  -# runs custom recovery (or built-in implementation of it) against merged results.
+
+  If dc was run with option <b>-f/--dump-file</b> it will make follow steps for each key from dump file:
+  -# looks up for metadata to all specified groups
+  -# saves this infos to merged file (like in common case)
+  -# runs custom recovery (or built-in implementation of it) against merged results.
+
+
+  Built-in implementation of custom recovery for each key from merged results:\n
+  -# finds node that has newest version
+  -# reads key from that node
+  -# check if data for the key is an index file
+  -# if it is index:
+    -# reads all version of the object from other groups
+    -# merges data from all files
+    -# writes merged index to all groups
+  -# if it is regular object:
+    -# writes object to the groups which has older or missed obje
+
+
+  \subsection dc_statistics DC statistics
+
+  - <b>monitor</b> section:
+    - <b>main_started...transpose</b> - time spent on iterating, sorting iterator results
+    - <b>main_transpose...merge</b> - time spent on transposing results
+    - <b>main_merge...filter</b> - time spent on merging results
+    - <b>main_filter...finished</b> - time spent on filtering and recovering results
+  - <b>iterate_%ip%:%port%:%family% %group%</b> section:
+    - <b>filtered_keys</b> - number of keys that were selected by iterator
+    - <b>iterated_keys</b> - number of keys that were processed by iterator
+    - <b>total_keys</b> - total number of keys on the node
+    - <b>iterations</b> - number of iterations
+    - <b>process_started</b> - time when node iteration was started
+    - <b>process_started...iterate</b> - time spent on preparation
+    - <b>process_iterate...sort</b> - time spent on iteration
+    - <b>process_sort...finished</b> - time spent on sorting iteration results
+    - <b>process_finished</b> - time when iteration&sort was finished
+  - <b>recover</b> section:
+    - <b>read_bytes</b> - number of bytes that was read
+    - <b>reads</b> - number of reads that was made
+    - <b>writes</b> - number of writes that was made
+    - <b>written_bytesM</b> - number of bytes that was written
+
+
+  \subsection dc_logs DC logs
+
+
+  \section examples Examples
+
+
+  \subsection merge_hw_failure Merge recovering after hardware failures
+
+
+  \subsection merge_new_nodes Merge recovering after adding new empty nodes
+
+
+  \subsection dc_nhw_failure DC recovering after network or hardware failures
+
+
+  \subsection dc_dump_failure DC recovering from dump file after some failures
+*/
