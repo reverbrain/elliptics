@@ -416,7 +416,9 @@ void server_node::start()
 				const_cast<char*>(m_path.c_str()),
 				NULL
 			};
+			auto ld_path = std::string("LD_LIBRARY_PATH=") + getenv("LD_LIBRARY_PATH");
 			char * const env[] = {
+				const_cast<char*>(ld_path.c_str()),
 				NULL
 			};
 			if (execve(ios_path.data(), args, env) == -1) {
