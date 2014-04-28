@@ -168,20 +168,9 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		t->complete(t->st, &t->cmd, t->priv);
 	}
 
-	if (st && (t->cmd.status == 0) &&
-			((t->command == DNET_CMD_READ) || (t->command == DNET_CMD_LOOKUP))) {
-
-		if (diff < st->median_read_time && st->weight < DNET_STATE_MAX_WEIGHT)
-			st->weight *= 1.1;
-		else if (diff > st->median_read_time && st->weight > 1)
-			st->weight *= 0.8;
-
-		st->median_read_time = (st->median_read_time + diff) / 2;
-	}
-
 	if (st && st->n && t->command != 0) {
 		char str[64];
-		char io_buf[128] = "";
+		char io_buf[1024] = "";
 		struct tm tm;
 
 		if (t->cmd.status != -ETIMEDOUT) {
@@ -201,6 +190,14 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			struct dnet_io_attr *local_io = (struct dnet_io_attr *)(local_cmd + 1);
 			struct timeval io_tv;
 			char time_str[64];
+			double old_weight = st->weight;
+
+			if (st && (t->cmd.status == 0) && !(local_io->flags & DNET_IO_FLAGS_CACHE)) {
+				double p = (double)diff / (double)local_io->size / (double)st->median_read_time;
+				st->weight /= p;
+
+				st->median_read_time = (st->median_read_time + diff) / 2;
+			}
 
 			io_tv.tv_sec = local_io->timestamp.tsec;
 			io_tv.tv_usec = local_io->timestamp.tnsec / 1000;
@@ -209,21 +206,22 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			strftime(time_str, sizeof(time_str), "%F %R:%S", &tm);
 
 			snprintf(io_buf, sizeof(io_buf), ", ioflags: 0x%llx, io-offset: %llu, io-size: %llu/%llu, "
-					"io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu'\n",
+					"io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', weight: %.3f -> %.3f, median-time: %ld\n",
 				(unsigned long long)local_io->flags,
 				(unsigned long long)local_io->offset, (unsigned long long)local_io->size, (unsigned long long)local_io->total_size,
 				(unsigned long long)local_io->user_flags,
-				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec);
+				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec,
+				old_weight, st->weight, st->median_read_time);
 		}
 
 		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, stall: %d, "
-				"weight: %f, mrt: %ld, time: %ld, started: %s.%06lu, cached status: %d%s",
+				"time: %ld, started: %s.%06lu, cached status: %d%s",
 			dnet_dump_id(&t->cmd.id),
 			dnet_cmd_string(t->command),
 			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
 			!!(t->trans & ~DNET_TRANS_REPLY),
 			dnet_state_dump_addr(t->st), t->st->stall,
-			st->weight, st->median_read_time, diff,
+			diff,
 			str, t->start.tv_usec,
 			t->cmd.status, io_buf);
 	}
