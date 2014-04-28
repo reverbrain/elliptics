@@ -29,15 +29,15 @@ namespace ioremap { namespace monitor {
 
 class react_stat_provider : public stat_provider {
 public:
-	react_stat_provider() {}
+	react_stat_provider();
 
 	virtual std::string json() const;
 	virtual bool check_category(int category) const;
 
-	react::elliptics_react_manager_t &get_react_manager();
+	react::elliptics_react_aggregator_t &get_react_aggregator();
 
 private:
-	react::elliptics_react_manager_t react_manager;
+	react::elliptics_react_aggregator_t react_aggregator;
 };
 
 }} /* namespace ioremap::monitor */
