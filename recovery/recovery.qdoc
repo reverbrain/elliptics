@@ -150,8 +150,11 @@
 
   \section dc DC recovery
 
-  DC recovery restores data consistency between groups (replicas). It copies key/data from replica
+  DC recovery restores data consistency between groups (replicas). It copies key/data from replicas
   that contains new version of object to replicas with outdated or missed keys.
+  DC recovery also recovers indexes by merging index shards from different groups.
+  DC recovery provides interface for using custom user-wrote recovery for user data when it is necessary.
+  User can use index recovering as an example for writting smart recovery for own format of data.
 
 
   \subsection dc_algo How DC recovery works
@@ -182,7 +185,7 @@
     -# merges data from all files
     -# writes merged index to all groups
   -# if it is regular object:
-    -# writes object to the groups which has older or missed obje
+    -# writes object to the groups which has older or missed object
 
 
   \subsection dc_statistics DC statistics
@@ -214,15 +217,112 @@
 
   \section examples Examples
 
+  Let our elliptics cluster consists of 3 groups and 3 nodes per group.
+  For more detail let:\n
+  group 1 has nodes:
+  \code
+  host_1_1:1025:2
+  host_1_2:1025:2
+  host_1_3:1025:2
+  \endcode
+  group 2 has nodes:
+  \code
+  host_2_1:1025:2
+  host_2_2:1025:2
+  host_2_3:1025:2
+  \endcode
+  group 3 has nodes:
+  \code
+  host_3_1:1025:2
+  host_3_2:1025:2
+  host_3_3:1025:2
+  \endcode
 
   \subsection merge_hw_failure Merge recovering after hardware failures
+
+  Once problem with hardware was occured at one of the nodes from our cluster.
+  Some time one group (let it be group #1) was working without one node.
+  For this time serviceable nodes was responding for key from problematic node.
+  When this node be restored it will have some keys outdated or missed.
+  To deal with such situation use `merge` recovery on all serviceable nodes from problematic groups.
+
+  Let host_1_2:1025:2 be the node with hardware issue. For synchronization data within group 1 after
+  restoring node host_1_2:1025:2 dnet_recovery should be used with follow parameters:
+  \code
+  dnet_recovery merge -r host_1_1:1025:2 -g 1
+  \endcode
+  or
+  \code
+  dnet_recovery merge -r host_1_1:1025:2 -g 1 -o
+  dnet_recovery merge -r host_1_3:1025:2 -g 1 -o
+  \endcode
+
+  Second way allows to run several dnet_recovery in parallel
+  and run each of them directly near the node with which it will process.
+
+  If hardware issues were occured at the several groups (let it be 1 and 2), use follow parameters:
+  \code
+  dnet_recovery merge -r host_1_1:1025:2 -g 1,2
+  \endcode
 
 
   \subsection merge_new_nodes Merge recovering after adding new empty nodes
 
+  Once we decided that current cluster capacity is not enough and we should add several nodes to group #3.
+
+  After configurating and starting new nodes we need to move keys from old nodes to new ones.
+  For this we should use `merge` recovery with follow parameters:
+  \code
+  dnet_recovery merge -r host_1_1:1025:2 -g 1
+  \endcode
+  or
+  \code
+  dnet_recovery merge -r host_3_1:1025:2 -g 1 -o
+  dnet_recovery merge -r host_2_1:1025:2 -g 1 -o
+  dnet_recovery merge -r host_2_1:1025:2 -g 1 -o
+  \endcode
+
+  Second way allows to run several dnet_recovery in parallel
+  and run each of them directly near the node with which it will process.
+
+  If serveral groups (let it be 1 and 3) have to be enlarged by adding new nodes, use follow parameters:
+  \code
+  dnet_recovery merge -r host_1_1:1025:2 -g 1,3
+  \endcode
+
 
   \subsection dc_nhw_failure DC recovering after network or hardware failures
 
+  Lets all 3 groups of our cluster are located in different 3 DataCenters.
+  For some time connection with one of DataCenter (elliptics group) has been lost.
+  After restoring connection data in this replic can be outdated and/or missed.
+
+  Let group 2 be problematic group. For restoring consistency between replicas use `dc` recovery with follow parameters:
+  \code
+  dnet_recovery dc -r host_2_1:1025:2 -g 1,2,3
+  dnet_recovery dc -r host_2_2:1025:2 -g 1,2,3
+  dnet_recovery dc -r host_2_3:1025:2 -g 1,2,3
+  \endcode
+
+  If the timestamp of issue is known that dnet_recovery can check only keys changed
+  from this timestamp by using -t dnet_recovery option.
+
 
   \subsection dc_dump_failure DC recovering from dump file after some failures
+
+  As a result of scanning logs we have found that some keys are missed/outdated in some groups.
+  Grep hex keys of all found keys and write it to dump file like follow:
+  \code{dump_file}
+  1f40fc92da241694750979ee6cf582f2d5d7d28e18335de05abc54d0560e0f5302860c652bf08d560252aa5e74210546f369fbbbce8c12cfc7957b2652fe9a75
+  5267768822ee624d48fce15ec5ca79cbd602cb7f4c2157a516556991f22ef8c7b5ef7b18d1ff41c59370efb0858651d44a936c11b7b144c48fe04df3c6a3e8da
+  acc28db2beb7b42baa1cb0243d401ccb4e3fce44d7b02879a52799aadff541522d8822598b2fa664f9d5156c00c924805d75c3868bd56c2acb81d37e98e35adc
+  ....
+  5ae625665f3e0bd0a065ed07a41989e4025b79d13930a2a8c57d6b4325226707d956a082d1e91b4d96a793562df98fd03c9dcf743c9c7b4e3055d4f9f09ba015
+  \endcode
+
+  For synchronization only these keys from all groups (replicas) use `dc` recovery with follow parameters:
+  \code
+  dnet_recovery dc -r host_1_1:1025:2 -g 1,2,3 -f /path/to/dump_file
+  \endcode
+
 */
