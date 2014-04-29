@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.9
+Version:	2.25.4.10
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -132,6 +132,25 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Apr 30 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.10
+- build: depend on 0.21.37+ eblob
+- Recovery: updated recovery.qdoc: added merge/dc examples.
+- debian: react version 2.3.1 update
+- Python: turned on srw tests. Removed setting group_id in Session.transform
+- stat: react_stat_provider and react_aggregator refactored
+- state: change state weight according to io size. do not change weight if it was cache IO
+- log: increased format buffer size
+- config: example config bool values fixed
+- Tests: provide LD_LIBRARY_PATH into execve child
+- Cache: added setting n->need_exit before stopping cache: it is used by life_check thread. Tests: fixed moving group into backend section.
+- Recovery: added dc_recovery.py - build-in custom recovery function for dc. Added recovery.qdoc.
+- Recovery: replaced dc by sdc. Added ability to split big files while merge recovery (dc recovery will get it soon).
+- session: when creating new session setup wait-ts from the node
+- config: Fixed config example
+- config: Reimplemented configuration parser
+- route: lower final route reply message log level
+- tests: Pass envs directly to executable
+
 * Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.9
 - tests: Configure run_servers by envvars
 - rpm: Add dependency on libblackhole
