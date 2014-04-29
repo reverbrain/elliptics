@@ -49,7 +49,7 @@ int dnet_log_init(struct dnet_node *n, struct dnet_log *l)
 }
 
 static void dnet_log_raw_internal(struct dnet_log *l, int level, const char *format, va_list args) {
-	char buf[1024];
+	char buf[2048];
 	int buflen = sizeof(buf);
 	int msg_len = vsnprintf(buf, buflen, format, args);
 

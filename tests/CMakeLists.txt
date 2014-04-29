@@ -59,9 +59,9 @@ target_link_libraries(dnet_cpp_capped_test ${TEST_LIBRARIES})
 
 
 set(PYTESTS_FLAGS "")
-#if(NOT WITH_COCAINE)
+if(NOT WITH_COCAINE)
     list(APPEND PYTESTS_FLAGS "--without-cocaine")
-#endif()
+endif()
 
 set(RUN_SERVERS_LIBRARIES ${TEST_LIBRARIES})
 
