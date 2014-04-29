@@ -26,7 +26,7 @@
 
 namespace ioremap { namespace monitor {
 
-react_stat_provider::react_stat_provider(): react_aggregator(react::get_actions_set()) {
+react_stat_provider::react_stat_provider() {
 }
 
 std::string react_stat_provider::json() const {
@@ -34,8 +34,12 @@ std::string react_stat_provider::json() const {
 	doc.SetObject();
 	auto &allocator = doc.GetAllocator();
 
-	rapidjson::Value aggregator_value(rapidjson::kObjectType);
-	react_aggregator.to_json(aggregator_value, allocator);
+	rapidjson::Value aggregator_value(rapidjson::kArrayType);
+	for (auto it = react_aggregator.recent_call_trees.begin(); it != react_aggregator.recent_call_trees.end(); ++it) {
+		rapidjson::Value tree_value(rapidjson::kObjectType);
+		(*it).to_json(tree_value, allocator);
+		aggregator_value.PushBack(tree_value, allocator);
+	}
 	doc.AddMember("react_aggregator", aggregator_value, allocator);
 
 	rapidjson::StringBuffer buffer;

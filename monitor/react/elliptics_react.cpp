@@ -15,46 +15,20 @@
 
 #include "elliptics_react.hpp"
 
-#include <react/aggregators/category_filter_aggregator.hpp>
-#include <react/aggregators/complex_aggregator.hpp>
-#include <react/aggregators/recent_trees_aggregator.hpp>
-
-const size_t INCOMPLETE_TREES_LIST_SIZE = 100;
-const size_t COMPLETE_TREES_LIST_SIZE = 100;
+#include <react/aggregator.hpp>
 
 namespace react {
 
-elliptics_react_aggregator_t::elliptics_react_aggregator_t(const actions_set_t &actions_set):
-	aggregator_t(actions_set) {
-	auto category_filter_aggregator = std::make_shared<category_filter_aggregator_t<bool>>(
-		actions_set, std::make_shared<react::stat_extractor_t<bool>>("complete")
-	);
-
-	auto incomplete_trees_aggregator = std::make_shared<complex_aggregator_t>(actions_set);
-	incomplete_trees_aggregator->add_aggregator(
-		std::make_shared<recent_trees_aggregator_t>(actions_set, INCOMPLETE_TREES_LIST_SIZE)
-	);
-	category_filter_aggregator->add_category_aggregator(false, incomplete_trees_aggregator);
-
-	auto complete_trees_aggregator = std::make_shared<complex_aggregator_t>(actions_set);
-	complete_trees_aggregator->add_aggregator(
-		std::make_shared<recent_trees_aggregator_t>(actions_set, COMPLETE_TREES_LIST_SIZE)
-	);
-	category_filter_aggregator->add_category_aggregator(true, complete_trees_aggregator);
-
-	configurable_aggregator = category_filter_aggregator;
-}
+elliptics_react_aggregator_t::elliptics_react_aggregator_t() {}
 
 elliptics_react_aggregator_t::~elliptics_react_aggregator_t() {}
 
 void elliptics_react_aggregator_t::aggregate(const call_tree_t &call_tree) {
 	std::lock_guard<std::mutex> guard(mutex);
-	configurable_aggregator->aggregate(call_tree);
-}
-
-void elliptics_react_aggregator_t::to_json(rapidjson::Value &value, rapidjson::Document::AllocatorType &allocator) const {
-	std::lock_guard<std::mutex> guard(mutex);
-	configurable_aggregator->to_json(value, allocator);
+	recent_call_trees.push_back(call_tree);
+	if (recent_call_trees.size() > MAX_RECENT_LIST_SIZE) {
+		recent_call_trees.pop_front();
+	}
 }
 
 } // namespace react

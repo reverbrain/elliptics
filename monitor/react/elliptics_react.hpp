@@ -23,18 +23,19 @@
 
 #include "elliptics_react.h"
 
+const size_t MAX_RECENT_LIST_SIZE = 1000;
+
 namespace react {
 
 class elliptics_react_aggregator_t : public aggregator_t {
 public:
-	elliptics_react_aggregator_t(const actions_set_t &actions_set);
+	elliptics_react_aggregator_t();
 	~elliptics_react_aggregator_t();
 
 	void aggregate(const call_tree_t &call_tree);
 	void to_json(rapidjson::Value &value, rapidjson::Document::AllocatorType &allocator) const;
 
-private:
-	std::shared_ptr<aggregator_t> configurable_aggregator;
+	std::list<call_tree_t> recent_call_trees;
 	mutable std::mutex mutex;
 };
 
