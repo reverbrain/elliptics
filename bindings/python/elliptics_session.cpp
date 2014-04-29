@@ -169,10 +169,8 @@ public:
 
 		if (get_string.check()) {
 			dnet_id id;
+			memset(&id, 0, sizeof(dnet_id));
 			session::transform(get_string(), id);
-			if (!session::get_groups().empty()) {
-				id.group_id = session::get_groups().front();
-			}
 			return elliptics_id(id);
 		}
 
