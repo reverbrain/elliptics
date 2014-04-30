@@ -119,6 +119,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
+%{_libdir}/libelliptics_monitor.so.*
 %{python_sitelib}/elliptics/core.so.*
 %{python_sitelib}/elliptics_recovery/*
 %{python_sitelib}/elliptics/*.py*
@@ -129,6 +130,7 @@ rm -rf %{buildroot}
 %{_includedir}/*
 %{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_cpp.so
+%{_libdir}/libelliptics_monitor.so
 %{_datadir}/elliptics/cmake/*
 %{python_sitelib}/elliptics/core.so
 
