@@ -1,3 +1,9 @@
+elliptics (2.25.4.11) unstable; urgency=low
+
+  * tests: Add random seed to dnet_run_servers
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 01 May 2014 06:38:40 +0400
+
 elliptics (2.25.4.10) unstable; urgency=low
 
   * build: depend on 0.21.37+ eblob

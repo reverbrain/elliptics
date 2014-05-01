@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.10
+Version:	2.25.4.11
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -132,6 +132,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu May 01 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.11
+- tests: Add random seed to dnet_run_servers
+
 * Wed Apr 30 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.10
 - build: depend on 0.21.37+ eblob
 - Recovery: updated recovery.qdoc: added merge/dc examples.
