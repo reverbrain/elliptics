@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.18
+Version:	2.24.15.19
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue May 06 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.19
+- trans: when filling local-io before read completion, we should check transaction allocation size
+- Core: stops threads before joining them in case we got some error while creating node.
+- Core: added broadcasting send_wait on state removing.
+- Monitor: Made elliptics_monitor shared library. Added it to elliptics-client and elliptics-dev packages.
+
 * Fri Apr 11 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.18
 - trans: only log IO transactions if it was correctly allocated and initialized
 

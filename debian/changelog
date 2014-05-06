@@ -1,3 +1,12 @@
+elliptics (2.24.15.19) unstable; urgency=low
+
+  * trans: when filling local-io before read completion, we should check transaction allocation size
+  * Core: stops threads before joining them in case we got some error while creating node.
+  * Core: added broadcasting send_wait on state removing.
+  * Monitor: Made elliptics_monitor shared library. Added it to elliptics-client and elliptics-dev packages.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 06 May 2014 23:26:57 +0400
+
 elliptics (2.24.15.18) unstable; urgency=low
 
   * trans: only log IO transactions if it was correctly allocated and initialized
