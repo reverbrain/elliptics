@@ -264,6 +264,8 @@ static int run_servers(const rapidjson::Value &doc)
 
 int main(int, char *[])
 {
+	srand(time(NULL));
+
 	rapidjson::FileStream stream(stdin);
 	rapidjson::Document doc;
 	doc.ParseStream<0>(stream);
