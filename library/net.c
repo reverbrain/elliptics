@@ -706,7 +706,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 
 		if (t->complete) {
 			if (t->command == DNET_CMD_READ) {
-				if (cmd->size > sizeof(struct dnet_io_attr)) {
+				if ((cmd->size >= sizeof(struct dnet_io_attr)) && (t->alloc_size >= sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr))) {
 					struct dnet_io_attr *recv_io = (struct dnet_io_attr *)(cmd + 1);
 
 					struct dnet_cmd *local_cmd = (struct dnet_cmd *)(t + 1);
