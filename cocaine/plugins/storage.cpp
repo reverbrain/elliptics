@@ -90,28 +90,71 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 {
 	Json::Value nodes(args["nodes"]);
 
-	if(nodes.empty() || !nodes.isObject()) {
+	if(nodes.empty()) {
 		throw storage_error_t("no nodes has been specified");
 	}
 
-	Json::Value::Members node_names(nodes.getMemberNames());
-
 	bool have_remotes = false;
 
-	for(Json::Value::Members::const_iterator it = node_names.begin();
-		it != node_names.end();
-		++it)
-	{
-		try {
-			m_node.add_remote(it->c_str(), nodes[*it].asInt());
-			have_remotes = true;
-		} catch(const ell::error &) {
-			// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
+	if(nodes.isObject()) {
+		Json::Value::Members node_names(nodes.getMemberNames());
+
+		for(Json::Value::Members::const_iterator it = node_names.begin();
+				it != node_names.end();
+				++it)
+		{
+			try {
+				m_node.add_remote(it->c_str(), nodes[*it].asInt());
+				have_remotes = true;
+			} catch(const ell::error &) {
+				// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
+			}
 		}
+	} else if(nodes.isArray()) {
+		for(Json::Value::ArrayIndex index = 0, end = nodes.size(); index != end; ++index) {
+			try {
+				auto remote = nodes[index].asString();
+				m_node.add_remote(remote.c_str());
+				have_remotes = true;
+			} catch(const ell::error &) {
+				// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
+			}
+		}
+	} else {
+		throw storage_error_t("no nodes has been specified");
 	}
 
 	if (!have_remotes) {
 		throw storage_error_t("can not connect to any remote node");
+	}
+
+	{
+		auto scn = args.get("success-copies-num", "any");
+
+		if (scn == "any") {
+			m_success_copies_num = ioremap::elliptics::checkers::at_least_one;
+		} else if (scn == "quorum") {
+			m_success_copies_num = ioremap::elliptics::checkers::quorum;
+		} else if (scn == "all") {
+			m_success_copies_num = ioremap::elliptics::checkers::all;
+		} else {
+			throw storage_error_t("unknown success-copies-num type");
+		}
+	}
+
+	{
+		auto timeouts = args["timeouts"];
+
+		if (!timeouts.empty()) {
+			if (!timeouts.isObject()) {
+				throw storage_error_t("invalid format of timeouts");
+			}
+
+			m_timeouts.read = timeouts.get("read", 5).asInt();
+			m_timeouts.write = timeouts.get("write", 5).asInt();
+			m_timeouts.remove = timeouts.get("remove", 5).asInt();
+			m_timeouts.find = timeouts.get("find", 5).asInt();
+		}
 	}
 
 	Json::Value groups(args["groups"]);
@@ -192,6 +235,7 @@ ell::async_read_result elliptics_storage_t::async_read(const std::string &collec
 
 	ell::session session = m_session.clone();
 	session.set_namespace(collection.data(), collection.size());
+	session.set_timeout(m_timeouts.read);
 
 	return session.read_data(key, 0, 0);
 }
@@ -264,6 +308,8 @@ ell::async_write_result elliptics_storage_t::async_write(const std::string &coll
 	ell::session session = m_session.clone();
 	session.set_namespace(collection.data(), collection.size());
 	session.set_filter(ioremap::elliptics::filters::all_with_ack);
+	session.set_timeout(m_timeouts.write);
+	session.set_checker(m_success_copies_num);
 
 	auto write_result = session.write_data(key, blob, 0);
 
@@ -290,6 +336,7 @@ ell::async_find_indexes_result elliptics_storage_t::async_find(const std::string
 
 	ell::session session = m_session.clone();
 	session.set_namespace(collection.data(), collection.size());
+	session.set_timeout(m_timeouts.find);
 
 	return session.find_all_indexes(tags);
 }
@@ -323,6 +370,8 @@ ell::async_remove_result elliptics_storage_t::async_remove(const std::string &co
 
 	ell::session session = m_session.clone();
 	session.set_namespace(collection.data(), collection.size());
+	session.set_timeout(m_timeouts.remove);
+	session.set_checker(m_success_copies_num);
 
 	ell::async_remove_result result(session);
 	ell::async_result_handler<ell::callback_result_entry> handler(result);
@@ -346,6 +395,7 @@ ioremap::elliptics::async_read_result elliptics_storage_t::async_cache_read(cons
 	);
 
 	ell::session session = m_session.clone();
+	session.set_timeout(m_timeouts.read);
 	session.set_namespace(collection.data(), collection.size());
 	session.set_ioflags(DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY);
 
@@ -363,6 +413,8 @@ ioremap::elliptics::async_write_result elliptics_storage_t::async_cache_write(co
 	);
 
 	ell::session session = m_session.clone();
+	session.set_timeout(m_timeouts.write);
+	session.set_checker(m_success_copies_num);
 	session.set_namespace(collection.data(), collection.size());
 	session.set_ioflags(DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY);
 
@@ -380,6 +432,7 @@ std::pair<ioremap::elliptics::async_read_result, elliptics_storage_t::key_name_m
 
 	ell::session session = m_session.clone();
 	session.set_namespace(collection.data(), collection.size());
+	session.set_timeout(m_timeouts.read);
 
 	key_name_map keys_map;
 	dnet_raw_id id;
@@ -404,6 +457,8 @@ ioremap::elliptics::async_write_result elliptics_storage_t::async_bulk_write(con
 	ell::session session = m_session.clone();
 	session.set_namespace(collection.data(), collection.size());
 	session.set_filter(ell::filters::all);
+	session.set_timeout(m_timeouts.write);
+	session.set_checker(m_success_copies_num);
 
 	std::vector<dnet_io_attr> ios;
 	ios.reserve(blobs.size());

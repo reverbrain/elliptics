@@ -97,6 +97,14 @@ class elliptics_storage_t : public api::storage_t
 		dnet_config m_config;
 		ioremap::elliptics::node m_node;
 		ioremap::elliptics::session m_session;
+		ioremap::elliptics::result_checker m_success_copies_num;
+
+		struct {
+			int read;
+			int write;
+			int remove;
+			int find;
+		} m_timeouts;
 
 		std::vector<int> m_groups;
 
