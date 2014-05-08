@@ -1,3 +1,9 @@
+elliptics (2.24.15.20) unstable; urgency=low
+
+  * cocaine-elliptics-plugin: added more config options
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 08 May 2014 20:46:31 +0400
+
 elliptics (2.24.15.19) unstable; urgency=low
 
   * trans: when filling local-io before read completion, we should check transaction allocation size

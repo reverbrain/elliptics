@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.19
+Version:	2.24.15.20
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu May 08 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.20
+- cocaine-elliptics-plugin: added more config options
+
 * Tue May 06 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.19
 - trans: when filling local-io before read completion, we should check transaction allocation size
 - Core: stops threads before joining them in case we got some error while creating node.
