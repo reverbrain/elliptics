@@ -90,20 +90,38 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 {
 	Json::Value nodes(args["nodes"]);
 
-	if(nodes.empty() || !nodes.isArray()) {
+	if(nodes.empty()) {
 		throw storage_error_t("no nodes has been specified");
 	}
 
 	bool have_remotes = false;
 
-	for(Json::Value::ArrayIndex index = 0, end = nodes.size(); index != end; ++index) {
-		try {
-			auto remote = nodes[index].asString();
-			m_node.add_remote(remote.c_str());
-			have_remotes = true;
-		} catch(const ell::error &) {
-			// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
+	if(nodes.isObject()) {
+		Json::Value::Members node_names(nodes.getMemberNames());
+
+		for(Json::Value::Members::const_iterator it = node_names.begin();
+				it != node_names.end();
+				++it)
+		{
+			try {
+				m_node.add_remote(it->c_str(), nodes[*it].asInt());
+				have_remotes = true;
+			} catch(const ell::error &) {
+				// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
+			}
 		}
+	} else if(nodes.isArray()) {
+		for(Json::Value::ArrayIndex index = 0, end = nodes.size(); index != end; ++index) {
+			try {
+				auto remote = nodes[index].asString();
+				m_node.add_remote(remote.c_str());
+				have_remotes = true;
+			} catch(const ell::error &) {
+				// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
+			}
+		}
+	} else {
+		throw storage_error_t("no nodes has been specified");
 	}
 
 	if (!have_remotes) {
