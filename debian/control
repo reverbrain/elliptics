@@ -20,7 +20,7 @@ Build-Depends:	cdbs,
 		cocaine-framework-native-dev (>= 0.11.0.1),
 		libltdl-dev,
 		libmsgpack-dev,
-		python-central,
+		python-central | python-support,
 		python-dev (>= 2.6),
 		python-pip,
 		python-virtualenv
