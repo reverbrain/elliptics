@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.11
+Version:	2.25.4.12
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -132,6 +132,20 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue May 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.12
+- rpm: fixed msgpack for python package name.
+- core: request route list from node after reconnect.
+- debian: fixed build on lucid: there is no dh_python here and we have to use python-central.
+- debian: dh-python instead of python-support
+- Core: fixed requesting route list always from the same node per group.
+- Recovery: Added msgpack-python to dependencies.
+- Recovery: disabled csum when reading pieces of object.
+- cocaine: Improved elliptics-storage configs
+-     You can set timeouts for read, write, remove and find
+-     You can set success-copies-num to any, quorum or all
+- trans: when filling local-io before read completion, we should check transaction allocation size
+- monitor: Data race during printing of react_aggregator fixed
+
 * Thu May 01 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.11
 - tests: Add random seed to dnet_run_servers
 
