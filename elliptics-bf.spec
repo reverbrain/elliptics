@@ -17,7 +17,7 @@ BuildRequires:	python-devel
 #BuildRequires:  cocaine-framework-native-devel >= 0.11.0.1
 BuildRequires:	eblob-devel >= 0.21.37
 BuildRequires:	react-devel >= 2.3.1
-BuildRequires:	cmake msgpack-devel libblackhole-devel msgpack-python
+BuildRequires:	cmake msgpack-devel libblackhole-devel python-msgpack
 
 %define boost_ver %{nil}
 
