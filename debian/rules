@@ -17,15 +17,8 @@ DEB_MAKE_CHECK_TARGET=test
 DEB_BUILD_PARALLEL = yes
 DEB_PARALLEL_JOBS ?= $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
 
-DEB_PYTHON_SYSTEM := pysupport
-DEB_PYTHON_MODULE_PACKAGES := elliptics-client
-export DH_PYSUPPORT=nomove
+DEB_PYTHON2_MODULE_PACKAGES := elliptics-client
 
 DEB_PYTHON_INSTALL_ARGS_ALL = --install-layout=deb --install-lib=$(PYTHON_LIB_PATH)
 include /usr/share/cdbs/1/class/python-distutils.mk
 include /usr/share/cdbs/1/class/python-module.mk
-
-binary-install/elliptics-client::
-	cp -r $(cdbs_python_destdir)/usr/lib/python*/site-packages/* $(cdbs_python_destdir)/../elliptics-client/$(PYTHON_LIB_PATH)/; echo -n
-	rm -rf $(cdbs_python_destdir)/usr/lib/python*/site-packages; echo -n
-
