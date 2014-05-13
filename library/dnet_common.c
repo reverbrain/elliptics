@@ -1422,7 +1422,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 			dnet_log(n, DNET_LOG_INFO, "Successfully reconnected to %s, possible error: %d\n",
 				dnet_server_convert_dnet_addr(&ast->addr), err);
 
-			if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST))
+			if (!(n->flags & DNET_CFG_NO_ROUTE_LIST))
 				dnet_recv_route_list(st);
 
 			goto out_remove;
