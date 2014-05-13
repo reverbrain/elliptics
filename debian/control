@@ -20,10 +20,11 @@ Build-Depends:	cdbs,
 		cocaine-framework-native-dev (>= 0.11.0.1),
 		libltdl-dev,
 		libmsgpack-dev,
-		python-support,
-		python-dev (>= 2.6),
+		python-dev,
+		python-central | dh-python,
 		python-pip,
-		python-virtualenv
+		python-virtualenv,
+		msgpack-python | python-msgpack
 Standards-Version: 3.8.0
 Homepage: http://www.ioremap.net/projects/elliptics
 XS-Python-Version: >= 2.6
@@ -39,7 +40,7 @@ Description: Distributed hash table storage
 
 Package: elliptics-client
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, msgpack-python | python-msgpack
 Replaces: elliptics-2.10
 XB-Python-Version: >= 2.6
 Description: Distributed hash table storage (client library)
