@@ -450,9 +450,9 @@ static int dnet_check_route_table(struct dnet_node *n)
 	pthread_mutex_unlock(&n->state_lock);
 
 	for (i = 0; i < (5 < group_num ? 5 : group_num); ++i) {
-		rnd = rand() % group_num;
+		rnd = rand();
+		id.group_id = groups[rnd % group_num];
 
-		id.group_id = groups[rnd];
 		memcpy(id.id, &rnd, sizeof(rnd));
 
 		st = dnet_state_get_first(n, &id);
