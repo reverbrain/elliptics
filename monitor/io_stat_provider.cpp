@@ -42,7 +42,6 @@ void dump_states_stats(rapidjson::Value &stat, struct dnet_node *n, rapidjson::D
 		           .AddMember("la", st->la, allocator)
 		           .AddMember("free", (uint64_t)st->free, allocator)
 		           .AddMember("weight", st->weight, allocator)
-		           .AddMember("median_read_time", st->median_read_time, allocator)
 		           .AddMember("stall", st->stall, allocator)
 		           .AddMember("join_state", st->__join_state, allocator);
 

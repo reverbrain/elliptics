@@ -193,10 +193,9 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			double old_weight = st->weight;
 
 			if (st && (t->cmd.status == 0) && !(local_io->flags & DNET_IO_FLAGS_CACHE)) {
-				double p = (double)diff / (double)local_io->size / (double)st->median_read_time;
-				st->weight /= p;
+				double norm = (double)diff / (double)local_io->size;
 
-				st->median_read_time = (st->median_read_time + diff) / 2;
+				st->weight = 1.0 / ((1.0 / st->weight + norm) / 2.0);
 			}
 
 			io_tv.tv_sec = local_io->timestamp.tsec;
@@ -206,12 +205,12 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			strftime(time_str, sizeof(time_str), "%F %R:%S", &tm);
 
 			snprintf(io_buf, sizeof(io_buf), ", ioflags: 0x%llx, io-offset: %llu, io-size: %llu/%llu, "
-					"io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', weight: %.3f -> %.3f, median-time: %ld\n",
+					"io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', weight: %.3f -> %.3f\n",
 				(unsigned long long)local_io->flags,
 				(unsigned long long)local_io->offset, (unsigned long long)local_io->size, (unsigned long long)local_io->total_size,
 				(unsigned long long)local_io->user_flags,
 				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec,
-				old_weight, st->weight, st->median_read_time);
+				old_weight, st->weight);
 		}
 
 		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, stall: %d, "

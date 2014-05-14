@@ -828,14 +828,14 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: 0x%llx, size: %llu, offset: %llu, "
-			"fd: %d, local_offset: %llu -> %s weight: %f, mrt: %ld, wait-ts: %ld.\n",
+			"fd: %d, local_offset: %llu -> %s weight: %f, wait-ts: %ld.\n",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
 			dnet_cmd_string(ctl->cmd), (unsigned long long)cmd->flags,
 			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
 			ctl->fd,
 			(unsigned long long)ctl->local_offset,
-			dnet_server_convert_dnet_addr(&t->st->addr), t->st->weight, t->st->median_read_time,
+			dnet_server_convert_dnet_addr(&t->st->addr), t->st->weight,
 			t->wait_ts.tv_sec);
 
 	dnet_convert_cmd(cmd);
@@ -1422,7 +1422,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 			dnet_log(n, DNET_LOG_INFO, "Successfully reconnected to %s, possible error: %d\n",
 				dnet_server_convert_dnet_addr(&ast->addr), err);
 
-			if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST))
+			if (!(n->flags & DNET_CFG_NO_ROUTE_LIST))
 				dnet_recv_route_list(st);
 
 			goto out_remove;
@@ -2067,7 +2067,7 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 
 			st = dnet_state_get_first(n, id);
 			if (st) {
-				weights[num].weight = (int)st->weight;
+				weights[num].weight = (int)(st->weight * 100);
 				weights[num].group_id = id->group_id;
 
 				dnet_state_put(st);

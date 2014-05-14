@@ -974,8 +974,7 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 	st->process = process;
 
 	st->la = 1;
-	st->weight = DNET_STATE_MAX_WEIGHT / 2;
-	st->median_read_time = 1000; /* useconds for start */
+	st->weight = DNET_STATE_DEFAULT_WEIGHT;
 
 	INIT_LIST_HEAD(&st->state_entry);
 	INIT_LIST_HEAD(&st->storage_state_entry);

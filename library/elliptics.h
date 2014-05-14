@@ -100,7 +100,7 @@ struct dnet_io_req {
 /* Attached data should be discarded */
 #define DNET_IO_DROP		(1<<1)
 
-#define DNET_STATE_MAX_WEIGHT		(1024 * 10)
+#define DNET_STATE_DEFAULT_WEIGHT	1.0
 
 /* Iterator watermarks for sending data and sleeping */
 #define DNET_SEND_WATERMARK_HIGH	(1024 * 100)
@@ -162,8 +162,7 @@ struct dnet_net_state
 
 	int			la;
 	unsigned long long	free;
-	float			weight;
-	long			median_read_time;
+	double			weight;
 
 	struct dnet_idc		*idc;
 
