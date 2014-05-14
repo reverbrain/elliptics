@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.12
+Version:	2.25.4.13
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -132,6 +132,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu May 15 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.13
+- state: new weight adjusting mechanism
+
 * Tue May 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.12
 - rpm: fixed msgpack for python package name.
 - core: request route list from node after reconnect.

@@ -1,3 +1,9 @@
+elliptics (2.25.4.13) unstable; urgency=low
+
+  * state: new weight adjusting mechanism
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 15 May 2014 00:30:05 +0400
+
 elliptics (2.25.4.12) unstable; urgency=low
 
   * rpm: fixed msgpack for python package name.
