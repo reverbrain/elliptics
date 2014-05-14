@@ -28,7 +28,7 @@
   \section introduction Introduction
 
   Recovery is a process of restoring data consistency within one group and/or between groups.
-  Recovery support 3 modes: `merge` and `dc`. Each of them solves his problem.
+  Recovery support 2 modes: `merge` and `dc`. Each of them solves his problem.
   - `merge` mode restores consistency within one group and redistributes data between all nodes
   - `dc` mode restores consistency between groups (replicas)
   Main tool for recovering data is dnet_recovery. It is distributed with elliptics-client package.
