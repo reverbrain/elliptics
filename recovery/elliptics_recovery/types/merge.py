@@ -236,7 +236,7 @@ class Recovery(object):
             if self.chunked:
                 size = min(self.total_size - self.recovered_size, self.ctx.chunk_size)
             if self.recovered_size != 0:
-                self.direct_session |= elliptics.io_flags.nocsum
+                self.direct_session.ioflags |= elliptics.io_flags.nocsum
             self.read_result = self.direct_session.read_data(self.it_response.key,
                                                              offset=self.recovered_size,
                                                              size=size)
