@@ -28,3 +28,5 @@ DEB_PYTHON_INSTALL_ARGS_ALL = --install-layout=deb --install-lib=$(PYTHON_LIB_PA
 include /usr/share/cdbs/1/class/python-distutils.mk
 install/elliptics-client::
 	echo $(cdbs_python_current_version) > debian/pyversions
+clean::
+	rm -f debian/pyversions
