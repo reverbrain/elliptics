@@ -27,14 +27,13 @@ Build-Depends:	cdbs,
 		msgpack-python | python-msgpack
 Standards-Version: 3.8.0
 Homepage: http://www.ioremap.net/projects/elliptics
-XS-Python-Version: >= 2.7
+XS-Python-Version: >= 2.6
 
 Package: elliptics
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.21.37), elliptics-client (= ${Source-Version}), libcocaine-core2
 Replaces: elliptics-2.10, srw
 Provides: elliptics-2.10
-XB-Python-Version: >= 2.7
 Description: Distributed hash table storage
  Elliptics network is a fault tolerant distributed hash table object storage.
 
@@ -42,21 +41,18 @@ Package: elliptics-client
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, msgpack-python | python-msgpack
 Replaces: elliptics-2.10
-XB-Python-Version: >= 2.7
 Description: Distributed hash table storage (client library)
  Elliptics network is a fault tolerant distributed hash table object storage.
 
 Package: libcocaine-plugin-elliptics
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, elliptics-client (= ${Source-Version})
-XB-Python-Version: >= 2.7
 Description: Distributed hash table storage (cocaine plugin)
  Elliptics network is a fault tolerant distributed hash table object storage.
 
 Package: libcocaine-plugin-elliptics-dev
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, cocaine-framework-native-dev (>= 0.10.6.0)
-XB-Python-Version: >= 2.7
 Description: Distributed hash table storage (cocaine plugin includes)
  Elliptics network is a fault tolerant distributed hash table object storage.
 
@@ -65,14 +61,12 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, elliptics (= ${Source-Version}) | elliptics-client (= ${Source-Version})
 Replaces: elliptics-dbg-2.10, srw-dbg
 Provides: elliptics-dbg-2.10
-XB-Python-Version: >= 2.7
 Description: Distributed hash table storage (debug files)
  Elliptics network is a fault tolerant distributed hash table object storage.
 
 Package: elliptics-dev
 Architecture: any
 Depends: elliptics-client (= ${Source-Version})
-XB-Python-Version: >= 2.7
 Description: Distributed hash table storage (includes)
  Elliptics network is a fault tolerant distributed hash table object storage.
 

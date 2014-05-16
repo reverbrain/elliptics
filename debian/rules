@@ -26,4 +26,5 @@ DEB_PYTHON2_MODULE_PACKAGES := elliptics-client
 
 DEB_PYTHON_INSTALL_ARGS_ALL = --install-layout=deb --install-lib=$(PYTHON_LIB_PATH)
 include /usr/share/cdbs/1/class/python-distutils.mk
-include /usr/share/cdbs/1/class/python-module.mk
+install/elliptics-client::
+	echo $(cdbs_python_current_version) > debian/pyversions
