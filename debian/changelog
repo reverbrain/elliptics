@@ -1,3 +1,14 @@
+elliptics (2.25.4.14) unstable; urgency=low
+
+  * build: depend on 0.21.40+ eblob to force double eblob size reservation
+  * io: do not proceed IO command to backend if cache-only IO flag has been set
+  * ioserv: exit with negative error status if ioserv could not start because of config error
+  * config: updated blob flags doc
+  * build: remove generated pyversions at clean
+  * build: removed deprecated XB-Python*. Updated url at setup.py.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 20 May 2014 22:28:01 +0400
+
 elliptics (2.25.4.13) unstable; urgency=low
 
   * state: new weight adjusting mechanism

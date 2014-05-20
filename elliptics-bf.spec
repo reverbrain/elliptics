@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.13
+Version:	2.25.4.14
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -132,6 +132,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue May 20 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.14
+- build: depend on 0.21.40+ eblob to force double eblob size reservation
+- io: do not proceed IO command to backend if cache-only IO flag has been set
+- ioserv: exit with negative error status if ioserv could not start because of config error
+- config: updated blob flags doc
+- build: remove generated pyversions at clean
+- build: removed deprecated XB-Python*. Updated url at setup.py.
+
 * Thu May 15 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.13
 - state: new weight adjusting mechanism
 
