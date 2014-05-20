@@ -1258,6 +1258,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					break;
 			}
 
+			if (io->flags & DNET_IO_FLAGS_CACHE_ONLY)
+				break;
+
 			dnet_convert_io_attr(io);
 		default:
 			if (cmd->cmd == DNET_CMD_LOOKUP && !(cmd->flags & DNET_FLAGS_NOCACHE)) {
