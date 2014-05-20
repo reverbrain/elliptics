@@ -137,7 +137,7 @@ static int ioserv_start(char *conf, int mon)
 
 	n = dnet_parse_config(conf, mon);
 	if (!n)
-		return -1;
+		return -EINVAL;
 
 	global_n = n;
 	ioserv_setup_signals();
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
 			sleep(1);
 		}
 	} else {
-		ioserv_start(conf, mon);
+		return ioserv_start(conf, mon);
 	}
 
 	return 0;
