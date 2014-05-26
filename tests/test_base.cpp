@@ -542,13 +542,52 @@ static bool is_bindable(int port)
 
 static std::vector<std::string> generate_ports(size_t count, std::set<std::string> &ports)
 {
+	std::vector<std::pair<int, int>> ranges;
+	const int first_valid = 1025;
+	const int last_valid = 65535;
+
+	std::ifstream range("/proc/sys/net/ipv4/ip_local_port_range");
+	if (range) {
+		int first_invalid = 0;
+		int last_invalid = 0;
+		range >> first_invalid >> last_invalid;
+
+		first_invalid = std::max(first_invalid, first_valid);
+		last_invalid = std::min(last_invalid, last_valid);
+
+		if (first_invalid > first_valid)
+			ranges.emplace_back(first_valid, first_invalid - 1);
+		if (last_invalid < last_valid)
+			ranges.emplace_back(last_invalid + 1, last_valid);
+	} else {
+		ranges.emplace_back(first_valid, last_valid);
+	}
+
+	int ranges_sum = 0;
+	for (auto it = ranges.begin(); it != ranges.end(); ++it) {
+		ranges_sum += it->second - it->first + 1;
+	}
+
+	if (ranges_sum == 0)
+		throw std::runtime_error("Failed to find enough count of bindable ports for elliptics servers");
+
 	std::vector<std::string> result;
 
 	size_t bind_errors_count = 0;
 
 	while (result.size() < count) {
-		// Random port from 10000 to 60000
-		int port = 10000 + (rand() % 50000);
+		// Choose one random port from available ranges
+		int tmp = rand() % ranges_sum;
+		int port = 0;
+		for (auto it = ranges.begin(); it != ranges.end(); ++it) {
+			if (tmp >= it->second - it->first + 1) {
+				tmp -= it->second - it->first + 1;
+			} else {
+				port = it->first + tmp;
+				break;
+			}
+		}
+
 		std::string port_str = boost::lexical_cast<std::string>(port);
 		if (ports.find(port_str) != ports.end())
 			continue;
