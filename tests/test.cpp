@@ -484,6 +484,7 @@ static void test_bulk_write(session &sess, size_t test_count)
 
 	for (auto it = result.begin(); it != result.end(); ++it) {
 		count += (it->status() == 0) && (!it->is_ack());
+		BOOST_WARN_EQUAL(it->status(), 0);
 	}
 
 	BOOST_REQUIRE_EQUAL(count, test_count * 2);
