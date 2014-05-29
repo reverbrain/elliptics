@@ -260,7 +260,8 @@ def lookup_keys(ctx):
                                  elog=ctx.elog,
                                  wait_timeout=ctx.wait_timeout,
                                  net_thread_num=1,
-                                 io_thread_num=1)
+                                 io_thread_num=1,
+                                 remotes=ctx.remotes)
     session = elliptics.Session(node)
     filename = os.path.join(ctx.tmp_dir, 'merged_result')
     merged_f = open(filename, 'w')

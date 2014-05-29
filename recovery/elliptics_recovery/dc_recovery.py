@@ -375,7 +375,8 @@ def recover(ctx):
                                  elog=ctx.elog,
                                  wait_timeout=ctx.wait_timeout,
                                  net_thread_num=4,
-                                 io_thread_num=1)
+                                 io_thread_num=1,
+                                 remotes=ctx.remotes)
 
     for batch_id, batch in groupby(enumerate(filtered),
                                    key=lambda x: x[0] / ctx.batch_size):

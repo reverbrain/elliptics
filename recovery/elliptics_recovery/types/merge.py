@@ -496,7 +496,8 @@ def process_node(address, group, ranges):
 
     node = elliptics_create_node(address=ctx.address,
                                  elog=ctx.elog,
-                                 wait_timeout=ctx.wait_timeout)
+                                 wait_timeout=ctx.wait_timeout,
+                                 remotes=ctx.remotes)
     s = elliptics.Session(node)
 
     stats.timer('process', 'iterate')
