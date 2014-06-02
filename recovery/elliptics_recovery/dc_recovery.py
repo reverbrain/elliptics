@@ -137,6 +137,7 @@ def merge_index_shards(results):
     if not all(s[0] <= INDEX_VERSION and (s[2], s[3]) == shard_info for s in shards):
         log.error("Could not merge index shards: shards are incompatible: [(version, shard#, shards_count)]: {}"
                   .format([(s[0], s[2], s[3]) for s in shards]))
+        return None
 
     import heapq
     heap = []
