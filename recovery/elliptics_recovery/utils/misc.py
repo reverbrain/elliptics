@@ -20,6 +20,7 @@ Misc. routines
 import logging as log
 import sys
 import hashlib
+import errno
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -72,3 +73,176 @@ def worker_init():
     """Do not catch Ctrl+C in worker"""
     from signal import signal, SIGINT, SIG_IGN
     signal(SIGINT, SIG_IGN)
+
+
+class RecoverStat(object):
+    def __init__(self):
+        self.skipped = 0
+        self.lookup = 0
+        self.lookup_failed = 0
+        self.lookup_retries = 0
+        self.read = 0
+        self.read_failed = 0
+        self.read_retries = 0
+        self.read_bytes = 0
+        self.write = 0
+        self.write_failed = 0
+        self.write_retries = 0
+        self.written_bytes = 0
+        self.remove = 0
+        self.remove_failed = 0
+        self.remove_retries = 0
+        self.removed_bytes = 0
+        self.remove_old = 0
+        self.remove_old_failed = 0
+        self.remove_old_bytes = 0
+
+    def apply(self, stats):
+        if self.skipped:
+            stats.counter("skipped_keys", self.skipped)
+        if self.lookup:
+            stats.counter("remote_lookups", self.lookup)
+        if self.lookup_failed:
+            stats.counter("remote_lookups", -self.lookup_failed)
+        if self.lookup_retries:
+            stats.counter("remote_lookup_retries", self.lookup_retries)
+        if self.read:
+            stats.counter("local_reads", self.read)
+        if self.read_failed:
+            stats.counter("local_reads", -self.read_failed)
+        if self.read_retries:
+            stats.counter("local_read_retries", self.read_retries)
+        if self.read_bytes:
+            stats.counter("local_read_bytes", self.read_bytes)
+        if self.write:
+            stats.counter("remote_writes", self.write)
+        if self.write_failed:
+            stats.counter("remote_writes", -self.write_failed)
+        if self.write_retries:
+            stats.counter("remote_write_retries", self.write_retries)
+        if self.written_bytes:
+            stats.counter("remote_written_bytes", self.written_bytes)
+        if self.remove:
+            stats.counter("local_removes", self.remove)
+        if self.remove_failed:
+            stats.counter("local_removes", -self.remove_failed)
+        if self.remove_retries:
+            stats.counter("local_remove_retries", self.remove_retries)
+        if self.removed_bytes:
+            stats.counter("local_removed_bytes", self.removed_bytes)
+        if self.remove_old:
+            stats.counter('local_removes_old', self.remove_old)
+        if self.remove_old_failed:
+            stats.counter('local_removes_old', -self.remove_old_failed)
+        if self.remove_old_bytes:
+            stats.counter('local_removes_old_bytes', self.remove_old_bytes)
+
+    def __add__(a, b):
+        ret = RecoverStat()
+        ret.skipped = a.skipped + b.skipped
+        ret.lookup = a.lookup + b.lookup
+        ret.lookup_failed = a.lookup_failed + b.lookup_failed
+        ret.lookup_retries = a.lookup_retries + b.lookup_retries
+        ret.read = a.read + b.read
+        ret.read_failed = a.read_failed + b.read_failed
+        ret.read_retries = a.read_retries + b.read_retries
+        ret.read_bytes = a.read_bytes + b.read_bytes
+        ret.write = a.write + b.write
+        ret.write_failed = a.write_failed + b.write_failed
+        ret.write_retries = a.write_retries + b.write_retries
+        ret.written_bytes = a.written_bytes + b.written_bytes
+        ret.remove = a.remove + b.remove
+        ret.remove_failed = a.remove_failed + b.remove_failed
+        ret.remove_retries = a.remove_retries + b.remove_retries
+        ret.removed_bytes = a.removed_bytes + b.removed_bytes
+        ret.remove_old = a.remove_old + b.remove_old
+        ret.remove_old_failed = a.remove_old_failed + b.remove_old_failed
+        ret.remove_old_bytes = a.remove_old_bytes + b.remove_old_bytes
+        return ret
+
+
+class DirectOperation(object):
+    def __init__(self, address, id, group, ctx, node, callback):
+        self.session = elliptics.Session(node)
+        self.session.exceptions_policy = elliptics.core.exceptions_policy.no_exceptions
+        self.session.set_direct_id(*address)
+        self.session.groups = [group]
+        self.id = id
+        self.stats = RecoverStat()
+        self.attempt = 0
+        self.ctx = ctx
+        self.callback = callback
+        self.async_result = None
+        self.address = address
+
+    def wait(self):
+        if self.async_result:
+            self.async_result.wait()
+
+
+class LookupDirect(DirectOperation):
+    def run(self):
+        self.async_result = self.session.read_data(self.id, offset=0, size=1)
+        self.async_result.connect(self.onread)
+
+    def onread(self, results, error):
+        try:
+            if error.code == -errno.ETIMEDOUT:
+                log.debug("Lookup key: {0} has been timed out: {1}"
+                          .format(repr(self.id), error))
+                if self.attempt < self.ctx.attempts:
+                    old_timeout = self.session.timeout
+                    self.session.timeout *= 2
+                    self.attempt += 1
+                    log.debug("Retry to lookup key: {0} attempt: {1}/{2} increased timeout: {3}/{4}"
+                              .format(repr(self.id),
+                                      self.attempt, self.ctx.attempts,
+                                      self.session.timeout, old_timeout))
+                    self.stats.lookup_retries += 1
+                    self.run()
+
+            if error.code:
+                self.stats.lookup_failed += 1
+                self.callback(None, self.stats)
+            else:
+                self.stats.lookup += 1
+                self.callback(results[0], self.stats)
+        except Exception as e:
+            log.error("Onlookup exception: {}".format(repr(e)))
+            self.callback(None, self.stats)
+
+class RemoveDirect(DirectOperation):
+    def run(self):
+        self.async_result = self.session.remove(self.id)
+        self.async_result.connect(self.onremove)
+
+    def onremove(self, results, error):
+        try:
+            if error.code:
+                log.debug("Remove key: {0} on node: {1} has been failed: {2}"
+                          .format(self.id, self.address, repr(error)))
+                if self.attempt < self.ctx.attempts:
+                    old_timeout = self.session.timeout
+                    self.session.timeout *= 2
+                    self.attempt += 1
+                    log.debug("Retry to remove key: {0} attempt: {1}/{2} "
+                              "increased timeout: {3}/{4}"
+                              .format(repr(self.id),
+                                      self.attempt, self.ctx.attempts,
+                                      self.session.timeout, old_timeout))
+                    self.stats.remove_retries += 1
+                    self.run()
+                    return
+                log.error("Key: {0} hasn't been removed from node: {1}: {2}"
+                          .format(repr(self.id), self.address, repr(error)))
+                self.stats.remove_failed += 1
+                self.callback(False, self.stats)
+                return
+
+            self.stats.remove += 1
+            #self.stats.removed_bytes += self.total_size
+            self.callback(True, self.stats)
+        except Exception as e:
+            log.error("Onremove exception: {}".format(repr(e)))
+            self.result = False
+            self.callback(False, self.stats)

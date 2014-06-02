@@ -145,6 +145,13 @@ if __name__ == '__main__':
     if ctx.custom_recover:
         ctx.custom_recover = os.path.abspath(ctx.custom_recover)
 
+    if options.dump_file:
+        ctx.dump_file = os.path.abspath(options.dump_file)
+        if not os.path.exists(ctx.dump_file):
+            raise ValueError('Dump file:`{}` does not exsists'.format(options.dump_file))
+    else:
+        ctx.dump_file = None
+
     try:
         ctx.chunk_size = int(options.chunk_size)
     except Exception, e:
@@ -284,13 +291,6 @@ if __name__ == '__main__':
     log.info("Initializing monitor")
     ctx.monitor = Monitor(ctx, ctx.monitor_port)
 
-    if options.dump_file:
-        if not os.path.exists(options.dump_file):
-            raise ValueError('Dump file:`{}` does not exsists'.format(options.dump_file))
-        ctx.dump_file = options.dump_file
-    else:
-        ctx.dump_file = None
-
     try:
         log.info("Starting cleanup...")
         cleanup(ctx.tmp_dir)
@@ -327,7 +327,10 @@ if __name__ == '__main__':
     ctx.address.group_id = ctx.routes.get_address_eid(ctx.address).group_id
 
     if recovery_type == TYPE_MERGE:
-        from elliptics_recovery.types.merge import main
+        if ctx.dump_file:
+            from elliptics_recovery.types.merge import dump_main as main
+        else:
+            from elliptics_recovery.types.merge import main
     elif recovery_type == TYPE_DC:
         if ctx.dump_file:
             from elliptics_recovery.types.dc import dump_main as main

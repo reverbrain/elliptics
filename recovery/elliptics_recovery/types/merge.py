@@ -32,12 +32,10 @@ from itertools import groupby
 from multiprocessing import Pool
 
 from ..etime import Time
-from ..utils.misc import elliptics_create_node, worker_init
+from ..utils.misc import elliptics_create_node, worker_init, RecoverStat, LookupDirect, RemoveDirect
 from ..route import RouteList
 from ..iterator import Iterator
 from ..range import IdRange
-
-import errno
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -46,95 +44,10 @@ import elliptics
 log = logging.getLogger(__name__)
 
 
-class RecoverStat(object):
-    def __init__(self):
-        self.skipped = 0
-        self.lookup = 0
-        self.lookup_failed = 0
-        self.lookup_retries = 0
-        self.read = 0
-        self.read_failed = 0
-        self.read_retries = 0
-        self.read_bytes = 0
-        self.write = 0
-        self.write_failed = 0
-        self.write_retries = 0
-        self.written_bytes = 0
-        self.remove = 0
-        self.remove_failed = 0
-        self.remove_retries = 0
-        self.removed_bytes = 0
-        self.remove_old = 0
-        self.remove_old_failed = 0
-        self.remove_old_bytes = 0
-
-    def apply(self, stats):
-        if self.skipped:
-            stats.counter("skipped_keys", self.skipped)
-        if self.lookup:
-            stats.counter("remote_lookups", self.lookup)
-        if self.lookup_failed:
-            stats.counter("remote_lookups", -self.lookup_failed)
-        if self.lookup_retries:
-            stats.counter("remote_lookup_retries", self.lookup_retries)
-        if self.read:
-            stats.counter("local_reads", self.read)
-        if self.read_failed:
-            stats.counter("local_reads", -self.read_failed)
-        if self.read_retries:
-            stats.counter("local_read_retries", self.read_retries)
-        if self.read_bytes:
-            stats.counter("local_read_bytes", self.read_bytes)
-        if self.write:
-            stats.counter("remote_writes", self.write)
-        if self.write_failed:
-            stats.counter("remote_writes", -self.write_failed)
-        if self.write_retries:
-            stats.counter("remote_write_retries", self.write_retries)
-        if self.written_bytes:
-            stats.counter("remote_written_bytes", self.written_bytes)
-        if self.remove:
-            stats.counter("local_removes", self.remove)
-        if self.remove_failed:
-            stats.counter("local_removes", -self.remove_failed)
-        if self.remove_retries:
-            stats.counter("local_remove_retries", self.remove_retries)
-        if self.removed_bytes:
-            stats.counter("local_removed_bytes", self.removed_bytes)
-        if self.remove_old:
-            stats.counter('local_removes_old', self.remove_old)
-        if self.remove_old_failed:
-            stats.counter('local_removes_old', -self.remove_old_failed)
-        if self.remove_old_bytes:
-            stats.counter('local_removes_old_bytes', self.remove_old_bytes)
-
-    def __add__(a, b):
-        ret = RecoverStat()
-        ret.skipped = a.skipped + b.skipped
-        ret.lookup = a.lookup + b.lookup
-        ret.lookup_failed = a.lookup_failed + b.lookup_failed
-        ret.lookup_retries = a.lookup_retries + b.lookup_retries
-        ret.read = a.read + b.read
-        ret.read_failed = a.read_failed + b.read_failed
-        ret.read_retries = a.read_retries + b.read_retries
-        ret.read_bytes = a.read_bytes + b.read_bytes
-        ret.write = a.write + b.write
-        ret.write_failed = a.write_failed + b.write_failed
-        ret.write_retries = a.write_retries + b.write_retries
-        ret.written_bytes = a.written_bytes + b.written_bytes
-        ret.remove = a.remove + b.remove
-        ret.remove_failed = a.remove_failed + b.remove_failed
-        ret.remove_retries = a.remove_retries + b.remove_retries
-        ret.removed_bytes = a.removed_bytes + b.removed_bytes
-        ret.remove_old = a.remove_old + b.remove_old
-        ret.remove_old_failed = a.remove_old_failed + b.remove_old_failed
-        ret.remove_old_bytes = a.remove_old_bytes + b.remove_old_bytes
-        return ret
-
-
 class Recovery(object):
-    def __init__(self, ctx, it_response, address, group, node):
-        self.it_response = it_response
+    def __init__(self, key, timestamp, size, address, group, ctx, node, check=True, callback=None):
+        self.key = key
+        self.key_timestamp = timestamp
         self.address = address
         self.group = group
         self.node = node
@@ -147,117 +60,138 @@ class Recovery(object):
         self.stats = RecoverStat()
         self.result = True
         self.attempt = 0
-        self.total_size = it_response.size
+        self.total_size = size
         self.recovered_size = 0
         self.just_remove = False
-        self.chunked = False
-        log.debug("Created Recovery object for key: {0}, node: {1}"
-                  .format(repr(it_response.key), address))
+        self.chunked = self.total_size > self.ctx.chunk_size
+        self.check = check
+        self.callback = callback
+        log.debug("Created Recovery object for key: {0}, node: {1}".format(repr(key), address))
 
     def run(self):
         log.debug("Recovering key: {0}, node: {1}"
-                  .format(repr(self.it_response.key), self.address))
-        address = self.session.lookup_address(self.it_response.key, self.group)
+                  .format(repr(self.key), self.address))
+        address = self.session.lookup_address(self.key, self.group)
         if address == self.address:
             log.warning("Key: {0} already on the right node: {1}"
-                        .format(repr(self.it_response.key), self.address))
+                        .format(repr(self.key), self.address))
             self.stats.skipped += 1
             return
         else:
             log.debug("Key: {0} should be on node: {1}"
-                      .format(repr(self.it_response.key), address))
+                      .format(repr(self.key), address))
         self.dest_address = address
-        log.debug("Lookup key: {0} on node: {1}"
-                  .format(repr(self.it_response.key), self.dest_address))
-        self.lookup_result = self.session.lookup(self.it_response.key)
-        self.lookup_result.connect(self.onlookup)
-
-    def onlookup(self, results, error):
-        self.lookup_result = None
-        try:
-            if error.code == -errno.ETIMEDOUT:
-                log.debug("Lookup key: {0} has been timed out: {1}"
-                          .format(repr(self.it_response.key), error))
-                if self.attempt < self.ctx.attempts:
-                    old_timeout = self.session.timeout
-                    self.session.timeout *= 2
-                    self.attempt += 1
-                    log.debug("Retry to lookup key: {0} attempt: {1}/{2} "
-                              "increased timeout: {3}/{4}"
-                              .format(repr(self.it_response.key),
-                                      self.attempt, self.ctx.attempts,
-                                      self.session.timeout, old_timeout))
-                    self.stats.lookup_retries += 1
-                    self.lookup_result = self.session.lookup(self.it_response.key)
-                    self.lookup_result.connect(self.onlookup)
-                    return
-
-            if error.code:
-                self.stats.lookup_failed += 1
-            else:
-                self.stats.lookup += 1
-
-            if error.code == 0 and self.it_response.timestamp < results[0].timestamp:
-                self.just_remove = True
-                log.debug("Key: {0} on node: {1} is newer. Just removing it from node: {2}."
-                          .format(repr(self.it_response.key), self.dest_address, self.address))
-                if self.ctx.dry_run:
-                    log.debug("Dry-run mode is turned on. Skipping removing stage.")
-                    return
-                self.attempt = 0
-                if not self.ctx.safe:
-                    self.remove_result = self.direct_session.remove(self.it_response.key)
-                    self.remove_result.connect(self.onremove)
-                return
-
-            log.debug("Key: {0} on node: {1} is older or miss. "
-                      "Reading it from node: {2}"
-                      .format(repr(self.it_response.key),
-                              self.dest_address, self.address))
-            if self.ctx.dry_run:
-                log.debug("Dry-run mode is turned on. "
-                          "Skipping reading, writing and removing stages.")
-                return
+        if self.check:
+            log.debug("Lookup key: {0} on node: {1}".format(repr(self.key), self.dest_address))
+            self.lookup_result = LookupDirect(self.dest_address, self.key, self.group, self.ctx, self.node, self.onlookup)
+            self.lookup_result.run()
+        elif self.ctx.dry_run:
+            log.debug("Dry-run mode is turned on. Skipping reading, writing and removing stages.")
+        else:
             self.attempt = 0
-            if self.total_size > self.ctx.chunk_size:
-                self.chunked = True
-
             self.read()
-        except Exception as e:
-            log.error("Onlookup exception: {}".format(repr(e)))
-            self.result = False
 
     def read(self):
         size = 0
         try:
-            log.debug("Reading key: {0} from node: {1}"
-                      .format(repr(self.it_response.key), self.address))
+            log.debug("Reading key: {} from node: {}, chunked: {}"
+                      .format(repr(self.key), self.address, self.chunked))
             if self.chunked:
                 size = min(self.total_size - self.recovered_size, self.ctx.chunk_size)
             if self.recovered_size != 0:
                 self.direct_session.ioflags |= elliptics.io_flags.nocsum
-            self.read_result = self.direct_session.read_data(self.it_response.key,
+            self.read_result = self.direct_session.read_data(self.key,
                                                              offset=self.recovered_size,
                                                              size=size)
             self.read_result.connect(self.onread)
         except Exception, e:
             log.error("Read key:{} by offset: {} and size: {} raised exception: {}"
-                      .format(self.it_response.key, self.recovered_size, size, repr(e)))
+                      .format(self.key, self.recovered_size, size, repr(e)))
             self.result = False
+
+    def write(self):
+        try:
+            log.debug("Writing key: {0} to node: {1}".format(repr(self.key),
+                                                             self.dest_address))
+            if self.chunked:
+                if self.recovered_size == 0:
+                    self.write_result = self.session.write_prepare(key=self.key,
+                                                                   data=self.write_data,
+                                                                   remote_offset=self.recovered_size,
+                                                                   psize=self.total_size)
+                elif self.recovered_size + self.write_size < self.total_size:
+                    self.write_result = self.session.write_plain(key=self.key,
+                                                                 data=self.write_data,
+                                                                 remote_offset=self.recovered_size)
+                else:
+                    self.write_result = self.session.write_commit(key=self.key,
+                                                                  data=self.write_data,
+                                                                  remote_offset=self.recovered_size,
+                                                                  csize=self.total_size)
+            else:
+                self.write_result = self.session.write_data(key=self.key,
+                                                            data=self.write_data,
+                                                            offset=self.recovered_size)
+            self.write_result.connect(self.onwrite)
+        except Exception, e:
+            log.error("Write exception: {}".format(repr(e)))
+            self.result = False
+            raise e
+
+    def remove(self):
+        if not self.ctx.safe:
+            log.debug("Removing key: {0} from node: {1}".format(repr(self.key), self.address))
+            self.remove_result = RemoveDirect(self.address,
+                                              self.key,
+                                              self.group,
+                                              self.ctx,
+                                              self.node,
+                                              self.onremove)
+            self.remove_result.run()
+        elif self.callback:
+            self.callback(self.result, self.stats)
+
+    def onlookup(self, result, stats):
+        self.lookup_result = None
+        try:
+            self.stats += stats
+            if result and self.key_timestamp < result.timestamp:
+                self.just_remove = True
+                log.debug("Key: {0} on node: {1} is newer. Just removing it from node: {2}."
+                          .format(repr(self.key), self.dest_address, self.address))
+                if self.ctx.dry_run:
+                    log.debug("Dry-run mode is turned on. Skipping removing stage.")
+                    return
+                self.attempt = 0
+                self.remove()
+                return
+
+            log.debug("Key: {0} on node: {1} is older or miss. Reading it from node: {2}"
+                      .format(repr(self.key), self.dest_address, self.address))
+            if self.ctx.dry_run:
+                log.debug("Dry-run mode is turned on. Skipping reading, writing and removing stages.")
+                return
+            self.attempt = 0
+            self.read()
+        except Exception as e:
+            log.error("Onlookup exception: {}".format(repr(e)))
+            self.result = False
+            if self.callback:
+                self.callback(self.result, self.stats)
 
     def onread(self, results, error):
         self.read_result = None
         try:
             if error.code or len(results) < 1:
                 log.debug("Read key: {0} on node: {1} has been timed out: {2}"
-                          .format(repr(self.it_response.key), self.address, error))
+                          .format(repr(self.key), self.address, error))
                 if self.attempt < self.ctx.attempts:
                     old_timeout = self.session.timeout
                     self.session.timeout *= 2
                     self.attempt += 1
                     log.debug("Retry to read key: {0} attempt: {1}/{2} "
                               "increased timeout: {3}/{4}"
-                              .format(repr(self.it_response.key), self.attempt,
+                              .format(repr(self.key), self.attempt,
                                       self.ctx.attempts,
                                       self.direct_session.timeout, old_timeout))
                     self.read()
@@ -265,7 +199,7 @@ class Recovery(object):
                     return
                 log.error("Reading key: {0} on the node: {1} failed. "
                           "Skipping it: {2}"
-                          .format(repr(self.it_response.key),
+                          .format(repr(self.key),
                                   self.address, error))
                 self.result = False
                 self.stats.read_failed += 1
@@ -284,42 +218,15 @@ class Recovery(object):
         except Exception as e:
             log.error("Onread exception: {}".format(repr(e)))
             self.result = False
-
-    def write(self):
-        try:
-            log.debug("Writing key: {0} to node: {1}".format(repr(self.it_response.key),
-                                                             self.dest_address))
-            if self.chunked:
-                if self.recovered_size == 0:
-                    self.write_result = self.session.write_prepare(key=self.it_response.key,
-                                                                   data=self.write_data,
-                                                                   remote_offset=self.recovered_size,
-                                                                   psize=self.total_size)
-                elif self.recovered_size + self.write_size < self.total_size:
-                    self.write_result = self.session.write_plain(key=self.it_response.key,
-                                                                 data=self.write_data,
-                                                                 remote_offset=self.recovered_size)
-                else:
-                    self.write_result = self.session.write_commit(key=self.it_response.key,
-                                                                  data=self.write_data,
-                                                                  remote_offset=self.recovered_size,
-                                                                  csize=self.total_size)
-            else:
-                self.write_result = self.session.write_data(key=self.it_response.key,
-                                                            data=self.write_data,
-                                                            offset=self.recovered_size)
-            self.write_result.connect(self.onwrite)
-        except Exception, e:
-            log.error("Write exception: {}".format(repr(e)))
-            self.result = False
-            raise e
+            if self.callback:
+                self.callback(self.result, self.stats)
 
     def onwrite(self, results, error):
         self.write_result = None
         try:
             if error.code or len(results) < 1:
                 log.debug("Write key: {0} on node: {1} has been timed out: {2}"
-                          .format(repr(self.it_response.key),
+                          .format(repr(self.key),
                                   self.dest_address, error))
                 if self.attempt < self.ctx.attempts:
                     old_timeout = self.session.timeout
@@ -327,7 +234,7 @@ class Recovery(object):
                     self.attempt += 1
                     log.debug("Retry to write key: {0} attempt: {1}/{2} "
                               "increased timeout: {3}/{4}"
-                              .format(repr(self.it_response.key),
+                              .format(repr(self.key),
                                       self.attempt, self.ctx.attempts,
                                       self.direct_session.timeout, old_timeout))
                     self.stats.write_retries += 1
@@ -335,7 +242,7 @@ class Recovery(object):
                     return
                 log.error("Writing key: {0} to node: {1} failed. "
                           "Skipping it: {2}"
-                          .format(repr(self.it_response.key),
+                          .format(repr(self.key),
                                   self.dest_address, error))
                 self.result = False
                 self.stats.write_failed += 1
@@ -350,88 +257,53 @@ class Recovery(object):
                 self.read()
             else:
                 log.debug("Key: {0} has been copied to node: {1}. So we can delete it from node: {2}"
-                          .format(repr(self.it_response.key), self.dest_address, self.address))
-                if not self.ctx.safe:
-                    log.debug("Removing key: {0} from node: {1}"
-                              .format(repr(self.it_response.key), self.address))
-                    self.remove_result = self.direct_session.remove(self.it_response.key)
-                    self.remove_result.connect(self.onremove)
+                          .format(repr(self.key), self.dest_address, self.address))
+                self.remove()
         except Exception as e:
             log.error("Onwrite exception: {}".format(repr(e)))
             self.result = False
+            if self.callback:
+                self.callback(self.result, self.stats)
 
-    def onremove(self, results, error):
+    def onremove(self, removed, stats):
         self.remove_result = None
-        try:
-            if error.code:
-                log.debug("Remove key: {0} on node: {1} has been timed out: {2}"
-                          .format(repr(self.it_response.key),
-                                  self.address, error))
-                if self.attempt < self.ctx.attempts:
-                    old_timeout = self.direct_session.timeout
-                    self.direct_session.timeout *= 2
-                    self.attempt += 1
-                    log.debug("Retry to remove key: {0} attempt: {1}/{2} "
-                              "increased timeout: {3}/{4}"
-                              .format(repr(self.it_response.key),
-                                      self.attempt, self.ctx.attempts,
-                                      self.direct_session.timeout, old_timeout))
-                    self.stats.remove_retries += 1
-                    self.remove_result = self.direct_session.remove(self.it_response.key)
-                    self.remove_result.connect(self.onremove)
-                    return
-                log.error("Key: {0} hasn't been removed from node: {1}: {2}"
-                          .format(repr(self.it_response.key),
-                                  self.address, error))
-                self.result = False
-                if self.just_remove:
-                    self.stats.remove_old_failed += 1
-                else:
-                    self.stats.remove_failed += 1
-                return
-
-            if self.just_remove:
-                self.stats.remove_old += 1
-                self.stats.remove_old_bytes += self.total_size
-            else:
-                self.stats.remove += 1
-                self.stats.removed_bytes += self.total_size
-        except Exception as e:
-            log.error("Onremove exception: {}".format(repr(e)))
-            self.result = False
+        self.result &= removed
+        self.stats += stats
+        if self.callback:
+            self.callback(self.result, self.stats)
 
     def wait(self):
-        log.debug("Waiting lookup for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Waiting lookup for key: {0}".format(repr(self.key)))
         while hasattr(self, 'lookup_result') and self.lookup_result is not None:
             try:
                 self.lookup_result.wait()
             except:
                 pass
-        log.debug("Lookup completed for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Lookup completed for key: {0}".format(repr(self.key)))
 
-        log.debug("Waiting read for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Waiting read for key: {0}".format(repr(self.key)))
         while hasattr(self, 'read_result') and self.read_result is not None:
             try:
                 self.read_result.wait()
             except:
                 pass
-        log.debug("Read completed for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Read completed for key: {0}".format(repr(self.key)))
 
-        log.debug("Waiting write for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Waiting write for key: {0}".format(repr(self.key)))
         while hasattr(self, 'write_result') and self.write_result is not None:
             try:
                 self.write_result.wait()
             except:
                 pass
-        log.debug("Write completed for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Write completed for key: {0}".format(repr(self.key)))
 
-        log.debug("Waiting remove for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Waiting remove for key: {0}".format(repr(self.key)))
         while hasattr(self, 'remove_result') and self.remove_result is not None:
             try:
                 self.remove_result.wait()
             except:
                 pass
-        log.debug("Remove completed for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Remove completed for key: {0}".format(repr(self.key)))
 
     def succeeded(self):
         self.wait()
@@ -475,7 +347,13 @@ def recover(ctx, address, group, node, results, stats):
         recovers = []
         rs = RecoverStat()
         for _, response in batch:
-            rec = Recovery(ctx, response, address, group, node)
+            rec = Recovery(key=response.key,
+                           timestamp=response.timestamp,
+                           size=response.size,
+                           address=address,
+                           group=group,
+                           ctx=ctx,
+                           node=node)
             rec.run()
             recovers.append(rec)
         for r in recovers:
@@ -495,7 +373,8 @@ def process_node(address, group, ranges):
     node = elliptics_create_node(address=ctx.address,
                                  elog=ctx.elog,
                                  wait_timeout=ctx.wait_timeout,
-                                 remotes=ctx.remotes)
+                                 remotes=ctx.remotes,
+                                 io_thread_num=4)
     s = elliptics.Session(node)
 
     stats.timer('process', 'iterate')
@@ -606,4 +485,165 @@ def main(ctx):
     pool.close()
     pool.join()
     g_ctx.monitor.stats.timer('main', 'finished')
+    return ret
+
+
+class DumpRecover(object):
+    def __init__(self, routes, node, id, group, ctx):
+        self.node = node
+        self.id = id
+        self.routes = routes
+        self.group = group
+        self.ctx = ctx
+        simple_session = elliptics.Session(node)
+        self.address = simple_session.lookup_address(self.id, group)
+        self.async_lookups = []
+        self.async_removes = []
+        self.recover_address = None
+        self.stats = RecoverStat()
+        self.result = True
+
+    def run(self):
+        self.lookup_results = []
+        for addr in self.routes.addresses():
+            self.async_lookups.append(LookupDirect(addr, self.id, self.group, self.ctx, self.node, self.onlookup))
+            self.async_lookups[-1].run()
+
+    def onlookup(self, result, stats):
+        self.stats += stats
+        self.lookup_results.append(result)
+        if len(self.lookup_results) == len(self.async_lookups):
+            self.check()
+            self.async_lookups = None
+
+    def check(self):
+        max_ts = max([r.timestamp for r in self.lookup_results if r])
+        log.debug("Max timestamp of key: {}: {}".format(repr(self.id), max_ts))
+        results = [r for r in self.lookup_results if r and r.timestamp == max_ts]
+        max_size = max([r.size for r in results])
+        log.debug("Max size of latest replicas for key: {}: {}".format(repr(self.id), max_size))
+        results = [r.address for r in results if r.size == max_size]
+        if self.address in results:
+            log.debug("Node: {} already has the latest version of key:{}."
+                      .format(self.address, repr(self.id), self.group))
+            self.remove()
+        else:
+            self.timestamp = max_ts
+            self.size = max_size
+            self.recover_address = results[0]
+            log.debug("Node: {} has the newer version of key: {}. Recovering it on node: {}"
+                      .format(self.recover_address, repr(self.id), self.address))
+            self.recover()
+
+    def recover(self):
+        self.recover_result = Recovery(key=self.id,
+                                       timestamp=self.timestamp,
+                                       size=self.size,
+                                       address=self.recover_address,
+                                       group=self.group,
+                                       ctx=self.ctx,
+                                       node=self.node,
+                                       check=False,
+                                       callback=self.onrecover)
+        self.recover_result.run()
+
+    def onrecover(self, result, stats):
+        self.result &= result
+        self.stats += stats;
+        self.remove()
+
+    def remove(self):
+        addresses = [r.address for r in self.lookup_results if r and r.address not in [self.address, self.recover_address]]
+        if addresses and not self.ctx.safe:
+            log.debug("Removing key: {} from nodes: {}".format(repr(self.id), addresses))
+            for addr in addresses:
+                self.async_removes.append(RemoveDirect(addr, self.id, self.group, self.ctx, self.node, self.onremove))
+                self.async_removes[-1].run()
+
+    def wait(self):
+        log.debug("Waiting lookup for key: {}".format(repr(self.id)))
+        while hasattr(self, 'async_lookups') and self.async_lookups is not None:
+            for r in self.async_lookups:
+                try:
+                    self.r.wait()
+                except:
+                    pass
+        log.debug("Lookup completed for key: {}".format(repr(self.id)))
+        if hasattr(self, 'recover_result'):
+            self.recover_result.wait()
+
+        log.debug("Waiting remove for key: {0}".format(repr(self.id)))
+        if hasattr(self, 'async_removes') and self.async_removes is not None:
+            for r in self.async_removes:
+                try:
+                    r.wait()
+                except:
+                    pass
+        log.debug("Remove completed for key: {0}".format(repr(self.id)))
+
+    def onremove(self, removed, stats):
+        self.result &= removed
+        self.stats += stats
+
+    def succeeded(self):
+        self.wait()
+        return self.result
+
+
+def dump_process_group(group):
+    log.debug("Processing group: {}".format(group))
+    ctx = g_ctx
+    routes = ctx.routes.filter_by_group_id(group)
+    stats = ctx.monitor.stats['recover']
+    if not routes:
+        log.error("Group: {} is not presented in route list".format(group))
+        return False
+    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+    node = elliptics_create_node(address=ctx.address,
+                                 elog=ctx.elog,
+                                 wait_timeout=ctx.wait_timeout,
+                                 net_thread_num=1,
+                                 io_thread_num=1,
+                                 remotes=ctx.remotes)
+    ret = True
+    with open(ctx.dump_file, 'r') as dump:
+        for batch_id, batch in groupby(enumerate(dump), key=lambda x: x[0] / ctx.batch_size):
+            recovers = []
+            rs = RecoverStat()
+            for _, val in batch:
+                rec = DumpRecover(routes=routes, node=node, id=elliptics.Id(val), group=group, ctx=ctx)
+                recovers.append(rec)
+                rec.run()
+            for r in recovers:
+                r.wait()
+                ret &= r.succeeded()
+                rs += r.stats
+            rs.apply(stats)
+    return ret
+
+
+def dump_main(ctx):
+    global g_ctx
+    g_ctx = ctx
+    ctx.monitor.stats.timer('main', 'started')
+    processes = min(g_ctx.nprocess, len(g_ctx.groups))
+    log.info("Creating pool of processes: {0}".format(processes))
+    pool = Pool(processes=processes, initializer=worker_init)
+    ret = True
+
+    try:
+        results = pool.map(dump_process_group, ctx.groups)
+    except KeyboardInterrupt:
+        log.error("Caught Ctrl+C. Terminating.")
+        pool.terminate()
+        pool.join()
+        ctx.monitor.stats.timer('main', 'finished')
+        return False
+
+    ret = all(results)
+
+    log.info("Closing pool, joining threads.")
+    pool.close()
+    pool.join()
+    ctx.monitor.stats.timer('main', 'finished')
     return ret
