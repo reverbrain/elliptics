@@ -30,6 +30,8 @@ from elliptics import Address
 
 log = logging.getLogger()
 
+INDEX_VERSION = 2
+
 
 class RecoverStat(object):
     def __init__(self):
@@ -130,9 +132,11 @@ def merge_index_shards(results):
     elif len(shards) == 1:
         return magic_string + msgpack.dumps(shards[0])
 
-    shard_info = (shards[0][0], shards[0][2], shards[0][3])
+    shard_info = (shards[0][2], shards[0][3])
 
-    assert all((s[0], s[2], s[3]) == shard_info for s in shards)
+    if not all(s[0] <= INDEX_VERSION and (s[2], s[3]) == shard_info for s in shards):
+        log.error("Could not merge index shards: shards are incompatible: [(version, shard#, shards_count)]: {}"
+                  .format([(s[0], s[2], s[3]) for s in shards]))
 
     import heapq
     heap = []
@@ -162,10 +166,10 @@ def merge_index_shards(results):
             pass
 
     final = tuple(f.pack() for f in final)
-    merged_shard = (shard_info[0],
+    merged_shard = (INDEX_VERSION,
                     final,
-                    shard_info[1],
-                    shard_info[2])
+                    shard_info[0],
+                    shard_info[1])
     return magic_string + msgpack.dumps(merged_shard)
 
 
@@ -209,7 +213,7 @@ class KeyRecover(object):
         try:
             if error.code or len(results) < 1:
                 log.error("Read key: {0} from group: {1} has failed: {2}".
-                          format(repr(self.key), self.origin_group, error))
+                          format(self.key, self.origin_group, error))
                 self.stats.read_failed += 1
                 self.complete.set()
                 return
@@ -241,7 +245,7 @@ class KeyRecover(object):
                 self.write_result.connect(self.on_write)
         except Exception as e:
             log.error("Failed to handle origin key: {0}, exception: {1}"
-                      .format(repr(self.key), repr(e)))
+                      .format(self.key, repr(e)))
             self.complete.set()
 
     def on_read_merge(self, results, error):
@@ -249,9 +253,7 @@ class KeyRecover(object):
         try:
             with self.merge_lock:
                 if error.code or len(results) < 1:
-                    log.error("Read key: {0} has failed: {2}".
-                              format(repr(self.key),
-                                     error))
+                    log.error("Read key: {0} has failed: {2}".format(self.key, error))
                     self.stats.read_failed += 1
                     self.data_to_merge.append(None)
                 else:
@@ -274,12 +276,12 @@ class KeyRecover(object):
                     self.write_session.groups = self.diff_groups \
                         .union(self.missed_groups) \
                         .union([self.origin_group])
-                    log.debug("Writing merged")
+                    log.debug("Writing merged index shard: {}".format(self.key))
                     self.write_result = self.write_session.write_data(io, data)
                     self.write_result.connect(self.on_write)
         except Exception as e:
-            log.error("Failed to merge shards for key: {0} exception: {1}"
-                      .format(repr(self.key), repr(e)))
+            log.error("Failed to merge shards for key: {} exception: {}"
+                      .format(self.key, repr(e)))
             self.complete.set()
 
     def on_write(self, results, error):
@@ -287,7 +289,7 @@ class KeyRecover(object):
             if error.code:
                 self.stats.write_failed += 1
                 log.error("Failed to write key: {0}: {1}"
-                          .format(repr(self.key), error))
+                          .format(self.key, error))
             else:
                 log.debug("Writed key: {0}".format(repr(self.key)))
                 self.result = True
@@ -296,7 +298,7 @@ class KeyRecover(object):
             self.complete.set()
         except Exception as e:
             log.error("Failed to handle write result key: {0}: {1}"
-                      .format(repr(self.key), repr(e)))
+                      .format(self.key, repr(e)))
 
     def wait(self):
         if not self.complete.is_set():
@@ -515,4 +517,5 @@ if __name__ == '__main__':
 
     res = recover(ctx)
 
-    exit(res)
+    rc = int(not result)
+    exit(rc)

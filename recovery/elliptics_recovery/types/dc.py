@@ -238,14 +238,14 @@ def main(ctx):
 
     if ctx.custom_recover == '':
         from ..dc_recovery import recover
-        recover(ctx)
+        ret &= recover(ctx)
     else:
         import imp
         log.debug("Loading module: {0}".format(ctx.custom_recover))
         imp.acquire_lock()
         custom_recover = imp.load_source('custom_recover', ctx.custom_recover)
         imp.release_lock()
-        custom_recover.recover(ctx)
+        ret &= custom_recover.recover(ctx)
 
     ctx.monitor.stats.timer('main', 'finished')
     return ret

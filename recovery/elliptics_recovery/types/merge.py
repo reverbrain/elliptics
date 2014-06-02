@@ -594,7 +594,7 @@ def dump_process_group(group):
     log.debug("Processing group: {}".format(group))
     ctx = g_ctx
     routes = ctx.routes.filter_by_group_id(group)
-    stats = ctx.monitor.stats['recover']
+    stats = ctx.monitor.stats['group_{}'.format(group)]
     if not routes:
         log.error("Group: {} is not presented in route list".format(group))
         return False
