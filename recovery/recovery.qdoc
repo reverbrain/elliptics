@@ -120,7 +120,16 @@
 
   By option '<b>-o, --one-node</b>' recovery can be limited to iterate only one node specified by <b>-r/--remote</b>.
   It means that only node specified by <b>-r/--remote</b> will be iterated and only its keys which shouldn't be on it will be moved to the proper node.
-  By default, merge will process all nodes from groups specified by <b>-g/groups</b>.
+  By default, merge will process all nodes from groups specified by <b>-g/--groups</b>.
+
+  If merge recovery runs with <b>-f/--dump-file</b> merge will make follow steps:
+  -# for each group from <b>-g/--groups</b>:
+    -# for each key from dump file:
+      -# try to read metadata of key from all nodes in groups
+      -# from all read metadata finds out replica with max timestamp and max size
+      -# check if proper node already has newer version of key
+        -# if it has not -> copy newer version to proper node
+      -# remove key from non-proper nodes
 
 
   \subsection merge_statistics Merge statistics
