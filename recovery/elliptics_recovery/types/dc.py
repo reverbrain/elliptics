@@ -285,9 +285,8 @@ def lookup_keys(ctx):
                                              result.size,
                                              result.user_flags))
                 except Exception, e:
-                    log.error("Failed to lookup key: {} in group: {}: {}".format(id,
-                                                                                 ctx.groups[i],
-                                                                                 e))
+                    log.error("Failed to lookup key: {} in group: {}: {}"
+                              .format(id, ctx.groups[i], repr(e)))
                     stats.counter("lookups", -1)
             if len(key_infos) > 0:
                 key_data = (id, key_infos)

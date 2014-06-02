@@ -224,15 +224,14 @@ class Recovery(object):
 
             self.read()
         except Exception as e:
-            log.error("Onlookup exception: {0}".format(e))
+            log.error("Onlookup exception: {}".format(repr(e)))
             self.result = False
 
     def read(self):
         size = 0
         try:
             log.debug("Reading key: {0} from node: {1}"
-                      .format(repr(self.it_response.key),
-                              self.address))
+                      .format(repr(self.it_response.key), self.address))
             if self.chunked:
                 size = min(self.total_size - self.recovered_size, self.ctx.chunk_size)
             if self.recovered_size != 0:
@@ -243,7 +242,7 @@ class Recovery(object):
             self.read_result.connect(self.onread)
         except Exception, e:
             log.error("Read key:{} by offset: {} and size: {} raised exception: {}"
-                      .format(self.it_response.key, self.recovered_size, size, e))
+                      .format(self.it_response.key, self.recovered_size, size, repr(e)))
             self.result = False
 
     def onread(self, results, error):
@@ -283,7 +282,7 @@ class Recovery(object):
             self.attempt = 0
             self.write()
         except Exception as e:
-            log.error("Onread exception: {0}".format(e))
+            log.error("Onread exception: {}".format(repr(e)))
             self.result = False
 
     def write(self):
@@ -311,7 +310,7 @@ class Recovery(object):
                                                             offset=self.recovered_size)
             self.write_result.connect(self.onwrite)
         except Exception, e:
-            log.error("Write exception: {0}".format(e))
+            log.error("Write exception: {}".format(repr(e)))
             self.result = False
             raise e
 
@@ -358,7 +357,7 @@ class Recovery(object):
                     self.remove_result = self.direct_session.remove(self.it_response.key)
                     self.remove_result.connect(self.onremove)
         except Exception as e:
-            log.error("Onwrite exception: {0}".format(e))
+            log.error("Onwrite exception: {}".format(repr(e)))
             self.result = False
 
     def onremove(self, results, error):
@@ -398,7 +397,7 @@ class Recovery(object):
                 self.stats.remove += 1
                 self.stats.removed_bytes += self.total_size
         except Exception as e:
-            log.error("Onremove exception: {0}".format(e))
+            log.error("Onremove exception: {}".format(repr(e)))
             self.result = False
 
     def wait(self):
@@ -460,8 +459,7 @@ def iterate_node(ctx, node, address, ranges, eid, stats):
         stats.counter('iterations', 1)
         return result
     except Exception as e:
-        log.error("Iteration failed for: {0}: {1}"
-                  .format(address, e))
+        log.error("Iteration failed for: {}: {}".format(address, repr(e)))
         stats.counter('iterations', -1)
         return None
 
@@ -594,7 +592,7 @@ def main(ctx):
             g_ctx.monitor.stats.timer('main', 'finished')
             return False
         except Exception as e:
-            log.error("Caught unexpected exception: {0}".format(e))
+            log.error("Caught unexpected exception: {}".format(repr(e)))
             log.info("Closing pool, joining threads.")
             pool.close()
             pool.join()

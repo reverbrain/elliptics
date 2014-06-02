@@ -148,8 +148,7 @@ if __name__ == '__main__':
     try:
         ctx.chunk_size = int(options.chunk_size)
     except Exception, e:
-        raise ValueError("Can't parse chunk_size: '{}': {}"
-                         .format(options.chunk_size, e))
+        raise ValueError("Can't parse chunk_size: '{}': {}".format(options.chunk_size, repr(e)))
 
     ctx.tmp_dir = options.tmp_dir.replace('%TYPE%', recovery_type)
     if not os.path.exists(ctx.tmp_dir):
@@ -157,7 +156,8 @@ if __name__ == '__main__':
             os.makedirs(ctx.tmp_dir, 0755)
             log.warning("Created tmp directory: {0}".format(ctx.tmp_dir))
         except Exception as e:
-            raise ValueError("Directory: {0} does not exist and could not be created: {1}".format(ctx.tmp_dir, e))
+            raise ValueError("Directory: {} does not exist and could not be created: {}"
+                             .format(ctx.tmp_dir, repr(e)))
     os.chdir(ctx.tmp_dir)
     log.info("Using tmp directory: {0}".format(ctx.tmp_dir))
 
@@ -215,8 +215,8 @@ if __name__ == '__main__':
         else:
             ctx.groups = None
     except Exception as e:
-        raise ValueError("Can't parse grouplist: '{0}': {1}".format(
-            options.elliptics_groups, repr(e)))
+        raise ValueError("Can't parse grouplist: '{0}': {1}"
+                         .format(options.elliptics_groups, repr(e)))
     if not ctx.groups:
         raise ValueError("No group was specified")
     log.info("Using group list: {0}".format(ctx.groups))
@@ -227,8 +227,8 @@ if __name__ == '__main__':
         try:
             ctx.timestamp = Time.from_string(options.timestamp)
         except Exception as e:
-            raise ValueError("Can't parse timestamp: '{0}': {1}".format(
-                options.timestamp, repr(e)))
+            raise ValueError("Can't parse timestamp: '{0}': {1}"
+                             .format(options.timestamp, repr(e)))
     log.info("Using timestamp: {0}".format(ctx.timestamp))
 
     try:
@@ -236,8 +236,8 @@ if __name__ == '__main__':
         if ctx.batch_size <= 0:
             raise ValueError("Batch size should be positive: {0}".format(ctx.batch_size))
     except Exception as e:
-        raise ValueError("Can't parse batchsize: '{0}': {1}".format(
-            options.batch_size, repr(e)))
+        raise ValueError("Can't parse batchsize: '{0}': {1}"
+                         .format(options.batch_size, repr(e)))
     log.info("Using batch_size: {0}".format(ctx.batch_size))
 
     try:
@@ -245,8 +245,8 @@ if __name__ == '__main__':
         if ctx.nprocess <= 0:
             raise ValueError("Number of processes should be positive: {0}".format(ctx.nprocess))
     except Exception as e:
-        raise ValueError("Can't parse nprocess: '{0}': {1}".format(
-            options.nprocess, repr(e)))
+        raise ValueError("Can't parse nprocess: '{0}': {1}"
+                         .format(options.nprocess, repr(e)))
 
     try:
         ctx.attempts = int(options.attempts)
@@ -272,12 +272,14 @@ if __name__ == '__main__':
             except Exception:
                 pass
     except Exception as e:
-        raise ValueError("Can't parse monitor_port: '{0}': {1}".format(options.monitor_port, repr(e)))
+        raise ValueError("Can't parse monitor_port: '{0}': {1}"
+                         .format(options.monitor_port, repr(e)))
 
     try:
         ctx.wait_timeout = int(options.wait_timeout)
     except Exception as e:
-        raise ValueError("Can't parse wait_timeout: '{0}': {1}".format(options.wait_timeout, repr(e)))
+        raise ValueError("Can't parse wait_timeout: '{0}': {1}"
+                         .format(options.wait_timeout, repr(e)))
 
     log.info("Initializing monitor")
     ctx.monitor = Monitor(ctx, ctx.monitor_port)
@@ -293,7 +295,7 @@ if __name__ == '__main__':
         log.info("Starting cleanup...")
         cleanup(ctx.tmp_dir)
     except Exception as e:
-        log.error("Cleanup failed: {0}".format(e))
+        log.error("Cleanup failed: {}".format(repr(e)))
 
     log.debug("Using following context:\n{0}".format(ctx))
 
