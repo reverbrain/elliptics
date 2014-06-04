@@ -189,6 +189,9 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 
 		const int shard_id = dnet_indexes_get_shard_id(node, &key(indexes_id).raw_id());
 
+		request->shard_id = shard_id;
+		request->shard_count = dnet_node_get_indexes_shard_count(node);
+
 		for (size_t i = 0; i < indexes.size(); ++i) {
 			const index_entry &index = indexes[i];
 

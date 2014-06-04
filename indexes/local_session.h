@@ -46,7 +46,8 @@ class local_session
 		ioremap::elliptics::data_pointer lookup(const dnet_cmd &cmd, int *errp);
 		int remove(const dnet_id &id);
 
-		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::data_pointer &data, uint32_t action);
+		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::data_pointer &data,
+			uint32_t action, uint32_t shard_id, uint32_t shard_count);
 
 	private:
 		void clear_queue(int *errp = NULL);

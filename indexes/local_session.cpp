@@ -269,7 +269,8 @@ int local_session::remove(const dnet_id &id)
 	return err;
 }
 
-int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const data_pointer &data, uint32_t action)
+int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const data_pointer &data,
+	uint32_t action, uint32_t shard_id, uint32_t shard_count)
 {
 	struct timeval start, end;
 
@@ -284,6 +285,8 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 
 	request.id = id;
 	request.entries_count = 1;
+	request.shard_id = shard_id;
+	request.shard_count = shard_count;
 
 	buffer.write(request);
 

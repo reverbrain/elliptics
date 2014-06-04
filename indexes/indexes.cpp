@@ -293,7 +293,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 			dnet_indexes_transform_index_id(state->n, &entry.index, &tmp_entry_id, shard_id);
 
-			err = sess.update_index_internal(request_id, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_INSERT);
+			err = sess.update_index_internal(request_id, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_INSERT, shard_id, indexes.shard_count);
 
 			result_entry.status = err;
 			result_entry.id = tmp_entry_id;
@@ -309,7 +309,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 			dnet_indexes_transform_index_id(state->n, &entry.index, &tmp_entry_id, shard_id);
 
-			err = sess.update_index_internal(request_id, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_REMOVE);
+			err = sess.update_index_internal(request_id, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_REMOVE, shard_id, indexes.shard_count);
 
 			result_entry.status = err;
 			result_entry.id = tmp_entry_id;
