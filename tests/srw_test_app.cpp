@@ -63,7 +63,7 @@ void app_context::init(const std::string &, const std::vector<std::string> &chun
 	result.connect(std::bind(noop_function, response));
 }
 
-void app_context::echo(const std::string &cocaine_event, const std::vector<std::string> &chunks, cocaine::framework::response_ptr response)
+void app_context::echo(const std::string &event, const std::vector<std::string> &chunks, cocaine::framework::response_ptr response)
 {
 	if (!reply_client) {
 		response->error(-EINVAL, "I'm not inited yet");
@@ -71,14 +71,6 @@ void app_context::echo(const std::string &cocaine_event, const std::vector<std::
 	}
 
 	elliptics::exec_context context = elliptics::exec_context::from_raw(chunks[0].c_str(), chunks[0].size());
-
-	std::string app;
-	std::string event;
-	{
-		char *p = strchr((char*)cocaine_event.c_str(), '@');
-		app.assign(cocaine_event.c_str(), p - cocaine_event.c_str());
-		event.assign(p + 1);
-	}
 
 	COCAINE_LOG_INFO(log, "event: %s, data-size: %ld", event.c_str(), context.data().size());
 
