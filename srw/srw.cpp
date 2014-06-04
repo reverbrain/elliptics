@@ -554,7 +554,7 @@ class srw {
 					memcpy(sph->src.id, cmd->id.id, sizeof(sph->src.id));
 				}
 
-				cocaine::api::event_t cevent(event);
+				cocaine::api::event_t cevent(ev);
 
 				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);

@@ -30,8 +30,8 @@ app_context::app_context(cocaine::framework::dispatch_t& dispatch)
 	, log(dispatch.service_manager()->get_system_logger())
 {
 	COCAINE_LOG_INFO(log, "%s, registering event handler(s)", id.c_str());
-	dispatch.on("dnet_cpp_srw_test_app@echo", this, &app_context::echo);
-	dispatch.on("dnet_cpp_srw_test_app@init", this, &app_context::init);
+	dispatch.on("echo", this, &app_context::echo);
+	dispatch.on("init", this, &app_context::init);
 
 	COCAINE_LOG_INFO(log, "%s, application started", id.c_str());
 }
