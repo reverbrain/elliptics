@@ -1587,36 +1587,10 @@ int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
 	return dnet_request_cmd_id(s, id, &ctl);
 }
 
-struct dnet_request_cmd_priv {
-	struct dnet_wait	*w;
-
-	int 			(* complete)(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv);
-	void			*priv;
-};
-
-static int dnet_request_cmd_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
-{
-	struct dnet_request_cmd_priv *p = priv;
-	int err = p->complete(state, cmd, p->priv);
-
-	if (is_trans_destroyed(state, cmd)) {
-		struct dnet_wait *w = p->w;
-
-		dnet_wakeup(w, w->cond++);
-		if (atomic_read(&w->refcnt) == 1)
-			free(p);
-		dnet_wait_put(w);
-	}
-
-	return err;
-}
-
 int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 {
 	struct dnet_node *n = s->node;
-	int err, num = 0;
-	struct dnet_request_cmd_priv *p;
-	struct dnet_wait *w;
+	int num = 0;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
 	struct timeval start, end;
@@ -1624,32 +1598,11 @@ int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 
 	gettimeofday(&start, NULL);
 
-	p = malloc(sizeof(*p));
-	if (!p) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	w = dnet_wait_alloc(0);
-	if (!w) {
-		err = -ENOMEM;
-		goto err_out_free;
-	}
-
-	p->w = w;
-	p->complete = ctl->complete;
-	p->priv = ctl->priv;
-
-	ctl->complete = dnet_request_cmd_complete;
-	ctl->priv = p;
-
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
 			if (st == n->st)
 				continue;
-
-			dnet_wait_get(w);
 
 			ctl->id.group_id = g->group_id;
 
@@ -1661,25 +1614,11 @@ int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
-
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_NOTICE, "request cmd: %s: %ld usecs, wait_error: %d, num: %d.\n", dnet_cmd_string(ctl->cmd), diff, err, num);
+	dnet_log(n, DNET_LOG_NOTICE, "request cmd: %s: %ld usecs, num: %d.\n", dnet_cmd_string(ctl->cmd), diff, num);
 
-	if (!err)
-		err = num;
-
-	if (atomic_read(&w->refcnt) == 1)
-		free(p);
-	dnet_wait_put(w);
-
-	return err;
-
-err_out_free:
-	free(p);
-err_out_exit:
-	return err;
+	return num;
 }
 
 struct dnet_update_status_priv {
@@ -1698,8 +1637,9 @@ int dnet_request_cmd_id(struct dnet_session *s, struct dnet_id *id, struct dnet_
 			return err;
 		else
 			return 1;
-	} else
+	} else {
 		return dnet_request_cmd(s, ctl);
+	}
 }
 
 static int dnet_update_status_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
