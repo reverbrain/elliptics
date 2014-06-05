@@ -17,7 +17,7 @@ BuildRequires:	libcocaine-core2-devel >= 0.11.2.0
 BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
 BuildRequires:	eblob-devel >= 0.21.40
 BuildRequires:	react-devel >= 2.3.1
-BuildRequires:	libev-devel
+BuildRequires:	libev-devel libtool-ltdl-devel
 BuildRequires:	cmake msgpack-devel libblackhole-devel python-msgpack
 
 %define boost_ver %{nil}
