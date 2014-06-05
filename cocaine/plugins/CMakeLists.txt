@@ -4,7 +4,7 @@ ADD_LIBRARY(elliptics-extensions MODULE
         ../include/cocaine/services/elliptics_storage.hpp)
 
 INCLUDE_DIRECTORIES(../include)
-TARGET_LINK_LIBRARIES(elliptics-extensions ${COCAINE_LIBRARIES} elliptics_client elliptics_cpp)
+TARGET_LINK_LIBRARIES(elliptics-extensions ${COCAINE_LIBRARIES} elliptics_client elliptics_cpp json)
 
 SET_TARGET_PROPERTIES(elliptics-extensions PROPERTIES
         PREFIX ""
@@ -12,7 +12,7 @@ SET_TARGET_PROPERTIES(elliptics-extensions PROPERTIES
 )
 
 INSTALL(TARGETS elliptics-extensions
-        LIBRARY DESTINATION lib/cocaine
+        LIBRARY DESTINATION lib${LIB_SUFFIX}/cocaine
         COMPONENT runtime)
 INSTALL(
         DIRECTORY
