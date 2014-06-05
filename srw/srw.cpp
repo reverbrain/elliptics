@@ -421,6 +421,13 @@ class srw {
 			id_str[2 * DNET_DUMP_NUM] = '\0';
 			sph_str[2 * DNET_DUMP_NUM] = '\0';
 
+			/*!
+			 * Elliptics' event always looks like "application@method", where application
+			 * is a name of \a application which \a method we should call.
+			 *
+			 * Afterwards we are able to find this application in our local dictionary
+			 * and call it's method with data extracted from \a sph structure.
+			 */
 			char *ptr = strchr((char *)event.c_str(), '@');
 			if (!ptr) {
 				dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: invalid event name: "
