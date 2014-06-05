@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.14
+Version:	2.25.4.15
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -142,6 +142,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jun 05 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.15
+- srw: Added commentary about event's naming
+- library: made dnet_request_cmd() non-blocking
+- rpm: Enable build with Cocaine
+- srw: Removed app@ part from Cocaine event
+- tests: Check status code for every entry in bulk_write
+- tests: Don't use ports from ip_local_port_range
+
 * Tue May 20 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.14
 - build: depend on 0.21.40+ eblob to force double eblob size reservation
 - io: do not proceed IO command to backend if cache-only IO flag has been set
