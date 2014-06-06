@@ -22,7 +22,7 @@ BuildRequires:	cmake msgpack-devel libblackhole-devel python-msgpack
 
 %define boost_ver %{nil}
 
-BuildRequires:	boost%{boost_ver}-devel, boost%{boost_ver}-iostreams, boost%{boost_ver}-python, boost%{boost_ver}-system, boost%{boost_ver}-thread, boost%{boost_ver}-filesystem
+BuildRequires:	boost%{boost_ver}-devel
 BuildRequires:	python-virtualenv
 
 Obsoletes: srw
