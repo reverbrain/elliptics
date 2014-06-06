@@ -1,3 +1,13 @@
+elliptics (2.25.4.16) unstable; urgency=low
+
+  * spec: do not require boost libraries, they will be populated from devel package version
+  * debian: do not install libelliptics_cocaine.so.*, it is being built statically now
+  * Don't link with json
+  * spec: added libtool-ltdl-devel dependency for cocaine
+  * spec: added libev dependency for cocaine
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 06 Jun 2014 19:29:21 +0400
+
 elliptics (2.25.4.15) unstable; urgency=low
 
   * srw: Added commentary about event's naming

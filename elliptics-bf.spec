@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.15
+Version:	2.25.4.16
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jun 06 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.16
+- spec: do not require boost libraries, they will be populated from devel package version
+- debian: do not install libelliptics_cocaine.so.*, it is being built statically now
+- Don't link with json
+- spec: added libtool-ltdl-devel dependency for cocaine
+- spec: added libev dependency for cocaine
+
 * Thu Jun 05 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.15
 - srw: Added commentary about event's naming
 - library: made dnet_request_cmd() non-blocking
