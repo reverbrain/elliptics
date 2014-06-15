@@ -253,6 +253,11 @@ struct find_indexes_result_entry
 	std::vector<index_entry> indexes;
 };
 
+struct get_index_metadata_result_entry
+{
+	size_t index_size;
+};
+
 typedef async_result<callback_result_entry> async_generic_result;
 typedef std::vector<callback_result_entry> sync_generic_result;
 
@@ -290,6 +295,9 @@ typedef async_result<find_indexes_result_entry> async_find_indexes_result;
 typedef std::vector<find_indexes_result_entry> sync_find_indexes_result;
 typedef async_result<index_entry> async_list_indexes_result;
 typedef std::vector<index_entry> sync_list_indexes_result;
+
+typedef async_result<get_index_metadata_result_entry> async_get_index_metadata_result;
+typedef std::vector<get_index_metadata_result_entry> sync_get_index_metadata_result;
 
 static inline bool operator <(const dnet_raw_id &a, const dnet_raw_id &b)
 {

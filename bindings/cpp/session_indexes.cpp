@@ -684,4 +684,132 @@ async_list_indexes_result session::list_indexes(const key &request_id)
 	return result;
 }
 
+bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit) {
+	char *start_ptr = static_cast<char *>(ctx->buf);
+	char *ptr = start_ptr;
+	while (ptr && limit) {
+		++ptr;
+		--limit;
+	}
+	if (limit != 0) {
+		return false;
+	}
+	memcpy(data, start_ptr, ptr - start_ptr);
+	ctx->buf = ptr;
+	return true;
+}
+
+uint32_t get_index_size(const std::string &index_metadata) {
+	cmp_ctx_t cmp;
+
+	char *buffer = new char[index_metadata.size() + 1];
+	strcpy(buffer, index_metadata.data());
+
+	cmp_init(&cmp, buffer, buffer_reader, NULL);
+
+	uint32_t array_size;
+	if (cmp_read_array(&cmp, &array_size)) {
+		/* std::cerr << "array_size: " << array_size << std::endl; */
+	} else {
+		std::cerr << "Failed to read array_size" << std::endl;
+	}
+
+	int32_t version;
+	if (cmp_read_int(&cmp, &version)) {
+		/* std::cerr << "version: " << version << std::endl; */
+	} else {
+		std::cerr << "Failed to read version" << std::endl;
+	}
+
+	if (cmp_read_array(&cmp, &array_size)) {
+		/* std::cerr << "array_size: " << array_size << std::endl; */
+	} else {
+		std::cerr << "Failed to read array_size" << std::endl;
+	}
+
+	delete buffer;
+	return array_size;
+}
+
+struct get_index_metadata_callback
+{
+	session sess;
+	async_result_handler<get_index_metadata_result_entry> handler;
+
+	void operator() (const std::vector<read_result_entry> &result, const error_info &error)
+	{
+		if (error) {
+			handler.complete(error);
+			return;
+		} else if (result.empty()) {
+			handler.complete(create_error(-ENOENT, "get_index_metadata failed"));
+			return;
+		}
+
+		get_index_metadata_result_entry metadata;
+		read_result_entry r;
+		for (auto it = result.begin(); it != result.end(); ++it) {
+			metadata.index_size += get_index_size(it->file().to_string());
+		}
+		handler.process(metadata);
+
+		handler.complete(error);
+	}
+};
+
+async_get_index_metadata_result session::get_index_metadata(const dnet_raw_id &index)
+{
+	session sess = clone();
+	sess.set_exceptions_policy(session::no_exceptions);
+	sess.set_filter(filters::positive);
+	sess.set_checker(checkers::no_check);
+
+	dnet_node *node = sess.get_native_node();
+	int shard_count = node->indexes_shard_count;
+
+	/*
+	 * Prepare indexes ids for bulk_read request
+	 */
+	std::vector<dnet_io_attr> request_io_attrs;
+	request_io_attrs.resize(shard_count);
+
+	/*
+	 * index_requests_set contains all requests we have to send for this bulk-request.
+	 * All indexes a splitted for shards, so we have to send separate logical request
+	 * to certain shard for all indexes. This logical requests may be joined to one
+	 * transaction if some of shards are situated on one elliptics node.
+	 */
+	dnet_raw_id tmp;
+
+	dnet_indexes_transform_index_prepare(node, &index, &tmp);
+
+	for (int shard_id = 0; shard_id < shard_count; ++shard_id) {
+		dnet_raw_id id;
+
+		memcpy(&id, &tmp, sizeof(dnet_raw_id));
+		dnet_indexes_transform_index_id_raw(node, &id, shard_id);
+
+		dnet_io_attr &io = request_io_attrs[shard_id];
+
+		io.size   = 100;
+		io.offset = 0;
+		io.flags  = get_ioflags();
+		memcpy(io.id, id.id, DNET_ID_SIZE);
+		memcpy(io.parent, id.id, DNET_ID_SIZE);
+	}
+
+	async_get_index_metadata_result result(*this);
+	get_index_metadata_callback callback = { sess, result };
+	sess.bulk_read(request_io_attrs).connect(callback);
+
+	return result;
+}
+
+async_get_index_metadata_result session::get_index_metadata(const std::string &index)
+{
+	dnet_raw_id raw_index;
+	transform(index, raw_index);
+	return get_index_metadata(raw_index);
+}
+
 } } // ioremap::elliptics

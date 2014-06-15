@@ -29,6 +29,10 @@
 #include <sstream>
 #include <thread>
 
+extern "C" {
+#include "foreign/cmp/cmp.h"
+}
+
 //#ifdef DEVELOPER_BUILD
 //#  define elliptics_assert(expr) assert(expr)
 //#else
@@ -1099,7 +1103,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 		{
 			elliptics_assert(cb.is_ready());
 			debug("INDEXES_FIND, callback: %p, index_requests_set.size: %zu, group_index: %zu, group_count: %zu",
-			      this, index_requests_set.size(), m_group_index, groups.size());
+				  this, index_requests_set.size(), m_group_index, groups.size());
 			// all results are found or all groups are iterated
 			return index_requests_set.empty() || (m_group_index == groups.size());
 		}

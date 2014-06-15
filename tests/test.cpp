@@ -254,6 +254,31 @@ static void test_more_indexes(session &sess)
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), indexes.size());
 }
 
+static void test_indexes_metadata(session &sess)
+{
+	std::string index = "index";
+	std::vector<std::string> indexes;
+	indexes.push_back(index);
+
+	std::vector<data_pointer> data(indexes.size());
+
+	std::vector<std::string> keys;
+	for (size_t i = 0; i < 256; ++i) {
+		keys.push_back("key-" + boost::lexical_cast<std::string>(i));
+	}
+
+	for (auto it = keys.begin(); it != keys.end(); ++it) {
+		std::string key = *it;
+		ELLIPTICS_REQUIRE(clear_indexes_result, sess.set_indexes(key, std::vector<std::string>(), std::vector<data_pointer>()));
+		ELLIPTICS_REQUIRE(set_indexes_result, sess.set_indexes(key, indexes, data));
+	}
+
+	ELLIPTICS_REQUIRE(get_index_metadata_result, sess.get_index_metadata(index));
+	sync_get_index_metadata_result metadata = get_index_metadata_result.get();
+
+	BOOST_REQUIRE_EQUAL(metadata[0].index_size, keys.size());
+}
+
 static void test_error(session &s, const std::string &id, int err)
 {
 	ELLIPTICS_REQUIRE_ERROR(read_result, s.read_data(id, 0, 0), err);
@@ -897,6 +922,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_recovery, create_session(n, {1, 2}, 0, 0), "recovery-id", "recovered-data");
 	ELLIPTICS_TEST_CASE(test_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_more_indexes, create_session(n, {1, 2}, 0, 0));
+	ELLIPTICS_TEST_CASE(test_indexes_metadata, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {99}, 0, 0), "non-existen-key", -ENXIO);
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {1, 2}, 0, 0), "non-existen-key", -ENOENT);
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, 0), "2.xml", "lookup data");
