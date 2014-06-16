@@ -684,6 +684,9 @@ async_list_indexes_result session::list_indexes(const key &request_id)
 	return result;
 }
 
+/*!
+ * Auxiliary function to parse char* buffer with c-msgpack library
+ */
 bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit)
 {
 	char *start_ptr = static_cast<char *>(ctx->buf);
@@ -700,6 +703,16 @@ bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit)
 	return true;
 }
 
+/*!
+ * Structure of secondary index msgpack is following
+ * Array of 4 elements
+ * Version number
+ * Array of indexes
+ *
+ * We need to get size of indexes array, that's why we
+ * skip first two fields in msgpack and return size
+ * of array in third position of msgpack
+ */
 uint32_t get_index_size(const std::string &index_metadata, int &err)
 {
 	err = 0;
@@ -731,6 +744,13 @@ uint32_t get_index_size(const std::string &index_metadata, int &err)
 	return array_size;
 }
 
+/*!
+ * \brief Callback that handles bulk_read responses
+ *
+ * Each response corresponds to some shard
+ * We extract metadata from each shard index
+ * and put it into vector of answers
+ */
 struct get_index_metadata_callback
 {
 	session sess;
@@ -754,6 +774,9 @@ struct get_index_metadata_callback
 	}
 };
 
+/*!
+ * \brief Returns metadata for each shard for secondary index \a index
+ */
 async_get_index_metadata_result session::get_index_metadata(const dnet_raw_id &index)
 {
 	session sess = clone();
