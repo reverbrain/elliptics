@@ -235,8 +235,8 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 					break;
 				}
 
-				if (io->offset + io->size > d->size()) {
-					dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache: invalid offset/size: "
+				if (io->offset >= d->size()) {
+					dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache: invalid offset: "
 							"offset: %llu, size: %llu, cached-size: %zd\n",
 							dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
 							(unsigned long long)io->offset, (unsigned long long)io->size,
@@ -247,6 +247,8 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 				if (io->size == 0)
 					io->size = d->size() - io->offset;
+
+				io->size = std::min(io->size, d->size() - io->offset);
 
 				io->total_size = d->size();
 
