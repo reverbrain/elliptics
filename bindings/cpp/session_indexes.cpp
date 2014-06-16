@@ -684,7 +684,8 @@ async_list_indexes_result session::list_indexes(const key &request_id)
 	return result;
 }
 
-bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit) {
+bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit)
+{
 	char *start_ptr = static_cast<char *>(ctx->buf);
 	char *ptr = start_ptr;
 	while (ptr && limit) {
@@ -699,7 +700,9 @@ bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit) {
 	return true;
 }
 
-uint32_t get_index_size(const std::string &index_metadata) {
+uint32_t get_index_size(const std::string &index_metadata, int &err)
+{
+	err = 0;
 	cmp_ctx_t cmp;
 
 	char *buffer = new char[index_metadata.length() + 1];
@@ -708,23 +711,20 @@ uint32_t get_index_size(const std::string &index_metadata) {
 	cmp_init(&cmp, buffer, buffer_reader, NULL);
 
 	uint32_t array_size;
-	if (cmp_read_array(&cmp, &array_size)) {
-//		std::cerr << "array_size: " << array_size << std::endl;
-	} else {
-		std::cerr << "Failed to read array_size" << std::endl;
+	if (!cmp_read_array(&cmp, &array_size)) {
+		err = -EBADMSG;
+		return 0;
 	}
 
 	int32_t version;
-	if (cmp_read_int(&cmp, &version)) {
-//		std::cerr << "version: " << version << std::endl;
-	} else {
-		std::cerr << "Failed to read version" << std::endl;
+	if (!cmp_read_int(&cmp, &version)) {
+		err = -EBADMSG;
+		return 0;
 	}
 
-	if (cmp_read_array(&cmp, &array_size)) {
-//		std::cerr << "array_size: " << array_size << std::endl;
-	} else {
-		std::cerr << "Failed to read array_size" << std::endl;
+	if (!cmp_read_array(&cmp, &array_size)) {
+		err = -EBADMSG;
+		return 0;
 	}
 
 	delete buffer;
@@ -736,34 +736,15 @@ struct get_index_metadata_callback
 	session sess;
 	async_result_handler<get_index_metadata_result_entry> handler;
 
-	void operator() (const std::vector<read_result_entry> &result, const error_info &error)
-	{
-		if (error) {
-			handler.complete(error);
-			return;
-		} else if (result.empty()) {
-			handler.complete(create_error(-ENOENT, "get_index_metadata failed"));
-			return;
-		}
-
-		get_index_metadata_result_entry metadata;
-		metadata.index_size = 0;
-		for (auto it = result.begin(); it != result.end(); ++it) {
-			int shard_index_size = get_index_size(it->file().to_string().substr(DNET_INDEX_TABLE_MAGIC_SIZE));
-			metadata.index_size += shard_index_size;
-		}
-		handler.process(metadata);
-
-		handler.complete(error);
-	}
-
 	void operator() (const read_result_entry &result)
 	{
 		get_index_metadata_result_entry metadata;
-		metadata.index_size = 0;
 		std::string content =  result.file().to_string().substr(DNET_INDEX_TABLE_MAGIC_SIZE);
-		int shard_index_size = get_index_size(result.file().to_string().substr(DNET_INDEX_TABLE_MAGIC_SIZE));
-		metadata.index_size += shard_index_size;
+		int err = 0;
+		metadata.index_size = get_index_size(content, err);
+		if (err) {
+			sess.get_logger().print(DNET_LOG_ERROR, "get_index_metadata: Incorrect msgpack format: err: %d", err);
+		}
 		handler.process(metadata);
 	}
 

@@ -574,6 +574,14 @@ bool async_result_handler<find_indexes_result_entry>::check(error_info *error)
 	return true;
 }
 
+template <>
+bool async_result_handler<get_index_metadata_result_entry>::check(error_info *error)
+{
+	if (error)
+		*error = error_info();
+	return true;
+}
+
 template class async_result<callback_result_entry>;
 template class async_result<read_result_entry>;
 template class async_result<lookup_result_entry>;
