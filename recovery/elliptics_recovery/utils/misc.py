@@ -75,6 +75,7 @@ def worker_init():
     signal(SIGINT, SIG_IGN)
 
 
+# common class for collecting statistics of recovering one key
 class RecoverStat(object):
     def __init__(self):
         self.skipped = 0
@@ -160,12 +161,16 @@ class RecoverStat(object):
         ret.remove_old_bytes = a.remove_old_bytes + b.remove_old_bytes
         return ret
 
-
+# base class for direct operations with id from address in group
 class DirectOperation(object):
     def __init__(self, address, id, group, ctx, node, callback):
+        # creates new session
         self.session = elliptics.Session(node)
+        # turns off exceptions
         self.session.exceptions_policy = elliptics.core.exceptions_policy.no_exceptions
+        # makes session direct to the address
         self.session.set_direct_id(*address)
+        # sets groups
         self.session.groups = [group]
         self.id = id
         self.stats = RecoverStat()
@@ -180,8 +185,10 @@ class DirectOperation(object):
             self.async_result.wait()
 
 
+# class for looking up id directly from address via reading 1 byte of it
 class LookupDirect(DirectOperation):
     def run(self):
+        # read one byt of id
         self.async_result = self.session.read_data(self.id, offset=0, size=1)
         self.async_result.connect(self.onread)
 
@@ -190,6 +197,7 @@ class LookupDirect(DirectOperation):
             if error.code == -errno.ETIMEDOUT:
                 log.debug("Lookup key: {0} has been timed out: {1}"
                           .format(repr(self.id), error))
+                # if read failed with timeout - retry it predetermined number of times
                 if self.attempt < self.ctx.attempts:
                     old_timeout = self.session.timeout
                     self.session.timeout *= 2
@@ -211,6 +219,8 @@ class LookupDirect(DirectOperation):
             log.error("Onlookup exception: {}".format(repr(e)))
             self.callback(None, self.stats)
 
+
+# class for removing id directly from address
 class RemoveDirect(DirectOperation):
     def run(self):
         self.async_result = self.session.remove(self.id)
@@ -221,6 +231,7 @@ class RemoveDirect(DirectOperation):
             if error.code:
                 log.debug("Remove key: {0} on node: {1} has been failed: {2}"
                           .format(self.id, self.address, repr(error)))
+                # if removing filed - retry it predetermined number of times
                 if self.attempt < self.ctx.attempts:
                     old_timeout = self.session.timeout
                     self.session.timeout *= 2

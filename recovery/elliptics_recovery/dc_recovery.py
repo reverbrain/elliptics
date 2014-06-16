@@ -30,6 +30,7 @@ from elliptics import Address
 
 log = logging.getLogger()
 
+# current version of index file format. All merged index files will have this version
 INDEX_VERSION = 2
 
 
@@ -132,8 +133,10 @@ def merge_index_shards(results):
     elif len(shards) == 1:
         return magic_string + msgpack.dumps(shards[0])
 
+    # shard_info = (shard #, total number of shards)
     shard_info = (shards[0][2], shards[0][3])
 
+    # checks that all merging shards have known version and have same shard # and total number of shards
     if not all(s[0] <= INDEX_VERSION and (s[2], s[3]) == shard_info for s in shards):
         log.error("Could not merge index shards: shards are incompatible: [(version, shard#, shards_count)]: {}"
                   .format([(s[0], s[2], s[3]) for s in shards]))
@@ -147,6 +150,7 @@ def merge_index_shards(results):
 
     final = []
 
+    # use heap for merging keys from shards
     while heap:
         smallest = heapq.heappop(heap)
         if final and final[-1].id == smallest.top.id:
@@ -167,10 +171,13 @@ def merge_index_shards(results):
             pass
 
     final = tuple(f.pack() for f in final)
+    # makes merged shard of INDEX_VERSION with merged key and
+    # meta info equal to merged shards infos (shard #, total number of shards)
     merged_shard = (INDEX_VERSION,
                     final,
                     shard_info[0],
                     shard_info[1])
+    # add magec_string before msgpacked shard
     return magic_string + msgpack.dumps(merged_shard)
 
 

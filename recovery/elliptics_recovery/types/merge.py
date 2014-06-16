@@ -43,7 +43,8 @@ import elliptics
 
 log = logging.getLogger(__name__)
 
-
+# class for recovering one key with (timestamp, size) from address to group with check or not
+# if callback is specified then it will be called when all work is done
 class Recovery(object):
     def __init__(self, key, timestamp, size, address, group, ctx, node, check=True, callback=None):
         self.key = key
@@ -63,6 +64,7 @@ class Recovery(object):
         self.total_size = size
         self.recovered_size = 0
         self.just_remove = False
+        # if size of object more that size of one chunk than file should be read/written in chunks
         self.chunked = self.total_size > self.ctx.chunk_size
         self.check = check
         self.callback = callback
@@ -97,8 +99,10 @@ class Recovery(object):
             log.debug("Reading key: {} from node: {}, chunked: {}"
                       .format(repr(self.key), self.address, self.chunked))
             if self.chunked:
+                # size of chunk that should be read/written next
                 size = min(self.total_size - self.recovered_size, self.ctx.chunk_size)
             if self.recovered_size != 0:
+                # if it is not first chunk then do not check checksum on read
                 self.direct_session.ioflags |= elliptics.io_flags.nocsum
             self.read_result = self.direct_session.read_data(self.key,
                                                              offset=self.recovered_size,
@@ -115,20 +119,24 @@ class Recovery(object):
                                                              self.dest_address))
             if self.chunked:
                 if self.recovered_size == 0:
+                    # if it is first chunk - write it via prepare
                     self.write_result = self.session.write_prepare(key=self.key,
                                                                    data=self.write_data,
                                                                    remote_offset=self.recovered_size,
                                                                    psize=self.total_size)
                 elif self.recovered_size + self.write_size < self.total_size:
+                    # if it is not last chunk - write it via write_plain
                     self.write_result = self.session.write_plain(key=self.key,
                                                                  data=self.write_data,
                                                                  remote_offset=self.recovered_size)
                 else:
+                    # if it is the last chunk - write it via write_commit
                     self.write_result = self.session.write_commit(key=self.key,
                                                                   data=self.write_data,
                                                                   remote_offset=self.recovered_size,
                                                                   csize=self.total_size)
             else:
+                # if object was not splitted by chunks then write it via write_data
                 self.write_result = self.session.write_data(key=self.key,
                                                             data=self.write_data,
                                                             offset=self.recovered_size)
@@ -141,6 +149,7 @@ class Recovery(object):
     def remove(self):
         if not self.ctx.safe:
             log.debug("Removing key: {0} from node: {1}".format(repr(self.key), self.address))
+            # remove object directly from address by using RemoveDirect
             self.remove_result = RemoveDirect(self.address,
                                               self.key,
                                               self.group,
@@ -488,14 +497,17 @@ def main(ctx):
     return ret
 
 
+# special recovery class that lookups id on all nodes in group
+# finds out newest version and reads/writes it to node where it should live.
 class DumpRecover(object):
     def __init__(self, routes, node, id, group, ctx):
         self.node = node
         self.id = id
-        self.routes = routes
+        self.routes = routes.filter_by_group_id(group)
         self.group = group
         self.ctx = ctx
         simple_session = elliptics.Session(node)
+        # determines node where the id lives
         self.address = simple_session.lookup_address(self.id, group)
         self.async_lookups = []
         self.async_removes = []
@@ -505,6 +517,7 @@ class DumpRecover(object):
 
     def run(self):
         self.lookup_results = []
+        # looks up for id on each node in group
         for addr in self.routes.addresses():
             self.async_lookups.append(LookupDirect(addr, self.id, self.group, self.ctx, self.node, self.onlookup))
             self.async_lookups[-1].run()
@@ -517,17 +530,23 @@ class DumpRecover(object):
             self.async_lookups = None
 
     def check(self):
+        # finds timestamp of newest object
         max_ts = max([r.timestamp for r in self.lookup_results if r])
         log.debug("Max timestamp of key: {}: {}".format(repr(self.id), max_ts))
+        # filters objects with newest timestamp
         results = [r for r in self.lookup_results if r and r.timestamp == max_ts]
+        # finds max size of newest object
         max_size = max([r.size for r in results])
         log.debug("Max size of latest replicas for key: {}: {}".format(repr(self.id), max_size))
+        # filters newest objects with max size
         results = [r.address for r in results if r.size == max_size]
         if self.address in results:
             log.debug("Node: {} already has the latest version of key:{}."
                       .format(self.address, repr(self.id), self.group))
+            # if destination node already has newest object then just remove key from unproper nodes
             self.remove()
         else:
+            # if destination node has outdated object - recovery it from one of filtered nodes
             self.timestamp = max_ts
             self.size = max_size
             self.recover_address = results[0]
@@ -553,6 +572,7 @@ class DumpRecover(object):
         self.remove()
 
     def remove(self):
+        # remove id from node with positive lookups but not from destination node and node that took a part in recovery
         addresses = [r.address for r in self.lookup_results if r and r.address not in [self.address, self.recover_address]]
         if addresses and not self.ctx.safe:
             log.debug("Removing key: {} from nodes: {}".format(repr(self.id), addresses))
@@ -593,9 +613,8 @@ class DumpRecover(object):
 def dump_process_group(group):
     log.debug("Processing group: {}".format(group))
     ctx = g_ctx
-    routes = ctx.routes.filter_by_group_id(group)
     stats = ctx.monitor.stats['group_{}'.format(group)]
-    if not routes:
+    if group not in ctx.routes.groups():
         log.error("Group: {} is not presented in route list".format(group))
         return False
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
@@ -607,11 +626,12 @@ def dump_process_group(group):
                                  remotes=ctx.remotes)
     ret = True
     with open(ctx.dump_file, 'r') as dump:
+        #splits ids from dump file in batchs and recovers it
         for batch_id, batch in groupby(enumerate(dump), key=lambda x: x[0] / ctx.batch_size):
             recovers = []
             rs = RecoverStat()
             for _, val in batch:
-                rec = DumpRecover(routes=routes, node=node, id=elliptics.Id(val), group=group, ctx=ctx)
+                rec = DumpRecover(routes=ctx.routes, node=node, id=elliptics.Id(val), group=group, ctx=ctx)
                 recovers.append(rec)
                 rec.run()
             for r in recovers:
@@ -632,6 +652,7 @@ def dump_main(ctx):
     ret = True
 
     try:
+        # processes each group in separated process
         results = pool.map(dump_process_group, ctx.groups)
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")

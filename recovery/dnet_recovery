@@ -207,6 +207,8 @@ if __name__ == '__main__':
             ctx.remotes.append(Address.from_host_port_family(remote))
         except Exception as e:
             raise ValueError("Can't parse host:port:family: '{0}': {1}".format(remote, repr(e)))
+
+    # if one_node mode is on then use his address as a main otherwise use first from remotes
     if ctx.one_node:
         try:
             ctx.address = Address.from_host_port_family(options.one_node)
