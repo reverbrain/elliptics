@@ -276,7 +276,12 @@ static void test_indexes_metadata(session &sess)
 	ELLIPTICS_REQUIRE(get_index_metadata_result, sess.get_index_metadata(index));
 	sync_get_index_metadata_result metadata = get_index_metadata_result.get();
 
-	BOOST_REQUIRE_EQUAL(metadata[0].index_size, keys.size());
+	size_t total_index_size = 0;
+	for (size_t i = 0; i < metadata.size(); ++i) {
+		total_index_size += metadata[i].index_size;
+		BOOST_REQUIRE_GE(metadata[i].index_size, 0);
+	}
+	BOOST_REQUIRE_EQUAL(total_index_size, keys.size());
 }
 
 static void test_error(session &s, const std::string &id, int err)
