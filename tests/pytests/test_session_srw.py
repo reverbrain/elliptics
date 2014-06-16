@@ -163,3 +163,9 @@ class TestSession:
 
             #TODO: check if src_id isn't empty
             #assert r.context.src_id == key
+
+    @pytest.mark.skipif(pytest.config.option.without_cocaine,
+                        reason="COCAINE wasn't specified")
+    def test_exec_arg_event_could_be_positional(self, elliptics_client, elliptics_groups, server):
+        r = elliptics_client.exec_('some-id', EVENT, data=None).get()
+        assert isinstance(r, list) and len(r) == len(elliptics_groups)
