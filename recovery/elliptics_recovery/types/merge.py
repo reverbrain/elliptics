@@ -30,6 +30,7 @@ import logging
 
 from itertools import groupby
 from multiprocessing import Pool
+import traceback
 
 from ..etime import Time
 from ..utils.misc import elliptics_create_node, worker_init, RecoverStat, LookupDirect, RemoveDirect
@@ -96,7 +97,7 @@ class Recovery(object):
     def read(self):
         size = 0
         try:
-            log.debug("Reading key: {} from node: {}, chunked: {}"
+            log.debug("Reading key: {0} from node: {1}, chunked: {2}"
                       .format(repr(self.key), self.address, self.chunked))
             if self.chunked:
                 # size of chunk that should be read/written next
@@ -109,8 +110,8 @@ class Recovery(object):
                                                              size=size)
             self.read_result.connect(self.onread)
         except Exception, e:
-            log.error("Read key:{} by offset: {} and size: {} raised exception: {}"
-                      .format(self.key, self.recovered_size, size, repr(e)))
+            log.error("Read key: {0} by offset: {1} and size: {2} raised exception: {3}, traceback: {4}"
+                      .format(self.key, self.recovered_size, size, repr(e), traceback.format_exc()))
             self.result = False
 
     def write(self):
@@ -142,7 +143,8 @@ class Recovery(object):
                                                             offset=self.recovered_size)
             self.write_result.connect(self.onwrite)
         except Exception, e:
-            log.error("Write exception: {}".format(repr(e)))
+            log.error("Write exception: {0}, traceback: {1}"
+                      .format(repr(e), traceback.format_exc()))
             self.result = False
             raise e
 
@@ -183,7 +185,8 @@ class Recovery(object):
             self.attempt = 0
             self.read()
         except Exception as e:
-            log.error("Onlookup exception: {}".format(repr(e)))
+            log.error("Onlookup exception: {0}, traceback: {1}"
+                      .format(repr(e), traceback.format_exc()))
             self.result = False
             if self.callback:
                 self.callback(self.result, self.stats)
@@ -225,7 +228,8 @@ class Recovery(object):
             self.attempt = 0
             self.write()
         except Exception as e:
-            log.error("Onread exception: {}".format(repr(e)))
+            log.error("Onread exception: {0}, traceback: {1}"
+                      .format(repr(e), traceback.format_exc()))
             self.result = False
             if self.callback:
                 self.callback(self.result, self.stats)
@@ -269,7 +273,8 @@ class Recovery(object):
                           .format(repr(self.key), self.dest_address, self.address))
                 self.remove()
         except Exception as e:
-            log.error("Onwrite exception: {}".format(repr(e)))
+            log.error("Onwrite exception: {0}, traceback: {1}"
+                      .format(repr(e), traceback.format_exc()))
             self.result = False
             if self.callback:
                 self.callback(self.result, self.stats)
@@ -340,7 +345,8 @@ def iterate_node(ctx, node, address, ranges, eid, stats):
         stats.counter('iterations', 1)
         return result
     except Exception as e:
-        log.error("Iteration failed for: {}: {}".format(address, repr(e)))
+        log.error("Iteration failed for: {0}: {1}, traceback: {2}"
+                  .format(address, repr(e), traceback.format_exc()))
         stats.counter('iterations', -1)
         return None
 
@@ -480,7 +486,8 @@ def main(ctx):
             g_ctx.monitor.stats.timer('main', 'finished')
             return False
         except Exception as e:
-            log.error("Caught unexpected exception: {}".format(repr(e)))
+            log.error("Caught unexpected exception: {0}, traceback: {1}"
+                      .format(repr(e), traceback.format_exc()))
             log.info("Closing pool, joining threads.")
             pool.close()
             pool.join()
@@ -532,16 +539,16 @@ class DumpRecover(object):
     def check(self):
         # finds timestamp of newest object
         max_ts = max([r.timestamp for r in self.lookup_results if r])
-        log.debug("Max timestamp of key: {}: {}".format(repr(self.id), max_ts))
+        log.debug("Max timestamp of key: {0}: {1}".format(repr(self.id), max_ts))
         # filters objects with newest timestamp
         results = [r for r in self.lookup_results if r and r.timestamp == max_ts]
         # finds max size of newest object
         max_size = max([r.size for r in results])
-        log.debug("Max size of latest replicas for key: {}: {}".format(repr(self.id), max_size))
+        log.debug("Max size of latest replicas for key: {0}: {1}".format(repr(self.id), max_size))
         # filters newest objects with max size
         results = [r.address for r in results if r.size == max_size]
         if self.address in results:
-            log.debug("Node: {} already has the latest version of key:{}."
+            log.debug("Node: {0} already has the latest version of key: {1}."
                       .format(self.address, repr(self.id), self.group))
             # if destination node already has newest object then just remove key from unproper nodes
             self.remove()
@@ -550,7 +557,7 @@ class DumpRecover(object):
             self.timestamp = max_ts
             self.size = max_size
             self.recover_address = results[0]
-            log.debug("Node: {} has the newer version of key: {}. Recovering it on node: {}"
+            log.debug("Node: {0} has the newer version of key: {1}. Recovering it on node: {2}"
                       .format(self.recover_address, repr(self.id), self.address))
             self.recover()
 
@@ -575,20 +582,20 @@ class DumpRecover(object):
         # remove id from node with positive lookups but not from destination node and node that took a part in recovery
         addresses = [r.address for r in self.lookup_results if r and r.address not in [self.address, self.recover_address]]
         if addresses and not self.ctx.safe:
-            log.debug("Removing key: {} from nodes: {}".format(repr(self.id), addresses))
+            log.debug("Removing key: {0} from nodes: {1}".format(repr(self.id), addresses))
             for addr in addresses:
                 self.async_removes.append(RemoveDirect(addr, self.id, self.group, self.ctx, self.node, self.onremove))
                 self.async_removes[-1].run()
 
     def wait(self):
-        log.debug("Waiting lookup for key: {}".format(repr(self.id)))
+        log.debug("Waiting lookup for key: {0}".format(repr(self.id)))
         while hasattr(self, 'async_lookups') and self.async_lookups is not None:
             for r in self.async_lookups:
                 try:
                     self.r.wait()
                 except:
                     pass
-        log.debug("Lookup completed for key: {}".format(repr(self.id)))
+        log.debug("Lookup completed for key: {0}".format(repr(self.id)))
         if hasattr(self, 'recover_result'):
             self.recover_result.wait()
 
@@ -611,11 +618,11 @@ class DumpRecover(object):
 
 
 def dump_process_group(group):
-    log.debug("Processing group: {}".format(group))
+    log.debug("Processing group: {0}".format(group))
     ctx = g_ctx
-    stats = ctx.monitor.stats['group_{}'.format(group)]
+    stats = ctx.monitor.stats['group_{0}'.format(group)]
     if group not in ctx.routes.groups():
-        log.error("Group: {} is not presented in route list".format(group))
+        log.error("Group: {0} is not presented in route list".format(group))
         return False
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     node = elliptics_create_node(address=ctx.address,

@@ -21,6 +21,7 @@ import logging as log
 import sys
 import hashlib
 import errno
+import traceback
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -216,7 +217,8 @@ class LookupDirect(DirectOperation):
                 self.stats.lookup += 1
                 self.callback(results[0], self.stats)
         except Exception as e:
-            log.error("Onlookup exception: {}".format(repr(e)))
+            log.error("Onlookup exception: {0}, traceback: {1}"
+                      .format(repr(e), traceback.format_exc()))
             self.callback(None, self.stats)
 
 
@@ -254,6 +256,7 @@ class RemoveDirect(DirectOperation):
             #self.stats.removed_bytes += self.total_size
             self.callback(True, self.stats)
         except Exception as e:
-            log.error("Onremove exception: {}".format(repr(e)))
+            log.error("Onremove exception: {0}, traceback: {1}"
+                      .format(repr(e), traceback.format_exc()))
             self.result = False
             self.callback(False, self.stats)

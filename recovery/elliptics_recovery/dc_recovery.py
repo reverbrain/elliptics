@@ -13,13 +13,14 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-import pickle
+import cPickle as pickle
 import sys
 import logging
 import threading
 import os
 from itertools import groupby
 import struct
+import traceback
 
 from elliptics_recovery.utils.misc import elliptics_create_node
 
@@ -123,10 +124,13 @@ def merge_index_shards(results):
             try:
                 log.debug("Unpacking index shard size: {0}".format(r.size))
                 shard = msgpack.loads(r.data[8:])
+                log.debug("Unpacked shard has version: {0}, items: {1}, No: {2}/{3}"
+                          .format(shard[0], len(shard[1]), shard[2], shard[3]))
                 if shard[1]:
                     shards.append(shard)
             except Exception as e:
-                log.error("Could not to load msgpack string: {0}".format(repr(e)))
+                log.error("Could not to load msgpack string: {0}, traceback: {1}"
+                          .format(repr(e), traceback.format_exc()))
 
     if not shards:
         return None
@@ -138,7 +142,7 @@ def merge_index_shards(results):
 
     # checks that all merging shards have known version and have same shard # and total number of shards
     if not all(s[0] <= INDEX_VERSION and (s[2], s[3]) == shard_info for s in shards):
-        log.error("Could not merge index shards: shards are incompatible: [(version, shard#, shards_count)]: {}"
+        log.error("Could not merge index shards: shards are incompatible: [(version, shard#, shards_count)]: {0}"
                   .format([(s[0], s[2], s[3]) for s in shards]))
         return None
 
@@ -252,8 +256,8 @@ class KeyRecover(object):
                     results[0].data)
                 self.write_result.connect(self.on_write)
         except Exception as e:
-            log.error("Failed to handle origin key: {0}, exception: {1}"
-                      .format(self.key, repr(e)))
+            log.error("Failed to handle origin key: {0}, exception: {1}, traceback: {2}"
+                      .format(self.key, repr(e), traceback.format_exc()))
             self.complete.set()
 
     def on_read_merge(self, results, error):
@@ -276,20 +280,20 @@ class KeyRecover(object):
                 log.debug("Merging index shards from different groups")
                 data = merge_index_shards(self.data_to_merge)
                 self.stats.merged_indexes += 1
-                self.size_to_write = len(data)
                 if data:
+                    self.size_to_write = len(data)
                     io = elliptics.IoAttr()
                     io.id = self.key
                     io.timestamp = elliptics.Time.now()
                     self.write_session.groups = self.diff_groups \
                         .union(self.missed_groups) \
                         .union([self.origin_group])
-                    log.debug("Writing merged index shard: {}".format(self.key))
+                    log.debug("Writing merged index shard: {0}".format(self.key))
                     self.write_result = self.write_session.write_data(io, data)
                     self.write_result.connect(self.on_write)
         except Exception as e:
-            log.error("Failed to merge shards for key: {} exception: {}"
-                      .format(self.key, repr(e)))
+            log.error("Failed to merge shards for key: {0} exception: {1}, traceback: {2}"
+                      .format(self.key, repr(e), traceback.format_exc()))
             self.complete.set()
 
     def on_write(self, results, error):
@@ -305,8 +309,8 @@ class KeyRecover(object):
                 self.stats.written_bytes += self.size_to_write
             self.complete.set()
         except Exception as e:
-            log.error("Failed to handle write result key: {0}: {1}"
-                      .format(self.key, repr(e)))
+            log.error("Failed to handle write result key: {0}: {1}, traceback: {2}"
+                      .format(self.key, repr(e), traceback.format_exc()))
 
     def wait(self):
         if not self.complete.is_set():
@@ -461,8 +465,8 @@ if __name__ == '__main__':
             os.makedirs(ctx.tmp_dir, 0755)
             log.warning("Created tmp directory: {0}".format(ctx.tmp_dir))
         except Exception as e:
-            raise ValueError("Directory: {0} does not exist and could not be created: {1}"
-                             .format(ctx.tmp_dir, repr(e)))
+            raise ValueError("Directory: {0} does not exist and could not be created: {1}, traceback: {2}"
+                             .format(ctx.tmp_dir, repr(e), traceback.format_exc()))
     os.chdir(ctx.tmp_dir)
 
     try:
@@ -482,8 +486,8 @@ if __name__ == '__main__':
         fh.setLevel(logging.DEBUG)
         log.addHandler(fh)
     except Exception as e:
-        raise ValueError("Can't parse log_level: '{0}': {1}"
-                         .format(options.elliptics_log_level, repr(e)))
+        raise ValueError("Can't parse log_level: '{0}': {1}, traceback: {2}"
+                         .format(options.elliptics_log_level, repr(e), traceback.format_exc()))
     log.info("Using elliptics client log level: {0}".format(ctx.log_level))
 
     if options.elliptics_remote is None:
@@ -491,8 +495,8 @@ if __name__ == '__main__':
     try:
         ctx.address = Address.from_host_port_family(options.elliptics_remote)
     except Exception as e:
-        raise ValueError("Can't parse host:port:family: '{0}': {1}"
-                         .format(options.elliptics_remote, repr(e)))
+        raise ValueError("Can't parse host:port:family: '{0}': {1}, traceback: {2}"
+                         .format(options.elliptics_remote, repr(e), traceback.format_exc()))
     log.info("Using host:port:family: {0}".format(ctx.address))
 
     try:
@@ -501,8 +505,8 @@ if __name__ == '__main__':
         else:
             ctx.groups = []
     except Exception as e:
-        raise ValueError("Can't parse grouplist: '{0}': {1}"
-                         .format(options.elliptics_groups, repr(e)))
+        raise ValueError("Can't parse grouplist: '{0}': {1}, traceback: {2}"
+                         .format(options.elliptics_groups, repr(e), traceback.format_exc()))
 
     try:
         ctx.batch_size = int(options.batch_size)
@@ -510,15 +514,15 @@ if __name__ == '__main__':
             raise ValueError("Batch size should be positive: {0}"
                              .format(ctx.batch_size))
     except Exception as e:
-        raise ValueError("Can't parse batchsize: '{0}': {1}"
-                         .format(options.batch_size, repr(e)))
+        raise ValueError("Can't parse batchsize: '{0}': {1}, traceback: {2}"
+                         .format(options.batch_size, repr(e), traceback.format_exc()))
     log.info("Using batch_size: {0}".format(ctx.batch_size))
 
     try:
         ctx.wait_timeout = int(options.wait_timeout)
     except Exception as e:
-        raise ValueError("Can't parse wait_timeout: '{0}': {1}"
-                         .format(options.wait_timeout, repr(e)))
+        raise ValueError("Can't parse wait_timeout: '{0}': {1}, traceback: {2}"
+                         .format(options.wait_timeout, repr(e), traceback.format_exc()))
 
     log.debug("Creating logger")
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))

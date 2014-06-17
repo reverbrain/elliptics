@@ -31,6 +31,7 @@ import os
 import sys
 import logging
 import logging.handlers
+import traceback
 
 from elliptics_recovery.route import RouteList
 from elliptics_recovery.etime import Time
@@ -155,7 +156,8 @@ if __name__ == '__main__':
     try:
         ctx.chunk_size = int(options.chunk_size)
     except Exception, e:
-        raise ValueError("Can't parse chunk_size: '{}': {}".format(options.chunk_size, repr(e)))
+        raise ValueError("Can't parse chunk_size: '{0}': {1}, traceback: {2}"
+                         .format(options.chunk_size, repr(e), traceback.format_exc()))
 
     ctx.tmp_dir = options.tmp_dir.replace('%TYPE%', recovery_type)
     if not os.path.exists(ctx.tmp_dir):
@@ -163,8 +165,8 @@ if __name__ == '__main__':
             os.makedirs(ctx.tmp_dir, 0755)
             log.warning("Created tmp directory: {0}".format(ctx.tmp_dir))
         except Exception as e:
-            raise ValueError("Directory: {} does not exist and could not be created: {}"
-                             .format(ctx.tmp_dir, repr(e)))
+            raise ValueError("Directory: {0} does not exist and could not be created: {1}, traceback: {2}"
+                             .format(ctx.tmp_dir, repr(e), traceback.format_exc()))
     os.chdir(ctx.tmp_dir)
     log.info("Using tmp directory: {0}".format(ctx.tmp_dir))
 
@@ -183,8 +185,8 @@ if __name__ == '__main__':
         fh.setLevel(logging.DEBUG)
         log.addHandler(fh)
     except Exception as e:
-        raise ValueError("Can't parse log_level: '{0}': {1}"
-                         .format(options.elliptics_log_level, repr(e)))
+        raise ValueError("Can't parse log_level: '{0}': {1}, traceback: {2}"
+                         .format(options.elliptics_log_level, repr(e), traceback.format_exc()))
     log.info("Using elliptics client log level: {0}".format(ctx.log_level))
 
     try:
@@ -196,7 +198,8 @@ if __name__ == '__main__':
         else:
             log.info("Not using lock file")
     except Exception as e:
-        raise RuntimeError("Can't grab lock on: '{0}': {1}".format(options.lock, e))
+        raise RuntimeError("Can't grab lock on: '{0}': {1}, traceback: {2}"
+                           .format(options.lock, repr(e), traceback.format_exc()))
 
     if not options.remotes and not ctx.one_node:
         raise ValueError("At least one Elliptics node address should be given (-r option or -o).")
@@ -206,14 +209,16 @@ if __name__ == '__main__':
         try:
             ctx.remotes.append(Address.from_host_port_family(remote))
         except Exception as e:
-            raise ValueError("Can't parse host:port:family: '{0}': {1}".format(remote, repr(e)))
+            raise ValueError("Can't parse host:port:family: '{0}': {1}, traceback: {2}"
+                             .format(remote, repr(e), traceback.format_exc()))
 
     # if one_node mode is on then use his address as a main otherwise use first from remotes
     if ctx.one_node:
         try:
             ctx.address = Address.from_host_port_family(options.one_node)
         except Exception as e:
-            raise ValueError("Can't parse host:port:family: '{0}': {1}".format(remote, repr(e)))
+            raise ValueError("Can't parse host:port:family: '{0}': {1}, traceback: {2}"
+                             .format(remote, repr(e), traceback.format_exc()))
     elif ctx.remotes:
         ctx.address = ctx.remotes[0]
     log.info("Using host:port:family: {0}".format(ctx.address))
@@ -224,8 +229,8 @@ if __name__ == '__main__':
         else:
             ctx.groups = None
     except Exception as e:
-        raise ValueError("Can't parse grouplist: '{0}': {1}"
-                         .format(options.elliptics_groups, repr(e)))
+        raise ValueError("Can't parse grouplist: '{0}': {1}, traceback: {2}"
+                         .format(options.elliptics_groups, repr(e), traceback.format_exc()))
     if not ctx.groups:
         raise ValueError("No group was specified")
     log.info("Using group list: {0}".format(ctx.groups))
@@ -236,8 +241,8 @@ if __name__ == '__main__':
         try:
             ctx.timestamp = Time.from_string(options.timestamp)
         except Exception as e:
-            raise ValueError("Can't parse timestamp: '{0}': {1}"
-                             .format(options.timestamp, repr(e)))
+            raise ValueError("Can't parse timestamp: '{0}': {1}, traceback: {2}"
+                             .format(options.timestamp, repr(e), traceback.format_exc()))
     log.info("Using timestamp: {0}".format(ctx.timestamp))
 
     try:
@@ -245,8 +250,8 @@ if __name__ == '__main__':
         if ctx.batch_size <= 0:
             raise ValueError("Batch size should be positive: {0}".format(ctx.batch_size))
     except Exception as e:
-        raise ValueError("Can't parse batchsize: '{0}': {1}"
-                         .format(options.batch_size, repr(e)))
+        raise ValueError("Can't parse batchsize: '{0}': {1}, traceback: {2}"
+                         .format(options.batch_size, repr(e), traceback.format_exc()))
     log.info("Using batch_size: {0}".format(ctx.batch_size))
 
     try:
@@ -254,16 +259,16 @@ if __name__ == '__main__':
         if ctx.nprocess <= 0:
             raise ValueError("Number of processes should be positive: {0}".format(ctx.nprocess))
     except Exception as e:
-        raise ValueError("Can't parse nprocess: '{0}': {1}"
-                         .format(options.nprocess, repr(e)))
+        raise ValueError("Can't parse nprocess: '{0}': {1}, traceback: {2}"
+                         .format(options.nprocess, repr(e), traceback.format_exc()))
 
     try:
         ctx.attempts = int(options.attempts)
         if ctx.attempts <= 0:
             raise ValueError("Number of attempts should be positive: {0}".format(ctx.attempts))
     except Exception as e:
-        raise ValueError("Can't parse attempts: '{0}': {1}"
-                         .format(options.attempts, repr(e)))
+        raise ValueError("Can't parse attempts: '{0}': {1}, traceback: {2}"
+                         .format(options.attempts, repr(e), traceback.format_exc()))
 
     if options.stat not in ALLOWED_STATS:
         raise ValueError("Unknown output format: '{0}'. Available formats are: {1}".format(
@@ -281,14 +286,14 @@ if __name__ == '__main__':
             except Exception:
                 pass
     except Exception as e:
-        raise ValueError("Can't parse monitor_port: '{0}': {1}"
-                         .format(options.monitor_port, repr(e)))
+        raise ValueError("Can't parse monitor_port: '{0}': {1}, traceback: {2}"
+                         .format(options.monitor_port, repr(e), traceback.format_exc()))
 
     try:
         ctx.wait_timeout = int(options.wait_timeout)
     except Exception as e:
-        raise ValueError("Can't parse wait_timeout: '{0}': {1}"
-                         .format(options.wait_timeout, repr(e)))
+        raise ValueError("Can't parse wait_timeout: '{0}': {1}, traceback: {2}"
+                         .format(options.wait_timeout, repr(e), traceback.format_exc()))
 
     log.info("Initializing monitor")
     ctx.monitor = Monitor(ctx, ctx.monitor_port)
@@ -297,7 +302,8 @@ if __name__ == '__main__':
         log.info("Starting cleanup...")
         cleanup(ctx.tmp_dir)
     except Exception as e:
-        log.error("Cleanup failed: {}".format(repr(e)))
+        log.error("Cleanup failed: {0}, traceback: {1}"
+                  .format(repr(e), traceback.format_exc()))
 
     log.debug("Using following context:\n{0}".format(ctx))
 

@@ -22,7 +22,8 @@ from ..etime import Time
 from ..iterator import Iterator, MergeData, KeyInfo, IteratorResult
 
 import os
-import pickle
+import cPickle as pickle
+import traceback
 
 import elliptics
 
@@ -67,7 +68,8 @@ def iterate_node(arg):
             separately=True)
 
     except Exception as e:
-        log.error("Iteration failed for: {0}: {1}".format(address, repr(e)))
+        log.error("Iteration failed for: {0}: {1}, traceback: {2}"
+                  .format(address, repr(e), traceback.format_exc()))
         stats.counter('iterations', -1)
         return None
 
@@ -85,6 +87,7 @@ def iterate_node(arg):
 
 
 def transpose_results(results):
+    log.debug("Transposing iteration results from all nodes")
     result_tree = dict()
 
     # for each address iterator results
@@ -106,6 +109,9 @@ def merge_results(arg):
     ctx = g_ctx
 
     range_id, results = arg
+    log.debug("Merging iteration results of range: {0}".format(range_id))
+    stats = ctx.monitor.stats["merging_range_{0}".format(range_id)]
+    stats.timer('process', 'started')
     results = [IteratorResult.load_filename(
         filename=r[0],
         address=r[1],
@@ -139,6 +145,7 @@ def merge_results(arg):
                                            heap[0].value.user_flags))
                 same_datas.append(heapq.heappop(heap))
             pickler.dump(key_data)
+            stats.counter("merged_keys", 1)
             for i in same_datas:
                 try:
                     i.next()
@@ -146,6 +153,7 @@ def merge_results(arg):
                 except StopIteration:
                     pass
 
+    stats.timer('process', 'finished')
     return filename
 
 
@@ -173,7 +181,7 @@ def get_ranges(ctx):
 
     for i, rng in enumerate(ranges):
         for addr in rng[2]:
-            val = IdRange(rng[0], rng[1])
+            val = IdRange(rng[0], rng[1], range_id=i)
             if addr not in address_range:
                 address_range[addr] = []
             address_range[addr].append(val)
@@ -196,6 +204,7 @@ def main(ctx):
     pool = Pool(processes=processes, initializer=worker_init)
 
     ranges = get_ranges(ctx)
+    log.debug("Ranges: {0}".format(ranges))
     results = None
 
     try:
@@ -285,15 +294,15 @@ def lookup_keys(ctx):
                                              result.size,
                                              result.user_flags))
                 except Exception, e:
-                    log.error("Failed to lookup key: {} in group: {}: {}"
-                              .format(id, ctx.groups[i], repr(e)))
+                    log.error("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"
+                              .format(id, ctx.groups[i], repr(e), traceback.format_exc()))
                     stats.counter("lookups", -1)
             if len(key_infos) > 0:
                 key_data = (id, key_infos)
                 pickler.dump(key_data)
                 stats.counter("lookups", len(key_infos))
             else:
-                log.error("Key: {} is missing in all specified groups: {}. It won't be recovered."
+                log.error("Key: {0} is missing in all specified groups: {1}. It won't be recovered."
                           .format(id, ctx.groups))
     stats.timer('process', 'finished')
     return filename
