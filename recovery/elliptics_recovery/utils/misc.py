@@ -260,3 +260,11 @@ class RemoveDirect(DirectOperation):
                       .format(repr(e), traceback.format_exc()))
             self.result = False
             self.callback(False, self.stats)
+
+def dump_keys(keys, filapath):
+    '''
+    Saves keys to filepath
+    '''
+    with open(filapath, 'w') as dump:
+        for key in keys:
+            dump.write("{0}\n".format(key))

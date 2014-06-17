@@ -16,7 +16,7 @@
 
 import logging
 from multiprocessing import Pool
-from ..utils.misc import worker_init, elliptics_create_node
+from ..utils.misc import worker_init, elliptics_create_node, dump_keys
 from ..range import IdRange
 from ..etime import Time
 from ..iterator import Iterator, MergeData, KeyInfo, IteratorResult
@@ -188,6 +188,14 @@ def get_ranges(ctx):
 
     return address_range
 
+def merged_file_keys(filepath):
+    with open(filepath, 'r') as input_file:
+        try:
+            unpickler = pickle.Unpickler(input_file)
+            while True:
+                yield unpickler.load()[0]
+        except:
+            pass
 
 def main(ctx):
     global g_ctx
@@ -238,7 +246,12 @@ def main(ctx):
                 with open(res, 'r') as r_file:
                     m_file.write(r_file.read())
 
-    ctx.monitor.stats.timer('main', 'filter')
+    ctx.monitor.stats.timer('main', 'dump_keys')
+    dump_path = os.path.join(ctx.tmp_dir, 'dump')
+    log.debug("Dump iterated keys to file: {0}".format(dump_path))
+    dump_keys(merged_file_keys(ctx.merged_filename), dump_path)
+
+    ctx.monitor.stats.timer('main', 'recover')
     log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir:%s",
               ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
 

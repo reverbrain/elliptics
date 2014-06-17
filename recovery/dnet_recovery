@@ -61,7 +61,7 @@ STAT_NONE = 'none'
 STAT_TEXT = 'text'
 ALLOWED_STATS = (STAT_NONE, STAT_TEXT)
 
-TMP_FILE_PREFIXES = ['iterator_', 'diff_', 'merge_']
+TMP_FILE_PREFIXES = ['iterator_', 'diff_', 'merge']
 
 
 def cleanup(path):

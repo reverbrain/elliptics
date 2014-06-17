@@ -27,6 +27,7 @@ by placing them to the node where they belong.
 
 import sys
 import logging
+import os
 
 from itertools import groupby
 from multiprocessing import Pool
@@ -34,6 +35,7 @@ import traceback
 
 from ..etime import Time
 from ..utils.misc import elliptics_create_node, worker_init, RecoverStat, LookupDirect, RemoveDirect
+from ..utils.misc import dump_keys
 from ..route import RouteList
 from ..iterator import Iterator
 from ..range import IdRange
@@ -402,6 +404,11 @@ def process_node(address, group, ranges):
     if results is None or len(results) == 0:
         log.warning('Iterator result is empty, skipping')
         return True
+
+    stats.timer('process', 'dump_keys')
+    dump_path = os.path.join(ctx.tmp_dir, 'dump_{0}'.format(address))
+    log.debug("Dump iterated keys to file: {0}".format(dump_path))
+    dump_keys((r.key for r in results), dump_path)
 
     stats.timer('process', 'recover')
     ret = recover(ctx, address, group, node, results, stats)
