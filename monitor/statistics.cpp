@@ -81,6 +81,7 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 	if (m_cmd_info_current.size() >= 50000) {
 		std::unique_lock<std::mutex> swap_guard(m_cmd_info_previous_mutex);
 		m_cmd_info_current.swap(m_cmd_info_previous);
+		m_cmd_info_current.clear();
 	}
 
 	std::unique_lock<std::mutex> hist_guard(m_histograms_mutex);

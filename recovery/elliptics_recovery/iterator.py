@@ -25,6 +25,7 @@ from .utils.misc import logged_class, mk_container_name
 from .etime import Time
 from .range import IdRange
 from collections import namedtuple
+import traceback
 
 sys.path.insert(0, "bindings/python/")  # XXX
 import elliptics
@@ -63,7 +64,8 @@ class IteratorResult(object):
             if self.__file:
                 os.unlink(self.__file.name)
         except Exception as e:
-            self.log.error("Can't remove file: {0}: {1}".format(self.__file.name, e))
+            self.log.error("Can't remove file: {0}: {1}, traceback: {2}"
+                           .format(self.__file.name, repr(e), traceback.format_exc()))
 
     def __len__(self):
         return len(self.container)
@@ -313,7 +315,8 @@ class Iterator(object):
             else:
                 yield results[0]
         except Exception as e:
-            self.log.error("Iteration failed: {0}".format(e))
+            self.log.error("Iteration failed: {0}, traceback: {1}"
+                           .format(repr(e), traceback.format_exc()))
             yield None
 
 

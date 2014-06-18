@@ -16,13 +16,14 @@
 
 import logging
 from multiprocessing import Pool
-from ..utils.misc import worker_init, elliptics_create_node
+from ..utils.misc import worker_init, elliptics_create_node, dump_keys
 from ..range import IdRange
 from ..etime import Time
 from ..iterator import Iterator, MergeData, KeyInfo, IteratorResult
 
 import os
-import pickle
+import cPickle as pickle
+import traceback
 
 import elliptics
 
@@ -67,7 +68,8 @@ def iterate_node(arg):
             separately=True)
 
     except Exception as e:
-        log.error("Iteration failed for: {0}: {1}".format(address, repr(e)))
+        log.error("Iteration failed for: {0}: {1}, traceback: {2}"
+                  .format(address, repr(e), traceback.format_exc()))
         stats.counter('iterations', -1)
         return None
 
@@ -85,6 +87,7 @@ def iterate_node(arg):
 
 
 def transpose_results(results):
+    log.debug("Transposing iteration results from all nodes")
     result_tree = dict()
 
     # for each address iterator results
@@ -106,6 +109,9 @@ def merge_results(arg):
     ctx = g_ctx
 
     range_id, results = arg
+    log.debug("Merging iteration results of range: {0}".format(range_id))
+    stats = ctx.monitor.stats["merging_range_{0}".format(range_id)]
+    stats.timer('process', 'started')
     results = [IteratorResult.load_filename(
         filename=r[0],
         address=r[1],
@@ -139,6 +145,7 @@ def merge_results(arg):
                                            heap[0].value.user_flags))
                 same_datas.append(heapq.heappop(heap))
             pickler.dump(key_data)
+            stats.counter("merged_keys", 1)
             for i in same_datas:
                 try:
                     i.next()
@@ -146,6 +153,7 @@ def merge_results(arg):
                 except StopIteration:
                     pass
 
+    stats.timer('process', 'finished')
     return filename
 
 
@@ -173,13 +181,21 @@ def get_ranges(ctx):
 
     for i, rng in enumerate(ranges):
         for addr in rng[2]:
-            val = IdRange(rng[0], rng[1])
+            val = IdRange(rng[0], rng[1], range_id=i)
             if addr not in address_range:
                 address_range[addr] = []
             address_range[addr].append(val)
 
     return address_range
 
+def merged_file_keys(filepath):
+    with open(filepath, 'r') as input_file:
+        try:
+            unpickler = pickle.Unpickler(input_file)
+            while True:
+                yield unpickler.load()[0]
+        except:
+            pass
 
 def main(ctx):
     global g_ctx
@@ -196,6 +212,7 @@ def main(ctx):
     pool = Pool(processes=processes, initializer=worker_init)
 
     ranges = get_ranges(ctx)
+    log.debug("Ranges: {0}".format(ranges))
     results = None
 
     try:
@@ -229,7 +246,12 @@ def main(ctx):
                 with open(res, 'r') as r_file:
                     m_file.write(r_file.read())
 
-    ctx.monitor.stats.timer('main', 'filter')
+    ctx.monitor.stats.timer('main', 'dump_keys')
+    dump_path = os.path.join(ctx.tmp_dir, 'dump')
+    log.debug("Dump iterated keys to file: {0}".format(dump_path))
+    dump_keys(merged_file_keys(ctx.merged_filename), dump_path)
+
+    ctx.monitor.stats.timer('main', 'recover')
     log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir:%s",
               ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
 
@@ -238,14 +260,14 @@ def main(ctx):
 
     if ctx.custom_recover == '':
         from ..dc_recovery import recover
-        recover(ctx)
+        ret &= recover(ctx)
     else:
         import imp
         log.debug("Loading module: {0}".format(ctx.custom_recover))
         imp.acquire_lock()
         custom_recover = imp.load_source('custom_recover', ctx.custom_recover)
         imp.release_lock()
-        custom_recover.recover(ctx)
+        ret &= custom_recover.recover(ctx)
 
     ctx.monitor.stats.timer('main', 'finished')
     return ret
@@ -260,7 +282,8 @@ def lookup_keys(ctx):
                                  elog=ctx.elog,
                                  wait_timeout=ctx.wait_timeout,
                                  net_thread_num=1,
-                                 io_thread_num=1)
+                                 io_thread_num=1,
+                                 remotes=ctx.remotes)
     session = elliptics.Session(node)
     filename = os.path.join(ctx.tmp_dir, 'merged_result')
     merged_f = open(filename, 'w')
@@ -284,16 +307,15 @@ def lookup_keys(ctx):
                                              result.size,
                                              result.user_flags))
                 except Exception, e:
-                    log.error("Failed to lookup key: {} in group: {}: {}".format(id,
-                                                                                 ctx.groups[i],
-                                                                                 e))
+                    log.error("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"
+                              .format(id, ctx.groups[i], repr(e), traceback.format_exc()))
                     stats.counter("lookups", -1)
             if len(key_infos) > 0:
                 key_data = (id, key_infos)
                 pickler.dump(key_data)
                 stats.counter("lookups", len(key_infos))
             else:
-                log.error("Key: {} is missing in all specified groups: {}. It won't be recovered."
+                log.error("Key: {0} is missing in all specified groups: {1}. It won't be recovered."
                           .format(id, ctx.groups))
     stats.timer('process', 'finished')
     return filename

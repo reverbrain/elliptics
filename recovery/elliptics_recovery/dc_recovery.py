@@ -13,13 +13,14 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-import pickle
+import cPickle as pickle
 import sys
 import logging
 import threading
 import os
 from itertools import groupby
 import struct
+import traceback
 
 from elliptics_recovery.utils.misc import elliptics_create_node
 
@@ -29,6 +30,9 @@ import elliptics
 from elliptics import Address
 
 log = logging.getLogger()
+
+# current version of index file format. All merged index files will have this version
+INDEX_VERSION = 2
 
 
 class RecoverStat(object):
@@ -120,19 +124,27 @@ def merge_index_shards(results):
             try:
                 log.debug("Unpacking index shard size: {0}".format(r.size))
                 shard = msgpack.loads(r.data[8:])
+                log.debug("Unpacked shard has version: {0}, items: {1}, No: {2}/{3}"
+                          .format(shard[0], len(shard[1]), shard[2], shard[3]))
                 if shard[1]:
                     shards.append(shard)
             except Exception as e:
-                log.error("Could not to load msgpack string: {0}".format(e))
+                log.error("Could not to load msgpack string: {0}, traceback: {1}"
+                          .format(repr(e), traceback.format_exc()))
 
     if not shards:
         return None
     elif len(shards) == 1:
         return magic_string + msgpack.dumps(shards[0])
 
-    shard_info = (shards[0][0], shards[0][2], shards[0][3])
+    # shard_info = (shard #, total number of shards)
+    shard_info = (shards[0][2], shards[0][3])
 
-    assert all((s[0], s[2], s[3]) == shard_info for s in shards)
+    # checks that all merging shards have known version and have same shard # and total number of shards
+    if not all(s[0] <= INDEX_VERSION and (s[2], s[3]) == shard_info for s in shards):
+        log.error("Could not merge index shards: shards are incompatible: [(version, shard#, shards_count)]: {0}"
+                  .format([(s[0], s[2], s[3]) for s in shards]))
+        return None
 
     import heapq
     heap = []
@@ -142,6 +154,7 @@ def merge_index_shards(results):
 
     final = []
 
+    # use heap for merging keys from shards
     while heap:
         smallest = heapq.heappop(heap)
         if final and final[-1].id == smallest.top.id:
@@ -162,10 +175,13 @@ def merge_index_shards(results):
             pass
 
     final = tuple(f.pack() for f in final)
-    merged_shard = (shard_info[0],
+    # makes merged shard of INDEX_VERSION with merged key and
+    # meta info equal to merged shards infos (shard #, total number of shards)
+    merged_shard = (INDEX_VERSION,
                     final,
-                    shard_info[1],
-                    shard_info[2])
+                    shard_info[0],
+                    shard_info[1])
+    # add magec_string before msgpacked shard
     return magic_string + msgpack.dumps(merged_shard)
 
 
@@ -209,7 +225,7 @@ class KeyRecover(object):
         try:
             if error.code or len(results) < 1:
                 log.error("Read key: {0} from group: {1} has failed: {2}".
-                          format(repr(self.key), self.origin_group, error))
+                          format(self.key, self.origin_group, error))
                 self.stats.read_failed += 1
                 self.complete.set()
                 return
@@ -240,8 +256,8 @@ class KeyRecover(object):
                     results[0].data)
                 self.write_result.connect(self.on_write)
         except Exception as e:
-            log.error("Failed to handle origin key: {0}, exception: {1}"
-                      .format(repr(self.key), e))
+            log.error("Failed to handle origin key: {0}, exception: {1}, traceback: {2}"
+                      .format(self.key, repr(e), traceback.format_exc()))
             self.complete.set()
 
     def on_read_merge(self, results, error):
@@ -249,9 +265,7 @@ class KeyRecover(object):
         try:
             with self.merge_lock:
                 if error.code or len(results) < 1:
-                    log.error("Read key: {0} has failed: {2}".
-                              format(repr(self.key),
-                                     error))
+                    log.error("Read key: {0} has failed: {2}".format(self.key, error))
                     self.stats.read_failed += 1
                     self.data_to_merge.append(None)
                 else:
@@ -266,20 +280,20 @@ class KeyRecover(object):
                 log.debug("Merging index shards from different groups")
                 data = merge_index_shards(self.data_to_merge)
                 self.stats.merged_indexes += 1
-                self.size_to_write = len(data)
                 if data:
+                    self.size_to_write = len(data)
                     io = elliptics.IoAttr()
                     io.id = self.key
                     io.timestamp = elliptics.Time.now()
                     self.write_session.groups = self.diff_groups \
                         .union(self.missed_groups) \
                         .union([self.origin_group])
-                    log.debug("Writing merged")
+                    log.debug("Writing merged index shard: {0}".format(self.key))
                     self.write_result = self.write_session.write_data(io, data)
                     self.write_result.connect(self.on_write)
         except Exception as e:
-            log.error("Failed to merge shards for key: {0} exception: {1}"
-                      .format(repr(self.key), e))
+            log.error("Failed to merge shards for key: {0} exception: {1}, traceback: {2}"
+                      .format(self.key, repr(e), traceback.format_exc()))
             self.complete.set()
 
     def on_write(self, results, error):
@@ -287,7 +301,7 @@ class KeyRecover(object):
             if error.code:
                 self.stats.write_failed += 1
                 log.error("Failed to write key: {0}: {1}"
-                          .format(repr(self.key), error))
+                          .format(self.key, error))
             else:
                 log.debug("Writed key: {0}".format(repr(self.key)))
                 self.result = True
@@ -295,8 +309,8 @@ class KeyRecover(object):
                 self.stats.written_bytes += self.size_to_write
             self.complete.set()
         except Exception as e:
-            log.error("Failed to handle write result key: {0}: {1}"
-                      .format(repr(self.key), e))
+            log.error("Failed to handle write result key: {0}: {1}, traceback: {2}"
+                      .format(self.key, repr(e), traceback.format_exc()))
 
     def wait(self):
         if not self.complete.is_set():
@@ -375,7 +389,8 @@ def recover(ctx):
                                  elog=ctx.elog,
                                  wait_timeout=ctx.wait_timeout,
                                  net_thread_num=4,
-                                 io_thread_num=1)
+                                 io_thread_num=1,
+                                 remotes=ctx.remotes)
 
     for batch_id, batch in groupby(enumerate(filtered),
                                    key=lambda x: x[0] / ctx.batch_size):
@@ -450,9 +465,8 @@ if __name__ == '__main__':
             os.makedirs(ctx.tmp_dir, 0755)
             log.warning("Created tmp directory: {0}".format(ctx.tmp_dir))
         except Exception as e:
-            raise ValueError("Directory: {0} does not exist and "
-                             "could not be created: {1}"
-                             .format(ctx.tmp_dir, e))
+            raise ValueError("Directory: {0} does not exist and could not be created: {1}, traceback: {2}"
+                             .format(ctx.tmp_dir, repr(e), traceback.format_exc()))
     os.chdir(ctx.tmp_dir)
 
     try:
@@ -472,8 +486,8 @@ if __name__ == '__main__':
         fh.setLevel(logging.DEBUG)
         log.addHandler(fh)
     except Exception as e:
-        raise ValueError("Can't parse log_level: '{0}': {1}"
-                         .format(options.elliptics_log_level, repr(e)))
+        raise ValueError("Can't parse log_level: '{0}': {1}, traceback: {2}"
+                         .format(options.elliptics_log_level, repr(e), traceback.format_exc()))
     log.info("Using elliptics client log level: {0}".format(ctx.log_level))
 
     if options.elliptics_remote is None:
@@ -481,8 +495,8 @@ if __name__ == '__main__':
     try:
         ctx.address = Address.from_host_port_family(options.elliptics_remote)
     except Exception as e:
-        raise ValueError("Can't parse host:port:family: '{0}': {1}".format(
-            options.elliptics_remote, repr(e)))
+        raise ValueError("Can't parse host:port:family: '{0}': {1}, traceback: {2}"
+                         .format(options.elliptics_remote, repr(e), traceback.format_exc()))
     log.info("Using host:port:family: {0}".format(ctx.address))
 
     try:
@@ -491,8 +505,8 @@ if __name__ == '__main__':
         else:
             ctx.groups = []
     except Exception as e:
-        raise ValueError("Can't parse grouplist: '{0}': {1}".format(
-            options.elliptics_groups, repr(e)))
+        raise ValueError("Can't parse grouplist: '{0}': {1}, traceback: {2}"
+                         .format(options.elliptics_groups, repr(e), traceback.format_exc()))
 
     try:
         ctx.batch_size = int(options.batch_size)
@@ -500,19 +514,20 @@ if __name__ == '__main__':
             raise ValueError("Batch size should be positive: {0}"
                              .format(ctx.batch_size))
     except Exception as e:
-        raise ValueError("Can't parse batchsize: '{0}': {1}".format(
-            options.batch_size, repr(e)))
+        raise ValueError("Can't parse batchsize: '{0}': {1}, traceback: {2}"
+                         .format(options.batch_size, repr(e), traceback.format_exc()))
     log.info("Using batch_size: {0}".format(ctx.batch_size))
 
     try:
         ctx.wait_timeout = int(options.wait_timeout)
     except Exception as e:
-        raise ValueError("Can't parse wait_timeout: '{0}': {1}"
-                         .format(options.wait_timeout, repr(e)))
+        raise ValueError("Can't parse wait_timeout: '{0}': {1}, traceback: {2}"
+                         .format(options.wait_timeout, repr(e), traceback.format_exc()))
 
     log.debug("Creating logger")
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
 
     res = recover(ctx)
 
-    exit(res)
+    rc = int(not result)
+    exit(rc)

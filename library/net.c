@@ -1230,7 +1230,12 @@ int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
 					atomic_read(&st->send_queue_size));
 
 			pthread_mutex_lock(&st->send_lock);
-			pthread_cond_wait(&st->send_wait, &st->send_lock);
+			// after successful dnet_send_reply the state can be removed from another thread
+			// do not wait send_wait of removed state because no one broadcast it
+			if (!st->__need_exit)
+				pthread_cond_wait(&st->send_wait, &st->send_lock);
+			else
+				err = st->__need_exit;
 			pthread_mutex_unlock(&st->send_lock);
 
 			dnet_log(st->n, DNET_LOG_DEBUG, "State woken up: %s: %d",

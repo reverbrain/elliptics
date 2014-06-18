@@ -456,7 +456,7 @@ public:
 		return create_result(std::move(session::cancel_iterator(transform(id).id(), iterator_id)));
 	}
 
-	python_exec_result exec(const bp::api::object &id, const bp::api::object &context, const int src_key, const std::string &event, const bp::api::object &data) {
+	python_exec_result exec(const bp::api::object &id_or_context, const std::string &event, const bp::api::object &data, const int src_key) {
 		dnet_id* raw_id = NULL;
 		dnet_id conv_id;
 
@@ -466,14 +466,14 @@ public:
 			str_data = get_data();
 		}
 
-		if (context.ptr() != Py_None) {
-			bp::extract<exec_context> get_context(context);
-			return create_result(std::move(session::exec(get_context(), event, data_pointer::copy(str_data))));
-		}
-
-		if (id.ptr() != Py_None) {
-			conv_id = transform(id).id();
-			raw_id = &conv_id;
+		if (id_or_context.ptr() != Py_None) {
+			bp::extract<exec_context> get_context(id_or_context);
+			if (get_context.check()) {
+				return create_result(std::move(session::exec(get_context(), event, data_pointer::copy(str_data))));
+			} else {
+				conv_id = transform(id_or_context).id();
+				raw_id = &conv_id;
+			}
 		}
 
 		return create_result(std::move(session::exec(raw_id, src_key, event, data_pointer::copy(str_data))));
@@ -1738,11 +1738,11 @@ void init_elliptics_session() {
 		// Couldn't use "exec" as a method name because it's a reserved keyword in python
 
 		.def("exec_", &elliptics_session::exec,
-		    (bp::arg("id")=bp::api::object(), bp::arg("context")=bp::api::object(), bp::arg("src_key") = -1, bp::arg("event"), bp::arg("data") = ""),
-		    "exec_(id=None, context=None, src_key=-1, event, data)\n"
+		    (bp::arg("id_or_context")=bp::api::object(), bp::arg("event"), bp::arg("data") = "", bp::arg("src_key") = -1),
+		    "exec_(id_or_context=None, event, data="", src_key=-1)\n"
 		    "    Sends execution request of the given @event and @data\n"
-		    "     to the party specified by a given @context or @id.\n"
-		    "     If both @id and @context are None then request will be sended to all nodes.\n"
+		    "     to the party specified by a given @id_or_context.\n"
+		    "     If @id_or_context is None then request will be sended to all nodes.\n"
 		    "     Returns async_exec_result.\n"
 		    "     Result contains all replies sent by nodes processing this event.\n")
 		.def("push", &elliptics_session::push,

@@ -73,3 +73,4 @@ debian/tmp
 build
 obj-x86_64-linux-gnu
 CMakeLists.txt.user*
+debian/pyversions

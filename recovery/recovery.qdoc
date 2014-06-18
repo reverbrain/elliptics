@@ -45,10 +45,11 @@
 
   dnet_recovery has follow options:
   - <b>-r ELLIPTICS_REMOTE, --remote=ELLIPTICS_REMOTE</b> - elliptics node address.
-    Entrypoint into elliptics cluster.It has to be in Elliptics format adress:port:family.
+    Entrypoint into elliptics cluster. It has to be in Elliptics format adress:port:family.
     On Linux IPv4 family specified with 2 and IPv6 with 10.
     This is mandatory option which should be always specified.
-    Most likely dnet_recovery will be run via cron with -r $(hostname -f):1025:2
+    Most likely dnet_recovery will be run via cron with -r $(hostname -f):1025:2.
+    <b>-r/--remote</b> can be used multiple times - one per node. More number of remotes can help with gathering full route list.
   - <b>-g ELLIPTICS_GROUPS, --groups=ELLIPTICS_GROUPS</b> - Comma separated list of groups.
     This is mandatory option which should be always specified.
   - <b>-n NPROCESS, --nprocess=NPROCESS</b> - Number of subprocesses. This parameter influence on recovery speed.
@@ -56,7 +57,8 @@
     Former should be set to number of disks in RAID for IO-bound workloads and to number of CPUs
     for cpu-bound workloads (of cause if system needs to be able to serve requests at the time
     of recovery this option should be bounded even more). <b>[default: 1]</b>
-  - <b>-o, --one-node</b> - recovery will iterates only one node provided by <b>-r/--remote</b>, so only it's keys will be recovered.
+  - <b>-o ELLIPTICS_REMOTE, --one-node=ELLIPTICS_REMOTE</b> - recovery will iterates only specified node, so only it's keys will be recovered.
+    Nodes provided by <b>-r/--remote</b> will be used for gathering full route list.
   - <b>-b BATCH_SIZE, --batch-size=BATCH_SIZE</b> - Number of keys which will be read/write/remove at once by one subprocess.
     While bigger values speed up recovery they also consume more memory (memory consumption can be computed as avg_record_size * batch size * 2). <b>[default: 1024]</b>
   - <b>-t TIMESTAMP, --time=TIMESTAMP</b> - Recover keys modified since `time`. Can be specified
@@ -80,7 +82,7 @@
   - <b>-C CUSTOM_RECOVER, --custom-recover=CUSTOM_RECOVER</b> - Sets custom recover app
     that will be used by `dc` for recovering data.
   - <b>-f DUMP_FILE, --dump-file=DUMP_FILE</b> - Sets dump file which contains hex ids of object that should be recovered.
-    This option is used only by `dc`. Instead of scanning all existing keys `dc` will check and recover only keys from dump file.
+    Recovery instead of scanning all existing keys will check and recover only keys from dump file.
 
 
   \section statistics Common approach to statistics
@@ -110,6 +112,10 @@
   For each nodes merge recovery makes follow steps:
   -# from route list determines which ranges don't covered by the node
   -# run iterator on the node and collect keys with metadata that shouldn't be on the node
+  -# goes throw iterated keys and dumps them.
+    Those dump files could be used for resuming recovery after some issues.
+    Dump files has name 'dump_{ip}' where {ip} is ip of iterated node and
+    are placed in tmp_dir specified by <b>-D DIR, --dir=DIR</b>.
   -# for each collected key:
     -# make lookup to the proper node
     -# compare timestamp and size of key on proper node (if the key exists on proper node)
@@ -118,7 +124,16 @@
 
   By option '<b>-o, --one-node</b>' recovery can be limited to iterate only one node specified by <b>-r/--remote</b>.
   It means that only node specified by <b>-r/--remote</b> will be iterated and only its keys which shouldn't be on it will be moved to the proper node.
-  By default, merge will process all nodes from groups specified by <b>-g/groups</b>.
+  By default, merge will process all nodes from groups specified by <b>-g/--groups</b>.
+
+  If merge recovery runs with <b>-f/--dump-file</b> merge will make follow steps:
+  -# for each group from <b>-g/--groups</b>:
+    -# for each key from dump file:
+      -# try to read metadata of key from all nodes in groups
+      -# from all read metadata finds out replica with max timestamp and max size
+      -# check if proper node already has newer version of key
+        -# if it has not -> copy newer version to proper node
+      -# remove key from non-proper nodes
 
 
   \subsection merge_statistics Merge statistics
@@ -168,6 +183,9 @@
   -# run iterator on collected node for determined ranges
   -# goes throw iterated results and fill merged result:
     for each keys it saves key with information on which node and with which timestamp/size/user_flags it exists.
+  -# goes throw merged results and dumps all iterated keys.
+    This dump file could be used for resuming recovery after some issues.
+    Dump file has name 'dump' and is placed in tmp_dir specified by <b>-D DIR, --dir=DIR</b>.
   -# runs custom recovery (or built-in implementation of it) against merged results.
 
   If dc was run with option <b>-f/--dump-file</b> it will make follow steps for each key from dump file:
@@ -253,8 +271,8 @@
   \endcode
   or
   \code
-  dnet_recovery merge -r host_1_1:1025:2 -g 1 -o
-  dnet_recovery merge -r host_1_3:1025:2 -g 1 -o
+  dnet_recovery merge -o host_1_1:1025:2 -g 1
+  dnet_recovery merge -o host_1_3:1025:2 -g 1
   \endcode
 
   Second way allows to run several dnet_recovery in parallel
@@ -277,9 +295,9 @@
   \endcode
   or
   \code
-  dnet_recovery merge -r host_3_1:1025:2 -g 1 -o
-  dnet_recovery merge -r host_2_1:1025:2 -g 1 -o
-  dnet_recovery merge -r host_2_1:1025:2 -g 1 -o
+  dnet_recovery merge -o host_3_1:1025:2 -g 1
+  dnet_recovery merge -o host_2_1:1025:2 -g 1
+  dnet_recovery merge -o host_2_1:1025:2 -g 1
   \endcode
 
   Second way allows to run several dnet_recovery in parallel
@@ -323,6 +341,41 @@
   For synchronization only these keys from all groups (replicas) use `dc` recovery with follow parameters:
   \code
   dnet_recovery dc -r host_1_1:1025:2 -g 1,2,3 -f /path/to/dump_file
+  \endcode
+
+
+  \subsection merge_dump_failure Merge recovering from dump file after some failures
+
+  As a result of scanning logs we have found that some keys are missed/outdated in some groups.
+  Grep hex keys of all found keys and write it to dump file like follow:
+  \code{dump_file}
+  1f40fc92da241694750979ee6cf582f2d5d7d28e18335de05abc54d0560e0f5302860c652bf08d560252aa5e74210546f369fbbbce8c12cfc7957b2652fe9a75
+  5267768822ee624d48fce15ec5ca79cbd602cb7f4c2157a516556991f22ef8c7b5ef7b18d1ff41c59370efb0858651d44a936c11b7b144c48fe04df3c6a3e8da
+  acc28db2beb7b42baa1cb0243d401ccb4e3fce44d7b02879a52799aadff541522d8822598b2fa664f9d5156c00c924805d75c3868bd56c2acb81d37e98e35adc
+  ....
+  5ae625665f3e0bd0a065ed07a41989e4025b79d13930a2a8c57d6b4325226707d956a082d1e91b4d96a793562df98fd03c9dcf743c9c7b4e3055d4f9f09ba015
+  \endcode
+
+  For synchronization only these keys within group 1 (replicas) use `merge` recovery with follow parameters:
+  \code
+  dnet_recovery merge -r host_1_1:1025:2 -g 1 -f /path/to/dump_file
+  \endcode
+
+  \subsection resuming_recovery Resuming recovery after some issues
+
+  Both `dc` and `merge` recovery dumps keys that was found after node iteration.
+  `dc` dump is a one dump file with all keys from all iterated ranges from all iterated nodes and groups.
+  `merge` dump is a number of dump files. One per iterated node.
+
+  This dump files could be used for resuming recovery after some issues that was occurred while recovering.
+  For resuming recovery run dnet_recovery with <b>-f DUMP_FILE, --dump-file=DUMP_FILE</b> and
+  path to dump file that was generated by previous run of dnet_recovery:
+  \code
+  dnet_recovery dc -r host_1_1:1025:2 -g 1,2,3 -f /path/to/dump_file
+  \endcode
+  or
+  \code
+  dnet_recovery merge -r host_1_1:1025:2 -g 1 -f /path/to/dump_file_host_1_1\:1025\:2\ 1
   \endcode
 
 */
