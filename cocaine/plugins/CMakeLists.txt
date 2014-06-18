@@ -12,7 +12,7 @@ SET_TARGET_PROPERTIES(elliptics-extensions PROPERTIES
 )
 
 INSTALL(TARGETS elliptics-extensions
-        LIBRARY DESTINATION lib/cocaine
+        LIBRARY DESTINATION lib${LIB_SUFFIX}/cocaine
         COMPONENT runtime)
 INSTALL(
         DIRECTORY

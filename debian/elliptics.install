@@ -1,4 +1,3 @@
 usr/bin/dnet_ioserv
 usr/lib/libelliptics.so.*
-usr/lib/libelliptics_cocaine.so.*
 usr/lib/libelliptics_module_backend_cpp.so.*

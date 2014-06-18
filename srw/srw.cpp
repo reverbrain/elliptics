@@ -421,6 +421,13 @@ class srw {
 			id_str[2 * DNET_DUMP_NUM] = '\0';
 			sph_str[2 * DNET_DUMP_NUM] = '\0';
 
+			/*!
+			 * Elliptics' event always looks like "application@method", where application
+			 * is a name of \a application which \a method we should call.
+			 *
+			 * Afterwards we are able to find this application in our local dictionary
+			 * and call it's method with data extracted from \a sph structure.
+			 */
 			char *ptr = strchr((char *)event.c_str(), '@');
 			if (!ptr) {
 				dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: invalid event name: "
@@ -554,7 +561,7 @@ class srw {
 					memcpy(sph->src.id, cmd->id.id, sizeof(sph->src.id));
 				}
 
-				cocaine::api::event_t cevent(event);
+				cocaine::api::event_t cevent(ev);
 
 				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
