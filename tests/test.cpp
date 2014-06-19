@@ -188,6 +188,12 @@ static void test_recovery(session &sess, const std::string &id, const std::strin
 	}
 }
 
+/*!
+ * \defgroup test_indexes Test indexes
+ * This tests check operations with indexes
+ * \{
+ */
+
 static void test_indexes(session &sess)
 {
 	const std::vector<std::string> indexes = {
@@ -253,6 +259,55 @@ static void test_more_indexes(session &sess)
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), any_result[0].indexes.size());
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), indexes.size());
 }
+
+/*!
+ * \brief Tests correctness of get_index_metadata function
+ * Test workflow:
+ * - Write 256 keys to index "index"
+ * - Request "index" metadata, which will consist of metadatas for each shard
+ * - Sum up sizes of shards indexes and check if it equals to 256
+ */
+static void test_indexes_metadata(session &sess)
+{
+	std::string index = "index";
+	std::vector<std::string> indexes;
+	indexes.push_back(index);
+
+	std::vector<data_pointer> data(indexes.size());
+
+	std::vector<std::string> keys;
+	for (size_t i = 0; i < 256; ++i) {
+		keys.push_back("key-" + boost::lexical_cast<std::string>(i));
+	}
+
+	for (auto it = keys.begin(); it != keys.end(); ++it) {
+		std::string key = *it;
+		ELLIPTICS_REQUIRE(clear_indexes_result, sess.set_indexes(key, std::vector<std::string>(), std::vector<data_pointer>()));
+		ELLIPTICS_REQUIRE(set_indexes_result, sess.set_indexes(key, indexes, data));
+	}
+
+	ELLIPTICS_REQUIRE(get_index_metadata_result, sess.get_index_metadata(index));
+	sync_get_index_metadata_result metadata = get_index_metadata_result.get();
+
+	size_t total_index_size = 0;
+	int invalid_results_number = 0;
+	for (size_t i = 0; i < metadata.size(); ++i) {
+		if (metadata[i].is_valid) {
+			total_index_size += metadata[i].index_size;
+			BOOST_REQUIRE_GE(metadata[i].index_size, 0);
+		} else {
+			++invalid_results_number;
+		}
+	}
+	if (invalid_results_number == 0) {
+		BOOST_REQUIRE_EQUAL(total_index_size, keys.size());
+	} else {
+		BOOST_REQUIRE_LE(total_index_size, keys.size());
+	}
+	BOOST_REQUIRE_EQUAL(invalid_results_number, 0);
+}
+
+/*! \} */ //test_indexes group
 
 static void test_error(session &s, const std::string &id, int err)
 {
@@ -898,6 +953,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_recovery, create_session(n, {1, 2}, 0, 0), "recovery-id", "recovered-data");
 	ELLIPTICS_TEST_CASE(test_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_more_indexes, create_session(n, {1, 2}, 0, 0));
+	ELLIPTICS_TEST_CASE(test_indexes_metadata, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {99}, 0, 0), "non-existen-key", -ENXIO);
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {1, 2}, 0, 0), "non-existen-key", -ENOENT);
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, 0), "2.xml", "lookup data");

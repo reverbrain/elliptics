@@ -684,4 +684,156 @@ async_list_indexes_result session::list_indexes(const key &request_id)
 	return result;
 }
 
+/*!
+ * Auxiliary function to parse char* buffer with c-msgpack library
+ */
+static bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit)
+{
+	char *start_ptr = static_cast<char *>(ctx->buf);
+	char *ptr = start_ptr;
+	while (ptr && limit) {
+		++ptr;
+		--limit;
+	}
+	if (limit != 0) {
+		return false;
+	}
+	memcpy(data, start_ptr, ptr - start_ptr);
+	ctx->buf = ptr;
+	return true;
+}
+
+/*!
+ * Structure of secondary index msgpack is following
+ * Array of 4 elements
+ * Version number
+ * Array of indexes
+ *
+ * We need to get size of indexes array, that's why we
+ * skip first two fields in msgpack and return size
+ * of array in third position of msgpack
+ */
+static uint32_t get_index_size(const std::string &index_metadata, int &err)
+{
+	err = 0;
+	cmp_ctx_t cmp;
+
+	char *buffer = new char[index_metadata.length() + 1];
+	memcpy(buffer, index_metadata.data(), index_metadata.length() + 1);
+
+	cmp_init(&cmp, buffer, buffer_reader, NULL);
+
+	uint32_t array_size;
+	if (!cmp_read_array(&cmp, &array_size)) {
+		err = -EBADMSG;
+		return 0;
+	}
+
+	int32_t version;
+	if (!cmp_read_int(&cmp, &version)) {
+		err = -EBADMSG;
+		return 0;
+	}
+
+	if (!cmp_read_array(&cmp, &array_size)) {
+		err = -EBADMSG;
+		return 0;
+	}
+
+	delete buffer;
+	return array_size;
+}
+
+/*!
+ * \brief Callback that handles bulk_read responses
+ *
+ * Each response corresponds to some shard
+ * We extract metadata from each shard index
+ * and put it into vector of answers
+ */
+struct get_index_metadata_callback
+{
+	session sess;
+	async_result_handler<get_index_metadata_result_entry> handler;
+
+	void operator() (const read_result_entry &result)
+	{
+		get_index_metadata_result_entry metadata;
+		std::string content =  result.file().to_string().substr(DNET_INDEX_TABLE_MAGIC_SIZE);
+		int err = 0;
+		metadata.index_size = get_index_size(content, err);
+		if (err) {
+			metadata.is_valid = false;
+			sess.get_logger().print(DNET_LOG_ERROR, "get_index_metadata: Incorrect msgpack format: err: %d", err);
+		} else {
+			metadata.is_valid = true;
+		}
+		handler.process(metadata);
+	}
+
+	void operator() (const error_info &error)
+	{
+		handler.complete(error);
+	}
+};
+
+/*!
+ * \brief Returns metadata for each shard for secondary index \a index
+ */
+async_get_index_metadata_result session::get_index_metadata(const dnet_raw_id &index)
+{
+	session sess = clone();
+	sess.set_exceptions_policy(session::no_exceptions);
+	sess.set_filter(filters::positive);
+	sess.set_checker(checkers::no_check);
+
+	dnet_node *node = sess.get_native_node();
+	int shard_count = node->indexes_shard_count;
+
+	/*
+	 * Prepare indexes ids for bulk_read request
+	 */
+	std::vector<dnet_io_attr> request_io_attrs;
+	request_io_attrs.resize(shard_count);
+
+	/*
+	 * index_requests_set contains all requests we have to send for this bulk-request.
+	 * All indexes a splitted for shards, so we have to send separate logical request
+	 * to certain shard for all indexes. This logical requests may be joined to one
+	 * transaction if some of shards are situated on one elliptics node.
+	 */
+	dnet_raw_id tmp;
+
+	dnet_indexes_transform_index_prepare(node, &index, &tmp);
+
+	for (int shard_id = 0; shard_id < shard_count; ++shard_id) {
+		dnet_raw_id id;
+
+		memcpy(&id, &tmp, sizeof(dnet_raw_id));
+		dnet_indexes_transform_index_id_raw(node, &id, shard_id);
+
+		dnet_io_attr &io = request_io_attrs[shard_id];
+		memset(&io, 0, sizeof(io));
+
+		io.size   = 100;
+		io.offset = 0;
+		io.flags  = get_ioflags() | DNET_IO_FLAGS_CACHE;
+		memcpy(io.id, id.id, DNET_ID_SIZE);
+		memcpy(io.parent, id.id, DNET_ID_SIZE);
+	}
+
+	async_get_index_metadata_result result(*this);
+	get_index_metadata_callback callback = { sess, result };
+	sess.bulk_read(request_io_attrs).connect(callback, callback);
+
+	return result;
+}
+
+async_get_index_metadata_result session::get_index_metadata(const std::string &index)
+{
+	dnet_raw_id raw_index;
+	transform(index, raw_index);
+	return get_index_metadata(raw_index);
+}
+
 } } // ioremap::elliptics

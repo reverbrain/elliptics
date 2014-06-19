@@ -18,6 +18,7 @@ set(ELLIPTICS_CPP_SRCS
     session_indexes.hpp
     exception.cpp
     key.cpp
+    ../../foreign/cmp/cmp.c
 # Added includes for better IDE's experience
     ../../include/elliptics/module_backend.hpp
     ../../include/elliptics/interface.h

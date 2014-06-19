@@ -854,6 +854,17 @@ class session
 		async_list_indexes_result list_indexes(const key &id);
 
 		/*!
+		 * \brief Retrieves metadata about each index \a index
+		 *
+		 * Returns async_get_index_metadata_result.
+		 */
+		async_get_index_metadata_result get_index_metadata(const dnet_raw_id &index);
+		/*!
+		 * \overload
+		 */
+		async_get_index_metadata_result get_index_metadata(const std::string &index);
+
+		/*!
 		 * Returns logger object.
 		 */
 		logger get_logger() const;

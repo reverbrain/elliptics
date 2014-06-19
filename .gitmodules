@@ -1,3 +1,6 @@
 [submodule "react"]
 	path = react
 	url = git://github.com/reverbrain/react.git
+[submodule "foreign/cmp"]
+	path = foreign/cmp
+	url = https://github.com/camgunz/cmp.git
