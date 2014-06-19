@@ -836,4 +836,242 @@ async_get_index_metadata_result session::get_index_metadata(const std::string &i
 	return get_index_metadata(raw_index);
 }
 
+struct merge_indexes_callback
+{
+	key id;
+	session write_session;
+	async_result_handler<write_result_entry> handler;
+
+	/*!
+	 * Comparator for tuples which sorts dnet_index_entry's by following properties:
+	 * \li index id
+	 * \li update time in seconds
+	 * \li update time in nanoseconds
+	 * \li size of index's data
+	 *
+	 * So more appropriate copy of index is the newest or with the biggest data
+	 * in case if the time is equal.
+	 */
+	struct index_entry_comparator
+	{
+		bool operator ()(const std::tuple<size_t, dnet_index_entry> &first_tuple,
+			const std::tuple<size_t, dnet_index_entry> &second_tuple) const
+		{
+			const auto &first = std::get<1>(first_tuple);
+			const auto &second = std::get<1>(second_tuple);
+
+			const int cmp = memcmp(first.index.id, second.index.id, DNET_ID_SIZE);
+			if (cmp != 0)
+				return cmp < 0;
+
+			return std::make_tuple(first.time.tsec, first.time.tnsec, first.data.size())
+				< std::make_tuple(second.time.tsec, second.time.tnsec, second.data.size());
+		}
+	};
+
+	/*!
+	 * This class returnes result of merged indexes one-by-one.
+	 *
+	 * It stores in the heap the biggest not-processed-yet from every group.
+	 * If any element is poped from the heap it is replaced by the next element
+	 * from the same group.
+	 *
+	 * When user asks for next element the following logic is applied:
+	 * \li take the biggest element from the heap
+	 * \li remove all elements from heap with the same id
+	 *
+	 * This is effective (O(n log k)) way to merge indexes.
+	 */
+	class index_entry_heap
+	{
+	public:
+		index_entry_heap(std::vector<dnet_indexes> &&indexes) : m_indexes(std::move(indexes))
+		{
+			for (size_t i = 0; i < m_indexes.size(); ++i) {
+				repopulate(i);
+			}
+		}
+
+		bool has_next() const
+		{
+			return !m_heap.empty();
+		}
+
+		dnet_index_entry next()
+		{
+			dnet_index_entry result;
+			std::tie(std::ignore, result) = m_heap.front();
+
+			pop();
+
+			while (!m_heap.empty() && memcmp(result.index.id, std::get<1>(m_heap.front()).index.id, DNET_ID_SIZE) == 0) {
+				pop();
+			}
+
+			return result;
+		}
+
+	private:
+		void pop()
+		{
+			index_entry_comparator comparator;
+
+			size_t vector_id;
+			std::tie(vector_id, std::ignore) = m_heap.front();
+
+			std::pop_heap(m_heap.begin(), m_heap.end(), comparator);
+			m_heap.pop_back();
+
+			repopulate(vector_id);
+		}
+
+		void repopulate(size_t vector_id)
+		{
+			index_entry_comparator comparator;
+
+			auto &vector = m_indexes[vector_id].indexes;
+
+			if (!vector.empty()) {
+				m_heap.emplace_back(vector_id, vector.back());
+				vector.pop_back();
+				std::push_heap(m_heap.begin(), m_heap.end(), comparator);
+			}
+		}
+
+		std::vector<dnet_indexes> m_indexes;
+		std::vector<std::tuple<size_t, dnet_index_entry>> m_heap;
+	};
+
+	void operator() (const sync_read_result &raw_indexes, const error_info &error)
+	{
+		logger log = write_session.get_logger();
+
+		if (error) {
+			if (log.get_log_level() >= DNET_LOG_ERROR) {
+				log.print(DNET_LOG_ERROR, "%s: failed to read indexes: %s", dnet_dump_id(&id.id()), error.message().c_str());
+			}
+
+			handler.complete(error);
+			return;
+		}
+
+		std::vector<dnet_indexes> indexes;
+		data_pointer valid_index_data;
+
+		// Unpack all retrieved results if possible
+		for (auto it = raw_indexes.begin(); it != raw_indexes.end(); ++it) {
+			try {
+				if (log.get_log_level() >= DNET_LOG_DEBUG) {
+					log.print(DNET_LOG_DEBUG, "%s: unpacking indexes, size: %llu",
+						dnet_dump_id(&id.id()), static_cast<unsigned long long>(it->file().size()));
+				}
+
+				dnet_indexes tmp;
+				indexes_unpack_raw(it->file(), &tmp);
+
+				indexes.emplace_back(std::move(tmp));
+				valid_index_data = it->file();
+			} catch (std::bad_alloc &) {
+				handler.complete(error_info(-ENOMEM, std::string()));
+				return;
+			} catch (std::exception &e) {
+				if (log.get_log_level() >= DNET_LOG_ERROR) {
+					log.print(DNET_LOG_ERROR, "%s: failed to unpack indexes: %s", dnet_dump_id(&id.id()), e.what());
+				}
+			}
+		}
+
+		if (indexes.empty()) {
+			handler.complete(error_info());
+			return;
+		} else if (indexes.size() == 1) {
+			indexes.front();
+
+			write_session.write_data(id, valid_index_data, 0).connect(handler);
+			return;
+		}
+
+		const auto shard_id = indexes.front().shard_id;
+		const auto shard_count = indexes.front().shard_count;
+
+		// Check if metadata of all indexes are the same
+		for (auto it = indexes.begin(); it != indexes.end(); ++it) {
+			if (it->shard_id != shard_id || it->shard_count != shard_count) {
+				if (log.get_log_level() >= DNET_LOG_ERROR) {
+					log.print(DNET_LOG_ERROR, "%s: mismatched indexes metadata: (%d, %d) vs (%d, %d)",
+						dnet_dump_id(&id.id()), shard_id, shard_count, it->shard_id, it->shard_count);
+				}
+				handler.complete(create_error(-EINVAL, id, "mismatched indexes metadata"));
+				return;
+			}
+		}
+
+		dnet_indexes result;
+		result.shard_id = indexes.front().shard_id;
+		result.shard_count = indexes.front().shard_count;
+
+		// Merge all indexes
+		index_entry_heap heap(std::move(indexes));
+		while (heap.has_next())
+			result.indexes.push_back(heap.next());
+
+		// Head of the heap is the buggest element, so final list must be reversed
+		std::reverse(result.indexes.begin(), result.indexes.end());
+
+		// Pack indexes and write serialized data to server
+		try {
+			msgpack::sbuffer buffer;
+			msgpack::pack(buffer, result);
+
+			data_buffer tmp_buffer(DNET_INDEX_TABLE_MAGIC_SIZE + buffer.size());
+			tmp_buffer.write(dnet_bswap64(DNET_INDEX_TABLE_MAGIC));
+			tmp_buffer.write(buffer.data(), buffer.size());
+
+			data_pointer data = std::move(tmp_buffer);
+
+			write_session.write_data(id, data, 0).connect(handler);
+		} catch (std::bad_alloc &) {
+			handler.complete(error_info(-ENOMEM, std::string()));
+		} catch (elliptics::error &e) {
+			handler.complete(error_info(e.error_code(), e.error_message()));
+		}
+	}
+};
+
+async_write_result session::merge_indexes(const key &id, const std::vector<int> &from, const std::vector<int> &to)
+{
+	transform(id);
+
+	async_write_result result(*this);
+
+	session read_session = clone();
+	read_session.set_checker(checkers::no_check);
+	read_session.set_filter(filters::positive);
+	read_session.set_exceptions_policy(session::no_exceptions);
+
+	session write_session = clone();
+	write_session.set_groups(to);
+	write_session.set_checker(checkers::no_check);
+	write_session.set_filter(filters::all_with_ack);
+	write_session.set_exceptions_policy(session::no_exceptions);
+
+	merge_indexes_callback callback = {
+		id,
+		write_session,
+		result
+	};
+
+	std::vector<async_read_result> read_results;
+
+	// Read this index from every provided group
+	for (auto it = from.begin(); it != from.end(); ++it) {
+		session sess = read_session.clone();
+		read_results.emplace_back(sess.read_data(id, std::vector<int>(1, *it), 0, 0));
+	}
+
+	aggregated(read_session, read_results.begin(), read_results.end()).connect(callback);
+
+	return result;
+}
+
 } } // ioremap::elliptics

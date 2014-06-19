@@ -57,20 +57,27 @@ struct dnet_indexes
 	std::vector<dnet_index_entry> indexes;
 };
 
+
 template <typename T>
-static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_pointer &file, T *data, const char *scope)
+static inline void indexes_unpack_raw(const data_pointer &file, T *data)
 {
 	static const unsigned long long magic = dnet_bswap64(DNET_INDEX_TABLE_MAGIC);
 
-	try {
-		if (file.size() < DNET_INDEX_TABLE_MAGIC_SIZE
-			|| memcmp(file.data(), &magic, DNET_INDEX_TABLE_MAGIC_SIZE) != 0) {
-			throw std::runtime_error("Invalid magic");
-		}
+	if (file.size() < DNET_INDEX_TABLE_MAGIC_SIZE
+		|| memcmp(file.data(), &magic, DNET_INDEX_TABLE_MAGIC_SIZE) != 0) {
+		throw std::runtime_error("Invalid magic");
+	}
 
-		msgpack::unpacked msg;
-		msgpack::unpack(&msg, file.data<char>() + DNET_INDEX_TABLE_MAGIC_SIZE, file.size() - DNET_INDEX_TABLE_MAGIC_SIZE);
-		msg.get().convert(data);
+	msgpack::unpacked msg;
+	msgpack::unpack(&msg, file.data<char>() + DNET_INDEX_TABLE_MAGIC_SIZE, file.size() - DNET_INDEX_TABLE_MAGIC_SIZE);
+	msg.get().convert(data);
+}
+
+template <typename T>
+static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_pointer &file, T *data, const char *scope)
+{
+	try {
+		indexes_unpack_raw(file, data);
 	} catch (const std::exception &e) {
 		DNET_DUMP_ID_LEN(id_str, id, DNET_ID_SIZE);
 		dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s: unpack exception: %s, file-size: %zu\n",
