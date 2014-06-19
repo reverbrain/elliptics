@@ -235,6 +235,9 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 					break;
 				}
 
+				/*!
+				 * When offset is larger then size of the file, operation is definitely incorrect
+				 */
 				if (io->offset >= d->size()) {
 					dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache: invalid offset: "
 							"offset: %llu, size: %llu, cached-size: %zd\n",
@@ -245,10 +248,19 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 					break;
 				}
 
+				/*!
+				 * If offset is correct, but offset + read_size is bigger then file_size
+				 * then we should return data from offset position till the end of the file
+				 * This situation happens when for example we want to read first 100 bytes of
+				 * the file and it's size appears to be less then 100 bytes.
+				 */
+				io->size = std::min(io->size, d->size() - io->offset);
+
+				/*!
+				 * 0 is special value for io operation size and in this case we should read all file
+				 */
 				if (io->size == 0)
 					io->size = d->size() - io->offset;
-
-				io->size = std::min(io->size, d->size() - io->offset);
 
 				io->total_size = d->size();
 

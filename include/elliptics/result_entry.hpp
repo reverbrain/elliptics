@@ -253,9 +253,14 @@ struct find_indexes_result_entry
 	std::vector<index_entry> indexes;
 };
 
+/*!
+ * \brief Holds index metadata
+ * In case when msgpack with index metadata is incorrect field is_valid will set to false
+ */
 struct get_index_metadata_result_entry
 {
 	size_t index_size;
+	bool is_valid;
 };
 
 typedef async_result<callback_result_entry> async_generic_result;

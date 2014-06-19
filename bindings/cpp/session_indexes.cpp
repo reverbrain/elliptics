@@ -687,7 +687,7 @@ async_list_indexes_result session::list_indexes(const key &request_id)
 /*!
  * Auxiliary function to parse char* buffer with c-msgpack library
  */
-bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit)
+static bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit)
 {
 	char *start_ptr = static_cast<char *>(ctx->buf);
 	char *ptr = start_ptr;
@@ -713,7 +713,7 @@ bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit)
  * skip first two fields in msgpack and return size
  * of array in third position of msgpack
  */
-uint32_t get_index_size(const std::string &index_metadata, int &err)
+static uint32_t get_index_size(const std::string &index_metadata, int &err)
 {
 	err = 0;
 	cmp_ctx_t cmp;
@@ -763,7 +763,10 @@ struct get_index_metadata_callback
 		int err = 0;
 		metadata.index_size = get_index_size(content, err);
 		if (err) {
+			metadata.is_valid = false;
 			sess.get_logger().print(DNET_LOG_ERROR, "get_index_metadata: Incorrect msgpack format: err: %d", err);
+		} else {
+			metadata.is_valid = true;
 		}
 		handler.process(metadata);
 	}
