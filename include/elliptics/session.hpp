@@ -864,6 +864,14 @@ class session
 		async_write_result merge_indexes(const key &id, const std::vector<int> &from, const std::vector<int> &to);
 
 		/*!
+		 * \brief Recover \a index so it will be consistent in all groups.
+		 *
+		 * This method recover ont only list of objects in index but also list
+		 * of indexes of all objects at this indexes.
+		 */
+		async_generic_result recover_index(const key &index);
+
+		/*!
 		 * \brief Retrieves metadata about each index \a index
 		 *
 		 * Returns async_get_index_metadata_result.
