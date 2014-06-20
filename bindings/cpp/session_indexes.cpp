@@ -1074,4 +1074,140 @@ async_write_result session::merge_indexes(const key &id, const std::vector<int> 
 	return result;
 }
 
+/*!
+ * \internal
+ *
+ * Logic of this recovery method is following:
+ * \li run session::merge_indexes for every single shard of this index for every known group
+ * \li run find_indexes to find every single object in this index
+ * \li add this index to the list of indexes for every received object
+ * \li ...
+ * \li PROFIT
+ *
+ * Process is finished when any step fails or every step is succesfully completed.
+ */
+struct recover_index_callback : public std::enable_shared_from_this<recover_index_callback>
+{
+	key index;
+	session sess;
+	logger log;
+	async_result_handler<callback_result_entry> handler;
+	std::atomic_size_t counter;
+	std::mutex error_mutex;
+	error_info total_error;
+
+	recover_index_callback(const session &sess, const async_generic_result &result) :
+		sess(sess), log(sess.get_logger()), handler(result), counter(0)
+	{
+	}
+
+	void on_merge_finished(const error_info &error)
+	{
+		if (error) {
+			handler.complete(error);
+			return;
+		}
+
+		// Increment counter so we will know when last reply is received
+		++counter;
+
+		sess.clone().find_any_indexes(std::vector<dnet_raw_id>(1, index.raw_id())).connect(
+			std::bind(&recover_index_callback::on_find_indexes_process, shared_from_this(), std::placeholders::_1),
+			std::bind(&recover_index_callback::on_find_indexes_complete, shared_from_this(), std::placeholders::_1));
+	}
+
+	void on_find_indexes_process(const find_indexes_result_entry &entry)
+	{
+		if (log.get_log_level() >= DNET_LOG_DEBUG) {
+			for (auto it = entry.indexes.begin(); it != entry.indexes.end(); ++it) {
+				log.print(DNET_LOG_DEBUG, "recovery, index: %s, object: %s, data: %s",
+					index.to_string().c_str(), dnet_dump_id_str(entry.id.id), it->data.to_string().c_str());
+
+			}
+		}
+
+		if (!entry.indexes.empty()) {
+			// Increment counter so we will know when last reply is received
+			++counter;
+
+			// Add index to object's list of indexes
+			session_set_indexes(sess, entry.id, entry.indexes,
+				DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_NOINTERNAL).connect(
+					std::bind(&recover_index_callback::on_update_indexes_process, shared_from_this(), std::placeholders::_1),
+					std::bind(&recover_index_callback::on_update_indexes_complete, shared_from_this(), std::placeholders::_1));
+		}
+	}
+
+	void on_find_indexes_complete(const error_info &error)
+	{
+		if (error) {
+			// Something bad is happened, there were no successfull
+			// find if this happened, so we are free to exit
+			handler.complete(error);
+		} else {
+			decrement_counter();
+		}
+	}
+
+	void on_update_indexes_process(const callback_result_entry &entry)
+	{
+		handler.process(entry);
+	}
+
+	void on_update_indexes_complete(const error_info &error)
+	{
+		if (error) {
+			std::lock_guard<std::mutex> guard(error_mutex);
+			if (!total_error)
+				total_error = error;
+		}
+
+		decrement_counter();
+	}
+
+	void decrement_counter()
+	{
+		if (--counter == 0) {
+			handler.complete(total_error);
+		}
+	}
+};
+
+async_generic_result session::recover_index(const key &index)
+{
+	transform(index);
+
+	dnet_node *node = get_native_node();
+	const int shard_count = dnet_node_get_indexes_shard_count(node);
+	const std::vector<int> groups = get_groups();
+
+	dnet_raw_id index_id;
+	dnet_indexes_transform_index_prepare(node, &index.raw_id(), &index_id);
+
+	std::vector<async_write_result> results;
+
+	// Run merge_indexes for every single shard of this index
+	for (int shard_id = 0; shard_id < shard_count; ++shard_id) {
+		dnet_indexes_transform_index_id_raw(node, &index_id, shard_id);
+
+		results.emplace_back(merge_indexes(index_id, groups, groups));
+	}
+
+	session sess = clone();
+	sess.set_checker(checkers::no_check);
+	sess.set_filter(filters::all_with_ack);
+	sess.set_exceptions_policy(session::no_exceptions);
+
+	async_generic_result result(sess);
+
+	auto callback = std::make_shared<recover_index_callback>(sess, result);
+	callback->index = index;
+
+	aggregated(sess, results.begin(), results.end()).connect(
+		std::bind(&async_result_handler<callback_result_entry>::process, callback->handler, std::placeholders::_1),
+		std::bind(&recover_index_callback::on_merge_finished, callback, std::placeholders::_1));
+
+	return result;
+}
+
 } } // ioremap::elliptics
