@@ -854,6 +854,16 @@ class session
 		async_list_indexes_result list_indexes(const key &id);
 
 		/*!
+		 * \brief Merge index tables stored at \a id.
+		 *
+		 * Reads index tables from groups \a from, merges them and writes result to \a to.
+		 *
+		 * \attention This is low-level function which merges not \b index \a id, but merges
+		 * data which is stored at key \a id.
+		 */
+		async_write_result merge_indexes(const key &id, const std::vector<int> &from, const std::vector<int> &to);
+
+		/*!
 		 * \brief Retrieves metadata about each index \a index
 		 *
 		 * Returns async_get_index_metadata_result.

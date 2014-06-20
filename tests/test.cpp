@@ -935,6 +935,101 @@ static void test_read_latest_non_existing(session &sess, const std::string &id)
 	ELLIPTICS_REQUIRE_ERROR(read_data, sess.read_latest(id, 0, 0), -ENOENT);
 }
 
+/*!
+ * \brief test_merge_indexes
+ *
+ * Test the correctness of session::merge_indexes method.
+ *
+ * Algorithm is the following:
+ * \li Add 'merge-key' to indexes 'merge-1' and 'merge-2' at group 1 with data 'data-1'
+ * \li Add 'merge-key' to indexes 'merge-2' and 'merge-3' at group 2 with data 'data-22'
+ * \li Merge indexes for 'merge-key' at groups 1, 2
+ * \li Check if indexes were merged successfully
+ */
+static void test_merge_indexes(session &sess)
+{
+	key object_id = std::string("merge-key");
+	sess.transform(object_id);
+
+	std::vector<std::string> tags_1 = {
+		"merge-1",
+		"merge-2"
+	};
+	std::vector<data_pointer> data_1 = {
+		data_pointer::copy("data-1"),
+		data_pointer::copy("data-1")
+	};
+
+	std::vector<std::string> tags_2 = {
+		"merge-2",
+		"merge-3"
+	};
+	std::vector<data_pointer> data_2 = {
+		data_pointer::copy("data-22"),
+		data_pointer::copy("data-22")
+	};
+
+	std::vector<std::string> result_tags = {
+		"merge-1",
+		"merge-2",
+		"merge-3"
+	};
+	std::vector<data_pointer> result_data = {
+		data_pointer::copy("data-1"),
+		data_pointer::copy("data-22"),
+		data_pointer::copy("data-22")
+	};
+
+	std::map<key, data_pointer> result;
+
+	for (size_t i = 0; i < result_tags.size(); ++i) {
+		key tag = result_tags[i];
+		tag.transform(sess);
+		result[tag.id()] = result_data[i];
+	}
+
+	session sess_1 = sess.clone();
+	sess_1.set_groups(std::vector<int>(1, 1));
+	ELLIPTICS_REQUIRE(set_indexes_1, sess_1.set_indexes(object_id, tags_1, data_1));
+
+	session sess_2 = sess.clone();
+	sess_2.set_groups(std::vector<int>(1, 2));
+	ELLIPTICS_REQUIRE(set_indexes_2, sess_2.set_indexes(object_id, tags_2, data_2));
+
+	dnet_id index_id;
+	memset(&index_id, 0, sizeof(index_id));
+
+	dnet_indexes_transform_object_id(sess.get_native_node(), &object_id.id(), &index_id);
+	ELLIPTICS_REQUIRE(merge_result, sess.merge_indexes(index_id, sess.get_groups(), sess.get_groups()));
+
+	ELLIPTICS_REQUIRE(list_indexes_1, sess_1.list_indexes(object_id));
+	ELLIPTICS_REQUIRE(list_indexes_2, sess_2.list_indexes(object_id));
+
+	{
+		sync_list_indexes_result list_indexes = list_indexes_1;
+
+		BOOST_REQUIRE_EQUAL(list_indexes.size(), result.size());
+
+		for (auto it = list_indexes.begin(); it != list_indexes.end(); ++it) {
+			auto jt = result.find(it->index);
+			BOOST_REQUIRE(jt != result.end());
+			BOOST_REQUIRE_EQUAL(jt->second.to_string(), it->data.to_string());
+		}
+	}
+
+	{
+		sync_list_indexes_result list_indexes = list_indexes_2;
+
+		BOOST_REQUIRE_EQUAL(list_indexes.size(), result.size());
+
+		for (auto it = list_indexes.begin(); it != list_indexes.end(); ++it) {
+			auto jt = result.find(it->index);
+			BOOST_REQUIRE(jt != result.end());
+			BOOST_REQUIRE_EQUAL(jt->second.to_string(), it->data.to_string());
+		}
+	}
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
@@ -977,6 +1072,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_prepare_latest, create_session(n, {1, 2}, 0, 0), "prepare-latest-key");
 	ELLIPTICS_TEST_CASE(test_partial_lookup, create_session(n, {1, 2}, 0, 0), "partial-lookup-key");
 	ELLIPTICS_TEST_CASE(test_read_latest_non_existing, create_session(n, {1, 2}, 0, 0), "read-latest-non-existing");
+	ELLIPTICS_TEST_CASE(test_merge_indexes, create_session(n, { 1, 2 }, 0, 0));
 
 	return true;
 }
