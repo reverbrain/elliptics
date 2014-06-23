@@ -18,6 +18,7 @@
  */
 
 #include <sys/stat.h>
+#include <netinet/in.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -342,6 +343,33 @@ out:
 	return err;
 }
 
+/*
+ * Tries to unmap IPv4 from IPv6.
+ * If it is succeeded addr will contain valid unmapped IPv4 address
+ * otherwise it will contain original address.
+ */
+static void try_to_unmap_ipv4(struct dnet_addr *addr) {
+	struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *) addr->addr;
+
+	/*
+	 * if address isn't IPv6 or it isn't mapped IPv4 then there is nothing to be unmapped
+	 */
+	if (addr->family != AF_INET6 || !IN6_IS_ADDR_V4MAPPED(&sin6->sin6_addr))
+		return;
+
+	struct sockaddr_in sin;
+	memset(&sin, 0, sizeof(sin));
+
+	sin.sin_family = AF_INET;
+	sin.sin_port = sin6->sin6_port;
+	// copies last 4 bytes from mapped IPv6 that represents original IPv4 address
+	memcpy(&sin.sin_addr.s_addr, &sin6->sin6_addr.s6_addr[12], 4);
+
+	memcpy(&addr->addr, &sin, sizeof(sin));
+	addr->addr_len = sizeof(sin);
+	addr->family = AF_INET;
+}
+
 int dnet_socket_local_addr(int s, struct dnet_addr *addr)
 {
 	int err;
@@ -355,6 +383,8 @@ int dnet_socket_local_addr(int s, struct dnet_addr *addr)
 
 	addr->addr_len = len;
 	addr->family = ((struct sockaddr *)addr->addr)->sa_family;
+
+	try_to_unmap_ipv4(addr);
 	return 0;
 }
 
@@ -402,8 +432,11 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 		dnet_log_err(n, "FATAL: Can't recover from this error, exiting...");
 		exit(err);
 	}
+
 	addr.family = orig->addr.family;
 	addr.addr_len = salen;
+
+	try_to_unmap_ipv4(&addr);
 
 	dnet_set_sockopt(n, cs);
 
