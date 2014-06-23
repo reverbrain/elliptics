@@ -1,3 +1,14 @@
+elliptics (2.25.4.18) unstable; urgency=low
+
+  * Core: Added unmapping IPv4 from mapped IPv6 address
+  * client: Added session::recovery_index method
+  * client: Introduced merge_indexes method
+  * tests: Docs for test_index_metadata added
+  * index: More docs for get_index_metadata helper function
+  * 
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 23 Jun 2014 18:09:46 +0400
+
 elliptics (2.25.4.17) unstable; urgency=low
 
   * Pytests: added testing of index interface: set/update/remove
