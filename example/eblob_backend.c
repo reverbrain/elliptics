@@ -293,6 +293,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	uint64_t offset = 0, size = 0;
 	enum eblob_read_flavour csum = EBLOB_READ_CSUM;
 	int err, fd = -1, on_close = 0;
+	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
 
 	dnet_ext_list_init(&elist);
 	dnet_convert_io_attr(io);
@@ -303,30 +304,36 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 		csum = EBLOB_READ_NOCSUM;
 
 	err = eblob_read_return(b, &key, csum, &wc);
-	if (err == 0) {
-		/* Existing entry */
-		offset = wc.data_offset;
-		size = wc.total_data_size;
-		fd = wc.data_fd;
-
-		/* Existing new-format entry */
-		if ((wc.flags & BLOB_DISK_CTL_EXTHDR) != 0) {
-			struct dnet_ext_list_hdr ehdr;
-
-			err = dnet_ext_hdr_read(&ehdr, fd, offset);
-			if (err != 0)
-				goto err_out_exit;
-			dnet_ext_hdr_to_list(&ehdr, &elist);
-			dnet_ext_list_to_io(&elist, io);
-
-			/* Take into an account extended header */
-			size -= sizeof(struct dnet_ext_list_hdr);
-			offset += sizeof(struct dnet_ext_list_hdr);
-		}
-	} else {
+	if (err < 0) {
 		dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-read-fd: READ: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
 		goto err_out_exit;
+	}
+
+	/* Existing entry */
+	offset = wc.data_offset;
+	size = wc.total_data_size;
+	fd = wc.data_fd;
+
+	/* Existing new-format entry */
+	if ((wc.flags & BLOB_DISK_CTL_EXTHDR) != 0) {
+		struct dnet_ext_list_hdr ehdr;
+
+		/* Sanity */
+		if (size < ehdr_size) {
+			err = -ERANGE;
+			goto err_out_exit;
+		}
+
+		err = dnet_ext_hdr_read(&ehdr, fd, offset);
+		if (err != 0)
+			goto err_out_exit;
+		dnet_ext_hdr_to_list(&ehdr, &elist);
+		dnet_ext_list_to_io(&elist, io);
+
+		/* Take into an account extended header's len */
+		size -= sizeof(struct dnet_ext_list_hdr);
+		offset += sizeof(struct dnet_ext_list_hdr);
 	}
 
 	io->total_size = size;
@@ -693,10 +700,12 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 		goto err_out_exit;
 	}
 
+	/* Existing entry */
 	offset = wc.data_offset;
 	size = wc.total_data_size;
 	fd = wc.data_fd;
 
+	/* Existing new-format entry */
 	if ((wc.flags & BLOB_DISK_CTL_EXTHDR) != 0) {
 		struct dnet_ext_list_hdr ehdr;
 
