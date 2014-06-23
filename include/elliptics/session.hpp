@@ -866,7 +866,7 @@ class session
 		/*!
 		 * \brief Recover \a index so it will be consistent in all groups.
 		 *
-		 * This method recover ont only list of objects in index but also list
+		 * This method recover not only list of objects in index but also list
 		 * of indexes of all objects at this indexes.
 		 */
 		async_generic_result recover_index(const key &index);
