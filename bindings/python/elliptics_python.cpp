@@ -348,6 +348,10 @@ BOOST_PYTHON_MODULE(core)
 		     "set_timeouts(wait_timeout, check_timeout)\n"
 		     "    Changes timeouts values\n\n"
 		     "    node.set_timeouts(wait_timeout=5, check_timeout=50)")
+		.def("set_keepalive", &node::set_keepalive,
+		     (bp::arg("idle"), bp::arg("cnt"), bp::arg("interval")),
+		     "set_keepalive(idle, cnt, interval)\n"
+		     "    Sets tcp keepalive parameters to connections\n")
 	;
 
 	bp::enum_<elliptics_iterator_flags>("iterator_flags",
