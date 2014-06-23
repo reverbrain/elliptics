@@ -854,6 +854,35 @@ class session
 		async_list_indexes_result list_indexes(const key &id);
 
 		/*!
+		 * \brief Merge index tables stored at \a id.
+		 *
+		 * Reads index tables from groups \a from, merges them and writes result to \a to.
+		 *
+		 * \attention This is low-level function which merges not \b index \a id, but merges
+		 * data which is stored at key \a id.
+		 */
+		async_write_result merge_indexes(const key &id, const std::vector<int> &from, const std::vector<int> &to);
+
+		/*!
+		 * \brief Recover \a index so it will be consistent in all groups.
+		 *
+		 * This method recover ont only list of objects in index but also list
+		 * of indexes of all objects at this indexes.
+		 */
+		async_generic_result recover_index(const key &index);
+
+		/*!
+		 * \brief Retrieves metadata about each index \a index
+		 *
+		 * Returns async_get_index_metadata_result.
+		 */
+		async_get_index_metadata_result get_index_metadata(const dnet_raw_id &index);
+		/*!
+		 * \overload
+		 */
+		async_get_index_metadata_result get_index_metadata(const std::string &index);
+
+		/*!
 		 * Returns logger object.
 		 */
 		logger get_logger() const;

@@ -684,4 +684,530 @@ async_list_indexes_result session::list_indexes(const key &request_id)
 	return result;
 }
 
+/*!
+ * Auxiliary function to parse char* buffer with c-msgpack library
+ */
+static bool buffer_reader(cmp_ctx_t *ctx, void *data, size_t limit)
+{
+	char *start_ptr = static_cast<char *>(ctx->buf);
+	char *ptr = start_ptr;
+	while (ptr && limit) {
+		++ptr;
+		--limit;
+	}
+	if (limit != 0) {
+		return false;
+	}
+	memcpy(data, start_ptr, ptr - start_ptr);
+	ctx->buf = ptr;
+	return true;
+}
+
+/*!
+ * Structure of secondary index msgpack is following
+ * Array of 4 elements
+ * Version number
+ * Array of indexes
+ *
+ * We need to get size of indexes array, that's why we
+ * skip first two fields in msgpack and return size
+ * of array in third position of msgpack
+ */
+static uint32_t get_index_size(const std::string &index_metadata, int &err)
+{
+	err = 0;
+	cmp_ctx_t cmp;
+
+	char *buffer = new char[index_metadata.length() + 1];
+	memcpy(buffer, index_metadata.data(), index_metadata.length() + 1);
+
+	cmp_init(&cmp, buffer, buffer_reader, NULL);
+
+	uint32_t array_size;
+	if (!cmp_read_array(&cmp, &array_size)) {
+		err = -EBADMSG;
+		return 0;
+	}
+
+	int32_t version;
+	if (!cmp_read_int(&cmp, &version)) {
+		err = -EBADMSG;
+		return 0;
+	}
+
+	if (!cmp_read_array(&cmp, &array_size)) {
+		err = -EBADMSG;
+		return 0;
+	}
+
+	delete buffer;
+	return array_size;
+}
+
+/*!
+ * \brief Callback that handles bulk_read responses
+ *
+ * Each response corresponds to some shard
+ * We extract metadata from each shard index
+ * and put it into vector of answers
+ */
+struct get_index_metadata_callback
+{
+	session sess;
+	async_result_handler<get_index_metadata_result_entry> handler;
+
+	void operator() (const read_result_entry &result)
+	{
+		get_index_metadata_result_entry metadata;
+		std::string content =  result.file().to_string().substr(DNET_INDEX_TABLE_MAGIC_SIZE);
+		int err = 0;
+		metadata.index_size = get_index_size(content, err);
+		if (err) {
+			metadata.is_valid = false;
+			sess.get_logger().print(DNET_LOG_ERROR, "get_index_metadata: Incorrect msgpack format: err: %d", err);
+		} else {
+			metadata.is_valid = true;
+		}
+		handler.process(metadata);
+	}
+
+	void operator() (const error_info &error)
+	{
+		handler.complete(error);
+	}
+};
+
+/*!
+ * \brief Returns metadata for each shard for secondary index \a index
+ */
+async_get_index_metadata_result session::get_index_metadata(const dnet_raw_id &index)
+{
+	session sess = clone();
+	sess.set_exceptions_policy(session::no_exceptions);
+	sess.set_filter(filters::positive);
+	sess.set_checker(checkers::no_check);
+
+	dnet_node *node = sess.get_native_node();
+	int shard_count = node->indexes_shard_count;
+
+	/*
+	 * Prepare indexes ids for bulk_read request
+	 */
+	std::vector<dnet_io_attr> request_io_attrs;
+	request_io_attrs.resize(shard_count);
+
+	/*
+	 * index_requests_set contains all requests we have to send for this bulk-request.
+	 * All indexes a splitted for shards, so we have to send separate logical request
+	 * to certain shard for all indexes. This logical requests may be joined to one
+	 * transaction if some of shards are situated on one elliptics node.
+	 */
+	dnet_raw_id tmp;
+
+	dnet_indexes_transform_index_prepare(node, &index, &tmp);
+
+	for (int shard_id = 0; shard_id < shard_count; ++shard_id) {
+		dnet_raw_id id;
+
+		memcpy(&id, &tmp, sizeof(dnet_raw_id));
+		dnet_indexes_transform_index_id_raw(node, &id, shard_id);
+
+		dnet_io_attr &io = request_io_attrs[shard_id];
+		memset(&io, 0, sizeof(io));
+
+		io.size   = 100;
+		io.offset = 0;
+		io.flags  = get_ioflags() | DNET_IO_FLAGS_CACHE;
+		memcpy(io.id, id.id, DNET_ID_SIZE);
+		memcpy(io.parent, id.id, DNET_ID_SIZE);
+	}
+
+	async_get_index_metadata_result result(*this);
+	get_index_metadata_callback callback = { sess, result };
+	sess.bulk_read(request_io_attrs).connect(callback, callback);
+
+	return result;
+}
+
+async_get_index_metadata_result session::get_index_metadata(const std::string &index)
+{
+	dnet_raw_id raw_index;
+	transform(index, raw_index);
+	return get_index_metadata(raw_index);
+}
+
+struct merge_indexes_callback
+{
+	key id;
+	session write_session;
+	async_result_handler<write_result_entry> handler;
+
+	/*!
+	 * Comparator for tuples which sorts dnet_index_entry's by following properties:
+	 * \li index id
+	 * \li update time in seconds
+	 * \li update time in nanoseconds
+	 * \li size of index's data
+	 *
+	 * So more appropriate copy of index is the newest or with the biggest data
+	 * in case if the time is equal.
+	 */
+	struct index_entry_comparator
+	{
+		bool operator ()(const std::tuple<size_t, dnet_index_entry> &first_tuple,
+			const std::tuple<size_t, dnet_index_entry> &second_tuple) const
+		{
+			const auto &first = std::get<1>(first_tuple);
+			const auto &second = std::get<1>(second_tuple);
+
+			const int cmp = memcmp(first.index.id, second.index.id, DNET_ID_SIZE);
+			if (cmp != 0)
+				return cmp < 0;
+
+			return std::make_tuple(first.time.tsec, first.time.tnsec, first.data.size())
+				< std::make_tuple(second.time.tsec, second.time.tnsec, second.data.size());
+		}
+	};
+
+	/*!
+	 * This class returnes result of merged indexes one-by-one.
+	 *
+	 * It stores in the heap the biggest not-processed-yet from every group.
+	 * If any element is poped from the heap it is replaced by the next element
+	 * from the same group.
+	 *
+	 * When user asks for next element the following logic is applied:
+	 * \li take the biggest element from the heap
+	 * \li remove all elements from heap with the same id
+	 *
+	 * This is effective (O(n log k)) way to merge indexes.
+	 */
+	class index_entry_heap
+	{
+	public:
+		index_entry_heap(std::vector<dnet_indexes> &&indexes) : m_indexes(std::move(indexes))
+		{
+			for (size_t i = 0; i < m_indexes.size(); ++i) {
+				repopulate(i);
+			}
+		}
+
+		bool has_next() const
+		{
+			return !m_heap.empty();
+		}
+
+		dnet_index_entry next()
+		{
+			dnet_index_entry result;
+			std::tie(std::ignore, result) = m_heap.front();
+
+			pop();
+
+			while (!m_heap.empty() && memcmp(result.index.id, std::get<1>(m_heap.front()).index.id, DNET_ID_SIZE) == 0) {
+				pop();
+			}
+
+			return result;
+		}
+
+	private:
+		void pop()
+		{
+			index_entry_comparator comparator;
+
+			size_t vector_id;
+			std::tie(vector_id, std::ignore) = m_heap.front();
+
+			std::pop_heap(m_heap.begin(), m_heap.end(), comparator);
+			m_heap.pop_back();
+
+			repopulate(vector_id);
+		}
+
+		void repopulate(size_t vector_id)
+		{
+			index_entry_comparator comparator;
+
+			auto &vector = m_indexes[vector_id].indexes;
+
+			if (!vector.empty()) {
+				m_heap.emplace_back(vector_id, vector.back());
+				vector.pop_back();
+				std::push_heap(m_heap.begin(), m_heap.end(), comparator);
+			}
+		}
+
+		std::vector<dnet_indexes> m_indexes;
+		std::vector<std::tuple<size_t, dnet_index_entry>> m_heap;
+	};
+
+	void operator() (const sync_read_result &raw_indexes, const error_info &error)
+	{
+		logger log = write_session.get_logger();
+
+		if (error) {
+			if (log.get_log_level() >= DNET_LOG_ERROR) {
+				log.print(DNET_LOG_ERROR, "%s: failed to read indexes: %s", dnet_dump_id(&id.id()), error.message().c_str());
+			}
+
+			handler.complete(error);
+			return;
+		}
+
+		std::vector<dnet_indexes> indexes;
+		data_pointer valid_index_data;
+
+		// Unpack all retrieved results if possible
+		for (auto it = raw_indexes.begin(); it != raw_indexes.end(); ++it) {
+			try {
+				if (log.get_log_level() >= DNET_LOG_DEBUG) {
+					log.print(DNET_LOG_DEBUG, "%s: unpacking indexes, size: %llu",
+						dnet_dump_id(&id.id()), static_cast<unsigned long long>(it->file().size()));
+				}
+
+				dnet_indexes tmp;
+				indexes_unpack_raw(it->file(), &tmp);
+
+				indexes.emplace_back(std::move(tmp));
+				valid_index_data = it->file();
+			} catch (std::bad_alloc &) {
+				handler.complete(error_info(-ENOMEM, std::string()));
+				return;
+			} catch (std::exception &e) {
+				if (log.get_log_level() >= DNET_LOG_ERROR) {
+					log.print(DNET_LOG_ERROR, "%s: failed to unpack indexes: %s", dnet_dump_id(&id.id()), e.what());
+				}
+			}
+		}
+
+		if (indexes.empty()) {
+			handler.complete(error_info());
+			return;
+		} else if (indexes.size() == 1) {
+			indexes.front();
+
+			write_session.write_data(id, valid_index_data, 0).connect(handler);
+			return;
+		}
+
+		const auto shard_id = indexes.front().shard_id;
+		const auto shard_count = indexes.front().shard_count;
+
+		// Check if metadata of all indexes are the same
+		for (auto it = indexes.begin(); it != indexes.end(); ++it) {
+			if (it->shard_id != shard_id || it->shard_count != shard_count) {
+				if (log.get_log_level() >= DNET_LOG_ERROR) {
+					log.print(DNET_LOG_ERROR, "%s: mismatched indexes metadata: (%d, %d) vs (%d, %d)",
+						dnet_dump_id(&id.id()), shard_id, shard_count, it->shard_id, it->shard_count);
+				}
+				handler.complete(create_error(-EINVAL, id, "mismatched indexes metadata"));
+				return;
+			}
+		}
+
+		dnet_indexes result;
+		result.shard_id = indexes.front().shard_id;
+		result.shard_count = indexes.front().shard_count;
+
+		// Merge all indexes
+		index_entry_heap heap(std::move(indexes));
+		while (heap.has_next())
+			result.indexes.push_back(heap.next());
+
+		// Head of the heap is the buggest element, so final list must be reversed
+		std::reverse(result.indexes.begin(), result.indexes.end());
+
+		// Pack indexes and write serialized data to server
+		try {
+			msgpack::sbuffer buffer;
+			msgpack::pack(buffer, result);
+
+			data_buffer tmp_buffer(DNET_INDEX_TABLE_MAGIC_SIZE + buffer.size());
+			tmp_buffer.write(dnet_bswap64(DNET_INDEX_TABLE_MAGIC));
+			tmp_buffer.write(buffer.data(), buffer.size());
+
+			data_pointer data = std::move(tmp_buffer);
+
+			write_session.write_data(id, data, 0).connect(handler);
+		} catch (std::bad_alloc &) {
+			handler.complete(error_info(-ENOMEM, std::string()));
+		} catch (elliptics::error &e) {
+			handler.complete(error_info(e.error_code(), e.error_message()));
+		}
+	}
+};
+
+async_write_result session::merge_indexes(const key &id, const std::vector<int> &from, const std::vector<int> &to)
+{
+	transform(id);
+
+	async_write_result result(*this);
+
+	session read_session = clone();
+	read_session.set_checker(checkers::no_check);
+	read_session.set_filter(filters::positive);
+	read_session.set_exceptions_policy(session::no_exceptions);
+
+	session write_session = clone();
+	write_session.set_groups(to);
+	write_session.set_checker(checkers::no_check);
+	write_session.set_filter(filters::all_with_ack);
+	write_session.set_exceptions_policy(session::no_exceptions);
+
+	merge_indexes_callback callback = {
+		id,
+		write_session,
+		result
+	};
+
+	std::vector<async_read_result> read_results;
+
+	// Read this index from every provided group
+	for (auto it = from.begin(); it != from.end(); ++it) {
+		session sess = read_session.clone();
+		read_results.emplace_back(sess.read_data(id, std::vector<int>(1, *it), 0, 0));
+	}
+
+	aggregated(read_session, read_results.begin(), read_results.end()).connect(callback);
+
+	return result;
+}
+
+/*!
+ * \internal
+ *
+ * Logic of this recovery method is following:
+ * \li run session::merge_indexes for every single shard of this index for every known group
+ * \li run find_indexes to find every single object in this index
+ * \li add this index to the list of indexes for every received object
+ * \li ...
+ * \li PROFIT
+ *
+ * Process is finished when any step fails or every step is succesfully completed.
+ */
+struct recover_index_callback : public std::enable_shared_from_this<recover_index_callback>
+{
+	key index;
+	session sess;
+	logger log;
+	async_result_handler<callback_result_entry> handler;
+	std::atomic_size_t counter;
+	std::mutex error_mutex;
+	error_info total_error;
+
+	recover_index_callback(const session &sess, const async_generic_result &result) :
+		sess(sess), log(sess.get_logger()), handler(result), counter(0)
+	{
+	}
+
+	void on_merge_finished(const error_info &error)
+	{
+		if (error) {
+			handler.complete(error);
+			return;
+		}
+
+		// Increment counter so we will know when last reply is received
+		++counter;
+
+		sess.clone().find_any_indexes(std::vector<dnet_raw_id>(1, index.raw_id())).connect(
+			std::bind(&recover_index_callback::on_find_indexes_process, shared_from_this(), std::placeholders::_1),
+			std::bind(&recover_index_callback::on_find_indexes_complete, shared_from_this(), std::placeholders::_1));
+	}
+
+	void on_find_indexes_process(const find_indexes_result_entry &entry)
+	{
+		if (log.get_log_level() >= DNET_LOG_DEBUG) {
+			for (auto it = entry.indexes.begin(); it != entry.indexes.end(); ++it) {
+				log.print(DNET_LOG_DEBUG, "recovery, index: %s, object: %s, data: %s",
+					index.to_string().c_str(), dnet_dump_id_str(entry.id.id), it->data.to_string().c_str());
+
+			}
+		}
+
+		if (!entry.indexes.empty()) {
+			// Increment counter so we will know when last reply is received
+			++counter;
+
+			// Add index to object's list of indexes
+			session_set_indexes(sess, entry.id, entry.indexes,
+				DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_NOINTERNAL).connect(
+					std::bind(&recover_index_callback::on_update_indexes_process, shared_from_this(), std::placeholders::_1),
+					std::bind(&recover_index_callback::on_update_indexes_complete, shared_from_this(), std::placeholders::_1));
+		}
+	}
+
+	void on_find_indexes_complete(const error_info &error)
+	{
+		if (error) {
+			// Something bad is happened, there were no successfull
+			// find if this happened, so we are free to exit
+			handler.complete(error);
+		} else {
+			decrement_counter();
+		}
+	}
+
+	void on_update_indexes_process(const callback_result_entry &entry)
+	{
+		handler.process(entry);
+	}
+
+	void on_update_indexes_complete(const error_info &error)
+	{
+		if (error) {
+			std::lock_guard<std::mutex> guard(error_mutex);
+			if (!total_error)
+				total_error = error;
+		}
+
+		decrement_counter();
+	}
+
+	void decrement_counter()
+	{
+		if (--counter == 0) {
+			handler.complete(total_error);
+		}
+	}
+};
+
+async_generic_result session::recover_index(const key &index)
+{
+	transform(index);
+
+	dnet_node *node = get_native_node();
+	const int shard_count = dnet_node_get_indexes_shard_count(node);
+	const std::vector<int> groups = get_groups();
+
+	dnet_raw_id index_id;
+	dnet_indexes_transform_index_prepare(node, &index.raw_id(), &index_id);
+
+	std::vector<async_write_result> results;
+
+	// Run merge_indexes for every single shard of this index
+	for (int shard_id = 0; shard_id < shard_count; ++shard_id) {
+		dnet_indexes_transform_index_id_raw(node, &index_id, shard_id);
+
+		results.emplace_back(merge_indexes(index_id, groups, groups));
+	}
+
+	session sess = clone();
+	sess.set_checker(checkers::no_check);
+	sess.set_filter(filters::all_with_ack);
+	sess.set_exceptions_policy(session::no_exceptions);
+
+	async_generic_result result(sess);
+
+	auto callback = std::make_shared<recover_index_callback>(sess, result);
+	callback->index = index;
+
+	aggregated(sess, results.begin(), results.end()).connect(
+		std::bind(&async_result_handler<callback_result_entry>::process, callback->handler, std::placeholders::_1),
+		std::bind(&recover_index_callback::on_merge_finished, callback, std::placeholders::_1));
+
+	return result;
+}
+
 } } // ioremap::elliptics
