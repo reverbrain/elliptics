@@ -1,3 +1,10 @@
+elliptics (2.25.4.19) unstable; urgency=low
+
+  * Pytests: fixed test_session_indexes - wait set_indexes/remove_indexes results
+  * submodule: removed react, started to use git:// instead of http://
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 24 Jun 2014 18:31:49 +0400
+
 elliptics (2.25.4.18) unstable; urgency=low
 
   * Core: Added unmapping IPv4 from mapped IPv6 address

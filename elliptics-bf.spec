@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.18
+Version:	2.25.4.19
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jun 24 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.19
+- Pytests: fixed test_session_indexes - wait set_indexes/remove_indexes results
+- submodule: removed react, started to use git:// instead of http://
+
 * Mon Jun 23 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.18
 - Core: Added unmapping IPv4 from mapped IPv6 address
 - client: Added session::recovery_index method
