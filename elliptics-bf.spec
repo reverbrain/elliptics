@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.17
+Version:	2.25.4.18
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jun 23 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.18
+- Core: Added unmapping IPv4 from mapped IPv6 address
+- client: Added session::recovery_index method
+- client: Introduced merge_indexes method
+- tests: Docs for test_index_metadata added
+- index: More docs for get_index_metadata helper function
+- 
+
 * Wed Jun 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.17
 - Pytests: added testing of index interface: set/update/remove
 - Recovery: Added dumping iterated keys to dump file(s) that could be used for resuming recovery after some issues
