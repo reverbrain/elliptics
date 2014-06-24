@@ -78,7 +78,7 @@ class TestSession:
         key = 'simple_key'
         indexes = ['simple_index_1', 'simple_index_2', 'simple_index_3', 'simple_index_4', 'simple_index_5']
         datas = ['key_data_1', 'key_data_2', 'key_data_3', 'key_data_4', 'key_data_5']
-        session.set_indexes(key, indexes, datas).get()
+        session.set_indexes(key, indexes, datas).wait()
 
         for i, idx in enumerate(indexes):
             check_dict[idx] = datas[i]
@@ -86,14 +86,14 @@ class TestSession:
 
         indexes_2 = ['simple_index_4', 'simple_index_5', 'simple_index_6', 'simple_index_7']
         datas_2 = ['key_data_4.2', 'key_data_5.2', 'key_data_6.2', 'key_data_7.2']
-        session.update_indexes(key, indexes_2, datas_2).get()
+        session.update_indexes(key, indexes_2, datas_2).wait()
 
         for i, idx in enumerate(indexes_2):
             check_dict[idx] = datas_2[i]
         self.check_indexes(session, key, check_dict.keys(), check_dict.values())
 
         removed_indexes = indexes[:3]
-        session.remove_indexes(key, removed_indexes)
+        session.remove_indexes(key, removed_indexes).wait()
 
         for idx in removed_indexes:
             del check_dict[idx]
@@ -109,7 +109,7 @@ class TestSession:
                    'dict_index_3': 'key_data_3',
                    'dict_index_4': 'key_data_4',
                    'dict_index_5': 'key_data_5'}
-        session.set_indexes(key, indexes)
+        session.set_indexes(key, indexes).wait()
 
         self.check_indexes(session, key, indexes.keys(), indexes.values())
 
@@ -117,7 +117,7 @@ class TestSession:
                      'dict_index_5': 'key_data_5.2',
                      'dict_index_6': 'key_data_6.2',
                      'dict_index_7': 'key_data_7.2'}
-        session.update_indexes(key, indexes_2).get()
+        session.update_indexes(key, indexes_2).wait()
 
         indexes.update(indexes_2)
         self.check_indexes(session, key, indexes.keys(), indexes.values())

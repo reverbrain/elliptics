@@ -633,6 +633,16 @@ public:
 		return create_result(std::move(session::list_indexes(transform(id).raw_id())));
 	}
 
+	python_write_result merge_indexes(const bp::api::object &id, const bp::api::object &from, const bp::api::object &to) {
+		auto std_from = convert_to_vector<int>(from);
+		auto std_to = convert_to_vector<int>(to);
+		return create_result(std::move(session::merge_indexes(transform(id).raw_id(), std_from, std_to)));
+	}
+
+	python_callback_result recover_index(const bp::api::object &index) {
+		return create_result(std::move(session::recover_index(transform(index).raw_id())));
+	}
+
 	python_callback_result remove_indexes(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 
@@ -1633,6 +1643,21 @@ void init_elliptics_session() {
 		     "            print 'Data:', index.data\n"
 		     "    excep Exception as e:\n"
 		     "        print 'List indexes failed:', e\n")
+
+		.def("merge_indexes", &elliptics_session::merge_indexes,
+		     (bp::args("id", "from", "to")),
+		     "merge_indexes(id, from, to)\n"
+		     "    Merges index tables stored at @id.\n"
+		     "    Reads index tables from groups @from, merges them and writes result to @to.\n\n"
+		     "    This is low-level function which merges not index @id, but merges\n"
+		     "    data which is stored at key @id\n")
+
+		.def("recover_index", &elliptics_session::recover_index,
+		     (bp::args("index")),
+		     "recover_index(index)\n"
+		     "    Recover @index consistency in all groups.\n"
+		     "    This method recovers not only list of objects in index but\n"
+		     "    also list of indexes of all objects at this indexes.\n")
 
 		.def("remove_indexes", &elliptics_session::remove_indexes,
 		     (bp::args("id", "indexes")),

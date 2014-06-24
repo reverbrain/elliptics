@@ -71,118 +71,14 @@ class RecoverStat(object):
         ret.written_bytes = a.written_bytes + b.written_bytes
         return ret
 
-magic_number = 6747391680278904871
-magic_string = struct.pack('Q', magic_number)
 
 
 def validate_index(result):
     if result.size < 8:
         return False
 
-    return struct.unpack('Q', result.data[:8])[0] == magic_number
-
-
-class IndexItem:
-    def __init__(self, id, data, tsec=0, tnsec=0):
-        self.id = struct.unpack('B' * 64, id)
-        self.data = data
-        self.tsec = tsec
-        self.tnsec = tnsec
-
-    def __cmp__(self, other):
-        return cmp(
-            (self.id, other.tsec, other.tnsec, len(self.data)),
-            (other.id, self.tsec, self.tnsec, len(other.data)))
-
-    def pack(self):
-        ret = [struct.pack('B' * 64, *self.id),
-               self.data]
-
-        if self.tsec or self.tnsec:
-            ret += [self.tsec, self.tnsec]
-
-        return tuple(ret)
-
-
-class Index:
-    def __init__(self, items):
-        self.items = iter(items)
-        self.top = IndexItem(*next(self.items))
-
-    def next(self):
-        self.top = IndexItem(*next(self.items))
-
-    def __cmp__(self, other):
-        return cmp(self.top, other.top)
-
-
-def merge_index_shards(results):
-    import msgpack
-    shards = []
-    for r in results:
-        if r and r.size > 8:
-            try:
-                log.debug("Unpacking index shard size: {0}".format(r.size))
-                shard = msgpack.loads(r.data[8:])
-                log.debug("Unpacked shard has version: {0}, items: {1}, No: {2}/{3}"
-                          .format(shard[0], len(shard[1]), shard[2], shard[3]))
-                if shard[1]:
-                    shards.append(shard)
-            except Exception as e:
-                log.error("Could not to load msgpack string: {0}, traceback: {1}"
-                          .format(repr(e), traceback.format_exc()))
-
-    if not shards:
-        return None
-    elif len(shards) == 1:
-        return magic_string + msgpack.dumps(shards[0])
-
-    # shard_info = (shard #, total number of shards)
-    shard_info = (shards[0][2], shards[0][3])
-
-    # checks that all merging shards have known version and have same shard # and total number of shards
-    if not all(s[0] <= INDEX_VERSION and (s[2], s[3]) == shard_info for s in shards):
-        log.error("Could not merge index shards: shards are incompatible: [(version, shard#, shards_count)]: {0}"
-                  .format([(s[0], s[2], s[3]) for s in shards]))
-        return None
-
-    import heapq
-    heap = []
-
-    for s in shards:
-        heapq.heappush(heap, Index(s[1]))
-
-    final = []
-
-    # use heap for merging keys from shards
-    while heap:
-        smallest = heapq.heappop(heap)
-        if final and final[-1].id == smallest.top.id:
-            try:
-                smallest.next()
-                heapq.heappush(heap, smallest)
-            except StopIteration:
-                pass
-            continue
-
-        smallest_val = smallest.top
-        final.append(smallest_val)
-
-        try:
-            smallest.next()
-            heapq.heappush(heap, smallest)
-        except StopIteration:
-            pass
-
-    final = tuple(f.pack() for f in final)
-    # makes merged shard of INDEX_VERSION with merged key and
-    # meta info equal to merged shards infos (shard #, total number of shards)
-    merged_shard = (INDEX_VERSION,
-                    final,
-                    shard_info[0],
-                    shard_info[1])
-    # add magec_string before msgpacked shard
-    return magic_string + msgpack.dumps(merged_shard)
+    magic_number = struct.pack('Q', 6747391680278904871)
+    return result.data[:8] == magic_number
 
 
 class KeyRecover(object):
@@ -196,16 +92,6 @@ class KeyRecover(object):
 
         self.origin_session = elliptics.Session(node)
         self.origin_session.groups = [origin_group]
-
-        self.diff_sessions = []
-        for g in self.diff_groups:
-            self.diff_sessions.append(elliptics.Session(node))
-            self.diff_sessions[-1].groups = [g]
-
-        self.missed_sessions = []
-        for g in self.missed_groups:
-            self.missed_sessions.append(elliptics.Session(node))
-            self.missed_sessions[-1].groups = [g]
 
         self.write_session = elliptics.Session(node)
         self.result = False
@@ -234,15 +120,17 @@ class KeyRecover(object):
             self.stats.read_bytes += results[0].size
 
             if validate_index(results[0]) and self.diff_groups:
+                merge_groups = self.diff_groups.union([self.origin_group])
+                write_groups = merge_groups.union(self.missed_groups)
                 log.debug("Index has been found in key: {0}. "
-                          "Trying to merge shards from other groups: {1}"
-                          .format(repr(self.key), self.diff_groups))
-                self.data_to_merge = [results[0]]
-                self.diff_reads = []
-                self.merge_lock = threading.Lock()
-                for s in self.diff_sessions:
-                    self.diff_reads.append(s.read_data(self.key))
-                    self.diff_reads[-1].connect(self.on_read_merge)
+                          "Merging shards from groups: {1} and writting it to groups:{2}"
+                          .format(repr(self.key), merge_groups, write_groups))
+                self.write_result = self.write_session.merge_indexes(
+                    self.key,
+                    merge_groups,
+                    write_groups)
+                self.write_result.connect(self.on_write)
+                self.size_to_write = 0
             else:
                 self.write_session.groups = self.diff_groups \
                     .union(self.missed_groups)
@@ -260,42 +148,6 @@ class KeyRecover(object):
                       .format(self.key, repr(e), traceback.format_exc()))
             self.complete.set()
 
-    def on_read_merge(self, results, error):
-        complete = False
-        try:
-            with self.merge_lock:
-                if error.code or len(results) < 1:
-                    log.error("Read key: {0} has failed: {2}".format(self.key, error))
-                    self.stats.read_failed += 1
-                    self.data_to_merge.append(None)
-                else:
-                    self.stats.read += 1
-                    self.stats.read_bytes += results[0].size
-                    self.data_to_merge.append(results[0])
-
-                if len(self.data_to_merge) == len(self.diff_groups) + 1:
-                    complete = True
-
-            if complete:
-                log.debug("Merging index shards from different groups")
-                data = merge_index_shards(self.data_to_merge)
-                self.stats.merged_indexes += 1
-                if data:
-                    self.size_to_write = len(data)
-                    io = elliptics.IoAttr()
-                    io.id = self.key
-                    io.timestamp = elliptics.Time.now()
-                    self.write_session.groups = self.diff_groups \
-                        .union(self.missed_groups) \
-                        .union([self.origin_group])
-                    log.debug("Writing merged index shard: {0}".format(self.key))
-                    self.write_result = self.write_session.write_data(io, data)
-                    self.write_result.connect(self.on_write)
-        except Exception as e:
-            log.error("Failed to merge shards for key: {0} exception: {1}, traceback: {2}"
-                      .format(self.key, repr(e), traceback.format_exc()))
-            self.complete.set()
-
     def on_write(self, results, error):
         try:
             if error.code:
@@ -305,8 +157,10 @@ class KeyRecover(object):
             else:
                 log.debug("Writed key: {0}".format(repr(self.key)))
                 self.result = True
-                self.stats.write += 1
-                self.stats.written_bytes += self.size_to_write
+                self.stats.write += len(results)
+                self.stats.written_bytes = 0
+                for r in results:
+                    self.stats.written_bytes += r.size
             self.complete.set()
         except Exception as e:
             log.error("Failed to handle write result key: {0}: {1}, traceback: {2}"
