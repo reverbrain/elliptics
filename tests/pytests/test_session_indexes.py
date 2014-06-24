@@ -93,7 +93,7 @@ class TestSession:
         self.check_indexes(session, key, check_dict.keys(), check_dict.values())
 
         removed_indexes = indexes[:3]
-        session.remove_indexes(key, removed_indexes)
+        session.remove_indexes(key, removed_indexes).get()
 
         for idx in removed_indexes:
             del check_dict[idx]
@@ -109,7 +109,7 @@ class TestSession:
                    'dict_index_3': 'key_data_3',
                    'dict_index_4': 'key_data_4',
                    'dict_index_5': 'key_data_5'}
-        session.set_indexes(key, indexes)
+        session.set_indexes(key, indexes).get()
 
         self.check_indexes(session, key, indexes.keys(), indexes.values())
 
