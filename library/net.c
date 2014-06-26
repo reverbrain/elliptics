@@ -261,7 +261,8 @@ void dnet_state_clean(struct dnet_net_state *st)
 		if (rb_node) {
 			t = rb_entry(rb_node, struct dnet_trans, trans_entry);
 			dnet_trans_get(t);
-			dnet_trans_remove_nolock(&st->trans_root, t);
+
+			dnet_trans_remove_nolock(st, t);
 			list_del_init(&t->trans_list_entry);
 		}
 		pthread_mutex_unlock(&st->trans_lock);
@@ -497,7 +498,8 @@ static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t
 	t->time.tv_sec += wait_ts->tv_sec;
 	t->time.tv_usec += wait_ts->tv_nsec / 1000;
 
-	list_move_tail(&t->trans_list_entry, &st->trans_list);
+	dnet_trans_remove_timer_nolock(st, t);
+	dnet_trans_insert_timer_nolock(st, t);
 }
 
 int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
@@ -508,7 +510,7 @@ int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 	dnet_trans_get(t);
 
 	pthread_mutex_lock(&st->trans_lock);
-	err = dnet_trans_insert_nolock(&st->trans_root, t);
+	err = dnet_trans_insert_nolock(st, t);
 	if (!err)
 		dnet_trans_timestamp(st, t);
 	pthread_mutex_unlock(&st->trans_lock);
@@ -678,10 +680,10 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 		uint64_t tid = cmd->trans & ~DNET_TRANS_REPLY;
 
 		pthread_mutex_lock(&st->trans_lock);
-		t = dnet_trans_search(&st->trans_root, tid);
+		t = dnet_trans_search(st, tid);
 		if (t) {
 			if (!(cmd->flags & DNET_FLAGS_MORE)) {
-				dnet_trans_remove_nolock(&st->trans_root, t);
+				dnet_trans_remove_nolock(st, t);
 			} else {
 				dnet_trans_timestamp(st, t);
 			}
@@ -980,7 +982,7 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 	INIT_LIST_HEAD(&st->storage_state_entry);
 
 	st->trans_root = RB_ROOT;
-	INIT_LIST_HEAD(&st->trans_list);
+	st->timer_root = RB_ROOT;
 
 	st->epoll_fd = -1;
 

@@ -157,7 +157,7 @@ struct dnet_net_state
 
 	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
-	struct list_head	trans_list;
+	struct rb_root		timer_root;
 
 
 	int			la;
@@ -673,6 +673,9 @@ int __attribute__((weak)) dnet_state_join_nolock(struct dnet_net_state *st);
 struct dnet_trans
 {
 	struct rb_node			trans_entry;
+	struct rb_node			timer_entry;
+
+	/* is used when checking thread moves transaction out of the above trees because of timeout */
 	struct list_head		trans_list_entry;
 
 	struct timeval			time, start;
@@ -712,10 +715,14 @@ static inline void dnet_trans_put(struct dnet_trans *t)
 		dnet_trans_destroy(t);
 }
 
-int dnet_trans_insert_nolock(struct rb_root *root, struct dnet_trans *a);
+int dnet_trans_insert_nolock(struct dnet_net_state *st, struct dnet_trans *a);
+void dnet_trans_remove_nolock(struct dnet_net_state *st, struct dnet_trans *t);
+struct dnet_trans *dnet_trans_search(struct dnet_net_state *st, uint64_t trans);
+
+int dnet_trans_insert_timer_nolock(struct dnet_net_state *st, struct dnet_trans *a);
+void dnet_trans_remove_timer_nolock(struct dnet_net_state *st, struct dnet_trans *t);
+
 void dnet_trans_remove(struct dnet_trans *t);
-void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
-struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
 
 void dnet_trans_clean_list(struct list_head *head);
 int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_head *head);

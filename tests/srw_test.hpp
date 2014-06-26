@@ -39,7 +39,6 @@ struct node_info
 	}
 };
 
-
 } // namespace tests
 
 #endif // SRW_TEST_HPP

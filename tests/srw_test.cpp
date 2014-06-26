@@ -69,9 +69,24 @@ static void upload_application(const std::string &app_name)
 		packer << std::string("type");
 		packer << std::string("process");
 		packer << std::string("args");
-		packer.pack_map(1);
+		packer.pack_map(4);
 		packer << std::string("spool");
 		packer << global_data->directory.path();
+		// increase termination timeout to stop cocaine engine
+		// from killing our long-standing transactions, which are
+		// used for timeout test
+		//
+		// timeout test starts several exec transactions with random timeouts
+		// which end up in the noreply@ callback which just sleeps for 60 seconds
+		// this forces elliptics client-side to timeout, which must be correlated
+		// with timeouts (+2 seconds max) set for each transactions, i.e.
+		// transactions with 7 seconds timeout must be timed out at most in 7+2 seconds
+		packer << std::string("termination-timeout");
+		packer << 60;
+		packer << std::string("heartbeat-timeout");
+		packer << 60;
+		packer << std::string("startup-timeout");
+		packer << 60;
 	}
 	std::string profile(buffer.data(), buffer.size());
 	{
@@ -138,6 +153,96 @@ static void send_echo(session &sess, const std::string &app_name, const std::str
 	BOOST_REQUIRE_EQUAL(result[0].context().data().to_string(), data);
 }
 
+/**
+ * timeout test runs @num exec transactions with random timeouts.
+ * Timeouts must be set to less than 30 seconds, since 30 seconds is a magic number:
+ * first, because that's the number of seconds cocaine application sleeps in 'noreply' event,
+ * second, because cocaine sends heartbeats every 30 seconds (or at least complains that it didn't
+ * receive heartbeat after 30 seconds) and kills application.
+ *
+ * Trying to set 'heartbeat-timeout' in profile to 60 seconds didn't help.
+ * See tests/srw_test.hpp file where we actually set 3 different timeouts to 60 seconds,
+ * but yet application is killed in 30 seconds.
+ *
+ * Basic idea behind this test is following: we run multiple exec transactions with random timeouts,
+ * and all transactions must be timed out at most in 2 seconds after timeout expired. These 2 seconds
+ * happen because of checker thread which checks timer tree every second and check time (in seconds)
+ * must be greater than so called 'death' time.
+ *
+ * For more details see dnet_trans_iterate_move_transaction() function
+ */
+static void timeout_test(session &sess, const std::string &app_name)
+{
+	key key_id = app_name;
+	key_id.transform(sess);
+	dnet_id id = key_id.id();
+
+	// just a number of test transactions
+	int num = 50;
+
+	std::vector<std::pair<int, async_exec_result>> results;
+	results.reserve(num);
+
+	sess.set_exceptions_policy(session::no_exceptions);
+
+	std::string data = "some data";
+	for (int i = 0; i < num; ++i) {
+		int timeout = rand() % 20 + 1;
+		sess.set_timeout(timeout);
+
+		results.emplace_back(std::make_pair(timeout, sess.exec(&id, app_name + "@noreply", data)));
+	}
+
+	/*
+	 * This funky thread is needed to periodically 'ping' network connection to given node,
+	 * since otherwise 3 timed out transaction in a row will force elliptics client to kill
+	 * this connection and all subsequent transactions will be timed out prematurely.
+	 *
+	 * State is only marked as 'stall' (and eventually will be killed) when it faces timeout transactions.
+	 * Read transactions will be quickly completed (even with ENOENT error), which resets stall
+	 * counter of the selected network connection.
+	 */
+	class thread_watchdog {
+		public:
+			session sess;
+
+			thread_watchdog(const session &sess) : sess(sess), need_exit(false) {
+				tid = std::thread(std::bind(&thread_watchdog::ping, this));
+			}
+
+			~thread_watchdog() {
+				need_exit = true;
+				tid.join();
+			}
+
+		private:
+			std::thread tid;
+			bool need_exit;
+
+			void ping() {
+				while (!need_exit) {
+					sess.read_data(std::string("test-key"), 0, 0).wait();
+					sleep(1);
+				}
+			}
+	} ping(sess);
+
+	for (auto it = results.begin(); it != results.end(); ++it) {
+		auto & res = it->second;
+
+		res.wait();
+
+		auto elapsed = res.elapsed_time();
+
+		printf("elapsed: %lld.%lld, timeout: %d, error: %s [%d]\n", 
+				(unsigned long long)elapsed.tsec, (unsigned long long)elapsed.tnsec, it->first,
+				res.error().message().c_str(), res.error().code());
+
+		// 2 is a magic number of seconds, I tried to highlight it in the test description
+		BOOST_REQUIRE_LE(elapsed.tsec - it->first, 2);
+	}
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(upload_application, "dnet_cpp_srw_test_app");
@@ -145,6 +250,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(init_application, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app");
 	ELLIPTICS_TEST_CASE(send_echo, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app", "some-data");
 	ELLIPTICS_TEST_CASE(send_echo, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app", "some-data and long-data.. like this");
+	ELLIPTICS_TEST_CASE(timeout_test, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app");
 
 	return true;
 }
