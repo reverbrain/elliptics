@@ -31,9 +31,9 @@
 #include "elliptics/interface.h"
 
 /*
- * Descending transaction order
+ * Ascending transaction order
  */
-static inline int dnet_trans_cmp(uint64_t t1, uint64_t t2)
+static inline int dnet_trans_cmp(uint64_t t2, uint64_t t1)
 {
 	if (t1 > t2)
 		return 1;
