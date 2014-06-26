@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.19
+Version:	2.25.4.20
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jun 27 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.20
+- trans: ascending transaction number order instead of descending
+- trans: new timeout transaction completion logic
+
 * Tue Jun 24 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.19
 - Pytests: fixed test_session_indexes - wait set_indexes/remove_indexes results
 - submodule: removed react, started to use git:// instead of http://

@@ -1,3 +1,10 @@
+elliptics (2.25.4.20) unstable; urgency=low
+
+  * trans: ascending transaction number order instead of descending
+  * trans: new timeout transaction completion logic
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 27 Jun 2014 02:39:45 +0400
+
 elliptics (2.25.4.19) unstable; urgency=low
 
   * Pytests: fixed test_session_indexes - wait set_indexes/remove_indexes results
