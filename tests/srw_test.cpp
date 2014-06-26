@@ -60,6 +60,40 @@ static void send_echo(session &sess, const std::string &app_name, const std::str
 	BOOST_REQUIRE_EQUAL(result[0].context().data().to_string(), data);
 }
 
+/*
+ * This funky thread is needed to periodically 'ping' network connection to given node,
+ * since otherwise 3 timed out transaction in a row will force elliptics client to kill
+ * this connection and all subsequent transactions will be timed out prematurely.
+ *
+ * State is only marked as 'stall' (and eventually will be killed) when it faces timeout transactions.
+ * Read transactions will be quickly completed (even with ENOENT error), which resets stall
+ * counter of the selected network connection.
+ */
+class thread_watchdog {
+	public:
+		session sess;
+
+		thread_watchdog(const session &sess) : sess(sess), need_exit(false) {
+			tid = std::thread(std::bind(&thread_watchdog::ping, this));
+		}
+
+		~thread_watchdog() {
+			need_exit = true;
+			tid.join();
+		}
+
+	private:
+		std::thread tid;
+		bool need_exit;
+
+		void ping() {
+			while (!need_exit) {
+				sess.read_data(std::string("test-key"), 0, 0).wait();
+				sleep(1);
+			}
+		}
+};
+
 /**
  * timeout test runs @num exec transactions with random timeouts.
  * Timeouts must be set to less than 30 seconds, since 30 seconds is a magic number:
@@ -92,6 +126,8 @@ static void timeout_test(session &sess, const std::string &app_name)
 
 	sess.set_exceptions_policy(session::no_exceptions);
 
+	thread_watchdog ping(sess);
+
 	for (int i = 0; i < num; ++i) {
 		int timeout = rand() % 20 + 1;
 		sess.set_timeout(timeout);
@@ -99,39 +135,6 @@ static void timeout_test(session &sess, const std::string &app_name)
 		results.emplace_back(std::make_pair(timeout, sess.exec(&id, app_name + "@noreply", "some data")));
 	}
 
-	/*
-	 * This funky thread is needed to periodically 'ping' network connection to given node,
-	 * since otherwise 3 timed out transaction in a row will force elliptics client to kill
-	 * this connection and all subsequent transactions will be timed out prematurely.
-	 *
-	 * State is only marked as 'stall' (and eventually will be killed) when it faces timeout transactions.
-	 * Read transactions will be quickly completed (even with ENOENT error), which resets stall
-	 * counter of the selected network connection.
-	 */
-	class thread_watchdog {
-		public:
-			session sess;
-
-			thread_watchdog(const session &sess) : sess(sess), need_exit(false) {
-				tid = std::thread(std::bind(&thread_watchdog::ping, this));
-			}
-
-			~thread_watchdog() {
-				need_exit = true;
-				tid.join();
-			}
-
-		private:
-			std::thread tid;
-			bool need_exit;
-
-			void ping() {
-				while (!need_exit) {
-					sess.read_data(std::string("test-key"), 0, 0).wait();
-					sleep(1);
-				}
-			}
-	} ping(sess);
 
 	for (auto it = results.begin(); it != results.end(); ++it) {
 		auto & res = it->second;
