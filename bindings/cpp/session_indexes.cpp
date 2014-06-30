@@ -744,6 +744,8 @@ static uint32_t get_index_size(const std::string &index_metadata, int &err)
 	return array_size;
 }
 
+typedef std::map<dnet_raw_id, int, dnet_raw_id_less_than<> > id_to_shard_map;
+
 /*!
  * \brief Callback that handles bulk_read responses
  *
@@ -755,10 +757,16 @@ struct get_index_metadata_callback
 {
 	session sess;
 	async_result_handler<get_index_metadata_result_entry> handler;
+	id_to_shard_map id_to_shard;
 
 	void operator() (const read_result_entry &result)
 	{
 		get_index_metadata_result_entry metadata;
+
+		dnet_raw_id raw_id;
+		memcpy(raw_id.id, result.command()->id.id, DNET_ID_SIZE);
+		metadata.shard_id = id_to_shard[raw_id];
+
 		std::string content =  result.file().to_string().substr(DNET_INDEX_TABLE_MAGIC_SIZE);
 		int err = 0;
 		metadata.index_size = get_index_size(content, err);
@@ -796,6 +804,8 @@ async_get_index_metadata_result session::get_index_metadata(const dnet_raw_id &i
 	std::vector<dnet_io_attr> request_io_attrs;
 	request_io_attrs.resize(shard_count);
 
+	id_to_shard_map id_to_shard;
+
 	/*
 	 * index_requests_set contains all requests we have to send for this bulk-request.
 	 * All indexes a splitted for shards, so we have to send separate logical request
@@ -811,6 +821,7 @@ async_get_index_metadata_result session::get_index_metadata(const dnet_raw_id &i
 
 		memcpy(&id, &tmp, sizeof(dnet_raw_id));
 		dnet_indexes_transform_index_id_raw(node, &id, shard_id);
+		id_to_shard[id] = shard_id;
 
 		dnet_io_attr &io = request_io_attrs[shard_id];
 		memset(&io, 0, sizeof(io));
@@ -823,7 +834,7 @@ async_get_index_metadata_result session::get_index_metadata(const dnet_raw_id &i
 	}
 
 	async_get_index_metadata_result result(*this);
-	get_index_metadata_callback callback = { sess, result };
+	get_index_metadata_callback callback = { sess, result, id_to_shard };
 	sess.bulk_read(request_io_attrs).connect(callback, callback);
 
 	return result;

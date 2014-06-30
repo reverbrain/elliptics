@@ -266,6 +266,7 @@ static void test_more_indexes(session &sess)
  * - Write 256 keys to index "index"
  * - Request "index" metadata, which will consist of metadatas for each shard
  * - Sum up sizes of shards indexes and check if it equals to 256
+ * - Check if all metainformations from shards were valid
  */
 static void test_indexes_metadata(session &sess)
 {
@@ -289,6 +290,9 @@ static void test_indexes_metadata(session &sess)
 	ELLIPTICS_REQUIRE(get_index_metadata_result, sess.get_index_metadata(index));
 	sync_get_index_metadata_result metadata = get_index_metadata_result.get();
 
+	get_index_metadata_result_entry aggregated_metadata;
+	get_index_metadata_result.get(aggregated_metadata);
+
 	size_t total_index_size = 0;
 	int invalid_results_number = 0;
 	for (size_t i = 0; i < metadata.size(); ++i) {
@@ -301,6 +305,7 @@ static void test_indexes_metadata(session &sess)
 	}
 	if (invalid_results_number == 0) {
 		BOOST_REQUIRE_EQUAL(total_index_size, keys.size());
+		BOOST_REQUIRE_EQUAL(total_index_size, aggregated_metadata.index_size);
 	} else {
 		BOOST_REQUIRE_LE(total_index_size, keys.size());
 	}
