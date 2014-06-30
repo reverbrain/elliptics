@@ -43,6 +43,7 @@
 
 #include <elliptics/interface.h>
 #include <elliptics/srw.h>
+#include <elliptics/utils.hpp>
 
 #include "cocaine-json-trait.hpp"
 #include "elliptics.h"
@@ -168,7 +169,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 
 		virtual void error(int code, const std::string &message) {
 			m_error = -code;
-			srw_log log(m_s, DNET_LOG_ERROR, "app/" + m_name, message + ": " + lexical_cast(code));
+			srw_log log(m_s, DNET_LOG_ERROR, "app/" + m_name, message + ": " + ioremap::elliptics::lexical_cast(code));
 		}
 
 		void reply(bool completed, const char *reply, size_t size) {
@@ -563,7 +564,7 @@ class srw {
 					if (index == -1) {
 						stream = eng->enqueue(cevent, upstream);
 					} else {
-						app = eng->get_task_id() + "-" + app + "-" + lexical_cast(index);
+						app = eng->get_task_id() + "-" + app + "-" + ioremap::elliptics::lexical_cast(index);
 						stream = eng->enqueue(cevent, upstream, app);
 					}
 
