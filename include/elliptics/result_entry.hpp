@@ -260,6 +260,7 @@ struct find_indexes_result_entry
 struct get_index_metadata_result_entry
 {
 	size_t index_size;
+	int shard_id;
 	bool is_valid;
 };
 

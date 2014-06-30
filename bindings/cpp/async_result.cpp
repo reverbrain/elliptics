@@ -218,7 +218,17 @@ bool async_result<get_index_metadata_result_entry>::get(get_index_metadata_resul
 {
 	wait(session::throw_at_get);
 	if (!m_data->results.empty()) {
-		entry = m_data->results[0];
+		entry.index_size = 0;
+		entry.is_valid = true;
+		entry.shard_id = -1;
+		for (auto it = m_data->results.begin(); it != m_data->results.end(); ++it) {
+			if (it->is_valid) {
+				entry.index_size += it->index_size;
+			} else {
+				entry.is_valid = false;
+				return false;
+			}
+		}
 		return true;
 	}
 	return false;
