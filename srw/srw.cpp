@@ -47,31 +47,6 @@
 #include "cocaine-json-trait.hpp"
 #include "elliptics.h"
 
-namespace {
-	static std::string lexical_cast(size_t value) {
-		if (value == 0) {
-			return std::string("0");
-		}
-
-		std::string result;
-		size_t length = 0;
-		size_t calculated = value;
-		while (calculated) {
-			calculated /= 10;
-			++length;
-		}
-
-		result.resize(length);
-		while (value) {
-			--length;
-			result[length] = '0' + (value % 10);
-			value /= 10;
-		}
-
-		return result;
-	}
-}
-
 class srw_log {
 	public:
 		srw_log(struct dnet_session *session, int level, const std::string &app, const std::string &message) : m_s(session) {
