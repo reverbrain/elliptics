@@ -22,6 +22,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <type_traits>
+#include <vector>
 
 #if __GNUC__ == 4 && __GNUC_MINOR__ < 5
 #  include <cstdatomic>
@@ -29,7 +30,8 @@
 #  include <atomic>
 #endif
 
-#include "elliptics/error.hpp"
+#include <elliptics/error.hpp>
+#include <elliptics/interface.h>
 
 namespace ioremap { namespace elliptics {
 
@@ -361,6 +363,58 @@ private:
 typedef data_pointer_base<std::atomic_int_fast32_t, true> data_pointer;
 typedef argument_data_base<std::atomic_int_fast32_t> argument_data;
 typedef data_buffer_base<std::atomic_int_fast32_t> data_buffer;
+
+static inline std::string lexical_cast(size_t value) {
+	if (value == 0) {
+		return std::string("0");
+	}
+
+	std::string result;
+	size_t length = 0;
+	size_t calculated = value;
+	while (calculated) {
+		calculated /= 10;
+		++length;
+	}
+
+	result.resize(length);
+	while (value) {
+		--length;
+		result[length] = '0' + (value % 10);
+		value /= 10;
+	}
+
+	return result;
+}
+
+static inline std::vector<int> parse_groups(const char *orig)
+{
+	char *value = strdup(orig);
+	char *value_orig = value;
+
+	if (value) {
+		try {
+			std::vector<int> result;
+			bool finished = false;
+			while (!finished && value && *value) {
+				char *delimiter = const_cast<char *>(strchrnul(value, DNET_CONF_ADDR_DELIM));
+				finished = !*delimiter;
+				*delimiter = '\0';
+				if (delimiter - value > 0)
+					result.push_back(atoi(value));
+				value = delimiter + 1;
+			}
+
+			free(value_orig);
+			return result;
+		} catch (...) {
+			free(value_orig);
+			throw;
+		}
+	} else {
+		throw std::bad_alloc();
+	}
+}
 
 }} /* namespace ioremap::elliptics */
 
