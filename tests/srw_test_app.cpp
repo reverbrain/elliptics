@@ -91,6 +91,8 @@ void app_context::echo(const std::string &event, const std::vector<std::string> 
  */
 void app_context::noreply(const std::string &event, const std::vector<std::string> &chunks, cocaine::framework::response_ptr response)
 {
+	(void) response;
+
 	elliptics::exec_context context = elliptics::exec_context::from_raw(chunks[0].c_str(), chunks[0].size());
 
 	COCAINE_LOG_INFO(log, "noreply: event: %s, data-size: %ld", event.c_str(), context.data().size());

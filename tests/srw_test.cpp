@@ -142,13 +142,19 @@ static void timeout_test(session &sess, const std::string &app_name)
 		res.wait();
 
 		auto elapsed = res.elapsed_time();
-
-		printf("elapsed: %lld.%lld, timeout: %d, error: %s [%d]\n", 
-				(unsigned long long)elapsed.tsec, (unsigned long long)elapsed.tnsec, it->first,
-				res.error().message().c_str(), res.error().code());
+		auto diff = elapsed.tsec - it->first;
 
 		// 2 is a magic number of seconds, I tried to highlight it in the test description
-		BOOST_REQUIRE_LE(elapsed.tsec - it->first, 2);
+		long max_diff = 2;
+
+		if (diff >= max_diff) {
+			printf("elapsed: %lld.%lld, timeout: %d, diff: %ld, must be less than %ld, error: %s [%d]\n", 
+					(unsigned long long)elapsed.tsec, (unsigned long long)elapsed.tnsec, it->first,
+					diff, max_diff,
+					res.error().message().c_str(), res.error().code());
+
+			BOOST_REQUIRE_LE(elapsed.tsec - it->first, max_diff);
+		}
 	}
 }
 
