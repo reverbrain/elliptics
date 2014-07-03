@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.15.20
+Version:	2.24.15.21
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jul 03 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.21
+- trans: new timeout transaction completion logic
+- Core: Added unmapping IPv4 from mapped IPv6 address
+
 * Thu May 08 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.15.20
 - cocaine-elliptics-plugin: added more config options
 

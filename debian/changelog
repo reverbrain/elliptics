@@ -1,3 +1,10 @@
+elliptics (2.24.15.21) unstable; urgency=low
+
+  * trans: new timeout transaction completion logic
+  * Core: Added unmapping IPv4 from mapped IPv6 address
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 03 Jul 2014 22:42:09 +0400
+
 elliptics (2.24.15.20) unstable; urgency=low
 
   * cocaine-elliptics-plugin: added more config options
