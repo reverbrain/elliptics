@@ -373,7 +373,8 @@ static inline void list_stat_init(struct list_stat *st) {
 	st->volume = 0ULL;
 	st->min_list_size = ~0ULL;
 	st->max_list_size = 0ULL;
-	memset(&st->time_base, 0, sizeof(struct timeval));
+
+	gettimeofday(&st->time_base, NULL);
 }
 
 static inline void list_stat_size_increase(struct list_stat *st, int num) {
