@@ -37,7 +37,7 @@ def wrap_address(classes):
         """
         Node address as elliptics.Address
         """
-        if hasattr(cls, 'group_id'):
+        if hasattr(self, '__group_id__'):
             return Address.from_host_port(self.__address__, self.__group_id__)
         else:
             return Address.from_host_port(self.__address__)
