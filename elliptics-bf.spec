@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.20
+Version:	2.25.4.21
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jul 09 2014 Kirill Smorodinnikov <shaitkir@gmail.com> - 2.25.4.21
+- Python: fixed address group_id in result entries.
+- srw-test: fixed signed-unsigned warning
+- tests: cleaned up srw timeout test: removed misleading debug output when everything is ok, voided unused variable
+- config: removed comment about unused 'do-not-update-metadata' flag
+- srw: use full namespace name for ioremap::elliptics::lexical_cast() function
+- indexes: Handle failed parsed indexes metadata from msgpack …
+- index_perf: added index performance tool
+- utils: moved common functions to utils header
+- timer: added elapsed timer
+- srw-test: moved thread-watchdog class outside timeout test function for older compilers happiness
+
 * Fri Jun 27 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.20
 - trans: ascending transaction number order instead of descending
 - trans: new timeout transaction completion logic
