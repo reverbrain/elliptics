@@ -1,3 +1,18 @@
+elliptics (2.25.4.21) unstable; urgency=low
+
+  * Python: fixed address group_id in result entries.
+  * srw-test: fixed signed-unsigned warning
+  * tests: cleaned up srw timeout test: removed misleading debug output when everything is ok, voided unused variable
+  * config: removed comment about unused 'do-not-update-metadata' flag
+  * srw: use full namespace name for ioremap::elliptics::lexical_cast() function
+  * indexes: Handle failed parsed indexes metadata from msgpack …
+  * index_perf: added index performance tool
+  * utils: moved common functions to utils header
+  * timer: added elapsed timer
+  * srw-test: moved thread-watchdog class outside timeout test function for older compilers happiness
+
+ -- Kirill Smorodinnikov <shaitkir@gmail.com>  Wed, 09 Jul 2014 19:28:40 +0400
+
 elliptics (2.25.4.20) unstable; urgency=low
 
   * trans: ascending transaction number order instead of descending
