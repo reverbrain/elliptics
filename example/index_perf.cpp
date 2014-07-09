@@ -3,6 +3,8 @@
 
 #include <boost/program_options.hpp>
 
+#include <iostream>
+
 using namespace ioremap;
 
 int main(int argc, char *argv[])
@@ -18,8 +20,8 @@ int main(int argc, char *argv[])
 		("help", "This help message")
 		("log", bpo::value<std::string>(&log)->default_value("/dev/stdout"), "Elliptics log file")
 		("log-level", bpo::value<int>(&log_level)->default_value(DNET_LOG_INFO), "Elliptics log level")
-		("remote", bpo::value<std::string>(&remote)->required(), "Elliptics remote node to connect to")
-		("groups", bpo::value<std::string>(&groups)->required(), "Elliptics remote groups to work with")
+		("remote", bpo::value<std::string>(&remote), "Elliptics remote node to connect to")
+		("groups", bpo::value<std::string>(&groups), "Elliptics remote groups to work with")
 		("index", bpo::value<std::string>(&index)->default_value("test-index"), "Elliptics secondary index name")
 		("num", bpo::value<int>(&num)->default_value(1000000), "Number of entries to put into the index")
 		("size", bpo::value<int>(&data_size)->default_value(100), "Size of every index entry")
