@@ -80,16 +80,23 @@ void node::add_remote(const std::string &addr, const int port, const int family)
 	add_remote(addr.c_str(), port, family);
 }
 
-void node::add_remote(const char *addr, const int port, const int family)
+void node::add_remote(const char *addr_str, const int port, const int family)
 {
 	if (!m_data)
 		throw_error(-EINVAL, "Failed to add remote addr to null node");
 
 	int err;
+	struct dnet_addr addr;
 
-	err = dnet_add_state(m_data->node_ptr, addr, port, family, 0);
+	err = dnet_create_addr(&addr, addr_str, port, family);
 	if (err) {
-		throw_error(err, "Failed to add remote addr %s:%d", addr, port);
+		throw_error(err, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+				addr_str, port, family, err, strerror(-err));
+	}
+
+	err = dnet_add_state(m_data->node_ptr, &addr, 1, 0);
+	if (err) {
+		throw_error(err, "Failed to add remote addr %s:%d", addr_str, port);
 	}
 }
 
@@ -117,9 +124,7 @@ void node::add_remote(const std::string &addr)
 	if (err)
 		throw_error(err, "Failed to parse remote addr %s", addr.c_str());
 
-	err = dnet_add_state(m_data->node_ptr, addr_tmp.data(), port, family, 0);
-	if (err)
-		throw_error(err, "Failed to add remote addr %s", addr.c_str());
+	add_remote(addr_tmp.data(), port, family);
 }
 
 void node::set_timeouts(const int wait_timeout, const int check_timeout)

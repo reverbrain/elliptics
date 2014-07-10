@@ -659,7 +659,7 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r);
 int __attribute__((weak)) dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int recursive);
 
 struct dnet_config;
-int dnet_socket_create(struct dnet_node *n, const char *addr_str, int port, struct dnet_addr *addr, int listening);
+int dnet_socket_create(struct dnet_node *n, struct dnet_addr *addr, int num, int listening);
 int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr *addr, int listening);
 
 void dnet_set_sockopt(struct dnet_node *n, int s);

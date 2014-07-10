@@ -205,18 +205,15 @@ err_out_exit:
 	return err;
 }
 
-int dnet_socket_create(struct dnet_node *n, const char *addr_str, int port, struct dnet_addr *addr, int listening)
+int dnet_create_addr(struct dnet_addr *addr, const char *addr_str, int port, int family)
 {
-	int s, err = -EINVAL;
-	struct dnet_net_state *st;
+	memset(addr, 0, sizeof(struct dnet_addr));
+
+	addr->addr_len = sizeof(addr->addr);
+	addr->family = family;
 
 	if (addr_str) {
-		err = dnet_fill_addr(addr, addr_str, port, SOCK_STREAM, IPPROTO_TCP);
-		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
-					addr_str, port, addr->family, err, strerror(-err));
-			goto err_out_exit;
-		}
+		return dnet_fill_addr(addr, addr_str, port, SOCK_STREAM, IPPROTO_TCP);
 	} else {
 		if (addr->family != AF_INET6) {
 			struct sockaddr_in *in = (struct sockaddr_in *)(addr->addr);
@@ -227,15 +224,23 @@ int dnet_socket_create(struct dnet_node *n, const char *addr_str, int port, stru
 		}
 	}
 
-	st = dnet_state_search_by_addr(n, addr);
+	return 0;
+}
+
+int dnet_socket_create(struct dnet_node *n, struct dnet_addr *addr, int num, int listening)
+{
+	int s, err = -EINVAL;
+	struct dnet_net_state *st;
+
+	st = dnet_state_search_by_addr(n, &addr[0]);
 	if (st) {
-		dnet_log(n, DNET_LOG_ERROR, "Address %s:%d already exists in route table\n", addr_str, port);
+		dnet_log(n, DNET_LOG_ERROR, "Address %s already exists in route table\n", dnet_server_convert_dnet_addr(&addr[0]));
 		err = -EEXIST;
 		dnet_state_put(st);
 		goto err_out_exit;
 	}
 
-	s = dnet_socket_create_addr(n, addr, listening);
+	s = dnet_socket_create_addr(n, &addr[0], listening);
 	if (s < 0) {
 		err = s;
 		goto err_out_exit;

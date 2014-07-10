@@ -268,7 +268,16 @@ int main(int argc, char *argv[])
 			return -EINVAL;
 		}
 
-		err = dnet_add_state(n.get_native(), remote_addr, port, family, remote_flags);
+		struct dnet_addr ra;
+
+		err = dnet_create_addr(&ra, remote_addr, port, family);
+		if (err) {
+			dnet_log_raw(n.get_native(), DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+					remote_addr, port, family, err, strerror(-err));
+			return err;
+		}
+
+		err = dnet_add_state(n.get_native(), &ra, 1, remote_flags);
 		if (err)
 			return err;
 

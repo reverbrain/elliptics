@@ -655,19 +655,14 @@ err_out_exit:
 	return NULL;
 }
 
-int dnet_add_state(struct dnet_node *n, const char *addr_str, int port, int family, int flags)
+int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int flags)
 {
 	int s, err, join = DNET_WANT_RECONNECT;
-	struct dnet_addr addr;
 	struct dnet_net_state *st;
 	char parsed_addr_str[128];
 	char state_addr_str[128];
 
-	memset(&addr, 0, sizeof(addr));
-
-	addr.addr_len = sizeof(addr.addr);
-	addr.family = family;
-	s = dnet_socket_create(n, addr_str, port, &addr, 0);
+	s = dnet_socket_create(n, addr, num, 0);
 	if (s < 0) {
 		err = s;
 		goto err_out_reconnect;
@@ -677,25 +672,24 @@ int dnet_add_state(struct dnet_node *n, const char *addr_str, int port, int fami
 		join = DNET_JOIN;
 
 	/* will close socket on error */
-	st = dnet_add_state_socket(n, &addr, s, &err, join);
+	st = dnet_add_state_socket(n, &addr[0], s, &err, join);
 	if (!st)
 		goto err_out_reconnect;
 
 	if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST))
 		dnet_recv_route_list(st);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: added new state %s:%d:%d, addr: %s, flags: 0x%x, route-request: %d\n",
+	dnet_log(n, DNET_LOG_NOTICE, "%s: added new addr: %s, flags: 0x%x, route-request: %d\n",
 			dnet_server_convert_dnet_addr_raw(&st->addr, state_addr_str, sizeof(state_addr_str)),
-			addr_str, port, family,
-			dnet_server_convert_dnet_addr_raw(&addr, parsed_addr_str, sizeof(parsed_addr_str)),
+			dnet_server_convert_dnet_addr_raw(&addr[0], parsed_addr_str, sizeof(parsed_addr_str)),
 			flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST));
 
 	return 0;
 
 err_out_reconnect:
-	dnet_log(n, DNET_LOG_NOTICE, "%s: failed to add new state %s:%d:%d, flags: 0x%x, route-request: %d, err: %d\n",
-			dnet_server_convert_dnet_addr_raw(&addr, parsed_addr_str, sizeof(parsed_addr_str)),
-			addr_str, port, family, flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST), err);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: failed to add new state: flags: 0x%x, route-request: %d, err: %d\n",
+			dnet_server_convert_dnet_addr_raw(&addr[0], parsed_addr_str, sizeof(parsed_addr_str)),
+			flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST), err);
 
 	/* if state is already exist, it should not be an error */
 	if (err == -EEXIST)
@@ -703,7 +697,7 @@ err_out_reconnect:
 
 	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) || (err == -ECONNRESET) ||
 			(err == -EINPROGRESS) || (err == -EAGAIN))
-		dnet_add_reconnect_state(n, &addr, join);
+		dnet_add_reconnect_state(n, &addr[0], join);
 	return err;
 }
 
