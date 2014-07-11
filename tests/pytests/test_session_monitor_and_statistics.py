@@ -26,5 +26,30 @@ import elliptics
 
 
 class TestSession:
-    pass
+    def test_stat_log_count(self, server, simple_node):
+        session = elliptics.Session(simple_node)
+        stat_count = session.stat_log_count().get()
+        assert len(stat_count) == len(session.routes.addresses())
+        for stat in stat_count:
+            assert stat.error.code == 0
+            assert stat.error.message == ''
+            assert stat.address.group_id == session.routes.get_address_group_id(stat.address)
 
+    def test_stat_log(self, server, simple_node):
+        session = elliptics.Session(simple_node)
+        for addr in session.routes.addresses():
+            addr_id = session.routes.get_address_id(addr)
+            stat = session.stat_log(addr_id).get()[0]
+            assert stat.error.code == 0
+            assert stat.error.message == ''
+            assert stat.address.group_id == session.routes.get_address_group_id(stat.address)
+
+    def test_monitor_stat(self, server, simple_node):
+        session = elliptics.Session(simple_node)
+        for addr in session.routes.addresses():
+            addr_id = session.routes.get_address_id(addr)
+            stat = session.monitor_stat(addr_id).get()[0]
+            assert stat.error.code == 0
+            assert stat.error.message == ''
+            assert stat.address.group_id == session.routes.get_address_group_id(stat.address)
+            assert type(stat.statistics) == dict
