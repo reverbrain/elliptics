@@ -243,6 +243,7 @@ static inline void dnet_convert_addr(struct dnet_addr *addr)
 }
 
 struct dnet_addr_container {
+	int			node_addr_num;
 	int			addr_num;
 	struct dnet_addr	addrs[0];
 } __attribute__ ((packed));

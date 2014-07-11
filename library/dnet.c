@@ -353,8 +353,10 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
-	void *buf = NULL;
-	size_t size, orig_size = 0;
+	struct dnet_addr_cmd *acmd = NULL;
+	struct dnet_addr *addrs = NULL;
+	size_t total_size;
+	size_t states_num = 0;
 	int err;
 
 	pthread_mutex_lock(&n->state_lock);
@@ -363,39 +365,60 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 			if (dnet_addr_equal(&st->addr, &orig->addr) || !st->addrs)
 				continue;
 
-			size = st->idc->id_num * sizeof(struct dnet_raw_id) +
-				sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
-
-			if (size > orig_size) {
-				buf = realloc(buf, size);
-				if (!buf) {
-					err = -ENOMEM;
-					goto err_out_unlock;
-				}
-
-				orig_size = size;
-			}
-
-			dnet_log(n, DNET_LOG_NOTICE, "%s: %d %s, id_num: %d, addr_num: %d\n",
-					dnet_server_convert_dnet_addr(&st->addrs[0]),
-					g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id),
-					st->idc->id_num, n->addr_num);
-
-			memset(buf, 0, size);
-			cmd->id.group_id = g->group_id;
-			dnet_send_idc_fill(st, buf, size, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);
-
-			err = dnet_send(orig, buf, size);
-			if (err)
-				goto err_out_unlock;
+			++states_num;
 		}
 	}
 
-	err = 0;
+	total_size = sizeof(struct dnet_addr_cmd) + states_num * n->addr_num * sizeof(struct dnet_addr);
+	acmd = malloc(total_size);
 
-err_out_unlock:
+	if (!acmd) {
+		pthread_mutex_unlock(&n->state_lock);
+		react_stop_action(ACTION_DNET_CMD_ROUTE_LIST);
+		return -ENOMEM;
+	}
+
+	memset(acmd, 0, total_size);
+
+	cmd = &acmd->cmd;
+	acmd->cnt.addr_num = states_num * n->addr_num;
+	acmd->cnt.node_addr_num = n->addr_num;
+	addrs = acmd->cnt.addrs;
+
+	list_for_each_entry(g, &n->group_list, group_entry) {
+		list_for_each_entry(st, &g->state_list, state_entry) {
+			if (dnet_addr_equal(&st->addr, &orig->addr) || !st->addrs)
+				continue;
+
+			assert(st->addr_num == n->addr_num);
+
+			dnet_log(n, DNET_LOG_NOTICE, "%s: %d %s, addr_num: %d\n",
+					dnet_server_convert_dnet_addr(&st->addrs[0]),
+					g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id),
+					n->addr_num);
+
+			memcpy(addrs, st->addrs, n->addr_num * sizeof(struct dnet_addr));
+			addrs += n->addr_num;
+		}
+	}
 	pthread_mutex_unlock(&n->state_lock);
-	free(buf);
+
+	memcpy(&acmd->cmd.id, &cmd->id, sizeof(struct dnet_id));
+	acmd->cmd.size = total_size - sizeof(struct dnet_cmd);
+
+	acmd->cmd.flags = DNET_FLAGS_NOLOCK;
+	acmd->cmd.trans = cmd->trans | DNET_TRANS_REPLY;
+
+	acmd->cmd.cmd = DNET_CMD_ROUTE_LIST;
+
+	dnet_convert_addr_cmd(acmd);
+	err = dnet_send(orig, acmd, total_size);
+
+	if (err != 0) {
+		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+	}
+
+	free(acmd);
 	react_stop_action(ACTION_DNET_CMD_ROUTE_LIST);
 	return err;
 }
