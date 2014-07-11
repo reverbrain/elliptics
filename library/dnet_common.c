@@ -259,7 +259,6 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state,
 	struct dnet_addr *addr = &cnt->addrs[connected_state->idx];
 	struct dnet_net_state *nst;
 	struct dnet_addr_socket remote;
-	struct dnet_id raw;
 	char conn_addr_str[128];
 	char recv_addr_str[128];
 	int join, i;
@@ -270,8 +269,6 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state,
 				i, cnt->addr_num, connected_state->idx,
 				dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], recv_addr_str, sizeof(recv_addr_str)));
 	}
-
-	dnet_setup_id(&raw, group_id, ids[0].id);
 
 	nst = dnet_state_search_by_addr(n, addr);
 	if (nst) {
