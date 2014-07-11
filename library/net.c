@@ -17,6 +17,7 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -37,134 +38,223 @@
 #define POLLRDHUP 0x2000
 #endif
 
-static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, unsigned int salen)
+static int dnet_socket_connect(struct dnet_node *n, struct dnet_addr_socket *remote, int remote_num)
 {
-	int err;
+	long timeout;
+	int err, i, epfd, good_num = 0, failed_num = 0;
+	struct epoll_event ev;
 
-	fcntl(s, F_SETFL, O_NONBLOCK);
-	fcntl(s, F_SETFD, FD_CLOEXEC);
-
-	err = connect(s, sa, salen);
-	if (err) {
-		struct pollfd pfd;
-		socklen_t slen;
-		int status;
-
-		pfd.fd = s;
-		pfd.revents = 0;
-		pfd.events = POLLOUT;
-
+	epfd = epoll_create(remote_num);
+	if (epfd < 0) {
 		err = -errno;
-		if (err != -EINPROGRESS) {
-			dnet_log_err(n, "Failed to connect to %s:%d",
-				dnet_server_convert_addr(sa, salen),
-				dnet_server_convert_port(sa, salen));
-			goto err_out_exit;
-		}
+		dnet_log_err(n, "Could not create epoll handler");
+		goto err_out_exit;
+	}
 
-		err = poll(&pfd, 1, n->wait_ts.tv_sec * 1000 > 2000 ? n->wait_ts.tv_sec * 1000 : 2000);
-		if (err < 0)
-			goto err_out_exit;
-		if (err == 0) {
-			err = -ETIMEDOUT;
-			dnet_log_err(n, "Failed to wait to connect to %s:%d",
-				dnet_server_convert_addr(sa, salen),
-				dnet_server_convert_port(sa, salen));
-			goto err_out_exit;
-		}
-		if ((!(pfd.revents & POLLOUT)) || (pfd.revents & (POLLERR | POLLHUP))) {
-			err = -ECONNREFUSED;
-			dnet_log(n, DNET_LOG_ERROR, "Connection refused by %s:%d\n",
-				dnet_server_convert_addr(sa, salen),
-				dnet_server_convert_port(sa, salen));
-			goto err_out_exit;
-		}
+	for (i = 0; i < remote_num; ++i) {
+		struct dnet_addr_socket *rem = &remote[i];
 
-		status = 0;
-		slen = 4;
-		err = getsockopt(s, SOL_SOCKET, SO_ERROR, &status, &slen);
-		if (err || status) {
+		socklen_t salen = rem->addr.addr_len;
+		struct sockaddr *sa = (struct sockaddr *)&rem->addr;
+
+		if (rem->s < 0)
+			continue;
+
+		err = connect(rem->s, sa, salen);
+		if (err < 0) {
 			err = -errno;
-			if (!err)
-				err = -status;
-			dnet_log(n, DNET_LOG_ERROR, "Failed to connect to %s:%d: %s [%d]\n",
-				dnet_server_convert_addr(sa, salen),
-				dnet_server_convert_port(sa, salen),
-				strerror(-err), err);
-			goto err_out_exit;
+			if (err != -EINPROGRESS) {
+				dnet_log_err(n, "Failed to connect to %s",
+					dnet_server_convert_dnet_addr(&rem->addr));
+				failed_num++;
+				close(rem->s);
+				rem->s = err;
+				continue;
+			}
+		}
+
+		ev.events = EPOLLOUT;
+		ev.data.u32 = i;
+
+		err = epoll_ctl(epfd, EPOLL_CTL_ADD, rem->s, &ev);
+		if (err < 0) {
+			dnet_log_err(n, "Could not add %s address to epoll set",
+				dnet_server_convert_dnet_addr(&rem->addr));
+			failed_num++;
+			close(rem->s);
+			rem->s = err;
+			continue;
 		}
 	}
 
-	dnet_set_sockopt(n, s);
+	timeout = n->wait_ts.tv_sec * 1000 > 2000 ? n->wait_ts.tv_sec * 1000 : 2000;
+	while (good_num + failed_num < remote_num) {
+		int num = 10;
+		int ready_num;
+		struct epoll_event events[num];
 
-	dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d, socket: %d.\n",
-		dnet_server_convert_addr(sa, salen),
-		dnet_server_convert_port(sa, salen), s);
+		struct timeval start, end;
 
-	err = 0;
+		gettimeofday(&start, NULL);
 
+		err = epoll_wait(epfd, events, num, timeout);
+		if (err < 0) {
+			dnet_log_err(n, "Epoll error");
+			goto err_out_close;
+		}
+
+		if (err == 0) {
+			err = -ETIMEDOUT;
+			break;
+		}
+
+		ready_num = err;
+		
+		for (i = 0; i < ready_num; ++i) {
+			int status = 0;
+			socklen_t slen = 4;
+
+			struct dnet_addr_socket *rem = &remote[events[i].data.u32];
+			epoll_ctl(epfd, EPOLL_CTL_DEL, rem->s, &events[i]);
+
+			err = getsockopt(rem->s, SOL_SOCKET, SO_ERROR, &status, &slen);
+			if (err || status) {
+				if (status)
+					err = -status;
+
+				dnet_log(n, DNET_LOG_ERROR, "Failed to connect to %s: status: %d: %s [%d]\n",
+					dnet_server_convert_dnet_addr(&rem->addr), status,
+					strerror(-err), err);
+
+				failed_num++;
+
+				close(rem->s);
+				rem->s = err;
+				continue;
+			}
+
+			rem->ok = 1;
+			dnet_set_sockopt(n, rem->s);
+
+			dnet_log(n, DNET_LOG_INFO, "Connected to %s, socket: %d.\n",
+				dnet_server_convert_dnet_addr(&rem->addr), rem->s);
+			good_num++;
+		}
+
+		gettimeofday(&end, NULL);
+
+		timeout -= (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
+
+		/*
+		 * This is a small hack.
+		 * When timeout is that small, epoll will either return ready events or quickly return 0,
+		 * which means real timeout and we will drop out of the loop.
+		 *
+		 * It is needed to give a chance for events which are ready, but were not picked up
+		 * by epoll_wait() because of small enough buffer size (see @num above).
+		 * Even if that buffer is large enough, epoll_wait() may return just a single event
+		 * every time it is invoked, and that will slowly eat original timeout (2 seconds or n->wait_ts)
+		 *
+		 * Eventually timeout becomes negative and we give the last chance of 10 msecs.
+		 * If nothing fires, we break out of this loop.
+		 */
+		if (timeout < 0)
+			timeout = 10;
+	}
+
+	err = -ETIMEDOUT;
+	for (i = 0; i < remote_num; ++i) {
+		struct dnet_addr_socket *rem = &remote[i];
+
+		if (rem->s < 0)
+			continue;
+
+		if (!rem->ok) {
+			close(rem->s);
+			rem->s = -ETIMEDOUT;
+
+			dnet_log(n, DNET_LOG_ERROR, "Could not connect to %s because of timeout",
+				dnet_server_convert_dnet_addr(&rem->addr));
+
+			continue;
+		}
+	}
+
+	if (good_num)
+		err = good_num;
+
+err_out_close:
+	close(epfd);
 err_out_exit:
 	return err;
 }
 
-int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr *addr, int listening)
+/**
+ * Creates sockets and connect/listen them to appropriate addresses.
+ * Return number of successfully created and connected/made listen sockets.
+ *
+ * it is still required to run over @remote array to find out what exactly happend
+ * for each socket. This is similar to poll() behaviour.
+ */
+int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr_socket *remote, int remote_num, int listening)
 {
-	int salen = addr->addr_len;
-	struct sockaddr *sa = (struct sockaddr *)addr->addr;
-	int s, err = -1;
+	int err, i, tmp, good_num = 0;
 
-	sa->sa_family = addr->family;
+	for (i = 0; i < remote_num; ++i) {
+		socklen_t salen = remote[i].addr.addr_len;
+		struct sockaddr *sa = (struct sockaddr *)&remote[i].addr;
 
-	s = socket(addr->family, SOCK_STREAM, IPPROTO_TCP);
-	if (s < 0) {
-		err = -errno;
-		dnet_log_err(n, "Failed to create socket for %s:%d: family: %d",
-				dnet_server_convert_addr(sa, salen),
-				dnet_server_convert_port(sa, salen),
-				addr->family);
-		goto err_out_exit;
-	}
+		sa->sa_family = remote[i].addr.family;
 
-	if (listening) {
-		err = 1;
-		setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &err, 4);
-
-		err = bind(s, sa, salen);
-		if (err) {
+		tmp = socket(sa->sa_family, SOCK_STREAM, IPPROTO_TCP);
+		if (tmp < 0) {
 			err = -errno;
-			dnet_log_err(n, "Failed to bind to %s:%d",
-				dnet_server_convert_addr(sa, salen),
-				dnet_server_convert_port(sa, salen));
-			goto err_out_close;
+			remote[i].s = err;
+			dnet_log_err(n, "Failed to create socket for %s: family: %d",
+					dnet_server_convert_dnet_addr(&remote[i].addr),
+					sa->sa_family);
+			continue;
 		}
 
-		err = listen(s, 10240);
-		if (err) {
-			err = -errno;
-			dnet_log_err(n, "Failed to listen at %s:%d",
-				dnet_server_convert_addr(sa, salen),
-				dnet_server_convert_port(sa, salen));
-			goto err_out_close;
+		remote[i].s = tmp;
+
+		fcntl(tmp, F_SETFL, O_NONBLOCK);
+		fcntl(tmp, F_SETFD, FD_CLOEXEC);
+
+		if (listening) {
+			err = 1;
+			setsockopt(tmp, SOL_SOCKET, SO_REUSEADDR, &err, 4);
+
+			err = bind(tmp, sa, salen);
+			if (err) {
+				err = -errno;
+				dnet_log_err(n, "Failed to bind to %s",
+					dnet_server_convert_dnet_addr(&remote[i].addr));
+				close(tmp);
+				remote[i].s = err;
+				continue;
+			}
+
+			err = listen(tmp, 10240);
+			if (err) {
+				err = -errno;
+				dnet_log_err(n, "Failed to listen at %s",
+					dnet_server_convert_dnet_addr(&remote[i].addr));
+				close(tmp);
+				remote[i].s = err;
+				continue;
+			}
+
+			dnet_log(n, DNET_LOG_INFO, "Server is now listening at %s.\n",
+					dnet_server_convert_dnet_addr(&remote[i].addr));
+			good_num++;
 		}
-
-		dnet_log(n, DNET_LOG_INFO, "Server is now listening at %s:%d.\n",
-				dnet_server_convert_addr(sa, salen),
-				dnet_server_convert_port(sa, salen));
-
-		fcntl(s, F_SETFL, O_NONBLOCK);
-		fcntl(s, F_SETFD, FD_CLOEXEC);
-	} else {
-		err = dnet_socket_connect(n, s, sa, salen);
-		if (err)
-			goto err_out_close;
 	}
 
-	return s;
+	if (!listening)
+		return dnet_socket_connect(n, remote, remote_num);
 
-err_out_close:
-	dnet_sock_close(n, s);
-err_out_exit:
-	return err;
+	return good_num;
 }
 
 int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, const int sock_type, const int proto)
@@ -205,6 +295,10 @@ err_out_exit:
 	return err;
 }
 
+/**
+ * This function resolves DNS name or IP address and put end result into sockaddr structure
+ * as well as fills dnet_add structure.
+ */
 int dnet_create_addr(struct dnet_addr *addr, const char *addr_str, int port, int family)
 {
 	memset(addr, 0, sizeof(struct dnet_addr));
@@ -227,26 +321,64 @@ int dnet_create_addr(struct dnet_addr *addr, const char *addr_str, int port, int
 	return 0;
 }
 
-int dnet_socket_create(struct dnet_node *n, struct dnet_addr *addr, int num, int listening)
+/**
+ * Created array of dnet_addr_socket structures and tries to connect/listen as much sockets as possible.
+ * Returns error if there is no memory or it failed to successfully create at least single socket.
+ * Returns negative error value in this case.
+ *
+ * It is still required to run over @sockets array to find out which sockets were successfully created
+ * and what errors happened to every address.
+ */
+int dnet_socket_create(struct dnet_node *n, struct dnet_addr *addr, struct dnet_addr_socket **sockets, int num, int listening)
 {
-	int s, err = -EINVAL;
+	int err = -EINVAL, i;
+	int good_num = 0;
 	struct dnet_net_state *st;
+	struct dnet_addr_socket *remote;
 
-	st = dnet_state_search_by_addr(n, &addr[0]);
-	if (st) {
-		dnet_log(n, DNET_LOG_ERROR, "Address %s already exists in route table\n", dnet_server_convert_dnet_addr(&addr[0]));
+	*sockets = NULL;
+
+	remote = calloc(num, sizeof(struct dnet_addr_socket));
+	if (!remote) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	*sockets = remote;
+
+	for (i = 0; i < num; ++i) {
+		struct dnet_addr_socket *rem = &remote[i];
+
+		rem->addr = addr[i];
+		rem->ok = 0;
+		rem->s = -ENOENT;
+
+		st = dnet_state_search_by_addr(n, &addr[i]);
+		if (st) {
+			dnet_log(n, DNET_LOG_ERROR, "Address %s already exists in route table\n", dnet_server_convert_dnet_addr(&addr[i]));
+			dnet_state_put(st);
+			rem->s = -EEXIST;
+		} else {
+			good_num++;
+		}
+	}
+
+	if (good_num == 0) {
+		dnet_log(n, DNET_LOG_ERROR, "All %d nodes are already exist in route table\n", num);
 		err = -EEXIST;
-		dnet_state_put(st);
 		goto err_out_exit;
 	}
 
-	s = dnet_socket_create_addr(n, &addr[0], listening);
-	if (s < 0) {
-		err = s;
+	err = dnet_socket_create_addr(n, remote, num, listening);
+	if (err < 0)
+		goto err_out_exit;
+	if (err == 0) {
+		err = -ETIMEDOUT;
 		goto err_out_exit;
 	}
 
-	return s;
+	*sockets = remote;
+	return 0;
 
 err_out_exit:
 	return err;
@@ -611,6 +743,7 @@ int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsign
 		dnet_log(n, DNET_LOG_INFO, "Added reconnection addr: %s, join state: 0x%x.\n",
 			dnet_server_convert_dnet_addr(&a->addr), join_state);
 		list_add_tail(&a->reconnect_entry, &n->reconnect_list);
+		n->reconnect_num++;
 	}
 	pthread_mutex_unlock(&n->reconnect_lock);
 

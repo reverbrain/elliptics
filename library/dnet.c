@@ -248,18 +248,6 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_check_connection(struct dnet_node *n, struct dnet_addr *addr)
-{
-	int s;
-
-	s = dnet_socket_create_addr(n, addr, 0);
-	if (s < 0)
-		return s;
-
-	dnet_sock_close(n, s);
-	return 0;
-}
-
 static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	react_start_action(ACTION_DNET_CMD_JOIN_CLIENT);
@@ -313,13 +301,6 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			"address idx: %d, received addr-num: %d, local addr-num: %d, ids-num: %d\n",
 			dnet_dump_id(&cmd->id), client_addr, server_addr,
 			idx, cnt->addr_num, n->addr_num, ids_num);
-
-	err = dnet_check_connection(n, &cnt->addrs[idx]);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to request statistics from joining client (%s), dropping connection.\n",
-				dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(&cnt->addrs[idx]));
-		goto err_out_exit;
-	}
 
 	ids = (struct dnet_raw_id *)(data + sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr));
 	for (i = 0; i < ids_num; ++i)

@@ -255,9 +255,10 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state,
 		int group_id, struct dnet_raw_id *ids, int id_num)
 {
 	struct dnet_node *n = connected_state->n;
-	int s, err = 0;
+	int err = 0;
 	struct dnet_addr *addr = &cnt->addrs[connected_state->idx];
 	struct dnet_net_state *nst;
+	struct dnet_addr_socket remote;
 	struct dnet_id raw;
 	char conn_addr_str[128];
 	char recv_addr_str[128];
@@ -280,9 +281,12 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state,
 		goto err_out_exit;
 	}
 
-	s = dnet_socket_create_addr(n, addr, 0);
-	if (s < 0) {
-		err = s;
+	remote.addr = *addr;
+	remote.s = -1;
+	remote.ok = 0;
+
+	err = dnet_socket_create_addr(n, &remote, 1, 0);
+	if (err < 0) {
 		goto err_out_exit;
 	}
 
@@ -290,7 +294,7 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state,
 	if (n->flags & DNET_CFG_JOIN_NETWORK)
 		join = DNET_JOIN;
 
-	nst = dnet_state_create(n, group_id, ids, id_num, addr,	s, &err, join, connected_state->idx, dnet_state_net_process);
+	nst = dnet_state_create(n, group_id, ids, id_num, addr,	remote.s, &err, join, connected_state->idx, dnet_state_net_process);
 	if (!nst) {
 		// socket is already closed
 		goto err_out_exit;
@@ -300,8 +304,8 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state,
 	if (err)
 		goto err_out_put;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%d: added received state %s.\n",
-			group_id, dnet_state_dump_addr(nst));
+	dnet_log(n, DNET_LOG_NOTICE, "%d: added received state %s, socket: %d.\n",
+			group_id, dnet_state_dump_addr(nst), remote.s);
 
 	return 0;
 
@@ -657,48 +661,70 @@ err_out_exit:
 
 int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int flags)
 {
-	int s, err, join = DNET_WANT_RECONNECT;
+	int i, err, join = DNET_WANT_RECONNECT, good_num = 0;
 	struct dnet_net_state *st;
 	char parsed_addr_str[128];
 	char state_addr_str[128];
+	struct dnet_addr_socket *remote;
 
-	s = dnet_socket_create(n, addr, num, 0);
-	if (s < 0) {
-		err = s;
+	err = dnet_socket_create(n, addr, &remote, num, 0);
+	if (err) {
 		goto err_out_reconnect;
 	}
 
 	if (n->flags & DNET_CFG_JOIN_NETWORK)
 		join = DNET_JOIN;
 
-	/* will close socket on error */
-	st = dnet_add_state_socket(n, &addr[0], s, &err, join);
-	if (!st)
-		goto err_out_reconnect;
+	for (i = 0; i < num; ++i) {
+		struct dnet_addr_socket *rem = &remote[i];
 
-	if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST))
-		dnet_recv_route_list(st);
+		if (rem->s < 0)
+			continue;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: added new addr: %s, flags: 0x%x, route-request: %d\n",
-			dnet_server_convert_dnet_addr_raw(&st->addr, state_addr_str, sizeof(state_addr_str)),
-			dnet_server_convert_dnet_addr_raw(&addr[0], parsed_addr_str, sizeof(parsed_addr_str)),
-			flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST));
+		/* will close socket on error */
+		st = dnet_add_state_socket(n, &rem->addr, rem->s, &err, join);
+		if (!st) {
+			rem->s = err;
+			continue;
+		}
 
-	return 0;
+		if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST))
+			dnet_recv_route_list(st);
+
+		dnet_log(n, DNET_LOG_NOTICE, "%s: added new addr: %s, flags: 0x%x, route-request: %d, socket: %d\n",
+				dnet_server_convert_dnet_addr_raw(&st->addr, state_addr_str, sizeof(state_addr_str)),
+				dnet_server_convert_dnet_addr_raw(&addr[0], parsed_addr_str, sizeof(parsed_addr_str)),
+				flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST), rem->s);
+	}
 
 err_out_reconnect:
-	dnet_log(n, DNET_LOG_NOTICE, "%s: failed to add new state: flags: 0x%x, route-request: %d, err: %d\n",
-			dnet_server_convert_dnet_addr_raw(&addr[0], parsed_addr_str, sizeof(parsed_addr_str)),
-			flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST), err);
+	/*
+	 * The only case when @remote has not been set is when there is no memory (allocation failed)
+	 * In this case there is virtually nothing we can do about
+	 */
+	if (remote) {
+		for (i = 0; i < num; ++i) {
+			struct dnet_addr_socket *rem = &remote[i];
 
-	/* if state is already exist, it should not be an error */
-	if (err == -EEXIST)
-		err = 0;
+			if (rem->ok && rem->s >= 0) {
+				good_num++;
+				continue;
+			}
 
-	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) || (err == -ECONNRESET) ||
-			(err == -EINPROGRESS) || (err == -EAGAIN))
-		dnet_add_reconnect_state(n, &addr[0], join);
-	return err;
+			/* if state is already exist, it should not be an error */
+			if (rem->s == -EEXIST)
+				continue;
+
+			if ((rem->s == -EADDRINUSE) || (rem->s == -ECONNREFUSED) || (rem->s == -ECONNRESET) ||
+					(rem->s == -EINPROGRESS) || (rem->s == -EAGAIN)) {
+				dnet_add_reconnect_state(n, &rem->addr, join);
+			}
+		}
+
+		free(remote);
+	}
+
+	return good_num;
 }
 
 struct dnet_write_completion {
@@ -1383,61 +1409,40 @@ err_out_exit:
 int dnet_try_reconnect(struct dnet_node *n)
 {
 	struct dnet_addr_storage *ast, *tmp;
-	struct dnet_net_state *st;
-	LIST_HEAD(list);
-	int s, err, join;
+	struct dnet_addr *remote;
+	int remote_num = 0, i = 0;
+	int err, flags = 0;
 
 	if (list_empty(&n->reconnect_list))
 		return 0;
 
 	pthread_mutex_lock(&n->reconnect_lock);
-	list_for_each_entry_safe(ast, tmp, &n->reconnect_list, reconnect_entry) {
-		list_move(&ast->reconnect_entry, &list);
+
+	remote_num = n->reconnect_num;
+	remote = calloc(remote_num, sizeof(struct dnet_addr_socket));
+	if (!remote) {
+		pthread_mutex_unlock(&n->reconnect_lock);
+		return -ENOMEM;
 	}
-	pthread_mutex_unlock(&n->reconnect_lock);
 
-	list_for_each_entry_safe(ast, tmp, &list, reconnect_entry) {
-		s = dnet_socket_create_addr(n, &ast->addr, 0);
-		dnet_log(n, DNET_LOG_NOTICE, "Tried to create socket during reconnection to %s: %d\n",
-				dnet_server_convert_dnet_addr(&ast->addr), s);
-		if (s < 0) {
-			dnet_log(n, DNET_LOG_ERROR, "Failed to create socket during reconnection to %s: %d\n",
-					dnet_server_convert_dnet_addr(&ast->addr), s);
-			goto out_add;
-		}
+	list_for_each_entry_safe(ast, tmp, &n->reconnect_list, reconnect_entry) {
+		list_del_init(&ast->reconnect_entry);
+		remote[i++] = ast->addr;
 
-		join = DNET_WANT_RECONNECT;
 		if (ast->__join_state == DNET_JOIN)
-			join = DNET_JOIN;
+			flags |= DNET_CFG_JOIN_NETWORK;
 
-		err = 0;
-		st = dnet_add_state_socket(n, &ast->addr, s, &err, join);
-		if (st) {
-			dnet_log(n, DNET_LOG_INFO, "Successfully reconnected to %s, possible error: %d\n",
-				dnet_server_convert_dnet_addr(&ast->addr), err);
-
-			if (!(n->flags & DNET_CFG_NO_ROUTE_LIST))
-				dnet_recv_route_list(st);
-
-			goto out_remove;
-		}
-
-		// otherwise socket is already closed
-
-		dnet_log(n, DNET_LOG_ERROR, "Failed to add state during reconnection to %s, can remove state from reconnection list due to error: %d\n",
-				dnet_server_convert_dnet_addr(&ast->addr), err);
-
-		if (err == -EEXIST || err == -EINVAL)
-			goto out_remove;
-
-out_add:
-		dnet_add_reconnect_state(n, &ast->addr, ast->__join_state);
-out_remove:
-		list_del(&ast->reconnect_entry);
 		free(ast);
 	}
 
-	return 0;
+	n->reconnect_num = 0;
+	pthread_mutex_unlock(&n->reconnect_lock);
+
+	err = dnet_add_state(n, remote, remote_num, flags);
+
+	free(remote);
+
+	return err;
 }
 
 int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,

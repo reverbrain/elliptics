@@ -537,6 +537,7 @@ struct dnet_node
 
 	pthread_mutex_t		reconnect_lock;
 	struct list_head	reconnect_list;
+	int			reconnect_num;
 
 	struct dnet_lock	counters_lock;
 	struct dnet_stat_count	counters[__DNET_CNTR_MAX];
@@ -659,8 +660,20 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r);
 int __attribute__((weak)) dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int recursive);
 
 struct dnet_config;
-int dnet_socket_create(struct dnet_node *n, struct dnet_addr *addr, int num, int listening);
-int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr *addr, int listening);
+
+/*
+ * This is internal structure used to help batch socket creation.
+ * Socket @s will be set to negative value in case of error.
+ * @ok will be set to 1 if given socket was successfully initialized (connected or made listened)
+ */
+struct dnet_addr_socket {
+	struct dnet_addr		addr;
+	int				s;
+	int				ok;
+};
+
+int dnet_socket_create(struct dnet_node *n, struct dnet_addr *addr, struct dnet_addr_socket **sockets, int num, int listening);
+int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr_socket *remote, int remote_num, int listening);
 
 void dnet_set_sockopt(struct dnet_node *n, int s);
 void dnet_sock_close(struct dnet_node *n, int s);

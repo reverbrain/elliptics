@@ -298,8 +298,9 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 		goto err_out_cache_cleanup;
 
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
-		struct dnet_addr la;
 		int s;
+		struct dnet_addr la;
+		struct dnet_addr_socket *socket;
 
 		err = dnet_locks_init(n, 1024);
 		if (err)
@@ -316,11 +317,19 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 			goto err_out_ids_cleanup;
 		}
 
-		err = dnet_socket_create(n, &la, 1, 1);
+		err = dnet_socket_create(n, &la, &socket, 1, 1);
 		if (err < 0)
 			goto err_out_ids_cleanup;
 
-		s = err;
+		if (socket->s < 0) {
+			err = socket->s;
+			goto err_out_ids_cleanup;
+		}
+
+		s = socket->s;
+
+		free(socket);
+
 		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
 
 		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &la, s, &err, DNET_JOIN, -1, dnet_state_accept_process);

@@ -193,7 +193,7 @@ int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 			}
 
 			err = dnet_add_state(n, &ra, 1, 0);
-			if (err)
+			if (err < 0)
 				goto next;
 		}
 
