@@ -286,7 +286,10 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state,
 	remote.ok = 0;
 
 	err = dnet_socket_create_addr(n, &remote, 1, 0);
-	if (err < 0) {
+	if (err <= 0) {
+		if (err == 0)
+			err = remote.s;
+
 		goto err_out_exit;
 	}
 
