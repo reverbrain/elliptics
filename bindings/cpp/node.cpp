@@ -147,15 +147,20 @@ void node::add_remote(const std::vector<std::string> &addrs)
 		addr_tmp.push_back('\0');
 
 		err = dnet_parse_addr(addr_tmp.data(), &port, &family);
-		if (err)
-			throw_error(err, "Failed to parse remote addr %s", it->c_str());
+		if (err) {
+			dnet_log_raw(m_data->node_ptr, DNET_LOG_ERROR, "Failed to parse remote addr %s: %d", it->c_str(), err);
+			continue;
+		}
 
 		struct dnet_addr addr;
 
 		err = dnet_create_addr(&addr, addr_tmp.data(), port, family);
-		if (!err) {
-			remote.emplace_back(addr);
+		if (err < 0) {
+			dnet_log_raw(m_data->node_ptr, DNET_LOG_ERROR, "Could not resolve DNS name or IP addr %s: %d", it->c_str(), err);
+			continue;
 		}
+
+		remote.emplace_back(addr);
 	}
 
 	err = dnet_add_state(m_data->node_ptr, remote.data(), remote.size(), 0);
