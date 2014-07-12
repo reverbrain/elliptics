@@ -250,10 +250,24 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_container *cnt, int group_id, int ids_num)
+struct dnet_route_control {
+	struct dnet_wait		*wait;
+	int				addr_num;
+	struct dnet_addr		*addr;
+};
+
+static inline void dnet_route_control_free(struct dnet_route_control *route)
+{
+	if (atomic_dec_and_test(&route->wait->refcnt)) {
+		dnet_wait_destroy(route->wait);
+		free(route->addr);
+		free(route);
+	}
+}
+
+static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_route_control *route, struct dnet_addr_container *cnt, int ids_num)
 {
 	struct dnet_node *n = st->n;
-	struct dnet_raw_id *ids;
 	char server_addr[128], rem_addr[128];
 	int i, err;
 
@@ -266,15 +280,6 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 				server_addr, cnt->addr_num, n->addr_num);
 		err = -EINVAL;
 		goto err_out_exit;
-	}
-
-	ids = (struct dnet_raw_id *)(cnt->addrs + cnt->addr_num);
-	for (i = 0; i < ids_num; ++i) {
-		dnet_convert_raw_id(&ids[i]);
-
-		if (n->log && (n->log->log_level >= DNET_LOG_DEBUG)) {
-			dnet_log(n, DNET_LOG_DEBUG, "%s: %d %s\n", rem_addr, group_id, dnet_dump_id_str(ids[i].id));
-		}
 	}
 
 	err = 0;
@@ -296,7 +301,14 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 	if (!err) {
 		struct dnet_addr *addr = &cnt->addrs[st->idx];
 
-		err = dnet_add_state(n, addr, 1, DNET_CFG_NO_ROUTE_LIST);
+		route->addr = realloc(route->addr, (route->addr_num + 1) * sizeof(struct dnet_addr));
+		if (!route->addr) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
+
+		route->addr[route->addr_num] = *addr;
+		route->addr_num++;
 	}
 
 err_out_exit:
@@ -305,19 +317,23 @@ err_out_exit:
 
 static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv)
 {
-	struct dnet_wait *w = priv;
+	struct dnet_route_control *route = priv;
 	struct dnet_addr_container *cnt;
 	long size;
-	int err, num;
+	int err, ids_num;
 
 	if (is_trans_destroyed(st, cmd)) {
 		err = -EINVAL;
 		if (cmd)
 			err = cmd->status;
 
-		w->status = err;
-		dnet_wakeup(w, w->cond = 1);
-		dnet_wait_put(w);
+		dnet_log(st->n, DNET_LOG_INFO, "%s: going to add %d received routes", dnet_state_dump_addr(st), route->addr_num);
+		if (route->addr_num)
+			dnet_add_state(st->n, route->addr, route->addr_num, DNET_CFG_NO_ROUTE_LIST);
+
+		route->wait->status = err;
+		dnet_wakeup(route->wait, route->wait->cond = 1);
+		dnet_route_control_free(route);
 		goto err_out_exit;
 	}
 
@@ -340,13 +356,13 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 		goto err_out_exit;
 	}
 
-	num = (cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container)) / sizeof(struct dnet_raw_id);
-	if (!num) {
+	ids_num = (cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container)) / sizeof(struct dnet_raw_id);
+	if (!ids_num) {
 		err = -EINVAL;
 		goto err_out_exit;
 	}
 
-	err = dnet_process_route_reply(st, cnt, cmd->id.group_id, num);
+	err = dnet_process_route_reply(st, route, cnt, ids_num);
 
 err_out_exit:
 	return err;
@@ -356,35 +372,57 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 {
 	struct dnet_trans_control ctl;
 	struct dnet_node *n = st->n;
-	struct dnet_wait *w;
+	struct dnet_route_control *route;
 	int err;
 
-	w = dnet_wait_alloc(0);
-	if (!w) {
+	route = malloc(sizeof(struct dnet_route_control));
+	if (!route) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
+	memset(route, 0, sizeof(struct dnet_route_control));
+
+	route->wait = dnet_wait_alloc(0);
+	if (!route->wait) {
+		err = -ENOMEM;
+		goto err_out_free;
+	}
+
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
-	ctl.priv = w;
+	ctl.priv = route;
 	ctl.complete = dnet_recv_route_list_complete;
 	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT | DNET_FLAGS_NOLOCK;
 	ctl.cmd = DNET_CMD_ROUTE_LIST;
 
-	dnet_wait_get(w);
+	/*
+	 * We use @dnet_wait reference counter to determine when route must be freed.
+	 * This requires to hold reference counter here so that route and route->wait
+	 * would not be freed in completion handler.
+	 * When we do not wait for completion anymore, we drop this reference and
+	 * allow completion handler to kill both route and route->wait.
+	 *
+	 * The same logic is used in dnet_write_complete() and around it.
+	 */
+	dnet_wait_get(route->wait);
 
+	/*
+	 * when this function fails, it calls completion handler
+	 */
 	err = dnet_trans_alloc_send_state(NULL, st, &ctl);
 	if (err)
 		goto err_out_put;
 
-	err = dnet_wait_event(w, w->cond != 0, &n->wait_ts);
-	dnet_wait_put(w);
+	err = dnet_wait_event(route->wait, route->wait->cond != 0, &n->wait_ts);
 
-	return 0;
+	dnet_route_control_free(route);
+	return err;
 
 err_out_put:
-	dnet_wait_put(w);
+	dnet_wait_put(route->wait);
+err_out_free:
+	free(route);
 err_out_exit:
 	return err;
 }
@@ -414,22 +452,21 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	st = &dummy;
 	memset(st, 0, sizeof(struct dnet_net_state));
+	st->addr = *addr;
 
 	st->write_s = st->read_s = s;
 	st->n = n;
 
 	err = dnet_send_nolock(st, buf, sizeof(struct dnet_cmd));
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to send reverse "
-				"lookup message to %s, err: %d.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send reverse lookup message: %d",
 				dnet_server_convert_dnet_addr(addr), err);
 		goto err_out_exit;
 	}
 
 	err = dnet_recv(st, buf, sizeof(struct dnet_cmd));
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to receive reverse "
-				"lookup command header from %s, err: %d.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to receive reverse lookup command header: %d",
 				dnet_server_convert_dnet_addr(addr), err);
 		goto err_out_exit;
 	}
@@ -442,8 +479,8 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	if (cmd->status != 0) {
 		err = cmd->status;
 
-		dnet_log(n, DNET_LOG_ERROR, "Reverse lookup command to %s failed: local version: %d.%d.%d.%d, "
-				"remote version: %d.%d.%d.%d, error: %s [%d]\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: reverse lookup command failed: local version: %d.%d.%d.%d, "
+				"remote version: %d.%d.%d.%d, error: %s [%d]",
 				dnet_server_convert_dnet_addr(addr),
 				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
 				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3,
@@ -456,15 +493,14 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	if (err)
 		goto err_out_exit;
 
-	dnet_log(n, DNET_LOG_NOTICE, "Received indexes shard count: local: %d, remote: %d, using server one\n",
-			n->indexes_shard_count,
-			indexes_shard_count);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: received indexes shard count: local: %d, remote: %d, using server one",
+				dnet_server_convert_dnet_addr(addr), n->indexes_shard_count, indexes_shard_count);
 
 	if (indexes_shard_count != n->indexes_shard_count && indexes_shard_count != 0) {
-		dnet_log(n, DNET_LOG_INFO, "Local and remote indexes shard count are different: "
-				"local: %d, remote: %d, using server one\n",
-				n->indexes_shard_count,
-				indexes_shard_count);
+		dnet_log(n, DNET_LOG_INFO, "%s: local and remote indexes shard count are different: "
+				"local: %d, remote: %d, using remote (%d) one\n",
+				dnet_server_convert_dnet_addr(addr),
+				n->indexes_shard_count, indexes_shard_count, indexes_shard_count);
 
 		n->indexes_shard_count = indexes_shard_count;
 	}
@@ -472,15 +508,14 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	data = malloc(cmd->size);
 	if (!data) {
 		err = -ENOMEM;
-		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate %llu bytes for reverse lookup data from %s.\n",
-				(unsigned long long)cmd->size, dnet_server_convert_dnet_addr(addr));
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate %llu bytes for reverse lookup data",
+				dnet_server_convert_dnet_addr(addr), (unsigned long long)cmd->size);
 		goto err_out_exit;
 	}
 
 	err = dnet_recv(st, data, cmd->size);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to receive reverse "
-				"lookup data from %s, err: %d.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to receive reverse lookup data: %d",
 				dnet_server_convert_dnet_addr(addr), err);
 		goto err_out_free;
 	}
@@ -489,8 +524,9 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	if (cmd->size < sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr)) {
 		err = -EINVAL;
-		dnet_log(n, DNET_LOG_ERROR, "Received dnet_addr_container "
-				"is invalid, size: %" PRIu64 ", expected at least: %zu, err: %d.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: received dnet_addr_container "
+				"is invalid, size: %" PRIu64 ", expected at least: %zu, err: %d",
+				dnet_server_convert_dnet_addr(addr),
 				cmd->size,
 				sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr),
 				err);
@@ -508,7 +544,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	idx = -1;
 	for (i = 0; i < cnt->addr_num; ++i) {
 		if (dnet_empty_addr(&cnt->addrs[i])) {
-			dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: received wildcard (like 0.0.0.0) addr: ids: %d, addr-num: %d, idx: %d.\n",
+			dnet_log(n, DNET_LOG_ERROR, "%s: received wildcard (like 0.0.0.0) addr: ids: %d, addr-num: %d, idx: %d",
 					dnet_server_convert_dnet_addr(addr), num, cnt->addr_num, idx);
 			err = -EPROTO;
 			goto err_out_free;
@@ -520,14 +556,14 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		}
 	}
 	if (idx == -1) {
-		dnet_log(n, DNET_LOG_ERROR, "There is no connected addr %s in received reverse lookup data.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: there is no connected addr in received reverse lookup data",
 				dnet_server_convert_dnet_addr(addr));
 		goto err_out_free;
 	}
 
 	for (i=0; i<num; ++i) {
 		dnet_convert_raw_id(&ids[i]);
-		dnet_log(n, DNET_LOG_NOTICE, "connected-to-addr: %s: received ids: %d/%d, addr-num: %d, idx: %d, id: %s.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: received ids: %d/%d, addr-num: %d, idx: %d, id: %s",
 				dnet_server_convert_dnet_addr(addr), i, num, cnt->addr_num, idx,
 				dnet_dump_id_str(ids[i].id));
 	}
@@ -539,7 +575,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		goto err_out_free;
 	}
 	memcpy(st->version, version, sizeof(st->version));
-	dnet_log(n, DNET_LOG_NOTICE, "%s: connected: id-num: %d, addr-num: %d, idx: %d.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "%s: reverse lookup completed: id-num: %d, addr-num: %d, idx: %d.\n",
 			dnet_server_convert_dnet_addr(addr), num, cnt->addr_num, idx);
 	free(data);
 
@@ -558,8 +594,6 @@ int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int fla
 {
 	int i, err, join = DNET_WANT_RECONNECT, good_num = 0;
 	struct dnet_net_state *st;
-	char parsed_addr_str[128];
-	char state_addr_str[128];
 	struct dnet_addr_socket *remote;
 
 	err = dnet_socket_create(n, addr, &remote, num, 0);
@@ -573,6 +607,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int fla
 	for (i = 0; i < num; ++i) {
 		struct dnet_addr_socket *rem = &remote[i];
 
+		dnet_log(n, DNET_LOG_INFO, "%s: socket: %d, ok: %d", dnet_server_convert_dnet_addr(&rem->addr), rem->s, rem->ok);
 		if (rem->s < 0)
 			continue;
 
@@ -586,9 +621,8 @@ int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int fla
 		if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST))
 			dnet_recv_route_list(st);
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: added new addr: %s, flags: 0x%x, route-request: %d, socket: %d\n",
-				dnet_server_convert_dnet_addr_raw(&st->addr, state_addr_str, sizeof(state_addr_str)),
-				dnet_server_convert_dnet_addr_raw(&addr[0], parsed_addr_str, sizeof(parsed_addr_str)),
+		dnet_log(n, DNET_LOG_NOTICE, "%s: added new addr: flags: 0x%x, route-request: %d, socket: %d\n",
+				dnet_state_dump_addr(st),
 				flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST), rem->s);
 	}
 
