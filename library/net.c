@@ -195,16 +195,23 @@ err_out_exit:
  *
  * it is still required to run over @remote array to find out what exactly happend
  * for each socket. This is similar to poll() behaviour.
+ *
+ * Function only tries to connect to addresses which set its socket to -ENOENT
  */
-int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr_socket *remote, int remote_num, int listening)
+static int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr_socket *remote, int remote_num, int listening)
 {
 	int err, i, tmp, good_num = 0;
 
 	for (i = 0; i < remote_num; ++i) {
-		socklen_t salen = remote[i].addr.addr_len;
-		struct sockaddr *sa = (struct sockaddr *)&remote[i].addr;
+		struct dnet_addr_socket *rem = &remote[i];
 
-		sa->sa_family = remote[i].addr.family;
+		socklen_t salen = rem->addr.addr_len;
+		struct sockaddr *sa = (struct sockaddr *)&rem->addr;
+
+		sa->sa_family = rem->addr.family;
+
+		if (rem->s != -ENOENT)
+			continue;
 
 		tmp = socket(sa->sa_family, SOCK_STREAM, IPPROTO_TCP);
 		if (tmp < 0) {
