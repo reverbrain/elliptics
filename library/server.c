@@ -321,14 +321,13 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 		if (err < 0)
 			goto err_out_ids_cleanup;
 
-		if (socket->s < 0) {
-			err = socket->s;
+		s = socket->s;
+		free(socket);
+
+		if (s < 0) {
+			err = s;
 			goto err_out_ids_cleanup;
 		}
-
-		s = socket->s;
-
-		free(socket);
 
 		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
 
