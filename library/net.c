@@ -57,8 +57,10 @@ static int dnet_socket_connect(struct dnet_node *n, struct dnet_addr_socket *rem
 		socklen_t salen = rem->addr.addr_len;
 		struct sockaddr *sa = (struct sockaddr *)&rem->addr;
 
-		if (rem->s < 0)
+		if (rem->s < 0) {
+			failed_num++;
 			continue;
+		}
 
 		err = connect(rem->s, sa, salen);
 		if (err < 0) {
