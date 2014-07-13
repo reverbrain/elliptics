@@ -1,0 +1,11 @@
+language: cpp
+compiler:
+  - gcc
+before_install:
+  - curl http://repo.reverbrain.com/REVERBRAIN.GPG | sudo apt-key add -
+  - echo "deb http://repo.reverbrain.com/precise/ current/amd64/" | sudo tee -a /etc/apt/sources.list
+  - echo "deb http://repo.reverbrain.com/precise/ current/all/" | sudo tee -a /etc/apt/sources.list
+  - sudo apt-get update -qq
+install:
+  - sudo apt-get install -qq devscripts build-essential equivs python-software-properties
+script: "tests/ci/travis.sh"

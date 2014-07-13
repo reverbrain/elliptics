@@ -14,7 +14,7 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET
+from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET, AF_UNSPEC
 from operator import itemgetter
 from elliptics.core import Id
 from elliptics.log import logged_class
@@ -23,12 +23,13 @@ from elliptics.log import logged_class
 @logged_class
 class Address(object):
     """
-    Address wrapper. Resolves host names into IP addresses.
+    Address wrapper. Resolves a hostname into IP addresses and uses
+    the first address if the given hostname is resolved into more then one.
     """
-    # Allowed families, 0 means any
-    ALLOWED_FAMILIES = (0, AF_INET, AF_INET6)
+    # Allowed families, AF_UNSPEC means any
+    ALLOWED_FAMILIES = (AF_UNSPEC, AF_INET, AF_INET6)
 
-    def __init__(self, host, port=None, family=0, group_id=0):
+    def __init__(self, host, port=None, family=AF_UNSPEC, group_id=0):
         """
         Initializes Address from host, port and optional family, group_id\n
         address = elliptics.Address(host='host.com', port=1025,
@@ -40,7 +41,7 @@ class Address(object):
 
         gai = getaddrinfo(host, port, family, 0, SOL_TCP)
         if len(gai) > 1:
-            self.log.warning("More than one IP found"
+            self.log.warning("More than one IP found "
                              "for: {0}. Using first: {1}."
                              .format(host, gai[0]))
 
