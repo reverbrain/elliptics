@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.4.21
+Version:	2.25.5.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jul 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.5.0
+- Let's use Travis-CI to check every commit
+- route: new batch request completion logic
+- Pytests: added group_id check in result entries
+- Added batch connect/listen mechanism
+- addr: switched C API to dnet_addr structure
+- There is no required() at boost::program_options on lucid
+
 * Wed Jul 09 2014 Kirill Smorodinnikov <shaitkir@gmail.com> - 2.25.4.21
 - Python: fixed address group_id in result entries.
 - srw-test: fixed signed-unsigned warning

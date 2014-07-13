@@ -1,3 +1,14 @@
+elliptics (2.25.5.0) unstable; urgency=low
+
+  * Let's use Travis-CI to check every commit
+  * route: new batch request completion logic
+  * Pytests: added group_id check in result entries
+  * Added batch connect/listen mechanism
+  * addr: switched C API to dnet_addr structure
+  * There is no required() at boost::program_options on lucid
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 13 Jul 2014 05:08:45 +0400
+
 elliptics (2.25.4.21) unstable; urgency=low
 
   * Python: fixed address group_id in result entries.
