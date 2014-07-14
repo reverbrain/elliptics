@@ -1019,7 +1019,16 @@ int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
 		uint64_t offset, int64_t size, struct dnet_time *timestamp);
 int dnet_send_file_info_ts_without_fd(void *state, struct dnet_cmd *cmd, const void *data, int64_t size, struct dnet_time *timestamp);
 
-int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_addr **addrs);
+
+struct dnet_route_entry
+{
+	struct dnet_raw_id id;
+	struct dnet_addr addr;
+	int group_id;
+	int backend_id;
+};
+
+int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries);
 /*
  * Send a shell/python command to the remote node for execution.
  */

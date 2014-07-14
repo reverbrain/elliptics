@@ -48,7 +48,7 @@ int dnet_ids_update(int update_local, const char *file, struct dnet_addr *cfg_ad
 	std::set<int> groups_set;
 
 	for(auto it = routes.begin(), end = routes.end(); it != end; ++it) {
-		groups_set.insert(it->first.group_id);
+		groups_set.insert(it->group_id);
 	}
 
 	session.set_groups(std::vector<int>(groups_set.begin(), groups_set.end()));

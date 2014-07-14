@@ -492,14 +492,18 @@ dnet_id session::get_direct_id()
 
 void session::set_direct_id(const dnet_addr &remote_addr)
 {
-	std::vector<std::pair<struct dnet_id, dnet_addr> > routes = get_routes();
+	std::vector<dnet_route_entry> routes = get_routes();
 
 	if (routes.empty())
 		throw ioremap::elliptics::error(-ENXIO, "Route list is empty");
 
 	for (auto it = routes.begin(); it != routes.end(); ++it) {
-		if (dnet_addr_equal(&remote_addr, &it->second)) {
-			dnet_session_set_direct_id(get_native(), &it->first);
+		if (dnet_addr_equal(&remote_addr, &it->addr)) {
+			dnet_id id;
+			memset(&id, 0, sizeof(id));
+			dnet_setup_id(&id, it->group_id, it->id.id);
+
+			dnet_session_set_direct_id(get_native(), &id);
 			set_cflags(get_cflags() | DNET_FLAGS_DIRECT);
 			return;
 		}
@@ -1733,29 +1737,16 @@ async_read_result session::remove_data_range(const dnet_io_attr &io, int group_i
 	return result;
 }
 
-std::vector<std::pair<struct dnet_id, dnet_addr> > session::get_routes()
+std::vector<dnet_route_entry> session::get_routes()
 {
-	std::vector<std::pair<struct dnet_id, dnet_addr> > res;
-	dnet_id *ids = NULL;
-	dnet_addr *addrs = NULL;
+	cstyle_scoped_pointer<dnet_route_entry> entries;
 
-	int count = 0;
+	int count = dnet_get_routes(m_data->session_ptr, &entries.data());
 
-	count = dnet_get_routes(m_data->session_ptr, &ids, &addrs);
+	if (count < 0)
+		return std::vector<dnet_route_entry>();
 
-	if (count > 0) {
-		for (int i = 0; i < count; ++i) {
-			res.push_back(std::make_pair(ids[i], addrs[i]));
-		}
-	}
-
-	if (ids)
-		free(ids);
-
-	if (addrs)
-		free(addrs);
-
-	return res;
+	return std::vector<dnet_route_entry>(entries.data(), entries.data() + count);
 }
 
 async_exec_result session::request(dnet_id *id, const exec_context &context)

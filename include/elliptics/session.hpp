@@ -640,7 +640,7 @@ class session
 		/*!
 		 * Returns the list of network routes.
 		 */
-		std::vector<std::pair<dnet_id, dnet_addr> > get_routes();
+		std::vector<dnet_route_entry> get_routes();
 
 		async_iterator_result start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
 								uint32_t type, uint64_t flags,

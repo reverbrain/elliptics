@@ -2029,18 +2029,17 @@ void dnet_data_unmap(struct dnet_map_fd *map)
 	munmap(map->mapped_data, map->mapped_size);
 }
 
-int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_addr **addrs) {
+int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries) {
 
 	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
 	struct dnet_idc *idc;
-	struct dnet_addr *tmp_addrs;
-	struct dnet_id *tmp_ids;
-	int size = 0, count = 0;
+	struct dnet_route_entry *tmp_entries;
+	struct dnet_route_entry *entry;
+	int size = 0, count = 0, err = 0;
 	int i;
 
-	*ids = NULL;
-	*addrs = NULL;
+	*entries = NULL;
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(st, &n->dht_state_list, node_entry) {
@@ -2048,24 +2047,20 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_ad
 
 			size += idc->id_num;
 
-			tmp_ids = (struct dnet_id *)realloc(*ids, size * sizeof(struct dnet_id));
-			if (!tmp_ids) {
-				count = -ENOMEM;
+			tmp_entries = (struct dnet_route_entry *)realloc(*entries, size * sizeof(struct dnet_route_entry));
+			if (!tmp_entries) {
+				err = -ENOMEM;
 				goto err_out_free;
 			}
-			*ids = tmp_ids;
-
-			tmp_addrs = (struct dnet_addr *)realloc(*addrs, size * sizeof(struct dnet_addr));
-			if (!tmp_addrs) {
-				count = -ENOMEM;
-				goto err_out_free;
-			}
-			*addrs = tmp_addrs;
+			*entries = tmp_entries;
 
 			for (i = 0; i < idc->id_num; ++i) {
-				dnet_setup_id(&(*ids)[count], idc->group->group_id, idc->ids[i].raw.id);
-				memcpy(&(*addrs)[count], dnet_state_addr(st), sizeof(struct dnet_addr));
-				count++;
+				entry = &(*entries)[count++];
+
+				memcpy(entry->id.id, idc->ids[i].raw.id, DNET_ID_SIZE);
+				memcpy(&entry->addr, dnet_state_addr(st), sizeof(struct dnet_addr));
+				entry->group_id = idc->group->group_id;
+				entry->backend_id = idc->backend_id;
 			}
 			dnet_log(n, DNET_LOG_INFO, "%s: %s\n", dnet_state_dump_addr(st), dnet_dump_id_str(idc->ids[0].raw.id));
 		}
@@ -2075,12 +2070,10 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_ad
 	return count;
 
 err_out_free:
-	if (ids)
-		free(*ids);
-	if (addrs)
-		free(*addrs);
+	if (entries)
+		free(*entries);
 
-	return count;
+	return err;
 
 }
 

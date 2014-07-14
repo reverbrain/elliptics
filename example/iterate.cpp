@@ -36,7 +36,7 @@ struct Ctx {
 	dnet_iterator_range key_range;
 	dnet_time time_begin, time_end;
 	std::unique_ptr<ioremap::elliptics::session> session;
-	std::vector<std::pair<struct dnet_id, struct dnet_addr>> routes;
+	std::vector<dnet_route_entry> routes;
 };
 
 void iterate_node(Ctx &ctx, const dnet_addr &node) {
@@ -46,10 +46,11 @@ void iterate_node(Ctx &ctx, const dnet_addr &node) {
 		ranges.push_back(ctx.key_range);
 
 	dnet_id id;
+	memset(&id, 0, sizeof(id));
 	bool found = false;
 	for (auto it = ctx.routes.begin(), end = ctx.routes.end(); it != end; ++it) {
-		if (dnet_addr_equal(&it->second, &node)) {
-			id = it->first;
+		if (dnet_addr_equal(&it->addr, &node)) {
+			dnet_setup_id(&id, it->group_id, it->id.id);
 			found = true;
 			break;
 		}
@@ -99,8 +100,8 @@ void iterate_groups(Ctx &ctx) {
 	std::set<dnet_addr, less> addr_set;
 
 	for (auto it = ctx.routes.begin(), end = ctx.routes.end(); it != end; ++it) {
-		if (groups_set.find(it->first.group_id) != groups_set.end()) {
-			addr_set.insert(it->second);
+		if (groups_set.find(it->group_id) != groups_set.end()) {
+			addr_set.insert(it->addr);
 		}
 	}
 
