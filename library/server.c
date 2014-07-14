@@ -298,10 +298,11 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 		goto err_out_cache_cleanup;
 
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
-		struct dnet_addr la;
 		int s;
 		struct dnet_backend_ids *backend;
 		struct dnet_backend_ids *backends[1] = { NULL };
+		struct dnet_addr la;
+		struct dnet_addr_socket *socket;
 		int backends_count = 1;
 
 		err = dnet_locks_init(n, 1024);
@@ -316,15 +317,25 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 		if (!ids)
 			goto err_out_route_list_destroy;
 
-		memset(&la, 0, sizeof(struct dnet_addr));
-		la.addr_len = sizeof(la.addr);
-		la.family = cfg->family;
+		err = dnet_create_addr(&la, NULL, cfg->port, cfg->family);
+		if (err < 0) {
+			dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for 0.0.0.0:%d, family: %d, err: %d: %s.\n",
+				cfg->port, cfg->family, err, strerror(-err));
+			goto err_out_ids_cleanup;
+		}
 
-		err = dnet_socket_create(n, NULL, cfg->port, &la, 1);
+		err = dnet_socket_create(n, &la, &socket, 1, 1);
 		if (err < 0)
 			goto err_out_ids_cleanup;
 
-		s = err;
+		s = socket->s;
+		free(socket);
+
+		if (s < 0) {
+			err = s;
+			goto err_out_ids_cleanup;
+		}
+
 		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
 
 		backend = malloc(sizeof(struct dnet_backend_ids) + id_num * sizeof(struct dnet_raw_id));

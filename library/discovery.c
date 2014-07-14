@@ -202,17 +202,6 @@ static int dnet_discovery_send(struct dnet_node *n)
 	return err;
 }
 
-static int dnet_discovery_add_state(struct dnet_node *n, struct dnet_addr *addr)
-{
-	char addr_str[128];
-	int port;
-
-	dnet_server_convert_addr_raw((struct sockaddr *)addr->addr, addr->addr_len, addr_str, sizeof(addr_str));
-	port = dnet_server_convert_port((struct sockaddr *)addr->addr, addr->addr_len);
-
-	return dnet_add_state(n, addr_str, port, addr->family, 0);
-}
-
 static int dnet_discovery_recv(struct dnet_node *n)
 {
 	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_auth) + sizeof(struct dnet_addr)];
@@ -264,7 +253,7 @@ static int dnet_discovery_recv(struct dnet_node *n)
 				(int)sizeof(auth->cookie), auth->cookie);
 
 		if (!memcmp(n->cookie, auth->cookie, DNET_AUTH_COOKIE_SIZE)) {
-			dnet_discovery_add_state(n, addr);
+			dnet_add_state(n, addr, 1, 0);
 		}
 	}
 

@@ -25,40 +25,42 @@ from server import server
 import elliptics
 
 
-def check_write_results(results, number, data):
+def check_write_results(results, number, data, session):
     assert len(results) == number
     for r in results:
         assert type(r) == elliptics.core.LookupResultEntry
         assert r.size == 48 + len(data)  # 48 is the size of data header
         assert r.error.code == 0
         assert r.error.message == ''
+        assert r.address.group_id == session.routes.get_address_group_id(r.address)
 
 
-def checked_write(session, key, data):
+def checked_write(session, key, data,):
     results = session.write_data(key, data).get()
-    check_write_results(results, len(session.groups), data)
+    check_write_results(results, len(session.groups), data, session)
 
 
 def checked_bulk_write(session, datas, data):
     results = session.bulk_write(datas).get()
-    check_write_results(results, len(session.groups) * len(datas), data)
+    check_write_results(results, len(session.groups) * len(datas), data, session)
 
 
-def check_read_results(results, number, data):
+def check_read_results(results, number, data, session):
     assert len(results) == number
     assert type(results[0]) == elliptics.core.ReadResultEntry
     assert results[0].data == data
+    assert results[0].address.group_id == session.routes.get_address_group_id(results[0].address)
     return results
 
 
 def checked_read(session, key, data):
     results = session.read_data(key).get()
-    check_read_results(results, 1, data)
+    check_read_results(results, 1, data, session)
 
 
 def checked_bulk_read(session, keys, data):
     results = session.bulk_read(keys).get()
-    check_read_results(results, len(keys), data)
+    check_read_results(results, len(keys), data, session)
 
 
 class TestSession:
@@ -193,11 +195,11 @@ class TestSession:
         checked_read(session, key, data1)
 
         results = session.write_cas(key, data2, session.transform(data1)).get()
-        check_write_results(results, len(session.groups), data2)
+        check_write_results(results, len(session.groups), data2, session)
         checked_read(session, key, data2)
 
         results = session.write_cas(key, lambda x: '__' + x + '__').get()
-        check_write_results(results, len(session.groups), '__' + data2 + '__')
+        check_write_results(results, len(session.groups), '__' + data2 + '__', session)
         checked_read(session, key, '__' + data2 + '__')
 
     def test_prepare_write_commit(self, server, simple_node):

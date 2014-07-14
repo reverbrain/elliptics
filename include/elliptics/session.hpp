@@ -170,6 +170,8 @@ class node
 		void			add_remote(const std::string &addr);
 		void			add_remote(const char *addr);
 
+		void			add_remote(const std::vector<std::string> &addrs);
+
 		void			set_timeouts(const int wait_timeout, const int check_timeout);
 
 		void			set_keepalive(int idle, int cnt, int interval);

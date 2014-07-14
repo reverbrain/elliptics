@@ -328,6 +328,12 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	free(t);
 }
 
+/*
+ * Allocates and sends transaction into given @st network state/connection.
+ * Uses @s session only to get wait timeout for transaction, if it is NULL, global node timeout (@dnet_node::wait_ts) is used.
+ *
+ * If something fails, completion handler from @ctl will be invoked with (NULL, NULL, @ctl->priv) arguments
+ */
 int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl)
 {
 	struct dnet_io_req req;

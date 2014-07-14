@@ -80,16 +80,23 @@ void node::add_remote(const std::string &addr, const int port, const int family)
 	add_remote(addr.c_str(), port, family);
 }
 
-void node::add_remote(const char *addr, const int port, const int family)
+void node::add_remote(const char *addr_str, const int port, const int family)
 {
 	if (!m_data)
 		throw_error(-EINVAL, "Failed to add remote addr to null node");
 
 	int err;
+	struct dnet_addr addr;
 
-	err = dnet_add_state(m_data->node_ptr, addr, port, family, 0);
+	err = dnet_create_addr(&addr, addr_str, port, family);
 	if (err) {
-		throw_error(err, "Failed to add remote addr %s:%d", addr, port);
+		throw_error(err, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+				addr_str, port, family, err, strerror(-err));
+	}
+
+	err = dnet_add_state(m_data->node_ptr, &addr, 1, 0);
+	if (err < 0) {
+		throw_error(err, "Failed to add remote addr %s:%d", addr_str, port);
 	}
 }
 
@@ -117,9 +124,49 @@ void node::add_remote(const std::string &addr)
 	if (err)
 		throw_error(err, "Failed to parse remote addr %s", addr.c_str());
 
-	err = dnet_add_state(m_data->node_ptr, addr_tmp.data(), port, family, 0);
-	if (err)
-		throw_error(err, "Failed to add remote addr %s", addr.c_str());
+	add_remote(addr_tmp.data(), port, family);
+}
+
+void node::add_remote(const std::vector<std::string> &addrs)
+{
+	if (!m_data)
+		throw_error(-EINVAL, "Failed to add remote addr to null node");
+
+	int err;
+	std::vector<struct dnet_addr> remote;
+
+	for (auto it = addrs.begin(); it != addrs.end(); ++it) {
+		int port, family;
+
+		/*
+		 * addr will be modified, so use this ugly hack
+		 */
+		std::vector<char> addr_tmp;
+		addr_tmp.reserve(it->size() + 1);
+		addr_tmp.assign(it->begin(), it->end());
+		addr_tmp.push_back('\0');
+
+		err = dnet_parse_addr(addr_tmp.data(), &port, &family);
+		if (err) {
+			dnet_log_raw(m_data->node_ptr, DNET_LOG_ERROR, "Failed to parse remote addr %s: %d", it->c_str(), err);
+			continue;
+		}
+
+		struct dnet_addr addr;
+
+		err = dnet_create_addr(&addr, addr_tmp.data(), port, family);
+		if (err < 0) {
+			dnet_log_raw(m_data->node_ptr, DNET_LOG_ERROR, "Could not resolve DNS name or IP addr %s: %d", it->c_str(), err);
+			continue;
+		}
+
+		remote.emplace_back(addr);
+	}
+
+	err = dnet_add_state(m_data->node_ptr, remote.data(), remote.size(), 0);
+	if (err < 0) {
+		throw_error(err, "Failed to add remote %zd addrs", addrs.size());
+	}
 }
 
 void node::set_timeouts(const int wait_timeout, const int check_timeout)

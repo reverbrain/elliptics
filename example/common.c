@@ -183,8 +183,17 @@ int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 			if (err)
 				goto next;
 		} else {
-			err = dnet_add_state(n, addr, remote_port, remote_family, 0);
-			if (err)
+			struct dnet_addr ra;
+
+			err = dnet_create_addr(&ra, addr, remote_port, remote_family);
+			if (err) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+						addr, remote_port, remote_family, err, strerror(-err));
+				goto next;
+			}
+
+			err = dnet_add_state(n, &ra, 1, 0);
+			if (err < 0)
 				goto next;
 		}
 

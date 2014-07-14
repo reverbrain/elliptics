@@ -134,7 +134,6 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	list_for_each_entry(st, &n->dht_state_list, node_entry) {
 		if (dnet_addr_equal(&st->addr, &orig->addr) || !st->addrs)
 			continue;
-
 		++states_num;
 	}
 

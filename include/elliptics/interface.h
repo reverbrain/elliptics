@@ -589,11 +589,17 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data);
 void dnet_server_node_destroy(struct dnet_node *s);
 
 /*
- * dnet_add_state() is used to add a node into the route list, the more
+ * dnet_add_state() is used to add remote addresses into the route list, the more
  * routes are added the less network lookups will be performed to send/receive
  * data requests.
  */
-int dnet_add_state(struct dnet_node *n, const char *addr_str, int port, int family, int flags);
+int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int flags);
+
+/*
+ * Converts address string into dnet_addr structure.
+ * This optionally resolves DNS name.
+ */
+int dnet_create_addr(struct dnet_addr *addr, const char *addr_str, int port, int family);
 
 /*
  * Returns number of states we are connected to.

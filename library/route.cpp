@@ -61,18 +61,6 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_check_connection(struct dnet_node *n, struct dnet_addr *addr)
-{
-	int s;
-
-	s = dnet_socket_create_addr(n, addr, 0);
-	if (s < 0)
-		return s;
-
-	dnet_sock_close(n, s);
-	return 0;
-}
-
 static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_node *n = st->n;
@@ -152,13 +140,6 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 				backend->backend_id, backend->group_id,
 				dnet_dump_id_str(backend->ids[i].id));
 		}
-	}
-
-	err = dnet_check_connection(n, &cnt->addrs[idx]);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to request statistics from joining client (%s), dropping connection.\n",
-				dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(&cnt->addrs[idx]));
-		goto err_out_free;
 	}
 
 	list_del_init(&st->node_entry);
