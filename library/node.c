@@ -84,6 +84,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	INIT_LIST_HEAD(&n->group_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
+	INIT_LIST_HEAD(&n->dht_state_list);
 	INIT_LIST_HEAD(&n->storage_state_list);
 	INIT_LIST_HEAD(&n->reconnect_list);
 	INIT_LIST_HEAD(&n->iterator_list);
@@ -120,7 +121,7 @@ static struct dnet_group *dnet_group_create(unsigned int group_id)
 	atomic_init(&g->refcnt, 1);
 	g->group_id = group_id;
 
-	INIT_LIST_HEAD(&g->state_list);
+	INIT_LIST_HEAD(&g->idc_list);
 
 	g->id_num = 0;
 	g->ids = NULL;
@@ -130,7 +131,7 @@ static struct dnet_group *dnet_group_create(unsigned int group_id)
 
 void dnet_group_destroy(struct dnet_group *g)
 {
-	if (!list_empty(&g->state_list)) {
+	if (!list_empty(&g->idc_list)) {
 		fprintf(stderr, "BUG in dnet_group_destroy, reference leak.\n");
 		exit(-1);
 	}
@@ -161,12 +162,13 @@ static int dnet_idc_compare(const void *k1, const void *k2)
 	return dnet_id_cmp_str(id1->raw.id, id2->raw.id);
 }
 
-static void dnet_idc_remove_ids(struct dnet_net_state *st, struct dnet_group *g)
+void dnet_idc_remove(struct dnet_idc *idc)
 {
 	int i, pos;
+	struct dnet_group *g = idc->group;
 
 	for (i=0, pos=0; i<g->id_num; ++i) {
-		if (g->ids[i].idc != st->idc) {
+		if (g->ids[i].idc != idc) {
 			g->ids[pos] = g->ids[i];
 			pos++;
 		}
@@ -175,10 +177,35 @@ static void dnet_idc_remove_ids(struct dnet_net_state *st, struct dnet_group *g)
 	g->id_num = pos;
 
 	qsort(g->ids,  g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
-	st->idc = NULL;
+
+	list_del(&idc->state_entry);
+	list_del(&idc->group_entry);
+	dnet_group_put(g);
+	free(idc);
 }
 
-int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id *ids, int id_num)
+static void dnet_idc_remove_backend_nolock(struct dnet_net_state *st, int backend_id)
+{
+	struct dnet_idc *idc, *tmp;
+
+	list_for_each_entry_safe(idc, tmp, &st->idc_list, state_entry) {
+		if (idc->backend_id == backend_id) {
+			dnet_idc_remove(idc);
+		}
+	}
+}
+
+static void dnet_idc_remove_all(struct dnet_net_state *st)
+{
+	struct dnet_idc *idc;
+	struct dnet_idc *tmp;
+
+	list_for_each_entry_safe(idc, tmp, &st->idc_list, state_entry) {
+		dnet_idc_remove(idc);
+	}
+}
+
+int dnet_idc_update(struct dnet_net_state *st, struct dnet_backend_ids *backend)
 {
 	struct dnet_node *n = st->n;
 	struct dnet_idc *idc;
@@ -186,14 +213,30 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	int err = -ENOMEM, i, num;
 	struct timeval start, end;
 	long diff;
+	struct dnet_raw_id *ids = backend->ids;
+	int id_num = backend->ids_count;
+	int group_id = backend->group_id;
 
 	gettimeofday(&start, NULL);
+
+	const int remove_backend = backend->flags & DNET_BACKEND_DEACTIVATED;
+
+	if (remove_backend) {
+		pthread_mutex_lock(&n->state_lock);
+		dnet_idc_remove_backend_nolock(st, backend->backend_id);
+		pthread_mutex_unlock(&n->state_lock);
+
+		return 0;
+	}
 
 	idc = malloc(sizeof(struct dnet_idc) + sizeof(struct dnet_state_id) * id_num);
 	if (!idc)
 		goto err_out_exit;
 
 	memset(idc, 0, sizeof(struct dnet_idc));
+
+	INIT_LIST_HEAD(&idc->group_entry);
+	INIT_LIST_HEAD(&idc->state_entry);
 
 	for (i=0; i<id_num; ++i) {
 		struct dnet_state_id *sid = &idc->ids[i];
@@ -211,6 +254,8 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 
 		list_add_tail(&g->group_entry, &n->group_list);
 	}
+
+	dnet_idc_remove_backend_nolock(st, backend->backend_id);
 
 	g->ids = realloc(g->ids, (g->id_num + id_num) * sizeof(struct dnet_state_id));
 	if (!g->ids) {
@@ -234,14 +279,17 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	g->id_num += num;
 	qsort(g->ids, g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
 
-	list_add_tail(&st->state_entry, &g->state_list);
+	list_del_init(&st->node_entry);
+	list_del_init(&st->storage_state_entry);
+	list_add_tail(&st->node_entry, &n->dht_state_list);
 	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
 
 	idc->id_num = id_num;
 	idc->st = st;
 	idc->group = g;
 
-	st->idc = idc;
+	list_add_tail(&idc->state_entry, &st->idc_list);
+	list_add_tail(&idc->group_entry, &g->idc_list);
 
 	if (n->log->log_level >= DNET_LOG_DEBUG) {
 		for (i=0; i<g->id_num; ++i) {
@@ -284,8 +332,8 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	return 0;
 
 err_out_remove_nolock:
-	dnet_idc_remove_ids(st, g);
-	list_del_init(&st->state_entry);
+	dnet_idc_remove(idc);
+	list_del_init(&st->node_entry);
 	list_del_init(&st->storage_state_entry);
 err_out_unlock_put:
 	dnet_group_put(g);
@@ -301,17 +349,7 @@ err_out_exit:
 
 void dnet_idc_destroy_nolock(struct dnet_net_state *st)
 {
-	struct dnet_idc *idc;
-	struct dnet_group *g;
-
-	idc = st->idc;
-	if (!idc)
-		return;
-
-	g = idc->group;
-	dnet_idc_remove_ids(st, g);
-	dnet_group_put(g);
-	free(idc);
+	dnet_idc_remove_all(st);
 }
 
 static int __dnet_idc_search(struct dnet_group *g, const struct dnet_id *id)
@@ -409,11 +447,13 @@ static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, const str
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr)
 {
 	struct dnet_net_state *st, *found = NULL;
+	struct dnet_idc *idc;
 	struct dnet_group *g;
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(st, &g->state_list, state_entry) {
+		list_for_each_entry(idc, &g->idc_list, group_entry) {
+			st = idc->st;
 			if (dnet_addr_equal(&st->addr, addr)) {
 				found = st;
 				break;
@@ -479,6 +519,8 @@ void dnet_state_put(struct dnet_net_state *st)
  */
 struct dnet_net_state *dnet_node_state(struct dnet_node *n)
 {
+	return dnet_state_get(n->st);
+
 	struct dnet_net_state *found;
 
 	pthread_mutex_lock(&n->state_lock);

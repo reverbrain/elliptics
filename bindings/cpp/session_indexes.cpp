@@ -740,7 +740,7 @@ static uint32_t get_index_size(const std::string &index_metadata, int &err)
 		return 0;
 	}
 
-	delete buffer;
+	delete[] buffer;
 	return array_size;
 }
 

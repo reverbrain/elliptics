@@ -647,6 +647,8 @@ static void dnet_set_addr(config_data *data, const std::vector<std::string> &add
 			data->cfg_state.family = family;
 
 			dnet_addr_wrap wrap;
+			memset(&wrap, 0, sizeof(wrap));
+
 			wrap.addr.addr_len = sizeof(wrap.addr.addr);
 			wrap.addr.family = data->cfg_state.family;
 			wrap.addr_group = group;

@@ -301,13 +301,13 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 		goto err_out_exit;
 	}
 
-	if (cnt->addr_num == 0
+	if (n->addr_num == 0
 		|| cnt->addr_num % n->addr_num != 0) {
 		err = -EINVAL;
 		goto err_out_exit;
 	}
 
-	states_num = cnt->addr_num / n->addr_num;
+	states_num = cnt->addr_num / cnt->node_addr_num;
 
 	for (i = 0; i < cnt->addr_num; ++i) {
 		if (dnet_empty_addr(&cnt->addrs[i])) {
@@ -319,15 +319,15 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 
 		if (n->log && (n->log->log_level >= DNET_LOG_DEBUG)) {
 			dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr));
-			dnet_log(n, DNET_LOG_DEBUG, "route-list: from: %s, node: %d, addr: %s\n", server_addr, i % n->addr_num, rem_addr);
+			dnet_log(n, DNET_LOG_DEBUG, "route-list: from: %s, node: %d, addr: %s\n", server_addr, i / cnt->node_addr_num, rem_addr);
 		}
 	}
 
-	for (i = 0; i < states_num; i += n->addr_num) {
+	for (i = 0; i < states_num; i += cnt->node_addr_num) {
 		addr = &cnt->addrs[i + st->idx];
 		nst = dnet_state_search_by_addr(n, addr);
 		if (nst) {
-			dnet_copy_addrs(nst, cnt->addrs + i, n->addr_num);
+			dnet_copy_addrs(nst, cnt->addrs + i, cnt->node_addr_num);
 		} else {
 			sa = (struct sockaddr *) addr->addr;
 			dnet_add_state(n, dnet_server_convert_addr(sa, addr->addr_len), dnet_server_convert_port(sa, addr->addr_len), addr->family, 0);
@@ -412,11 +412,14 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	char buf[sizeof(struct dnet_cmd)];
 	struct dnet_cmd *cmd;
 	struct dnet_addr_container *cnt;
-	int err, num, i, size, idx;
-	struct dnet_raw_id *ids;
+	struct dnet_id_container *id_container;
+	int err, i, size, idx;
+	uint32_t j;
 	void *data;
 	int version[4] = {0, 0, 0, 0};
 	int indexes_shard_count = 0;
+	struct dnet_backend_ids **backends;
+	struct dnet_backend_ids *backend;
 
 	memset(buf, 0, sizeof(buf));
 
@@ -504,12 +507,12 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	cnt = (struct dnet_addr_container *)data;
 
-	if (cmd->size < sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr)) {
+	if (cmd->size < sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr) + sizeof(struct dnet_id_container)) {
 		err = -EINVAL;
 		dnet_log(n, DNET_LOG_ERROR, "Received dnet_addr_container "
 				"is invalid, size: %" PRIu64 ", expected at least: %zu, err: %d.\n",
 				cmd->size,
-				sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr),
+				sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr) + sizeof(struct dnet_id_container),
 				err);
 		goto err_out_free;
 	}
@@ -518,17 +521,24 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	dnet_convert_addr_container(cnt);
 
 	size = cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container);
-	num = size / sizeof(struct dnet_raw_id);
+	id_container = data + sizeof(struct dnet_addr) * cnt->addr_num + sizeof(struct dnet_addr_container);
 
-	ids = data + sizeof(struct dnet_addr) * cnt->addr_num + sizeof(struct dnet_addr_container);
+	backends = malloc(id_container->backends_count * sizeof(struct dnet_backend_ids *));
+	if (!backends) {
+		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate %llu bytes for dnet_backend_ids array from %s.\n",
+				(unsigned long long)id_container->backends_count * sizeof(struct dnet_backend_ids *), dnet_server_convert_dnet_addr(addr));
+		goto err_out_free;
+	}
+
+	dnet_validate_id_container(id_container, size, backends);
 
 	idx = -1;
 	for (i = 0; i < cnt->addr_num; ++i) {
 		if (dnet_empty_addr(&cnt->addrs[i])) {
-			dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: received wildcard (like 0.0.0.0) addr: ids: %d, addr-num: %d, idx: %d.\n",
-					dnet_server_convert_dnet_addr(addr), num, cnt->addr_num, idx);
+			dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: received wildcard (like 0.0.0.0) addr: backends: %d, addr-num: %d, idx: %d.\n",
+					dnet_server_convert_dnet_addr(addr), id_container->backends_count, cnt->addr_num, idx);
 			err = -EPROTO;
-			goto err_out_free;
+			goto err_out_free_backends;
 		}
 
 		if (dnet_addr_equal(addr, &cnt->addrs[i])) {
@@ -539,29 +549,36 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	if (idx == -1) {
 		dnet_log(n, DNET_LOG_ERROR, "There is no connected addr %s in received reverse lookup data.\n",
 				dnet_server_convert_dnet_addr(addr));
-		goto err_out_free;
+		goto err_out_free_backends;
 	}
 
-	for (i=0; i<num; ++i) {
-		dnet_convert_raw_id(&ids[i]);
-		dnet_log(n, DNET_LOG_NOTICE, "connected-to-addr: %s: received ids: %d/%d, addr-num: %d, idx: %d, id: %s.\n",
-				dnet_server_convert_dnet_addr(addr), i, num, cnt->addr_num, idx,
-				dnet_dump_id_str(ids[i].id));
+	for (i = 0; i < id_container->backends_count; ++i) {
+		backend = backends[i];
+		for (j = 0; j < backend->ids_count; ++j) {
+			dnet_log(n, DNET_LOG_NOTICE, "connected-to-addr: %s: received backends: %d/%d, ids: %d/%d, addr-num: %d, idx: %d, backend_id: %d, group_id: %d, id: %s.\n",
+					dnet_server_convert_dnet_addr(addr), i, id_container->backends_count,
+					j, backend->ids_count, cnt->addr_num, idx,
+					backend->backend_id, backend->group_id,
+					dnet_dump_id_str(backend->ids[j].id));
+		}
 	}
 
-	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s, &err, join, idx, dnet_state_net_process);
+	st = dnet_state_create(n, backends, id_container->backends_count, addr, s, &err, join, idx, dnet_state_net_process);
 	if (!st) {
 		/* socket is already closed */
 		s = -1;
-		goto err_out_free;
+		goto err_out_free_backends;
 	}
 	memcpy(st->version, version, sizeof(st->version));
-	dnet_log(n, DNET_LOG_NOTICE, "%s: connected: id-num: %d, addr-num: %d, idx: %d.\n",
-			dnet_server_convert_dnet_addr(addr), num, cnt->addr_num, idx);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: connected: backends-num: %d, addr-num: %d, idx: %d.\n",
+			dnet_server_convert_dnet_addr(addr), id_container->backends_count, cnt->addr_num, idx);
 	free(data);
+	free(backends);
 
 	return st;
 
+err_out_free_backends:
+	free(backends);
 err_out_free:
 	free(data);
 err_out_exit:
@@ -1235,6 +1252,7 @@ int dnet_send_cmd(struct dnet_session *s,
 {
 	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
+	struct dnet_idc *idc;
 	int err = -ENXIO, num = 0, i, found_group;
 	struct dnet_group *g;
 
@@ -1282,12 +1300,13 @@ int dnet_send_cmd(struct dnet_session *s,
 			if (!found_group)
 				continue;
 
-			list_for_each_entry(st, &g->state_list, state_entry) {
+			list_for_each_entry(idc, &g->idc_list, group_entry) {
+				st = idc->st;
 				if (st == n->st)
 					continue;
 
-				dnet_setup_id(&tmp_id, g->group_id, st->idc->ids[0].raw.id);
-				memcpy(e->src.id, st->idc->ids[0].raw.id, DNET_ID_SIZE);
+				dnet_setup_id(&tmp_id, g->group_id, idc->ids[0].raw.id);
+				memcpy(e->src.id, idc->ids[0].raw.id, DNET_ID_SIZE);
 				err = dnet_send_cmd_single(s, st, &tmp_id, complete, priv, e, dnet_session_get_cflags(s));
 				num++;
 			}
@@ -1508,6 +1527,7 @@ int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 	struct dnet_node *n = s->node;
 	int num = 0;
 	struct dnet_net_state *st;
+	struct dnet_idc *idc;
 	struct dnet_group *g;
 	struct timeval start, end;
 	long diff;
@@ -1516,14 +1536,15 @@ int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(st, &g->state_list, state_entry) {
+		list_for_each_entry(idc, &g->idc_list, group_entry) {
+			st = idc->st;
 			if (st == n->st)
 				continue;
 
 			ctl->id.group_id = g->group_id;
 
 			if (!(ctl->cflags & DNET_FLAGS_DIRECT))
-				dnet_setup_id(&ctl->id, st->idc->group->group_id, st->idc->ids[0].raw.id);
+				dnet_setup_id(&ctl->id, idc->group->group_id, idc->ids[0].raw.id);
 			dnet_request_cmd_single(s, st, ctl);
 			num++;
 		}
@@ -1601,6 +1622,7 @@ int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dn
 		memcpy(&ctl.id, id, sizeof(struct dnet_id));
 	} else {
 		struct dnet_net_state *st;
+		struct dnet_idc *idc;
 
 		st = dnet_state_search_by_addr(s->node, addr);
 		if (!st) {
@@ -1608,7 +1630,20 @@ int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dn
 			goto err_out_exit;
 		}
 
-		dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
+		pthread_mutex_lock(&st->n->state_lock);
+
+		if (list_empty(&st->idc_list)) {
+			pthread_mutex_unlock(&st->n->state_lock);
+
+			err = -ENXIO;
+			goto err_out_exit;
+		}
+
+		idc = list_first_entry(&st->idc_list, struct dnet_idc, state_entry);
+		dnet_setup_id(&ctl.id, idc->group->group_id, idc->ids[0].raw.id);
+
+		pthread_mutex_unlock(&st->n->state_lock);
+
 		dnet_state_put(st);
 	}
 
@@ -1998,7 +2033,7 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_ad
 
 	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
-	struct dnet_group *g;
+	struct dnet_idc *idc;
 	struct dnet_addr *tmp_addrs;
 	struct dnet_id *tmp_ids;
 	int size = 0, count = 0;
@@ -2008,10 +2043,10 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_ad
 	*addrs = NULL;
 
 	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(st, &g->state_list, state_entry) {
+	list_for_each_entry(st, &n->dht_state_list, node_entry) {
+		list_for_each_entry(idc, &st->idc_list, state_entry) {
 
-			size += st->idc->id_num;
+			size += idc->id_num;
 
 			tmp_ids = (struct dnet_id *)realloc(*ids, size * sizeof(struct dnet_id));
 			if (!tmp_ids) {
@@ -2027,12 +2062,12 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_ad
 			}
 			*addrs = tmp_addrs;
 
-			for (i = 0; i < st->idc->id_num; ++i) {
-				dnet_setup_id(&(*ids)[count], g->group_id, st->idc->ids[i].raw.id);
+			for (i = 0; i < idc->id_num; ++i) {
+				dnet_setup_id(&(*ids)[count], idc->group->group_id, idc->ids[i].raw.id);
 				memcpy(&(*addrs)[count], dnet_state_addr(st), sizeof(struct dnet_addr));
 				count++;
 			}
-			dnet_log(n, DNET_LOG_INFO, "%s: %s\n", dnet_state_dump_addr(st), dnet_dump_id_str(st->idc->ids[0].raw.id));
+			dnet_log(n, DNET_LOG_INFO, "%s: %s\n", dnet_state_dump_addr(st), dnet_dump_id_str(idc->ids[0].raw.id));
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
@@ -2069,13 +2104,14 @@ static int dnet_start_defrag_complete(struct dnet_net_state *state, struct dnet_
 	return 0;
 }
 
-static int dnet_start_defrag_single(struct dnet_session *s, struct dnet_net_state *st, void *priv, uint64_t cflags, struct dnet_defrag_ctl *dctl)
+static int dnet_start_defrag_single(struct dnet_session *s, struct dnet_idc *idc, void *priv, uint64_t cflags, struct dnet_defrag_ctl *dctl)
 {
 	struct dnet_trans_control ctl;
+	struct dnet_net_state *st = idc->st;
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
-	dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
+	dnet_setup_id(&ctl.id, idc->group->group_id, idc->ids[0].raw.id);
 	ctl.cmd = DNET_CMD_DEFRAG;
 	ctl.complete = dnet_start_defrag_complete;
 	ctl.priv = priv;
@@ -2086,12 +2122,12 @@ static int dnet_start_defrag_single(struct dnet_session *s, struct dnet_net_stat
 	return dnet_trans_alloc_send_state(s, st, &ctl);
 }
 
-int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl)
+int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl, int backend_id)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
 	struct dnet_wait *w;
-	struct dnet_group *g;
+	struct dnet_idc *idc;
 	int num = 0;
 	int err;
 
@@ -2104,15 +2140,15 @@ int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl)
 	dnet_convert_defrag_ctl(ctl);
 
 	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (st == n->st)
+	list_for_each_entry(st, &n->dht_state_list, node_entry) {
+		list_for_each_entry(idc, &st->idc_list, state_entry) {
+			st = idc->st;
+			if (st == n->st || (backend_id >= 0 && idc->backend_id != backend_id))
 				continue;
 
-			if (w)
-				dnet_wait_get(w);
+			dnet_wait_get(w);
 
-			dnet_start_defrag_single(s, st, w, dnet_session_get_cflags(s), ctl);
+			dnet_start_defrag_single(s, idc, w, dnet_session_get_cflags(s), ctl);
 			num++;
 		}
 	}

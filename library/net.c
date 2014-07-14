@@ -784,7 +784,13 @@ err_out_exit:
 
 void dnet_state_remove_nolock(struct dnet_net_state *st)
 {
-	list_del_init(&st->state_entry);
+	struct dnet_idc *idc, *tmp;
+
+	list_for_each_entry_safe(idc, tmp, &st->idc_list, state_entry) {
+		dnet_idc_remove(idc);
+	}
+
+	list_del_init(&st->node_entry);
 	list_del_init(&st->storage_state_entry);
 	dnet_idc_destroy_nolock(st);
 }
@@ -978,8 +984,9 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 	st->la = 1;
 	st->weight = DNET_STATE_DEFAULT_WEIGHT;
 
-	INIT_LIST_HEAD(&st->state_entry);
+	INIT_LIST_HEAD(&st->node_entry);
 	INIT_LIST_HEAD(&st->storage_state_entry);
+	INIT_LIST_HEAD(&st->idc_list);
 
 	st->trans_root = RB_ROOT;
 	st->timer_root = RB_ROOT;
@@ -1027,14 +1034,14 @@ err_out:
 }
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
-		int group_id, struct dnet_raw_id *ids, int id_num,
+		struct dnet_backend_ids **backends, int backends_count,
 		struct dnet_addr *addr, int s, int *errp, int join, int idx,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev))
 {
-	int err = -ENOMEM;
+	int err = -ENOMEM, i;
 	struct dnet_net_state *st;
 
-	if (ids && id_num) {
+	if (backends && backends_count) {
 		st = dnet_state_search_by_addr(n, addr);
 		if (st) {
 			err = -EEXIST;
@@ -1090,15 +1097,15 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	 */
 	dnet_state_get(st);
 
-	if (ids && id_num) {
-		err = dnet_idc_create(st, group_id, ids, id_num);
-		if (err)
-			goto err_out_send_destroy;
+	if (backends && backends_count) {
+		for (i = 0; i < backends_count; ++i) {
+			err = dnet_idc_update(st, backends[i]);
+			if (err)
+				goto err_out_send_destroy;
+		}
 
 		if ((st->__join_state == DNET_JOIN) && (process != dnet_state_accept_process)) {
-			pthread_mutex_lock(&n->state_lock);
-			err = dnet_state_join_nolock(st);
-			pthread_mutex_unlock(&n->state_lock);
+			err = dnet_state_join(st);
 
 			err = dnet_auth_send(st);
 		} else if (process == dnet_state_accept_process) {
@@ -1108,7 +1115,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		}
 	} else {
 		pthread_mutex_lock(&n->state_lock);
-		list_add_tail(&st->state_entry, &n->empty_state_list);
+		list_add_tail(&st->node_entry, &n->empty_state_list);
 		list_add_tail(&st->storage_state_entry, &n->storage_state_list);
 
 		err = dnet_setup_control_nolock(st);
@@ -1130,7 +1137,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	return st;
 
 err_out_unlock:
-	list_del_init(&st->state_entry);
+	list_del_init(&st->node_entry);
+	list_del_init(&st->storage_state_entry);
 	pthread_mutex_unlock(&n->state_lock);
 err_out_send_destroy:
 	dnet_state_put(st);
@@ -1158,13 +1166,11 @@ int dnet_state_num(struct dnet_session *s)
 int dnet_node_state_num(struct dnet_node *n)
 {
 	struct dnet_net_state *st;
-	struct dnet_group *g;
 	int num = 0;
 
 	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(st, &g->state_list, state_entry)
-			num++;
+	list_for_each_entry(st, &n->dht_state_list, node_entry) {
+		num++;
 	}
 	pthread_mutex_unlock(&n->state_lock);
 

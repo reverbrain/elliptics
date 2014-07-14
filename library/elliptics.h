@@ -47,6 +47,7 @@ typedef unsigned short u_short;
 
 #include "atomic.h"
 #include "lock.h"
+#include "route.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -111,8 +112,13 @@ struct dnet_io_req {
 
 struct dnet_net_state
 {
-	struct list_head	state_entry;
+	// To store state either at node::empty_state_list (List of all client nodes, used for statistics)
+	// or at node::dht_state_list (List of all server nodes)
+	struct list_head	node_entry;
+	// To store at node::storage_state_list (List of all network-active states, used for unsheduling process)
 	struct list_head	storage_state_entry;
+	// To store list of all idc connected with this state
+	struct list_head	idc_list;
 
 	struct dnet_node	*n;
 
@@ -164,8 +170,6 @@ struct dnet_net_state
 	unsigned long long	free;
 	double			weight;
 
-	struct dnet_idc		*idc;
-
 	struct dnet_stat_count	stat[__DNET_CMD_MAX];
 
 	/* Remote protocol version */
@@ -184,20 +188,24 @@ struct dnet_state_id {
 };
 
 struct dnet_idc {
+	struct list_head	state_entry;
+	struct list_head	group_entry;
 	struct dnet_net_state	*st;
+	int			backend_id;
 	struct dnet_group	*group;
 	int			id_num;
 	struct dnet_state_id	ids[];
 };
 
-int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id *ids, int id_num);
+void dnet_idc_remove(struct dnet_idc *idc);
+int dnet_idc_update(struct dnet_net_state *st, struct dnet_backend_ids *ids);
 void dnet_idc_destroy_nolock(struct dnet_net_state *st);
 
 int dnet_state_micro_init(struct dnet_net_state *st, struct dnet_node *n, struct dnet_addr *addr, int join,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
-		int group_id, struct dnet_raw_id *ids, int id_num,
+		struct dnet_backend_ids **backends, int backends_count,
 		struct dnet_addr *addr, int s, int *errp, int join, int idx,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
@@ -308,7 +316,7 @@ struct dnet_group
 
 	unsigned int		group_id;
 
-	struct list_head	state_list;
+	struct list_head	idc_list;
 
 	atomic_t		refcnt;
 
@@ -499,12 +507,15 @@ struct dnet_node
 
 	/* hosts client states, i.e. those who didn't join network */
 	struct list_head	empty_state_list;
+	/* hosts server states, i.e. those who joined network */
+	struct list_head	dht_state_list;
 
 	/* hosts all states added to given node */
 	struct list_head	storage_state_list;
 
 	atomic_t		trans;
 
+	dnet_route_list		*route;
 	struct dnet_net_state	*st;
 
 	int			error;
@@ -669,7 +680,7 @@ enum dnet_join_state {
 	DNET_WANT_RECONNECT,		/* State must be reconnected, when remote peer failed */
 };
 
-int __attribute__((weak)) dnet_state_join_nolock(struct dnet_net_state *st);
+int __attribute__((weak)) dnet_state_join(struct dnet_net_state *st);
 
 struct dnet_trans
 {

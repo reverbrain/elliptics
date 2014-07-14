@@ -300,14 +300,21 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		struct dnet_addr la;
 		int s;
+		struct dnet_backend_ids *backend;
+		struct dnet_backend_ids *backends[1] = { NULL };
+		int backends_count = 1;
 
 		err = dnet_locks_init(n, 1024);
 		if (err)
 			goto err_out_addr_cleanup;
 
+		n->route = dnet_route_list_create(n);
+		if (!n->route)
+			goto err_out_locks_destroy;
+
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free, cfg_data->cfg_addrs, cfg_data->cfg_remotes);
 		if (!ids)
-			goto err_out_locks_destroy;
+			goto err_out_route_list_destroy;
 
 		memset(&la, 0, sizeof(struct dnet_addr));
 		la.addr_len = sizeof(la.addr);
@@ -320,10 +327,26 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 		s = err;
 		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
 
-		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &la, s, &err, DNET_JOIN, -1, dnet_state_accept_process);
+		backend = malloc(sizeof(struct dnet_backend_ids) + id_num * sizeof(struct dnet_raw_id));
+		memset(backend, 0, sizeof(struct dnet_backend_ids));
+		backend->group_id = cfg->group_id;
+		backend->ids_count = id_num;
+//		backend->flags |= DNET_BACKEND_DEACTIVATED;
+
+		memcpy(backend->ids, ids, id_num * sizeof(struct dnet_raw_id));
+
+		backends[0] = backend;
+
+		n->st = dnet_state_create(n, backends, backends_count, &la, s, &err, DNET_JOIN, -1, dnet_state_accept_process);
+		free(backend);
+
 		if (!n->st) {
 			goto err_out_state_destroy;
 		}
+
+		err = dnet_route_list_enable_backend(n->route, 0, cfg->group_id, ids, id_num);
+		if (err)
+			goto err_out_state_destroy;
 
 		free(ids);
 		ids = NULL;
@@ -350,6 +373,8 @@ err_out_state_destroy:
 	dnet_state_put(n->st);
 err_out_ids_cleanup:
 	free(ids);
+err_out_route_list_destroy:
+	dnet_route_list_destroy(n->route);
 err_out_locks_destroy:
 	dnet_locks_destroy(n);
 err_out_addr_cleanup:
@@ -381,6 +406,8 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	 * After all of them finish destroying the node, all it's counters and so on.
 	 */
 	dnet_node_cleanup_common_resources(n);
+
+	dnet_route_list_destroy(n->route);
 
 	dnet_srw_cleanup(n);
 	dnet_cache_cleanup(n);

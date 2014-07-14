@@ -449,7 +449,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 
 	idx = dnet_local_addr_index(n, &saddr);
 
-	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, 0, idx, dnet_state_net_process);
+	st = dnet_state_create(n, NULL, 0, &addr, cs, &err, 0, idx, dnet_state_net_process);
 	if (!st) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]\n",
 				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
@@ -638,8 +638,9 @@ static void dnet_shuffle_epoll_events(struct epoll_event *evs, int size) {
 	for (i = 0; i < size - 1; ++i) {
 		j = i + rand() / (RAND_MAX / (size - i) + 1);
 
+		// In case if j == i we can't use memcpy because of the overlap
 		memcpy(&tmp, evs + j, sizeof(struct epoll_event));
-		memcpy(evs + j, evs + i, sizeof(struct epoll_event));
+		memmove(evs + j, evs + i, sizeof(struct epoll_event));
 		memcpy(evs + i, &tmp, sizeof(struct epoll_event));
 	}
 }
@@ -658,6 +659,8 @@ static void *dnet_io_process_network(void *data_)
 	struct timeval prev_tv, curr_tv;
 
 	dnet_set_name("net_pool");
+
+	dnet_log(n, DNET_LOG_NOTICE, "started net pool");
 
 	if (evs == NULL) {
 		dnet_log(n, DNET_LOG_ERROR, "Not enough memory to allocate epoll_events");
@@ -840,6 +843,8 @@ static void *dnet_io_process(void *data_)
 	struct dnet_cmd *cmd;
 
 	dnet_set_name("io_pool");
+
+	dnet_log(n, DNET_LOG_NOTICE, "started io pool");
 
 	while (!n->need_exit) {
 		r = NULL;
