@@ -22,13 +22,18 @@ namespace ioremap { namespace elliptics {
 
 class node_data {
 	public:
-		node_data() : node_ptr(NULL) {}
-		~node_data() {
-			dnet_node_destroy(node_ptr);
+		node_data() : node_ptr(NULL), destroy_node(true)
+		{
+		}
+		~node_data()
+		{
+			if (destroy_node)
+				dnet_node_destroy(node_ptr);
 		}
 
+		bool			destroy_node;
 		struct dnet_node	*node_ptr;
-		logger				log;
+		logger			log;
 };
 
 class session_data

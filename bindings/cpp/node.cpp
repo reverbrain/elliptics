@@ -69,6 +69,34 @@ node::node(const node &other) : m_data(other.m_data)
 node::~node()
 {}
 
+class dnet_node_logger_interface : public logger_interface
+{
+public:
+	dnet_node_logger_interface(dnet_node *node) : m_node(node)
+	{
+	}
+
+	void log(const int level, const char *msg)
+	{
+		dnet_log_raw(m_node, level, "%s", msg);
+	}
+
+private:
+	dnet_node *m_node;
+};
+
+node node::from_raw(dnet_node *n)
+{
+	node result;
+
+	result.m_data->destroy_node = false;
+	result.m_data = std::make_shared<node_data>();
+	result.m_data->log = logger(new dnet_node_logger_interface(n), 4);
+	result.m_data->node_ptr = n;
+
+	return result;
+}
+
 node &node::operator =(const node &other)
 {
 	m_data = other.m_data;
