@@ -197,8 +197,8 @@ struct dnet_idc {
 	struct dnet_state_id	ids[];
 };
 
-void dnet_idc_remove(struct dnet_idc *idc);
-int dnet_idc_update(struct dnet_net_state *st, struct dnet_backend_ids *ids);
+void dnet_idc_remove_backend_nolock(struct dnet_net_state *st, int backend_id);
+int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *ids);
 void dnet_idc_destroy_nolock(struct dnet_net_state *st);
 
 int dnet_state_micro_init(struct dnet_net_state *st, struct dnet_node *n, struct dnet_addr *addr, int join,
@@ -206,7 +206,7 @@ int dnet_state_micro_init(struct dnet_net_state *st, struct dnet_node *n, struct
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_backend_ids **backends, int backends_count,
-		struct dnet_addr *addr, int s, int *errp, int join, int idx,
+		struct dnet_addr *addr, int s, int *errp, int join, int server_node, int idx,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
 void dnet_state_reset(struct dnet_net_state *st, int error);

@@ -162,7 +162,7 @@ static int dnet_idc_compare(const void *k1, const void *k2)
 	return dnet_id_cmp_str(id1->raw.id, id2->raw.id);
 }
 
-void dnet_idc_remove(struct dnet_idc *idc)
+static void dnet_idc_remove_nolock(struct dnet_idc *idc)
 {
 	int i, pos;
 	struct dnet_group *g = idc->group;
@@ -184,13 +184,13 @@ void dnet_idc_remove(struct dnet_idc *idc)
 	free(idc);
 }
 
-static void dnet_idc_remove_backend_nolock(struct dnet_net_state *st, int backend_id)
+void dnet_idc_remove_backend_nolock(struct dnet_net_state *st, int backend_id)
 {
 	struct dnet_idc *idc, *tmp;
 
 	list_for_each_entry_safe(idc, tmp, &st->idc_list, state_entry) {
 		if (idc->backend_id == backend_id) {
-			dnet_idc_remove(idc);
+			dnet_idc_remove_nolock(idc);
 		}
 	}
 }
@@ -201,11 +201,11 @@ static void dnet_idc_remove_all(struct dnet_net_state *st)
 	struct dnet_idc *tmp;
 
 	list_for_each_entry_safe(idc, tmp, &st->idc_list, state_entry) {
-		dnet_idc_remove(idc);
+		dnet_idc_remove_nolock(idc);
 	}
 }
 
-int dnet_idc_update(struct dnet_net_state *st, struct dnet_backend_ids *backend)
+int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *backend)
 {
 	struct dnet_node *n = st->n;
 	struct dnet_idc *idc;
@@ -332,7 +332,7 @@ int dnet_idc_update(struct dnet_net_state *st, struct dnet_backend_ids *backend)
 	return 0;
 
 err_out_remove_nolock:
-	dnet_idc_remove(idc);
+	dnet_idc_remove_nolock(idc);
 	list_del_init(&st->node_entry);
 	list_del_init(&st->storage_state_entry);
 err_out_unlock_put:

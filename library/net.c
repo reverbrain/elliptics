@@ -931,12 +931,6 @@ err_out_exit:
 
 void dnet_state_remove_nolock(struct dnet_net_state *st)
 {
-	struct dnet_idc *idc, *tmp;
-
-	list_for_each_entry_safe(idc, tmp, &st->idc_list, state_entry) {
-		dnet_idc_remove(idc);
-	}
-
 	list_del_init(&st->node_entry);
 	list_del_init(&st->storage_state_entry);
 	dnet_idc_destroy_nolock(st);
@@ -1182,13 +1176,13 @@ err_out:
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_backend_ids **backends, int backends_count,
-		struct dnet_addr *addr, int s, int *errp, int join, int idx,
+		struct dnet_addr *addr, int s, int *errp, int join, int server_node, int idx,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev))
 {
 	int err = -ENOMEM, i;
 	struct dnet_net_state *st;
 
-	if (backends && backends_count) {
+	if (server_node) {
 		st = dnet_state_search_by_addr(n, addr);
 		if (st) {
 			err = -EEXIST;
@@ -1244,9 +1238,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	 */
 	dnet_state_get(st);
 
-	if (backends && backends_count) {
+	if (server_node) {
 		for (i = 0; i < backends_count; ++i) {
-			err = dnet_idc_update(st, backends[i]);
+			err = dnet_idc_update_backend(st, backends[i]);
 			if (err)
 				goto err_out_send_destroy;
 		}

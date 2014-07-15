@@ -6,21 +6,41 @@
 class dnet_pthread_mutex
 {
 public:
-	dnet_pthread_mutex(pthread_mutex_t *mutex) : m_mutex(mutex)
+	dnet_pthread_mutex(pthread_mutex_t &mutex) : m_mutex(mutex)
 	{
 	}
 
 	void lock()
 	{
-		pthread_mutex_lock(m_mutex);
+		pthread_mutex_lock(&m_mutex);
 	}
 
 	void unlock()
 	{
-		pthread_mutex_unlock(m_mutex);
+		pthread_mutex_unlock(&m_mutex);
 	}
 private:
-	pthread_mutex_t *m_mutex;
+	pthread_mutex_t &m_mutex;
+};
+
+class dnet_pthread_lock_guard
+{
+public:
+	dnet_pthread_lock_guard(pthread_mutex_t &mutex) : m_mutex(mutex), m_lock_guard(m_mutex)
+	{
+	}
+
+private:
+	dnet_pthread_mutex m_mutex;
+	std::lock_guard<dnet_pthread_mutex> m_lock_guard;
+};
+
+struct free_destroyer
+{
+	void operator() (void *buffer)
+	{
+		free(buffer);
+	}
 };
 
 static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data __unused)
@@ -152,7 +172,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_free;
 
 	for (i = 0; i < id_container->backends_count; ++i) {
-		err = dnet_idc_update(st, backends[i]);
+		err = dnet_idc_update_backend(st, backends[i]);
 		if (err) {
 			pthread_mutex_lock(&n->state_lock);
 			dnet_idc_destroy_nolock(st);
@@ -204,8 +224,18 @@ dnet_route_list::~dnet_route_list()
 
 int dnet_route_list::enable_backend(size_t backend_id, int group_id, dnet_raw_id *ids, size_t ids_count)
 {
-	dnet_pthread_mutex mutex(&m_node->state_lock);
-	std::lock_guard<dnet_pthread_mutex> guard(mutex);
+	dnet_backend_ids *backend_ids = reinterpret_cast<dnet_backend_ids *>(malloc(sizeof(dnet_backend_ids) + ids_count * sizeof(dnet_raw_id)));
+	if (!backend_ids)
+		return -ENOMEM;
+	std::unique_ptr<dnet_backend_ids, free_destroyer> backend_ids_guard(backend_ids);
+
+	memset(backend_ids, 0, sizeof(dnet_backend_ids));
+	backend_ids->backend_id = backend_id;
+	backend_ids->group_id = group_id;
+	backend_ids->ids_count = ids_count;
+	memcpy(backend_ids->ids, ids, ids_count * sizeof(dnet_raw_id));
+
+	std::lock_guard<std::mutex> lock_guard(m_mutex);
 
 	m_backends.resize(std::max(m_backends.size(), backend_id + 1));
 
@@ -214,13 +244,12 @@ int dnet_route_list::enable_backend(size_t backend_id, int group_id, dnet_raw_id
 	backend.group_id = group_id;
 	backend.ids.assign(ids, ids + ids_count);
 
-	return 0;
+	return dnet_idc_update_backend(m_node->st, backend_ids);
 }
 
 int dnet_route_list::disable_backend(size_t backend_id)
 {
-	dnet_pthread_mutex mutex(&m_node->state_lock);
-	std::lock_guard<dnet_pthread_mutex> guard(mutex);
+	std::lock_guard<std::mutex> lock_guard(m_mutex);
 
 	if (backend_id >= m_backends.size()) {
 		return 0;
@@ -228,6 +257,9 @@ int dnet_route_list::disable_backend(size_t backend_id)
 
 	backend_info &backend = m_backends[backend_id];
 	backend.activated = false;
+
+	dnet_pthread_lock_guard guard(m_node->state_lock);
+	dnet_idc_remove_backend_nolock(m_node->st, backend_id);
 
 	return 0;
 }
@@ -246,23 +278,15 @@ int dnet_route_list::on_join(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 int dnet_route_list::join(dnet_net_state *st)
 {
-	dnet_pthread_mutex mutex(&st->n->state_lock);
-	std::lock_guard<dnet_pthread_mutex> guard(mutex);
+	dnet_pthread_lock_guard guard(st->n->state_lock);
 
 	return dnet_state_join_nolock(st);
 }
 
-struct free_destroyer
-{
-	void operator() (void *buffer)
-	{
-		free(buffer);
-	}
-};
-
 int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct)
 {
 	using namespace ioremap::elliptics;
+	std::lock_guard<std::mutex> lock_guard(m_mutex);
 
 	size_t total_size = sizeof(dnet_addr_cmd) + m_node->addr_num * sizeof(dnet_addr) + sizeof(dnet_id_container);
 
@@ -316,7 +340,11 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64
 
 dnet_route_list *dnet_route_list_create(dnet_node *node)
 {
-	return new dnet_route_list(node);
+	try {
+		return new dnet_route_list(node);
+	} catch (...) {
+		return NULL;
+	}
 }
 
 void dnet_route_list_destroy(dnet_route_list *route)

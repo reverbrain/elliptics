@@ -6,6 +6,7 @@
 
 #ifdef __cplusplus
 #include <vector>
+#include <mutex>
 
 class dnet_route_list
 {
@@ -35,6 +36,7 @@ private:
 		std::vector<dnet_raw_id> ids;
 	};
 
+	std::mutex m_mutex;
 	std::vector<backend_info> m_backends;
 };
 

@@ -449,7 +449,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 
 	idx = dnet_local_addr_index(n, &saddr);
 
-	st = dnet_state_create(n, NULL, 0, &addr, cs, &err, 0, idx, dnet_state_net_process);
+	st = dnet_state_create(n, NULL, 0, &addr, cs, &err, 0, 0, idx, dnet_state_net_process);
 	if (!st) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]\n",
 				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);

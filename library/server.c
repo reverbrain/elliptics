@@ -299,11 +299,8 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		int s;
-		struct dnet_backend_ids *backend;
-		struct dnet_backend_ids *backends[1] = { NULL };
 		struct dnet_addr la;
 		struct dnet_addr_socket *socket;
-		int backends_count = 1;
 
 		err = dnet_locks_init(n, 1024);
 		if (err)
@@ -338,18 +335,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 
 		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
 
-		backend = malloc(sizeof(struct dnet_backend_ids) + id_num * sizeof(struct dnet_raw_id));
-		memset(backend, 0, sizeof(struct dnet_backend_ids));
-		backend->group_id = cfg->group_id;
-		backend->ids_count = id_num;
-//		backend->flags |= DNET_BACKEND_DEACTIVATED;
-
-		memcpy(backend->ids, ids, id_num * sizeof(struct dnet_raw_id));
-
-		backends[0] = backend;
-
-		n->st = dnet_state_create(n, backends, backends_count, &la, s, &err, DNET_JOIN, -1, dnet_state_accept_process);
-		free(backend);
+		n->st = dnet_state_create(n, NULL, 0, &la, s, &err, DNET_JOIN, 1, -1, dnet_state_accept_process);
 
 		if (!n->st) {
 			goto err_out_state_destroy;

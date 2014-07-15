@@ -250,9 +250,17 @@ err_out_exit:
 	return err;
 }
 
+struct dnet_route_list_control
+{
+	struct dnet_wait *w;
+	struct dnet_addr *addrs;
+	int addrs_num;
+};
+
 static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv)
 {
-	struct dnet_wait *w = priv;
+	struct dnet_route_list_control *control = priv;
+	struct dnet_wait *w = control->w;
 	struct dnet_addr_container *cnt;
 	long size;
 	int err, states_num, i;
@@ -260,8 +268,7 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 	char server_addr[128], rem_addr[128];
 	struct dnet_net_state *nst;
 	struct dnet_addr *addr;
-	struct dnet_addr *addrs;
-	int addrs_num = 0;
+	struct dnet_addr *addrs_tmp;
 
 	if (is_trans_destroyed(st, cmd)) {
 		err = -EINVAL;
@@ -324,11 +331,13 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 		}
 	}
 
-	addrs = malloc(states_num * sizeof(struct dnet_addr));
-	if (!addrs) {
+	addrs_tmp = realloc(control->addrs, control->addrs_num + states_num * sizeof(struct dnet_addr));
+	if (!addrs_tmp) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
+
+	control->addrs = addrs_tmp;
 
 	for (i = 0; i < states_num; i += cnt->node_addr_num) {
 		addr = &cnt->addrs[i + st->idx];
@@ -336,16 +345,12 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 		if (nst) {
 			dnet_copy_addrs(nst, cnt->addrs + i, cnt->node_addr_num);
 		} else {
-			memcpy(addrs + addrs_num, addr, sizeof(struct dnet_addr));
-			++addrs_num;
+			memcpy(control->addrs + control->addrs_num, addr, sizeof(struct dnet_addr));
+			++control->addrs_num;
 		}
 
 		dnet_state_put(nst);
 	}
-
-	err = dnet_add_state(n, addrs, addrs_num, DNET_CFG_NO_ROUTE_LIST);
-
-	free(addrs);
 
 err_out_exit:
 	return err;
@@ -358,6 +363,7 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 	struct dnet_trans *t;
 	struct dnet_cmd *cmd;
 	struct dnet_wait *w;
+	struct dnet_route_list_control control;
 	int err;
 
 	w = dnet_wait_alloc(0);
@@ -372,8 +378,11 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 		goto err_out_wait_put;
 	}
 
+	memset(&control, 0, sizeof(struct dnet_route_list_control));
+	control.w = w;
+
 	t->complete = dnet_recv_route_list_complete;
-	t->priv = w;
+	t->priv = &control;
 
 	cmd = (struct dnet_cmd *)(t + 1);
 
@@ -404,6 +413,10 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 
 	err = dnet_wait_event(w, w->cond != 0, &n->wait_ts);
 	dnet_wait_put(w);
+
+	if (control.addrs && control.addrs_num)
+		err = dnet_add_state(n, control.addrs, control.addrs_num, DNET_CFG_NO_ROUTE_LIST);
+	free(control.addrs);
 
 	return 0;
 
@@ -570,7 +583,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		}
 	}
 
-	st = dnet_state_create(n, backends, id_container->backends_count, addr, s, &err, join, idx, dnet_state_net_process);
+	st = dnet_state_create(n, backends, id_container->backends_count, addr, s, &err, join, 1, idx, dnet_state_net_process);
 	if (!st) {
 		/* socket is already closed */
 		s = -1;
