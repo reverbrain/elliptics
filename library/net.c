@@ -817,6 +817,51 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 	return dnet_trans_send(t, r);
 }
 
+static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_id_container *container)
+{
+	struct dnet_backend_ids **backends;
+	int i, err = 0;
+
+	if (cmd->size < sizeof(struct dnet_id_container)) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	backends = malloc(container->backends_count * sizeof(struct dnet_backend_ids));
+	if (!backends) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	err = dnet_validate_id_container(container, cmd->size, backends);
+	if (err) {
+		goto err_out_free;
+	}
+
+	for (i = 0; i < container->backends_count; ++i) {
+		err = dnet_idc_update_backend(st, backends[i]);
+		if (err) {
+			dnet_log(st->n, DNET_LOG_ERROR, "failed to update route-list for backend: %d from state: %s, err: %d",
+				backends[i]->backend_id, dnet_state_dump_addr(st), err);
+		}
+	}
+
+err_out_free:
+	free(backends);
+err_out_exit:
+	return err;
+}
+
+static int dnet_process_control(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+{
+	switch (cmd->cmd) {
+	case DNET_CMD_UPDATE_IDS:
+		return dnet_process_update_ids(st, cmd, data);
+	default:
+		return -ENOTSUP;
+	}
+}
+
 int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 {
 	int err = 0;
@@ -890,6 +935,12 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 
 		goto out;
 	}
+
+	err = dnet_process_control(st, cmd, r->data);
+	if (err != -ENOTSUP) {
+		goto out;
+	}
+
 #if 1
 	forward_state = dnet_state_get_first(n, &cmd->id);
 	if (!forward_state || forward_state == st || forward_state == n->st ||

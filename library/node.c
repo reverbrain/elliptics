@@ -245,7 +245,7 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 
 	gettimeofday(&start, NULL);
 
-	const int remove_backend = backend->flags & DNET_BACKEND_DEACTIVATED;
+	const int remove_backend = (backend->flags & DNET_BACKEND_DISABLE);
 
 	if (remove_backend) {
 		pthread_mutex_lock(&n->state_lock);

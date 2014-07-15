@@ -224,14 +224,30 @@ dnet_route_list::~dnet_route_list()
 {
 }
 
+struct dnet_backend_update_cmd
+{
+	dnet_cmd cmd;
+	dnet_id_container container;
+	dnet_backend_ids ids;
+};
+
 int dnet_route_list::enable_backend(size_t backend_id, int group_id, dnet_raw_id *ids, size_t ids_count)
 {
-	dnet_backend_ids *backend_ids = reinterpret_cast<dnet_backend_ids *>(malloc(sizeof(dnet_backend_ids) + ids_count * sizeof(dnet_raw_id)));
-	if (!backend_ids)
+	dnet_cmd *cmd = reinterpret_cast<dnet_cmd *>(malloc(sizeof(dnet_backend_update_cmd) + ids_count * sizeof(dnet_raw_id)));
+	if (!cmd)
 		return -ENOMEM;
-	std::unique_ptr<dnet_backend_ids, free_destroyer> backend_ids_guard(backend_ids);
+	std::unique_ptr<dnet_cmd, free_destroyer> cmd_guard(cmd);
 
-	memset(backend_ids, 0, sizeof(dnet_backend_ids));
+	dnet_id_container *container = reinterpret_cast<dnet_id_container *>(cmd + 1);
+
+	memset(cmd, 0, sizeof(dnet_backend_update_cmd));
+
+	dnet_backend_ids *backend_ids = reinterpret_cast<dnet_backend_ids *>(container + 1);
+
+	cmd->cmd = DNET_CMD_UPDATE_IDS;
+	cmd->flags = DNET_FLAGS_DIRECT | DNET_FLAGS_NOLOCK;
+	cmd->size = sizeof(dnet_backend_update_cmd) - sizeof(dnet_cmd);
+	container->backends_count = 1;
 	backend_ids->backend_id = backend_id;
 	backend_ids->group_id = group_id;
 	backend_ids->ids_count = ids_count;
@@ -246,7 +262,9 @@ int dnet_route_list::enable_backend(size_t backend_id, int group_id, dnet_raw_id
 	backend.group_id = group_id;
 	backend.ids.assign(ids, ids + ids_count);
 
-	return dnet_idc_update_backend(m_node->st, backend_ids);
+	int err = dnet_idc_update_backend(m_node->st, backend_ids);
+	send_update_to_states(cmd, backend_id);
+	return err;
 }
 
 int dnet_route_list::disable_backend(size_t backend_id)
@@ -260,8 +278,22 @@ int dnet_route_list::disable_backend(size_t backend_id)
 	backend_info &backend = m_backends[backend_id];
 	backend.activated = false;
 
-	dnet_pthread_lock_guard guard(m_node->state_lock);
-	dnet_idc_remove_backend_nolock(m_node->st, backend_id);
+	{
+		dnet_pthread_lock_guard guard(m_node->state_lock);
+		dnet_idc_remove_backend_nolock(m_node->st, backend_id);
+	}
+
+	dnet_backend_update_cmd cmd;
+	memset(&cmd, 0, sizeof(cmd));
+
+	cmd.cmd.cmd = DNET_CMD_UPDATE_IDS;
+	cmd.cmd.flags = DNET_FLAGS_DIRECT | DNET_FLAGS_NOLOCK;
+	cmd.cmd.size = sizeof(dnet_backend_update_cmd) - sizeof(dnet_cmd);
+	cmd.container.backends_count = 1;
+	cmd.ids.backend_id = backend_id;
+	cmd.ids.flags = DNET_BACKEND_DISABLE;
+
+	send_update_to_states(&cmd.cmd, backend_id);
 
 	return 0;
 }
@@ -337,7 +369,27 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64
 		backend_ids = reinterpret_cast<dnet_backend_ids *>(ids + backend.ids.size());
 	}
 
+	st->__ids_sent = 1;
 	return dnet_send(st, buffer, total_size);
+}
+
+void dnet_route_list::send_update_to_states(dnet_cmd *cmd, size_t backend_id)
+{
+	dnet_net_state *state;
+
+	list_for_each_entry(state, &m_node->storage_state_list, storage_state_entry) {
+		if (!state->__ids_sent || state == m_node->st)
+			continue;
+
+		int err = dnet_send(state, cmd, cmd->size + sizeof(dnet_cmd));
+		if (err != 0) {
+			dnet_log(m_node, DNET_LOG_ERROR, "failed to send update route-list of backend: %zu to state: %s, err: %d",
+				backend_id, dnet_state_dump_addr(state), err);
+		} else {
+			dnet_log(m_node, DNET_LOG_NOTICE, "succesffuly tried to send update route-list of backend: %zu to state: %s",
+				backend_id, dnet_state_dump_addr(state));
+		}
+	}
 }
 
 dnet_route_list *dnet_route_list_create(dnet_node *node)

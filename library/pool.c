@@ -33,6 +33,7 @@
 static char *dnet_work_io_mode_string[] = {
 	[DNET_WORK_IO_MODE_BLOCKING] = "BLOCKING",
 	[DNET_WORK_IO_MODE_NONBLOCKING] = "NONBLOCKING",
+	[DNET_WORK_IO_MODE_CONTROL] = "CONTROL",
 };
 
 __thread trace_id_t trace_id = 0;

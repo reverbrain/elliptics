@@ -130,6 +130,7 @@ struct dnet_net_state
 	int			stall;
 
 	int			__join_state;
+	int			__ids_sent;
 
 	/* all address of the given node */
 	int			addr_num;
@@ -358,6 +359,7 @@ struct dnet_net_io {
 enum dnet_work_io_mode {
 	DNET_WORK_IO_MODE_BLOCKING = 0,
 	DNET_WORK_IO_MODE_NONBLOCKING,
+	DNET_WORK_IO_MODE_CONTROL,
 	DNET_WORK_IO_MODE_EXEC_BLOCKING,
 };
 

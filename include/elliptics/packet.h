@@ -67,6 +67,7 @@ enum dnet_commands {
 	DNET_CMD_INDEXES_INTERNAL,		/* Update identificators table for certain secondary index. Internal usage only */
 	DNET_CMD_INDEXES_FIND,		/* Find all objects by indexes */
 	DNET_CMD_MONITOR_STAT,		/* Gather monitor json statistics */
+	DNET_CMD_UPDATE_IDS,		/* Update buckets' information */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
@@ -121,8 +122,7 @@ enum dnet_monitor_categories {
 };
 
 enum dnet_backend_flags {
-	DNET_BACKEND_DEACTIVATED = 0x01,
-	DNET_BACKEND_REMOVE_IDS  = 0x02
+	DNET_BACKEND_DISABLE	= 0x01
 };
 
 /*

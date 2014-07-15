@@ -23,6 +23,9 @@ public:
 	int join(dnet_net_state *st);
 	int send_all_ids_nolock(dnet_net_state *st, struct dnet_id *id, uint64_t trans,
 		unsigned int command, int reply, int direct);
+protected:
+	void send_update_to_states(dnet_cmd *cmd, size_t backend_id);
+
 private:
 	dnet_node *m_node;
 
