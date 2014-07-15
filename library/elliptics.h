@@ -203,6 +203,7 @@ void dnet_idc_destroy_nolock(struct dnet_net_state *st);
 
 int dnet_state_micro_init(struct dnet_net_state *st, struct dnet_node *n, struct dnet_addr *addr, int join,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
+int dnet_state_set_server_prio(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_backend_ids **backends, int backends_count,

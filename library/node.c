@@ -205,6 +205,32 @@ static void dnet_idc_remove_all(struct dnet_net_state *st)
 	}
 }
 
+int dnet_state_set_server_prio(struct dnet_net_state *st)
+{
+	struct dnet_node *n = st->n;
+	int err = 0;
+
+	if (n->server_prio) {
+		err = setsockopt(st->read_s, IPPROTO_IP, IP_TOS, &n->server_prio, 4);
+		if (err) {
+			err = -errno;
+			dnet_log_err(n, "could not set read server prio %d", n->server_prio);
+		}
+		err = setsockopt(st->write_s, IPPROTO_IP, IP_TOS, &n->server_prio, 4);
+		if (err) {
+			err = -errno;
+			dnet_log_err(n, "could not set write server prio %d", n->server_prio);
+		}
+
+		if (!err) {
+			dnet_log(n, DNET_LOG_INFO, "%s: server net TOS value set to %d\n",
+					dnet_server_convert_dnet_addr(&st->addr), n->server_prio);
+		}
+	}
+
+	return err;
+}
+
 int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *backend)
 {
 	struct dnet_node *n = st->n;
@@ -279,11 +305,6 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	g->id_num += num;
 	qsort(g->ids, g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
 
-	list_del_init(&st->node_entry);
-	list_del_init(&st->storage_state_entry);
-	list_add_tail(&st->node_entry, &n->dht_state_list);
-	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
-
 	idc->id_num = id_num;
 	idc->st = st;
 	idc->group = g;
@@ -299,10 +320,6 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 		}
 	}
 
-	err = dnet_setup_control_nolock(st);
-	if (err)
-		goto err_out_remove_nolock;
-
 	pthread_mutex_unlock(&n->state_lock);
 
 	gettimeofday(&end, NULL);
@@ -311,30 +328,10 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, total ids: %d, added ids: %d, received ids: %d, time-took: %ld usecs.\n",
 			g->group_id, g->id_num, num, id_num, diff);
 
-	if (n->server_prio) {
-		err = setsockopt(st->read_s, IPPROTO_IP, IP_TOS, &n->server_prio, 4);
-		if (err) {
-			err = -errno;
-			dnet_log_err(n, "could not set read server prio %d", n->server_prio);
-		}
-		err = setsockopt(st->write_s, IPPROTO_IP, IP_TOS, &n->server_prio, 4);
-		if (err) {
-			err = -errno;
-			dnet_log_err(n, "could not set write server prio %d", n->server_prio);
-		}
-
-		if (!err) {
-			dnet_log(n, DNET_LOG_INFO, "%s: server net TOS value set to %d\n",
-					dnet_server_convert_dnet_addr(&st->addr), n->server_prio);
-		}
-	}
+	dnet_state_set_server_prio(st);
 
 	return 0;
 
-err_out_remove_nolock:
-	dnet_idc_remove_nolock(idc);
-	list_del_init(&st->node_entry);
-	list_del_init(&st->storage_state_entry);
 err_out_unlock_put:
 	dnet_group_put(g);
 err_out_unlock:

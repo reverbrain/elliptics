@@ -161,14 +161,20 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		}
 	}
 
+	pthread_mutex_lock(&n->state_lock);
 	list_del_init(&st->node_entry);
 	list_del_init(&st->storage_state_entry);
+	list_add_tail(&st->node_entry, &n->empty_state_list);
+	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
 
 	memcpy(&st->addr, &cnt->addrs[idx], sizeof(struct dnet_addr));
 
 	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
+	pthread_mutex_unlock(&n->state_lock);
 	if (err)
 		goto err_out_free;
+
+	dnet_state_set_server_prio(st);
 
 	for (i = 0; i < id_container->backends_count; ++i) {
 		err = dnet_idc_update_backend(st, backends[i]);

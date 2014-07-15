@@ -1254,6 +1254,15 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 			if (err)
 				goto err_out_send_destroy;
 		}
+
+		pthread_mutex_lock(&n->state_lock);
+		list_add_tail(&st->node_entry, &n->dht_state_list);
+		list_add_tail(&st->storage_state_entry, &n->storage_state_list);
+
+		err = dnet_setup_control_nolock(st);
+		if (err)
+			goto err_out_unlock;
+		pthread_mutex_unlock(&n->state_lock);
 	} else {
 		pthread_mutex_lock(&n->state_lock);
 		list_add_tail(&st->node_entry, &n->empty_state_list);
