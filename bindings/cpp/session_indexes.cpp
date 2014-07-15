@@ -1002,11 +1002,20 @@ struct merge_indexes_callback
 			return;
 		}
 
-		const auto shard_id = indexes.front().shard_id;
-		const auto shard_count = indexes.front().shard_count;
+		auto shard_id = indexes.front().shard_id;
+		auto shard_count = indexes.front().shard_count;
 
 		// Check if metadata of all indexes are the same
 		for (auto it = indexes.begin(); it != indexes.end(); ++it) {
+			/* skip checking unfilled indexes (believes that they are correct) */
+			if (it->shard_id == 0 && it->shard_count == 0)
+				continue;
+			/* if first index was unfilled, use first filled index id and count for future checks */
+			if (shard_id == 0 && shard_count == 0) {
+				shard_id = it->shard_id;
+				shard_count = it->shard_count;
+				continue;
+			}
 			if (it->shard_id != shard_id || it->shard_count != shard_count) {
 				if (log.get_log_level() >= DNET_LOG_ERROR) {
 					log.print(DNET_LOG_ERROR, "%s: mismatched indexes metadata: (%d, %d) vs (%d, %d)",
@@ -1018,8 +1027,8 @@ struct merge_indexes_callback
 		}
 
 		dnet_indexes result;
-		result.shard_id = indexes.front().shard_id;
-		result.shard_count = indexes.front().shard_count;
+		result.shard_id = shard_id;
+		result.shard_count = shard_count;
 
 		// Merge all indexes
 		index_entry_heap heap(std::move(indexes));
