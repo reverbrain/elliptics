@@ -66,7 +66,6 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 			indexes_shard_count,
 			n->indexes_shard_count);
 
-	cmd->id.group_id = n->id.group_id;
 	{
 		pthread_mutex_lock(&n->state_lock);
 		err = dnet_route_list_send_all_ids_nolock(st, &cmd->id, cmd->trans, DNET_CMD_REVERSE_LOOKUP, 1, 0);
@@ -196,9 +195,6 @@ static int dnet_state_join_nolock(struct dnet_net_state *st)
 	int err;
 	struct dnet_node *n = st->n;
 	struct dnet_id id;
-
-	/* we do not care about group_id actually, since use direct send */
-	memcpy(&id, &n->id, sizeof(id));
 
 	err = dnet_route_list_send_all_ids_nolock(st, &id, 0, DNET_CMD_JOIN, 0, 1);
 	if (err) {

@@ -727,8 +727,8 @@ static void *dnet_io_process_network(void *data_)
 				if (n->addr_num) {
 					dnet_server_convert_dnet_addr_raw(&n->addrs[0], addr_str, sizeof(addr_str));
 				}
-				dnet_log(n, DNET_LOG_ERROR, "%s: addr: %s, resetting state: %p\n", dnet_dump_id(&n->id), addr_str, st);
-				dnet_log(n, DNET_LOG_ERROR, "%s: addr: %s, resetting state: %s\n", dnet_dump_id(&n->id), addr_str, dnet_state_dump_addr(st));
+				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %p\n", addr_str, st);
+				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %s\n", addr_str, dnet_state_dump_addr(st));
 
 				dnet_state_reset(st, err);
 

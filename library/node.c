@@ -520,14 +520,6 @@ void dnet_state_put(struct dnet_net_state *st)
 struct dnet_net_state *dnet_node_state(struct dnet_node *n)
 {
 	return dnet_state_get(n->st);
-
-	struct dnet_net_state *found;
-
-	pthread_mutex_lock(&n->state_lock);
-	found = dnet_state_search_nolock(n, &n->id);
-	pthread_mutex_unlock(&n->state_lock);
-
-	return found;
 }
 
 struct dnet_node *dnet_node_create(struct dnet_config *cfg)
@@ -599,7 +591,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
 	n->stall_count = cfg->stall_count;
-	n->id.group_id = cfg->group_id;
 	n->bg_ionice_class = cfg->bg_ionice_class;
 	n->bg_ionice_prio = cfg->bg_ionice_prio;
 	n->removal_delay = cfg->removal_delay;

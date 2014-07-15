@@ -493,8 +493,6 @@ struct dnet_node
 	int			autodiscovery_socket;
 	struct dnet_addr	autodiscovery_addr;
 
-	struct dnet_id		id;
-
 	int			flags;
 	int			ro;
 

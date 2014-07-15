@@ -179,7 +179,6 @@ static int dnet_discovery_send(struct dnet_node *n)
 	addr = (struct dnet_addr *)(cmd + 1);
 	auth = (struct dnet_auth *)(addr + 1);
 
-	cmd->id = n->id;
 	cmd->size = sizeof(struct dnet_addr) + sizeof(struct dnet_auth);
 	dnet_convert_cmd(cmd);
 

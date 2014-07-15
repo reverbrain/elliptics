@@ -333,8 +333,6 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 			goto err_out_ids_cleanup;
 		}
 
-		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
-
 		n->st = dnet_state_create(n, NULL, 0, &la, s, &err, DNET_JOIN, 1, -1, dnet_state_accept_process);
 
 		if (!n->st) {

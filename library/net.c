@@ -1004,7 +1004,7 @@ void dnet_sock_close(struct dnet_node *n, int s)
 	if (n->addr_num) {
 		dnet_server_convert_dnet_addr_raw(&n->addrs[0], addr_str, sizeof(addr_str));
 	}
-	dnet_log(n, DNET_LOG_NOTICE, "%s: addr: %s, closing socket: %d\n", dnet_dump_id(&n->id), addr_str, s);
+	dnet_log(n, DNET_LOG_NOTICE, "self: addr: %s, closing socket: %d\n", addr_str, s);
 
 	shutdown(s, SHUT_RDWR);
 	close(s);
