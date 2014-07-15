@@ -30,7 +30,7 @@ class local_session
 {
 	ELLIPTICS_DISABLE_COPY(local_session)
 	public:
-		local_session(dnet_node *node);
+		local_session(dnet_backend_io *backend, dnet_node *node);
 		~local_session();
 
 		void set_ioflags(uint32_t flags);
@@ -49,9 +49,10 @@ class local_session
 	private:
 		void clear_queue(int *errp = NULL);
 
+		dnet_backend_io *m_backend;
+		dnet_net_state *m_state;
 		uint32_t m_ioflags;
 		uint64_t m_cflags;
-		dnet_net_state *m_state;
 };
 
 class elliptics_timer

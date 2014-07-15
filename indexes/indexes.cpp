@@ -46,8 +46,8 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	typedef std::shared_ptr<update_indexes_functor> ptr;
 
-	update_indexes_functor(dnet_net_state *state, const dnet_cmd *cmd, const dnet_indexes_request *request)
-		: sess(state->n), state(dnet_state_get(state)), cmd(*cmd), requests_in_progress(1), flags(request->flags)
+	update_indexes_functor(struct dnet_backend_io *backend, dnet_net_state *state, const dnet_cmd *cmd, const dnet_indexes_request *request)
+		: backend(backend), sess(backend, state->n), state(dnet_state_get(state)), cmd(*cmd), requests_in_progress(1), flags(request->flags)
 	{
 		this->cmd.flags |= DNET_FLAGS_MORE;
 
@@ -88,6 +88,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	 * update_indexes_functor::id holds key which contains list of all indexes which contain request_id
 	 */
 
+	struct dnet_backend_io *backend;
 	local_session sess;
 	dnet_net_state *state;
 	dnet_cmd cmd;
@@ -584,12 +585,12 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_in
 	return std::move(new_buffer);
 }
 
-int process_internal_indexes_entry(dnet_node *node, const dnet_indexes_request &request,
+int process_internal_indexes_entry(struct dnet_backend_io *backend, dnet_node *node, const dnet_indexes_request &request,
 	dnet_indexes_request_entry &entry, std::vector<dnet_indexes_reply_entry> * &removed)
 {
 	elliptics_timer timer;
 
-	local_session sess(node);
+	local_session sess(backend, node);
 
 	dnet_id id;
 	memset(&id, 0, sizeof(id));
@@ -673,7 +674,7 @@ int process_internal_indexes_entry(dnet_node *node, const dnet_indexes_request &
 	return err;
 }
 
-int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
+int process_internal_indexes(struct dnet_backend_io *backend, dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
 {
 	if (request->entries_count == 0) {
 		return -EINVAL;
@@ -700,7 +701,7 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 		dnet_indexes_request_entry &entry = request->entries[i];
 		removed.clear();
 		auto *tmp = &removed;
-		int ret = process_internal_indexes_entry(state->n, *request, entry, tmp);
+		int ret = process_internal_indexes_entry(backend, state->n, *request, entry, tmp);
 
 		reply_entry.id = entry.id;
 		reply_entry.status = ret;
@@ -733,9 +734,9 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	return err;
 }
 
-int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, const dnet_id &request_id, dnet_indexes_request *request, bool more)
+int process_find_indexes(struct dnet_backend_io *backend, dnet_net_state *state, dnet_cmd *cmd, const dnet_id &request_id, dnet_indexes_request *request, bool more)
 {
-	local_session sess(state->n);
+	local_session sess(backend, state->n);
 
 	const bool intersection = request->flags & DNET_INDEXES_FLAGS_INTERSECT;
 	const bool unite = request->flags & DNET_INDEXES_FLAGS_UNITE;
@@ -866,7 +867,7 @@ void dnet_indexes_cleanup(struct dnet_node *)
 {
 }
 
-int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
+int dnet_process_indexes(struct dnet_backend_io *backend, dnet_net_state *st, dnet_cmd *cmd, void *data)
 {
 	react::action_guard process_indexes_guard(ACTION_DNET_PROCESS_INDEXES);
 
@@ -881,7 +882,7 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 				break;
 			}
 
-			auto functor = std::make_shared<update_indexes_functor>(st, cmd, request);
+			auto functor = std::make_shared<update_indexes_functor>(backend, st, cmd, request);
 
 			bool finished = false;
 
@@ -894,7 +895,7 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 		}
 			break;
 		case DNET_CMD_INDEXES_INTERNAL:
-			err = process_internal_indexes(st, cmd, request);
+			err = process_internal_indexes(backend, st, cmd, request);
 			break;
 		case DNET_CMD_INDEXES_FIND: {
 			bool first = true;
@@ -903,7 +904,7 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 			while (request) {
 				bool more = (request->flags & DNET_INDEXES_FLAGS_MORE);
-				int ret = process_find_indexes(st, cmd, first ? cmd->id : request->id, request, more);
+				int ret = process_find_indexes(backend, st, cmd, first ? cmd->id : request->id, request, more);
 				first = false;
 
 				if (err == -1)

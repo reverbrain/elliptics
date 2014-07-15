@@ -25,7 +25,8 @@ namespace ioremap { namespace cache {
 
 // public:
 
-slru_cache_t::slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes) :
+slru_cache_t::slru_cache_t(struct dnet_backend_io *backend, struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes) :
+	m_backend(backend),
 	m_node(n),
 	m_cache_pages_number(cache_pages_max_sizes.size()),
 	m_cache_pages_max_sizes(cache_pages_max_sizes),
@@ -120,10 +121,10 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 
 			sync_after_append(guard, false, &*it);
 
-			local_session sess(m_node);
+			local_session sess(m_backend, m_node);
 			sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | DNET_IO_FLAGS_APPEND);
 
-			int err = m_node->cb->command_handler(st, m_node->cb->command_private, cmd, io);
+			int err = m_backend->cb->command_handler(st, m_backend->cb->command_private, cmd, io);
 
 			it = populate_from_disk(guard, id, false, &err);
 
@@ -332,7 +333,7 @@ int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 
 		react_start_action(ACTION_CACHE_REMOVE_LOCAL);
 
-		int local_err = dnet_remove_local(m_node, &raw);
+		int local_err = dnet_remove_local(m_backend, m_node, &raw);
 		if (local_err != -ENOENT)
 			err = local_err;
 
@@ -365,7 +366,7 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	guard.unlock();
 
 	react_start_action(ACTION_CACHE_LOCAL_LOOKUP);
-	local_session sess(m_node);
+	local_session sess(m_backend, m_node);
 	cmd->flags |= DNET_FLAGS_NOCACHE;
 	ioremap::elliptics::data_pointer data = sess.lookup(*cmd, &err);
 	cmd->flags &= ~DNET_FLAGS_NOCACHE;
@@ -513,7 +514,7 @@ data_t* slru_cache_t::populate_from_disk(elliptics_unique_lock<std::mutex> &guar
 		guard.unlock();
 	}
 
-	local_session sess(m_node);
+	local_session sess(m_backend, m_node);
 	sess.set_ioflags(DNET_IO_FLAGS_NOCACHE);
 
 	dnet_id raw_id;
@@ -625,7 +626,7 @@ void slru_cache_t::erase_element(data_t *obj) {
 void slru_cache_t::sync_element(const dnet_id &raw, bool after_append, const std::vector<char> &data, uint64_t user_flags, const dnet_time &timestamp) {
 	react::action_guard sync_guard(ACTION_CACHE_SYNC);
 
-	local_session sess(m_node);
+	local_session sess(m_backend, m_node);
 	sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | (after_append ? DNET_IO_FLAGS_APPEND : 0));
 
 	int err = sess.write(raw, data.data(), data.size(), user_flags, timestamp);
@@ -664,7 +665,7 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 
 	guard.unlock();
 
-	local_session sess(m_node);
+	local_session sess(m_backend, m_node);
 	sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | DNET_IO_FLAGS_APPEND);
 
 	auto &raw = raw_data->data();
@@ -764,7 +765,7 @@ void slru_cache_t::life_check(void) {
 			react_stop_action(ACTION_CACHE_SYNC_ITERATE);
 			react_start_action(ACTION_CACHE_REMOVE_LOCAL);
 			for (std::deque<struct dnet_id>::iterator it = remove.begin(); it != remove.end(); ++it) {
-				dnet_remove_local(m_node, &(*it));
+				dnet_remove_local(m_backend, m_node, &(*it));
 			}
 			react_stop_action(ACTION_CACHE_REMOVE_LOCAL);
 

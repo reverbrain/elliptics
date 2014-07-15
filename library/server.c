@@ -227,10 +227,10 @@ static int dnet_backend_stat_check_category(void *priv, int category)
 	return category == DNET_MONITOR_BACKEND || category == DNET_MONITOR_ALL;
 }
 
-static int dnet_backend_stat_provider_init(struct dnet_node *n)
+static int dnet_backend_stat_provider_init(struct dnet_backend_io *backend, struct dnet_node *n)
 {
 	struct stat_provider_raw stat_provider;
-	stat_provider.stat_private = n->cb;
+	stat_provider.stat_private = backend->cb;
 	stat_provider.json = &dnet_backend_stat_json;
 	stat_provider.stop = &dnet_backend_stat_stop;
 	stat_provider.check_category = &dnet_backend_stat_check_category;
@@ -285,11 +285,13 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 				n->notify_hash_size);
 	}
 
-	err = dnet_backend_stat_provider_init(n);
+	struct dnet_backend_io *backend = NULL;
+
+	err = dnet_backend_stat_provider_init(backend, n);
 	if (err)
 		goto err_out_notify_exit;
 
-	err = dnet_cache_init(n);
+	err = dnet_cache_init(n, backend);
 	if (err)
 		goto err_out_backend_stat_provider_exit;
 
@@ -376,7 +378,7 @@ err_out_addr_cleanup:
 	dnet_local_addr_cleanup(n);
 err_out_cache_cleanup:
 	n->need_exit = err;
-	dnet_cache_cleanup(n);
+	dnet_cache_cleanup(backend);
 err_out_backend_stat_provider_exit:
 err_out_notify_exit:
 	dnet_notify_exit(n);
@@ -404,14 +406,16 @@ void dnet_server_node_destroy(struct dnet_node *n)
 
 	dnet_route_list_destroy(n->route);
 
+	struct dnet_backend_io *backend = NULL;
+
 	dnet_srw_cleanup(n);
-	dnet_cache_cleanup(n);
+	dnet_cache_cleanup(backend);
 
 	if (n->cache_pages_proportions)
 		free(n->cache_pages_proportions);
 
-	if (n->cb && n->cb->backend_cleanup)
-		n->cb->backend_cleanup(n->cb->command_private);
+	if (backend->cb && backend->cb->backend_cleanup)
+		backend->cb->backend_cleanup(backend->cb->command_private);
 
 	dnet_counter_destroy(n);
 	dnet_locks_destroy(n);

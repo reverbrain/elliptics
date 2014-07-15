@@ -43,53 +43,7 @@
 
 #include "react/elliptics_react.h"
 
-int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
-{
-	struct dnet_node *n = st->n;
-	int size, cmd_size;
-	struct dnet_cmd *cmd;
-	struct dnet_io_attr *io;
-	int err;
-
-	size = 1;
-	cmd_size = size + sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
-
-	cmd = malloc(cmd_size);
-	if (!cmd) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate %d bytes for local stat.\n",
-				dnet_dump_id(id), cmd_size);
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	memset(cmd, 0, cmd_size);
-
-	io = (struct dnet_io_attr *)(cmd + 1);
-
-	memcpy(&cmd->id, id, sizeof(struct dnet_id));
-	cmd->size = cmd_size - sizeof(struct dnet_cmd);
-	cmd->flags = DNET_FLAGS_NOLOCK;
-	cmd->cmd = DNET_CMD_READ;
-
-	io->size = cmd->size - sizeof(struct dnet_io_attr);
-	io->offset = 0;
-	io->flags = DNET_IO_FLAGS_SKIP_SENDING;
-
-	memcpy(io->parent, id->id, DNET_ID_SIZE);
-	memcpy(io->id, id->id, DNET_ID_SIZE);
-
-	dnet_convert_io_attr(io);
-
-	err = n->cb->command_handler(st, n->cb->command_private, cmd, io);
-	dnet_log(n, DNET_LOG_INFO, "%s: local stat: io_size: %llu, err: %d.\n", dnet_dump_id(&cmd->id), (unsigned long long)io->size, err);
-
-	free(cmd);
-
-err_out_exit:
-	return err;
-}
-
-int dnet_remove_local(struct dnet_node *n, struct dnet_id *id)
+int dnet_remove_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id)
 {
 	const size_t cmd_size = sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
 	int err;
@@ -111,7 +65,7 @@ int dnet_remove_local(struct dnet_node *n, struct dnet_id *id)
 
 	dnet_convert_io_attr(io);
 
-	err = n->cb->command_handler(n->st, n->cb->command_private, cmd, io);
+	err = backend->cb->command_handler(n->st, backend->cb->command_private, cmd, io);
 	dnet_log(n, DNET_LOG_NOTICE, "%s: local remove: err: %d.\n", dnet_dump_id(&cmd->id), err);
 
 	return err;
@@ -236,7 +190,7 @@ static int dnet_cmd_stat_count_single(struct dnet_net_state *orig, struct dnet_c
 	return dnet_send_reply(orig, cmd, as, sizeof(struct dnet_addr_stat) + __DNET_CMD_MAX * sizeof(struct dnet_stat_count), 1);
 }
 
-static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_cmd *cmd,
+static int dnet_cmd_stat_count_global(struct dnet_backend_io *backend, struct dnet_net_state *orig, struct dnet_cmd *cmd,
 		struct dnet_node *n, struct dnet_addr_stat *as)
 {
 	struct dnet_stat st;
@@ -250,8 +204,8 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 
 	memcpy(as->count, n->counters, sizeof(struct dnet_stat_count) * __DNET_CNTR_MAX);
 
-	if (n->cb->storage_stat) {
-		err = n->cb->storage_stat(n->cb->command_private, &st);
+	if (backend->cb->storage_stat) {
+		err = backend->cb->storage_stat(backend->cb->command_private, &st);
 		if (err)
 			return err;
 
@@ -282,7 +236,7 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 	return dnet_send_reply(orig, cmd, as, sizeof(struct dnet_addr_stat) + __DNET_CNTR_MAX * sizeof(struct dnet_stat_count), 1);
 }
 
-static int dnet_cmd_stat_count(struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data __unused)
+static int dnet_cmd_stat_count(struct dnet_backend_io *backend, struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data __unused)
 {
 	react_start_action(ACTION_DNET_CMD_STAT_COUNT);
 
@@ -298,7 +252,7 @@ static int dnet_cmd_stat_count(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	}
 
 	if (cmd->flags & DNET_ATTR_CNTR_GLOBAL) {
-		err = dnet_cmd_stat_count_global(orig, cmd, orig->n, as);
+		err = dnet_cmd_stat_count_global(backend, orig, cmd, orig->n, as);
 	} else {
 		pthread_mutex_lock(&n->state_lock);
 #if 0
@@ -674,7 +628,7 @@ static int dnet_iterator_check_ts_range(struct dnet_net_state *st, struct dnet_c
 	return 0;
 }
 
-static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
+static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_iterator_request *ireq,
 		struct dnet_iterator_range *irange)
 {
@@ -683,7 +637,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		.range = irange,
 	};
 	struct dnet_iterator_ctl ictl = {
-		.iterate_private = st->n->cb->command_private,
+		.iterate_private = backend->cb->command_private,
 		.callback = dnet_iterator_callback_common,
 		.callback_private = &cpriv,
 	};
@@ -709,7 +663,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	atomic_init(&cpriv.iterated_keys, 0);
 
-	st->n->cb->storage_stat(st->n->cb->command_private, &be_stat);
+	backend->cb->storage_stat(backend->cb->command_private, &be_stat);
 	cpriv.total_keys = be_stat.node_files;
 
 	switch (ireq->itype) {
@@ -742,7 +696,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	}
 
 	/* Run iterator */
-	err = st->n->cb->iterator(&ictl);
+	err = backend->cb->iterator(&ictl);
 
 	/* Remove iterator */
 	dnet_iterator_destroy(st->n, cpriv.it);
@@ -756,7 +710,7 @@ err_out_exit:
 /*!
  * Starts low-level backend iterator and passes data to network or file
  */
-static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+static int dnet_cmd_iterator(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	react_start_action(ACTION_DNET_CMD_ITERATOR);
 
@@ -783,7 +737,7 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	 */
 	switch (ireq->action) {
 	case DNET_ITERATOR_ACTION_START:
-		err = dnet_iterator_start(st, cmd, ireq, irange);
+		err = dnet_iterator_start(backend, st, cmd, ireq, irange);
 		break;
 	case DNET_ITERATOR_ACTION_PAUSE:
 	case DNET_ITERATOR_ACTION_CONTINUE:
@@ -803,7 +757,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_bulk_read(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	int err = -1, ret;
 	struct dnet_io_attr *io = data;
@@ -835,7 +789,7 @@ static int dnet_cmd_bulk_read(struct dnet_net_state *st, struct dnet_cmd *cmd, v
 		dnet_dump_id(&cmd->id), (int) count);
 
 	for (i = 0; i < count; i++) {
-		ret = dnet_process_cmd_raw(st, &read_cmd, &ios[i], 1);
+		ret = dnet_process_cmd_raw(backend, st, &read_cmd, &ios[i], 1);
 		dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing BULK_READ.READ for %d/%d command, err: %d\n",
 			dnet_dump_id(&cmd->id), (int) i, (int) count, ret);
 
@@ -855,18 +809,18 @@ static int dnet_cmd_bulk_read(struct dnet_net_state *st, struct dnet_cmd *cmd, v
 	return err;
 }
 
-int dnet_cas_local(struct dnet_node *n, struct dnet_id *id, void *remote_csum, int csize)
+int dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id, void *remote_csum, int csize)
 {
 	char csum[DNET_ID_SIZE];
 	int err = 0;
 
-	if (!n->cb->checksum) {
+	if (!backend->cb->checksum) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation is not supported in backend\n",
 				dnet_dump_id(id));
 		return -ENOTSUP;
 	}
 
-	err = n->cb->checksum(n, n->cb->command_private, id, csum, &csize);
+	err = backend->cb->checksum(n, backend->cb->command_private, id, csum, &csize);
 	if (err != 0 && err != -ENOENT) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed\n", dnet_dump_id(id));
 		return err;
@@ -901,16 +855,13 @@ int dnet_cas_local(struct dnet_node *n, struct dnet_id *id, void *remote_csum, i
 	return err;
 }
 
-int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive)
+int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive)
 {
 	int err = 0;
 	unsigned long long size = cmd->size;
 	struct dnet_node *n = st->n;
 	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 	struct dnet_io_attr *io = NULL;
-#if 0
-	struct dnet_indexes_request *indexes_request;
-#endif
 	struct timeval start, end;
 
 #define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
@@ -960,25 +911,15 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			err = dnet_cmd_exec(st, cmd, data);
 			break;
 		case DNET_CMD_ITERATOR:
-			err = dnet_cmd_iterator(st, cmd, data);
+			err = dnet_cmd_iterator(backend, st, cmd, data);
 			break;
 		case DNET_CMD_INDEXES_UPDATE:
 		case DNET_CMD_INDEXES_INTERNAL:
 		case DNET_CMD_INDEXES_FIND:
-#if 0 // We don't want specially process this commands yet
-			indexes_request = (struct dnet_indexes_request*)data;
-			if (!(indexes_request->flags & DNET_IO_FLAGS_NOCACHE)) {
-				err = dnet_cmd_cache_indexes(st, cmd, indexes_request);
-
-				if (err != -ENOTSUP)
-					return err;
-			}
-#endif
-
-			err = dnet_process_indexes(st, cmd, data);
+			err = dnet_process_indexes(backend, st, cmd, data);
 			break;
 		case DNET_CMD_STAT_COUNT:
-			err = dnet_cmd_stat_count(st, cmd, data);
+			err = dnet_cmd_stat_count(backend, st, cmd, data);
 			break;
 		case DNET_CMD_NOTIFY:
 			if (!(cmd->flags & DNET_ATTR_DROP_NOTIFICATION)) {
@@ -999,10 +940,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			break;
 		case DNET_CMD_BULK_READ:
 			react_start_action(ACTION_DNET_CMD_BULK_READ);
-			err = n->cb->command_handler(st, n->cb->command_private, cmd, data);
+			err = backend->cb->command_handler(st, backend->cb->command_private, cmd, data);
 
 			if (err == -ENOTSUP) {
-				err = dnet_cmd_bulk_read(st, cmd, data);
+				err = dnet_cmd_bulk_read(backend, st, cmd, data);
 			}
 			react_stop_action(ACTION_DNET_CMD_BULK_READ);
 			break;
@@ -1031,7 +972,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
 
 			if (!(io->flags & DNET_IO_FLAGS_NOCACHE)) {
-				err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
+				err = dnet_cmd_cache_io(backend, st, cmd, io, data + sizeof(struct dnet_io_attr));
 
 				if (err != -ENOTSUP) {
 					handled_in_cache = 1;
@@ -1040,7 +981,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			}
 
 			if ((io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) && (cmd->cmd == DNET_CMD_WRITE)) {
-				err = dnet_cas_local(n, &cmd->id, io->parent, DNET_ID_SIZE);
+				err = dnet_cas_local(backend, n, &cmd->id, io->parent, DNET_ID_SIZE);
 
 				if (err != 0 && err != -ENOENT)
 					break;
@@ -1052,7 +993,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			dnet_convert_io_attr(io);
 		default:
 			if (cmd->cmd == DNET_CMD_LOOKUP && !(cmd->flags & DNET_FLAGS_NOCACHE)) {
-				err = dnet_cmd_cache_lookup(st, cmd);
+				err = dnet_cmd_cache_lookup(backend, st, cmd);
 
 				if (err != -ENOTSUP) {
 					handled_in_cache = 1;
@@ -1067,7 +1008,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ)) {
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
-			err = n->cb->command_handler(st, n->cb->command_private, cmd, data);
+			err = backend->cb->command_handler(st, backend->cb->command_private, cmd, data);
 
 			/* If there was error in WRITE command - send empty reply
 			   to notify client with error code and destroy transaction */

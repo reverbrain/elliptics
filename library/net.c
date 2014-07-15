@@ -862,7 +862,7 @@ static int dnet_process_control(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	}
 }
 
-int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
+int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_io_req *r)
 {
 	int err = 0;
 	struct dnet_trans *t = NULL;
@@ -943,12 +943,17 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 
 #if 1
 	forward_state = dnet_state_get_first(n, &cmd->id);
-	if (!forward_state || forward_state == st || forward_state == n->st ||
-			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
+	if (backend && (!forward_state || forward_state == st || forward_state == n->st ||
+			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT))) {
 		dnet_state_put(forward_state);
 
-		err = dnet_process_cmd_raw(st, cmd, r->data, 0);
+		err = dnet_process_cmd_raw(backend, st, cmd, r->data, 0);
 		goto out;
+	}
+
+	if (!forward_state) {
+		err = -ENXIO;
+		goto err_out_put_forward;
 	}
 
 	t = dnet_trans_alloc(st->n, 0);

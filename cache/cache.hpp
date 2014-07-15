@@ -343,7 +343,7 @@ class slru_cache_t;
 
 class cache_manager {
 	public:
-		cache_manager(struct dnet_node *n);
+		cache_manager(struct dnet_backend_io *backend, struct dnet_node *n);
 
 		~cache_manager();
 

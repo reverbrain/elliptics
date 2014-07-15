@@ -411,8 +411,10 @@ static inline void list_stat_reset(struct list_stat *st, struct timeval *time) {
 	st->time_base.tv_usec = time->tv_usec;
 }
 
+struct dnet_backend_io;
 struct dnet_work_pool {
 	struct dnet_node	*n;
+	struct dnet_backend_io	*io;
 	int			mode;
 	int			num;
 	struct list_head	list;
@@ -423,11 +425,27 @@ struct dnet_work_pool {
 	uint64_t		*trans;
 };
 
+struct dnet_backend_io
+{
+	int				need_exit;
+	size_t				backend_id;
+	struct dnet_io			*io;
+	struct dnet_work_pool		*recv_pool;
+	struct dnet_work_pool		*recv_pool_nb;
+	struct dnet_backend_callbacks	*cb;
+	void				*cache;
+};
+
 struct dnet_io {
 	int			need_exit;
 
 	int			net_thread_num, net_thread_pos;
 	struct dnet_net_io	*net;
+
+
+	struct dnet_backend_io	**backends;
+	size_t			backends_count;
+	pthread_mutex_t		backends_lock;
 
 	struct dnet_work_pool	*recv_pool;
 	struct dnet_work_pool	*recv_pool_nb;
@@ -435,7 +453,7 @@ struct dnet_io {
 	// condition variable for waiting when io pools are able to process packets
 	pthread_mutex_t		full_lock;
 	pthread_cond_t		full_wait;
-	int					blocked;
+	int			blocked;
 
 	struct list_stat	output_stats;
 };
@@ -541,9 +559,6 @@ struct dnet_node
 	pthread_t		reconnect_tid;
 	long			stall_count;
 
-
-	struct dnet_backend_callbacks	*cb;
-
 	unsigned int		notify_hash_size;
 	struct dnet_notify_bucket	*notify_hash;
 
@@ -581,8 +596,7 @@ struct dnet_node
 	size_t			cache_size;
 	size_t			caches_number;
 	size_t			cache_pages_number;
-	unsigned int	*cache_pages_proportions;
-	void			*cache;
+	unsigned int		*cache_pages_proportions;
 
 	void			*monitor;
 
@@ -661,8 +675,8 @@ static inline void dnet_counter_set(struct dnet_node *n, int counter, int err, i
 }
 
 struct dnet_trans;
-int __attribute__((weak)) dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive);
-int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r);
+int __attribute__((weak)) dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive);
+int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_io_req *r);
 
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size);
@@ -807,20 +821,19 @@ int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_srw_cleanup(struct dnet_node *n);
 int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *header, const void *data);
 
-int dnet_cache_init(struct dnet_node *n);
-void dnet_cache_cleanup(struct dnet_node *n);
-int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);
-int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_indexes_request *request);
-int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd);
+int dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend);
+void dnet_cache_cleanup(struct dnet_backend_io *backend);
+int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);
+int dnet_cmd_cache_lookup(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd);
 
 int dnet_indexes_init(struct dnet_node *, struct dnet_config *);
 void dnet_indexes_cleanup(struct dnet_node *);
-int dnet_process_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
+int dnet_process_indexes(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 
 int dnet_ids_update(int update_local, const char *file, struct dnet_addr *cfg_addrs, char *remotes);
 
-int __attribute__((weak)) dnet_remove_local(struct dnet_node *n, struct dnet_id *id);
-int __attribute__((weak)) dnet_cas_local(struct dnet_node *n, struct dnet_id *id, void *csum, int csize);
+int __attribute__((weak)) dnet_remove_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id);
+int __attribute__((weak)) dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id, void *csum, int csize);
 
 int dnet_discovery(struct dnet_node *n);
 

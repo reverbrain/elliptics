@@ -50,7 +50,8 @@ static void configure_nodes(const std::string &path)
 
 static void test_cache_records_sizes(session &sess)
 {
-	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[0].get_native()->cache;
+	dnet_node *node = global_data->nodes[0].get_native();
+	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) node->io->backends[0]->cache;
 	const size_t cache_size = cache->cache_size();
 	const size_t cache_pages_number = cache->cache_pages_number();
 	argument_data data("0");
@@ -82,7 +83,8 @@ static void test_cache_records_sizes(session &sess)
 
 static void test_cache_overflow(session &sess)
 {
-	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[0].get_native()->cache;
+	dnet_node *node = global_data->nodes[0].get_native();
+	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) node->io->backends[0]->cache;
 	const size_t cache_size = cache->cache_size();
 	const size_t cache_pages_number = cache->cache_pages_number();
 	argument_data data("0");
@@ -200,7 +202,8 @@ void cache_read_check_lru(session &sess, int id, lru_list_emulator_t& lru_list_e
 
 static void test_cache_lru_eviction(session &sess)
 {
-	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[0].get_native()->cache;
+	dnet_node *node = global_data->nodes[0].get_native();
+	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) node->io->backends[0]->cache;
 	const size_t cache_size = cache->cache_size();
 	const size_t cache_pages_number = cache->cache_pages_number();
 

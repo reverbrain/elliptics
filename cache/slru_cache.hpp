@@ -26,7 +26,7 @@ using namespace react;
 
 class slru_cache_t {
 public:
-	slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes);
+	slru_cache_t(struct dnet_backend_io *backend, struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes);
 
 	~slru_cache_t();
 
@@ -43,7 +43,7 @@ public:
 	cache_stats get_cache_stats() const;
 
 private:
-
+	struct dnet_backend_io *m_backend;
 	struct dnet_node *m_node;
 	std::mutex m_lock;
 	size_t m_cache_pages_number;

@@ -900,7 +900,7 @@ static void *dnet_io_process(void *data_)
 		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu, mode: %s\n",
 			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize, dnet_work_io_mode_str(pool->mode));
 
-		err = dnet_process_recv(st, r);
+		err = dnet_process_recv(wio->pool->io, st, r);
 		trace_id = 0;
 
 		dnet_io_req_free(r);
@@ -933,6 +933,12 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_free_mutex;
 	}
 
+	err = pthread_mutex_init(&n->io->backends_lock, NULL);
+	if (err) {
+		err = -err;
+		goto err_out_free_cond;
+	}
+
 	list_stat_init(&n->io->output_stats);
 
 	memset(n->io, 0, io_size);
@@ -944,7 +950,7 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 	n->io->recv_pool = dnet_work_pool_alloc(n, cfg->io_thread_num, DNET_WORK_IO_MODE_BLOCKING, dnet_io_process);
 	if (!n->io->recv_pool) {
 		err = -ENOMEM;
-		goto err_out_free_cond;
+		goto err_out_free_backends_lock;
 	}
 
 	n->io->recv_pool_nb = dnet_work_pool_alloc(n, cfg->nonblocking_io_thread_num, DNET_WORK_IO_MODE_NONBLOCKING, dnet_io_process);
@@ -990,6 +996,8 @@ err_out_net_destroy:
 err_out_free_recv_pool:
 	n->need_exit = 1;
 	dnet_work_pool_cleanup(n->io->recv_pool);
+err_out_free_backends_lock:
+	pthread_mutex_destroy(&n->io->backends_lock);
 err_out_free_cond:
 	pthread_cond_destroy(&n->io->full_wait);
 err_out_free_mutex:

@@ -49,7 +49,7 @@ private:
 	const cache_manager	&m_manager;
 };
 
-cache_manager::cache_manager(struct dnet_node *n) {
+cache_manager::cache_manager(dnet_backend_io *backend, struct dnet_node *n) {
 	size_t caches_number = n->caches_number;
 	m_cache_pages_number = n->cache_pages_number;
 	m_max_cache_size = n->cache_size;
@@ -66,7 +66,7 @@ cache_manager::cache_manager(struct dnet_node *n) {
 	}
 
 	for (size_t i = 0; i < caches_number; ++i) {
-		m_caches.emplace_back(std::make_shared<slru_cache_t>(n, pages_max_sizes));
+		m_caches.emplace_back(std::make_shared<slru_cache_t>(backend, n, pages_max_sizes));
 	}
 
 	ioremap::monitor::dnet_monitor_add_provider(n, new cache_stat_provider(*this), "cache");
@@ -202,21 +202,21 @@ size_t cache_manager::idx(const unsigned char *id) {
 
 using namespace ioremap::cache;
 
-int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data)
+int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data)
 {
 	react::action_guard cache_guard(ACTION_CACHE);
 
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
 
-	if (!n->cache) {
+	if (!backend->cache) {
 		if (io->flags & DNET_IO_FLAGS_CACHE) {
 			dnet_log(n, DNET_LOG_NOTICE, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
 		}
 		return -ENOTSUP;
 	}
 
-	cache_manager *cache = (cache_manager *)n->cache;
+	cache_manager *cache = (cache_manager *)backend->cache;
 	std::shared_ptr<raw_data_t> d;
 
 	try {
@@ -280,53 +280,18 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 	return err;
 }
 
-int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_indexes_request *request)
+int dnet_cmd_cache_lookup(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
 	react::action_guard cache_guard(ACTION_CACHE);
 
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
 
-	if (!n->cache) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
+	if (!backend->cache) {
 		return -ENOTSUP;
 	}
 
-	cache_manager *cache = (cache_manager *)n->cache;
-
-	try {
-		switch (cmd->cmd) {
-			case DNET_CMD_INDEXES_FIND:
-				err = cache->indexes_find(cmd, request);
-				break;
-			case DNET_CMD_INDEXES_UPDATE:
-				err = cache->indexes_update(cmd, request);
-				break;
-			case DNET_CMD_INDEXES_INTERNAL:
-				err = cache->indexes_internal(cmd, request);
-				break;
-		}
-	} catch (const std::exception &e) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
-				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
-		err = -ENOENT;
-	}
-
-	return err;
-}
-
-int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
-{
-	react::action_guard cache_guard(ACTION_CACHE);
-
-	struct dnet_node *n = st->n;
-	int err = -ENOTSUP;
-
-	if (!n->cache) {
-		return -ENOTSUP;
-	}
-
-	cache_manager *cache = (cache_manager *)n->cache;
+	cache_manager *cache = (cache_manager *)backend->cache;
 
 	try {
 		err = cache->lookup(cmd->id.id, st, cmd);
@@ -339,13 +304,13 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	return err;
 }
 
-int dnet_cache_init(struct dnet_node *n)
+int dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend)
 {
 	if (!n->cache_size)
 		return 0;
 
 	try {
-		n->cache = (void *)(new cache_manager(n));
+		backend->cache = (void *)(new cache_manager(backend, n));
 	} catch (const std::exception &e) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Could not create cache: %s\n", e.what());
 		return -ENOMEM;
@@ -354,9 +319,9 @@ int dnet_cache_init(struct dnet_node *n)
 	return 0;
 }
 
-void dnet_cache_cleanup(struct dnet_node *n)
+void dnet_cache_cleanup(struct dnet_backend_io *backend)
 {
-	if (n->cache) {
-		delete (cache_manager *)n->cache;
+	if (backend->cache) {
+		delete (cache_manager *)backend->cache;
 	}
 }

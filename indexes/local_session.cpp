@@ -43,7 +43,7 @@ static int noop_process(struct dnet_net_state *, struct epoll_event *) { return 
 	     &pos->member != (head); 					\
 	     pos = n, n = list_entry(n->member.next, decltype(*n), member))
 
-local_session::local_session(dnet_node *node) : m_ioflags(DNET_IO_FLAGS_CACHE), m_cflags(DNET_FLAGS_NOLOCK)
+local_session::local_session(dnet_backend_io *backend, dnet_node *node) : m_backend(backend), m_ioflags(DNET_IO_FLAGS_CACHE), m_cflags(DNET_FLAGS_NOLOCK)
 {
 	m_state = reinterpret_cast<dnet_net_state *>(malloc(sizeof(dnet_net_state)));
 	if (!m_state)
@@ -102,7 +102,7 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 	cmd.flags |= m_cflags;
 	cmd.size = sizeof(io);
 
-	int err = dnet_process_cmd_raw(m_state, &cmd, &io, 0);
+	int err = dnet_process_cmd_raw(m_backend, m_state, &cmd, &io, 0);
 	if (err) {
 		clear_queue();
 		*errp = err;
@@ -202,7 +202,7 @@ int local_session::write(const dnet_id &id, const char *data, size_t size, uint6
 	cmd.flags |= m_cflags;
 	cmd.size = datap.size();
 
-	int err = dnet_process_cmd_raw(m_state, &cmd, datap.data(), 0);
+	int err = dnet_process_cmd_raw(m_backend, m_state, &cmd, datap.data(), 0);
 
 	clear_queue(&err);
 
@@ -215,7 +215,7 @@ data_pointer local_session::lookup(const dnet_cmd &tmp_cmd, int *errp)
 	cmd.flags |= m_cflags;
 	cmd.size = 0;
 
-	*errp = dnet_process_cmd_raw(m_state, &cmd, NULL, 0);
+	*errp = dnet_process_cmd_raw(m_backend, m_state, &cmd, NULL, 0);
 
 	if (*errp)
 		return data_pointer();
@@ -257,7 +257,7 @@ int local_session::remove(const dnet_id &id)
 	memcpy(io.parent, id.id, DNET_ID_SIZE);
 	io.flags |= m_ioflags;
 
-	int err = dnet_process_cmd_raw(m_state, &cmd, &io, 0);
+	int err = dnet_process_cmd_raw(m_backend, m_state, &cmd, &io, 0);
 
 	clear_queue(&err);
 
@@ -300,7 +300,7 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 	cmd.cmd = DNET_CMD_INDEXES_INTERNAL;
 	cmd.size = datap.size();
 
-	int err = dnet_process_cmd_raw(m_state, &cmd, datap.data(), 0);
+	int err = dnet_process_cmd_raw(m_backend, m_state, &cmd, datap.data(), 0);
 
 	clear_queue(&err);
 

@@ -583,8 +583,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->keep_idle = 10;
 	n->keep_interval = 10;
 
-	n->cb = cfg->cb;
-
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
 	n->stall_count = cfg->stall_count;
