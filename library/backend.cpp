@@ -176,6 +176,13 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id)
 	}
 
 	dnet_backend_info &backend = backends[backend_id];
+
+	dnet_backend_state state = dnet_backend_disabled;
+	if (!backend.state->compare_exchange_strong(state, dnet_backend_activating)) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, trying to activate not disabled backend", backend_id);
+		return -EINVAL;
+	}
+
 	backend.config = backend.config_template;
 	backend.data.assign(backend.data.size(), '\0');
 	backend.config.data = backend.data.data();
@@ -227,6 +234,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id)
 
 	dnet_log(node, DNET_LOG_INFO, "backend_init: backend: %zu, initialized", backend_id);
 
+	*backend.state = dnet_backend_enabled;
 	return 0;
 
 	dnet_route_list_disable_backend(node->route, backend_id);
@@ -240,6 +248,7 @@ err_out_cache_cleanup:
 err_out_backend_cleanup:
 	backend.config.cleanup(&backend.config);
 err_out_exit:
+	*backend.state = dnet_backend_disabled;
 	return err;
 }
 
@@ -248,19 +257,28 @@ void dnet_backend_cleanup(struct dnet_node *node, size_t backend_id)
 	if (backend_id >= node->config_data->backends->backends.size()) {
 		return;
 	}
+
+	dnet_backend_info &backend = node->config_data->backends->backends[backend_id];
+
+	dnet_backend_state state = dnet_backend_enabled;
+	if (!backend.state->compare_exchange_strong(state, dnet_backend_deactivating)) {
+		return;
+	}
+
 	dnet_backend_io *backend_io = node->io ? &node->io->backends[backend_id] : NULL;
-	dnet_backend_info &backend_info = node->config_data->backends->backends[backend_id];
 
 	if (node->route)
 		dnet_route_list_disable_backend(node->route, backend_id);
 	if (backend_io)
 		dnet_backend_io_cleanup(node, backend_io);
 
-	dnet_cache_cleanup(backend_info.cache);
+	dnet_cache_cleanup(backend.cache);
 	if (backend_io)
 		backend_io->cb = NULL;
-	backend_info.cache = NULL;
-	backend_info.config.cleanup(&backend_info.config);
+	backend.cache = NULL;
+	backend.config.cleanup(&backend.config);
+
+	*backend.state = dnet_backend_disabled;
 }
 
 int dnet_backend_init_all(struct dnet_node *node)
