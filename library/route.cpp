@@ -343,8 +343,11 @@ void dnet_route_list::send_update_to_states(dnet_cmd *cmd, size_t backend_id)
 
 		int err = dnet_send(state, cmd, cmd->size + sizeof(dnet_cmd));
 		if (err != 0) {
-			dnet_log(m_node, DNET_LOG_ERROR, "failed to send update route-list of backend: %zu to state: %s, err: %d",
+			dnet_log(m_node, DNET_LOG_ERROR, "failed to send update route-list of backend: %zu to state: %s, reseting the state, err: %d",
 				backend_id, dnet_state_dump_addr(state), err);
+
+			// We have not send route list update to this client, so we have to drop connection to it
+			dnet_state_reset(state, err);
 		} else {
 			dnet_log(m_node, DNET_LOG_NOTICE, "succesffuly tried to send update route-list of backend: %zu to state: %s",
 				backend_id, dnet_state_dump_addr(state));
