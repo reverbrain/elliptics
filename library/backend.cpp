@@ -1,4 +1,3 @@
-#include "backend.h"
 #include <memory>
 #include <fcntl.h>
 #include "elliptics.h"
@@ -167,6 +166,9 @@ static int dnet_backend_stat_provider_init(struct dnet_backend_io *backend, stru
 
 int dnet_backend_init(struct dnet_node *node, size_t backend_id)
 {
+	int ids_num;
+	struct dnet_raw_id *ids;
+
 	auto &backends = node->config_data->backends->backends;
 	if (backends.size() <= backend_id) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, invalid backend id", backend_id);
@@ -179,17 +181,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id)
 	backend.config.data = backend.data.data();
 	backend.config.log = backend.log;
 
-	dnet_backend_io *backend_io = reinterpret_cast<dnet_backend_io *>(malloc(sizeof(dnet_backend_io)));
-	if (!backend_io) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to allocate memory for dnet_backend_io", backend_id);
-		return -ENOMEM;
-	}
-	std::unique_ptr<dnet_backend_io, free_destroyer> backend_io_guard(backend_io);
-	memset(backend_io, 0, sizeof(dnet_backend_io));
-
-	backend_io->backend_id = backend_id;
-	backend_io->io = node->io;
-	backend_io->cb = &backend.config.cb;
+	dnet_backend_io *backend_io = &node->io->backends[backend_id];
 
 	for (auto it = backend.options.begin(); it != backend.options.end(); ++it) {
 		dnet_backend_config_entry &entry = *it;
@@ -200,70 +192,97 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id)
 	int err = backend.config.init(&backend.config);
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init backend: %d", backend_id, err);
-		return err;
+		goto err_out_exit;
 	}
 
-	err = dnet_cache_init(node, backend_io);
-	if (err) {
+	backend_io->cache = backend.cache = dnet_cache_init(node, backend_io);
+	if (!backend.cache) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init cache, err: %d", backend_id, err);
-		return err;
+		goto err_out_backend_cleanup;
 	}
 
 	err = dnet_backend_stat_provider_init(backend_io, node);
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init stat provider, err: %d", backend_id, err);
-		return err;
+		goto err_out_cache_cleanup;
 	}
+
+	backend_io->cb = &backend.config.cb;
 
 	err = dnet_backend_io_init(node, backend_io);
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init io pool, err: %d", backend_id, err);
-		return err;
+		goto err_out_stat_destroy;
 	}
 
-	{
-		dnet_pthread_lock_guard lock_guard(node->io->backends_lock);
-
-		if (node->io->backends_count < backends.size()) {
-			size_t backends_count = backends.size();
-			node->io->backends = reinterpret_cast<dnet_backend_io **>(malloc(backends_count * sizeof(dnet_backend_io *)));
-			if (!node->io->backends) {
-				dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to allocate memory for backends", backend_id);
-				return -ENOMEM;
-			}
-
-			memset(node->io->backends, 0, backends_count * sizeof(dnet_backend_io *));
-			node->io->backends_count = backends_count;
-		}
-
-		node->io->backends[backend_id] = backend_io_guard.release();
-	}
-
-	int ids_num = 0;
-	struct dnet_raw_id *ids = dnet_ids_init(node, backend.history.c_str(), &ids_num, backend.config.storage_free, node->addrs, backend_id);
+	ids_num = 0;
+	ids = dnet_ids_init(node, backend.history.c_str(), &ids_num, backend.config.storage_free, node->addrs, backend_id);
 	err = dnet_route_list_enable_backend(node->route, backend_id, backend.group, ids, ids_num);
 	free(ids);
 
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to add backend to route list, err: %d", backend_id, err);
-		return err;
+		goto err_out_backend_io_cleanup;
 	}
 
+	dnet_log(node, DNET_LOG_INFO, "backend_init: backend: %zu, initialized", backend_id);
+
+	return 0;
+
+	dnet_route_list_disable_backend(node->route, backend_id);
+err_out_backend_io_cleanup:
+	dnet_backend_io_cleanup(node, backend_io);
+	node->io->backends[backend_id].cb = NULL;
+err_out_stat_destroy:
+err_out_cache_cleanup:
+	dnet_cache_cleanup(backend_io);
+	backend.cache = NULL;
+err_out_backend_cleanup:
+	backend.config.cleanup(&backend.config);
+err_out_exit:
 	return err;
 }
 
 void dnet_backend_cleanup(struct dnet_node *node, size_t backend_id)
 {
-	dnet_backend_io *backend_io = NULL;
+	if (backend_id >= node->config_data->backends->backends.size()) {
+		return;
+	}
+	dnet_backend_io *backend_io = node->io ? &node->io->backends[backend_id] : NULL;
+	dnet_backend_info &backend_info = node->config_data->backends->backends[backend_id];
 
-	{
-		dnet_pthread_lock_guard lock_guard(node->io->backends_lock);
-		if (node->io->backends_count > backend_id) {
-			backend_io = node->io->backends[backend_id];
-			node->io->backends[backend_id] = NULL;
-		}
+	if (node->route)
+		dnet_route_list_disable_backend(node->route, backend_id);
+	if (backend_io)
+		dnet_backend_io_cleanup(node, backend_io);
+
+	dnet_cache_cleanup(backend_info.cache);
+	if (backend_io)
+		backend_io->cb = NULL;
+	backend_info.cache = NULL;
+	backend_info.config.cleanup(&backend_info.config);
+}
+
+int dnet_backend_init_all(struct dnet_node *node)
+{
+	int err = 1;
+
+	auto &backends = node->config_data->backends->backends;
+	for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
+		int tmp = dnet_backend_init(node, backend_id);
+		if (!tmp)
+			err = 0;
+		else if (err == 1)
+			err = tmp;
 	}
 
-	if (!backend_io)
-		return;
+	return err == 1 ? -EINVAL : err;
+}
+
+void dnet_backend_cleanup_all(struct dnet_node *node)
+{
+	auto &backends = node->config_data->backends->backends;
+	for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
+		dnet_backend_cleanup(node, backend_id);
+	}
 }

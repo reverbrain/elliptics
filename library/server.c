@@ -100,6 +100,10 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 
 	n->config_data = cfg_data;
 
+	err = dnet_server_io_init(n);
+	if (err)
+		goto err_out_node_destroy;
+
 	err = dnet_monitor_init(&n->monitor, cfg);
 	if (err)
 		goto err_out_node_destroy;
@@ -164,6 +168,11 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 			goto err_out_state_destroy;
 		}
 
+		err = dnet_backend_init_all(n);
+		if (err) {
+			goto err_out_state_destroy;
+		}
+
 		if (!cfg->srw.config) {
 			dnet_log(n, DNET_LOG_INFO, "srw: no config\n");
 			n->srw = NULL;
@@ -171,7 +180,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 			err = dnet_srw_init(n, cfg);
 			if (err) {
 				dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
-				goto err_out_state_destroy;
+				goto err_out_backends_cleanup;
 			}
 		}
 	}
@@ -182,6 +191,8 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 	return n;
 
 	dnet_srw_cleanup(n);
+err_out_backends_cleanup:
+	dnet_backend_cleanup_all(n);
 err_out_state_destroy:
 	dnet_state_put(n->st);
 err_out_route_list_destroy:
@@ -216,6 +227,9 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_node_cleanup_common_resources(n);
 
 	dnet_route_list_destroy(n->route);
+	n->route = NULL;
+
+	dnet_backend_cleanup_all(n);
 
 	dnet_srw_cleanup(n);
 

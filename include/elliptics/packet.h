@@ -68,6 +68,7 @@ enum dnet_commands {
 	DNET_CMD_INDEXES_FIND,		/* Find all objects by indexes */
 	DNET_CMD_MONITOR_STAT,		/* Gather monitor json statistics */
 	DNET_CMD_UPDATE_IDS,		/* Update buckets' information */
+	DNET_CMD_CONTROL_BACKEND,	/* Special commands to start or stop backends */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };

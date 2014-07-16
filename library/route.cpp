@@ -370,7 +370,9 @@ template <typename Method, typename... Args>
 static int safe_call(dnet_route_list *route, Method method, Args &&...args)
 {
 	try {
-		return (route->*method)(std::forward<Args>(args)...);
+		if (route)
+			return (route->*method)(std::forward<Args>(args)...);
+		return 0;
 	} catch (std::bad_alloc &) {
 		return -ENOMEM;
 	} catch (...) {

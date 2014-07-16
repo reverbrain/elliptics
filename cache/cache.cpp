@@ -304,24 +304,20 @@ int dnet_cmd_cache_lookup(struct dnet_backend_io *backend, struct dnet_net_state
 	return err;
 }
 
-int dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend)
+void *dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend)
 {
 	if (!n->cache_size)
-		return 0;
+		return NULL;
 
 	try {
-		backend->cache = (void *)(new cache_manager(backend, n));
+		return (void *)(new cache_manager(backend, n));
 	} catch (const std::exception &e) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Could not create cache: %s\n", e.what());
-		return -ENOMEM;
+		return NULL;
 	}
-
-	return 0;
 }
 
-void dnet_cache_cleanup(struct dnet_backend_io *backend)
+void dnet_cache_cleanup(void *cache)
 {
-	if (backend->cache) {
-		delete (cache_manager *)backend->cache;
-	}
+	delete (cache_manager *)cache;
 }

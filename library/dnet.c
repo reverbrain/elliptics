@@ -855,7 +855,32 @@ int dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct 
 	return err;
 }
 
-static int dnet_process_cmd_without_backend_backend(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+static int dnet_cmd_control_backend(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+{
+	struct dnet_id_container *container = data;
+	int i;
+
+	if (cmd->size < sizeof(struct dnet_id_container)) {
+		return -EINVAL;
+	}
+
+	if (cmd->size != sizeof(struct dnet_id_container) + container->backends_count * sizeof(struct dnet_backend_ids)) {
+		return -EINVAL;
+	}
+
+	for (i = 0; i < container->backends_count; ++i) {
+		struct dnet_backend_ids *backend = &container->backends[i];
+
+		if (backend->flags & DNET_BACKEND_DISABLE)
+			dnet_backend_cleanup(st->n, backend->backend_id);
+		else
+			dnet_backend_init(st->n, backend->backend_id);
+	}
+
+	return 0;
+}
+
+static int dnet_process_cmd_without_backend_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	int err = 0;
 
@@ -880,6 +905,9 @@ static int dnet_process_cmd_without_backend_backend(struct dnet_net_state *st, s
 			break;
 		case DNET_CMD_MONITOR_STAT:
 			err = dnet_monitor_process_cmd(st, cmd, data);
+			break;
+		case DNET_CMD_CONTROL_BACKEND:
+			err = dnet_cmd_control_backend(st, cmd, data);
 			break;
 		default:
 			err = -ENOTSUP;
@@ -1044,11 +1072,9 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 
 	gettimeofday(&start, NULL);
 
-	err = dnet_process_cmd_without_backend_backend(st, cmd, data);
+	err = dnet_process_cmd_without_backend_raw(st, cmd, data);
 	if (err == -ENOTSUP && backend) {
 		err = dnet_process_cmd_with_backend_raw(backend, st, cmd, data, &handled_in_cache);
-	} else {
-		err = -ENOTSUP;
 	}
 
 	dnet_stat_inc(st->stat, cmd->cmd, err);

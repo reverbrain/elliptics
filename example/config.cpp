@@ -801,6 +801,7 @@ void parse_backends(config_data *data, const config &backends)
 
 		info->group = backend.at<int>("group");
 		info->history = backend.at<std::string>("history");
+		info->cache = NULL;
 
 		for (int i = 0; i < info->config.num; ++i) {
 			dnet_config_entry &entry = info->config.ent[i];
@@ -861,9 +862,9 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		if (err)
 			throw config_error("failed to connect to remotes");
 
-		err = dnet_backend_init(node, 0);
-		if (err)
-			throw config_error("failed to initialize backend");
+//		err = dnet_backend_init_all(node);
+//		if (err)
+//			throw config_error("failed to initialize backend");
 	} catch (std::exception &exc) {
 		if (data && data->cfg_state.log) {
 			dnet_backend_log(data->cfg_state.log, DNET_LOG_ERROR,

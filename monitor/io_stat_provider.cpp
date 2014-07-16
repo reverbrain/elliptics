@@ -57,11 +57,11 @@ std::string io_stat_provider::json() const {
 	auto &allocator = doc.GetAllocator();
 
 	rapidjson::Value blocking_stat(rapidjson::kObjectType);
-	dump_list_stats(blocking_stat, m_node->io->recv_pool->list_stats, allocator);
+	dump_list_stats(blocking_stat, m_node->io->pool.recv_pool.pool->list_stats, allocator);
 	doc.AddMember("blocking", blocking_stat, allocator);
 
 	rapidjson::Value nonblocking_stat(rapidjson::kObjectType);
-	dump_list_stats(nonblocking_stat, m_node->io->recv_pool_nb->list_stats, allocator);
+	dump_list_stats(nonblocking_stat, m_node->io->pool.recv_pool_nb.pool->list_stats, allocator);
 	doc.AddMember("nonblocking", nonblocking_stat, allocator);
 
 	rapidjson::Value output_stat(rapidjson::kObjectType);

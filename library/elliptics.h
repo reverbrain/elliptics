@@ -427,13 +427,24 @@ struct dnet_work_pool {
 	uint64_t		*trans;
 };
 
+struct dnet_work_pool_place
+{
+	pthread_mutex_t		lock;
+	pthread_cond_t		wait;
+	struct dnet_work_pool	*pool;
+};
+
+struct dnet_io_pool
+{
+	struct dnet_work_pool_place	recv_pool;
+	struct dnet_work_pool_place	recv_pool_nb;
+};
+
 struct dnet_backend_io
 {
 	int				need_exit;
 	size_t				backend_id;
-	struct dnet_io			*io;
-	struct dnet_work_pool		*recv_pool;
-	struct dnet_work_pool		*recv_pool_nb;
+	struct dnet_io_pool		pool;
 	struct dnet_backend_callbacks	*cb;
 	void				*cache;
 };
@@ -445,12 +456,11 @@ struct dnet_io {
 	struct dnet_net_io	*net;
 
 
-	struct dnet_backend_io	**backends;
+	struct dnet_backend_io	*backends;
 	size_t			backends_count;
 	pthread_mutex_t		backends_lock;
 
-	struct dnet_work_pool	*recv_pool;
-	struct dnet_work_pool	*recv_pool_nb;
+	struct dnet_io_pool	pool;
 
 	// condition variable for waiting when io pools are able to process packets
 	pthread_mutex_t		full_lock;
@@ -465,6 +475,7 @@ int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev);
 int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io);
 void dnet_backend_io_cleanup(struct dnet_node *n, struct dnet_backend_io *io);
 int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg);
+int dnet_server_io_init(struct dnet_node *n);
 void dnet_io_exit(struct dnet_node *n);
 
 void dnet_io_req_free(struct dnet_io_req *r);
@@ -828,10 +839,13 @@ void dnet_srw_cleanup(struct dnet_node *n);
 int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *header, const void *data);
 
 int dnet_backend_init(struct dnet_node *n, size_t backend_id);
+int dnet_backend_init_all(struct dnet_node *n);
 void dnet_backend_cleanup(struct dnet_node *n, size_t backend_id);
+void dnet_backend_cleanup_all(struct dnet_node *n);
+size_t dnet_backend_info_list_count(dnet_backend_info_list *backends);
 
-int dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend);
-void dnet_cache_cleanup(struct dnet_backend_io *backend);
+void *dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend);
+void dnet_cache_cleanup(void *);
 int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);
 int dnet_cmd_cache_lookup(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd);
 

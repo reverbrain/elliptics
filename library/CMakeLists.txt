@@ -11,9 +11,9 @@ set(ELLIPTICS_CLIENT_SRCS
     pool.c
     rbtree.c
     trans.c
+    common.cpp
     )
 set(ELLIPTICS_SRCS
-    ${ELLIPTICS_CLIENT_SRCS}
     dnet.c
     locks.c
     notify.c
