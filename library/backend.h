@@ -31,7 +31,7 @@ enum dnet_backend_state {
 
 struct dnet_backend_info
 {
-	dnet_backend_info() : log(NULL), group(0), cache(NULL), state(new std::atomic<dnet_backend_state>(dnet_backend_disabled))
+	dnet_backend_info() : log(NULL), group(0), cache(NULL), state(new std::atomic_uint(dnet_backend_disabled))
 	{
 	}
 
@@ -41,7 +41,7 @@ struct dnet_backend_info
 	int group;
 	void *cache;
 	std::string history;
-	std::unique_ptr<std::atomic<dnet_backend_state>> state;
+	std::unique_ptr<std::atomic_uint> state;
 
 	dnet_config_backend config;
 	std::vector<char> data;

@@ -177,7 +177,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id)
 
 	dnet_backend_info &backend = backends[backend_id];
 
-	dnet_backend_state state = dnet_backend_disabled;
+	unsigned state = dnet_backend_disabled;
 	if (!backend.state->compare_exchange_strong(state, dnet_backend_activating)) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, trying to activate not disabled backend", backend_id);
 		return -EINVAL;
@@ -262,7 +262,7 @@ void dnet_backend_cleanup(struct dnet_node *node, size_t backend_id)
 
 	dnet_backend_info &backend = node->config_data->backends->backends[backend_id];
 
-	dnet_backend_state state = dnet_backend_enabled;
+	unsigned state = dnet_backend_enabled;
 	if (!backend.state->compare_exchange_strong(state, dnet_backend_deactivating)) {
 		return;
 	}
