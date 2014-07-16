@@ -133,7 +133,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	dnet_convert_addr_cmd(acmd);
 	err = dnet_send(orig, acmd, total_size);
 
-	if (err != 0) {
+	if (err == 0) {
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	}
 
