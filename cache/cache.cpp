@@ -306,9 +306,6 @@ int dnet_cmd_cache_lookup(struct dnet_backend_io *backend, struct dnet_net_state
 
 void *dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend)
 {
-	if (!n->cache_size)
-		return NULL;
-
 	try {
 		return (void *)(new cache_manager(backend, n));
 	} catch (const std::exception &e) {
