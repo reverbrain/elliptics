@@ -88,7 +88,7 @@ struct dnet_config_backend {
 
 	struct dnet_log			*log;
 
-	int				(* init)(struct dnet_config_backend *b, struct dnet_config *cfg);
+	int				(* init)(struct dnet_config_backend *b);
 	void				(* cleanup)(struct dnet_config_backend *b);
 
 	struct dnet_backend_callbacks	cb;

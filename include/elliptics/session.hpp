@@ -163,6 +163,8 @@ class node
 		node(const node &other);
 		~node();
 
+		static node from_raw(dnet_node *n);
+
 		node &operator =(const node &other);
 
 		void			add_remote(const std::string &addr, const int port, const int family = AF_INET);

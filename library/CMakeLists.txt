@@ -19,6 +19,7 @@ set(ELLIPTICS_SRCS
     notify.c
     server.c
     route.cpp
+    backend.cpp
     )
 
 add_library(elliptics_ids STATIC ids.cpp)

@@ -122,16 +122,9 @@ private:
 	std::string m_message;
 };
 
-struct backend_info
-{
-	dnet_config_backend config;
-	dnet_log *log;
-	std::vector<char> data;
-};
-
 struct config_data : public dnet_config_data
 {
-	std::vector<backend_info> backends;
+	dnet_backend_info_list backends_guard;
 	std::string logger_value;
 	dnet_log logger_impl;
 };
@@ -143,6 +136,7 @@ extern "C" dnet_config_data *dnet_config_data_create()
 	memset(static_cast<dnet_config_data *>(data), 0, sizeof(dnet_config_data));
 	memset(&data->logger_impl, 0, sizeof(data->logger_impl));
 
+	data->backends = &data->backends_guard;
 	data->destroy_config_data = dnet_config_data_destroy;
 
 	data->logger_impl.log_level = DNET_LOG_DEBUG;
@@ -773,16 +767,10 @@ void parse_options(config_data *data, const config &options)
 
 void parse_backends(config_data *data, const config &backends)
 {
-	if (backends.size() != 1)
-		throw config_error("size of field 'root.backends' must be equal to 1");
-
-	data->backends.resize(backends.size());
+	data->backends->backends.resize(backends.size());
 
 	for (size_t index = 0; index < backends.size(); ++index) {
 		const config backend = backends.at(index);
-
-		data->cfg_state.group_id = backend.at<int>("group");
-		snprintf(data->cfg_state.history_env, sizeof(data->cfg_state.history_env), "%s", backend.at<std::string>("history").c_str());
 		std::string type = backend.at<std::string>("type");
 
 		dnet_config_backend *backends_info[] = {
@@ -793,17 +781,17 @@ void parse_backends(config_data *data, const config &backends)
 #endif
 		};
 
-		backend_info *info = NULL;
+		dnet_backend_info *info = NULL;
 
 		for (size_t i = 0; i < sizeof(backends_info) / sizeof(backends_info[0]); ++i) {
 			dnet_config_backend *current_backend = backends_info[i];
 			if (type == current_backend->name) {
-				info = &data->backends[index];
+				info = &data->backends->backends[index];
 
+				info->config_template = *current_backend;
 				info->config = *current_backend;
 				info->data.resize(info->config.size, '\0');
-				info->config.data = info->data.data();
-				info->config.log = data->cfg_state.log;
+				info->log = data->cfg_state.log;
 				break;
 			}
 		}
@@ -811,21 +799,30 @@ void parse_backends(config_data *data, const config &backends)
 		if (!info)
 			throw config_error() << backend.at("type").path() << " is unknown backend";
 
-		info->log = data->cfg_state.log;
+		info->group = backend.at<int>("group");
+		info->history = backend.at<std::string>("history");
 
 		for (int i = 0; i < info->config.num; ++i) {
 			dnet_config_entry &entry = info->config.ent[i];
 			if (backend.has(entry.key)) {
-				std::string str = backend.at(entry.key).to_string();
-				std::vector<char> data(str.begin(), str.end());
-				data.push_back('\0');
-				entry.callback(&info->config, entry.key, data.data());
+				std::string key_str = entry.key;
+				std::vector<char> key(key_str.begin(), key_str.end());
+				key.push_back('\0');
+
+				std::string value_str = backend.at(entry.key).to_string();
+				std::vector<char> value(value_str.begin(), value_str.end());
+				value.push_back('\0');
+
+				dnet_backend_config_entry option = {
+					&entry,
+					value,
+					value
+				};
+
+				info->options.emplace_back(std::move(option));
 			}
 		}
 	}
-
-	data->cfg_current_backend = &data->backends.front().config;
-	data->cfg_state.cb = &data->cfg_current_backend->cb;
 }
 
 extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
@@ -853,13 +850,6 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		if (data->daemon_mode && !mon)
 			dnet_background();
 
-		int err = data->cfg_current_backend->init(data->cfg_current_backend, &data->cfg_state);
-		if (err) {
-			throw config_error("failed to initialize backend: "
-				+ std::string(strerror(-err)) + ": "
-				+ boost::lexical_cast<std::string>(err));
-		}
-
 		if (!data->cfg_addr_num)
 			throw config_error("no local address specified, exiting");
 
@@ -867,9 +857,13 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		if (!node)
 			throw config_error("failed to create node");
 
-		err = dnet_common_add_remote_addr(node, data->cfg_remotes);
+		int err = dnet_common_add_remote_addr(node, data->cfg_remotes);
 		if (err)
 			throw config_error("failed to connect to remotes");
+
+		err = dnet_backend_init(node, 0);
+		if (err)
+			throw config_error("failed to initialize backend");
 	} catch (std::exception &exc) {
 		if (data && data->cfg_state.log) {
 			dnet_backend_log(data->cfg_state.log, DNET_LOG_ERROR,

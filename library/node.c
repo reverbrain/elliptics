@@ -486,6 +486,31 @@ err_out_exit:
 	return found;
 }
 
+ssize_t dnet_state_search_backend(struct dnet_node *n, const struct dnet_id *id)
+{
+	ssize_t backend_id = -1;
+	struct dnet_state_id *sid;
+
+	pthread_mutex_lock(&n->state_lock);
+
+	sid = __dnet_state_search_id(n, id);
+	if (!sid) {
+		struct dnet_group *g;
+
+		g = dnet_group_search(n, id->group_id);
+		if (g) {
+			sid = &g->ids[0];
+		}
+	}
+
+	if (sid && sid->idc->st == n->st)
+		backend_id = sid->idc->backend_id;
+
+	pthread_mutex_unlock(&n->state_lock);
+
+	return backend_id;
+}
+
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, const struct dnet_id *id)
 {
 	struct dnet_net_state *found;
@@ -530,14 +555,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	pthread_sigmask(SIG_BLOCK, &sigset, &previous_sigset);
 
 	srand(time(NULL));
-
-	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->cb)) {
-		err = -EINVAL;
-		if (cfg->log && cfg->log->log)
-			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Joining node has to register "
-					"a command handler.\n");
-		goto err_out_exit;
-	}
 
 	/*
 	 * Client must have SINGLE io thread num, since only this can guarantee message order
@@ -662,9 +679,6 @@ err_out_exit:
 
 	if (cfg->log && cfg->log->log)
 		cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Error during node creation.\n");
-
-	if (cfg->cb && cfg->cb->backend_cleanup)
-		cfg->cb->backend_cleanup(cfg->cb->command_private);
 	return NULL;
 }
 

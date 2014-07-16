@@ -48,6 +48,7 @@ typedef unsigned short u_short;
 #include "atomic.h"
 #include "lock.h"
 #include "route.h"
+#include "backend.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -217,6 +218,7 @@ void dnet_state_remove_nolock(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, const struct dnet_id *id);
+ssize_t dnet_state_search_backend(struct dnet_node *n, const struct dnet_id *id);
 struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, const struct dnet_id *id);
 struct dnet_net_state *dnet_node_state(struct dnet_node *n);
 
@@ -460,6 +462,8 @@ struct dnet_io {
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
 int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev);
+int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io);
+void dnet_backend_io_cleanup(struct dnet_node *n, struct dnet_backend_io *io);
 int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_io_exit(struct dnet_node *n);
 
@@ -498,6 +502,8 @@ struct dnet_config_data {
 	struct dnet_config cfg_state;
 	char *cfg_remotes;
 	int daemon_mode;
+
+	dnet_backend_info_list *backends;
 };
 
 struct dnet_config_data *dnet_config_data_create();
@@ -821,6 +827,9 @@ int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_srw_cleanup(struct dnet_node *n);
 int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *header, const void *data);
 
+int dnet_backend_init(struct dnet_node *n, size_t backend_id);
+void dnet_backend_cleanup(struct dnet_node *n, size_t backend_id);
+
 int dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend);
 void dnet_cache_cleanup(struct dnet_backend_io *backend);
 int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);
@@ -830,7 +839,7 @@ int dnet_indexes_init(struct dnet_node *, struct dnet_config *);
 void dnet_indexes_cleanup(struct dnet_node *);
 int dnet_process_indexes(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 
-int dnet_ids_update(int update_local, const char *file, struct dnet_addr *cfg_addrs, char *remotes);
+int dnet_ids_update(struct dnet_node *n, int update_local, const char *file, struct dnet_addr *cfg_addrs, size_t backend_id);
 
 int __attribute__((weak)) dnet_remove_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id);
 int __attribute__((weak)) dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id, void *csum, int csize);

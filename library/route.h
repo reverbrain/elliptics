@@ -8,6 +8,46 @@
 #include <vector>
 #include <mutex>
 
+class dnet_pthread_mutex
+{
+public:
+	dnet_pthread_mutex(pthread_mutex_t &mutex) : m_mutex(mutex)
+	{
+	}
+
+	void lock()
+	{
+		pthread_mutex_lock(&m_mutex);
+	}
+
+	void unlock()
+	{
+		pthread_mutex_unlock(&m_mutex);
+	}
+private:
+	pthread_mutex_t &m_mutex;
+};
+
+class dnet_pthread_lock_guard
+{
+public:
+	dnet_pthread_lock_guard(pthread_mutex_t &mutex) : m_mutex(mutex), m_lock_guard(m_mutex)
+	{
+	}
+
+private:
+	dnet_pthread_mutex m_mutex;
+	std::lock_guard<dnet_pthread_mutex> m_lock_guard;
+};
+
+struct free_destroyer
+{
+	void operator() (void *buffer)
+	{
+		free(buffer);
+	}
+};
+
 class dnet_route_list
 {
 public:

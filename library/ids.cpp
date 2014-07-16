@@ -24,25 +24,15 @@
 
 #include "../include/elliptics/session.hpp"
 
-int dnet_ids_update(int update_local, const char *file, struct dnet_addr *cfg_addrs, char *remotes)
+int dnet_ids_update(struct dnet_node *n, int update_local, const char *file, struct dnet_addr *cfg_addrs, size_t backend_id)
 {
 	char remote_id[1024];
-	sprintf(remote_id, "elliptics_node_ids_%s", dnet_server_convert_dnet_addr(cfg_addrs));
+	sprintf(remote_id, "elliptics_node_ids_%s_%zu", dnet_server_convert_dnet_addr(cfg_addrs), backend_id);
 
-	ioremap::elliptics::file_logger log("/dev/null", 0);
-	ioremap::elliptics::node node(log);
+	ioremap::elliptics::node node = ioremap::elliptics::node::from_raw(n);
 	ioremap::elliptics::session session(node);
 
 	session.set_exceptions_policy(ioremap::elliptics::session::no_exceptions);
-
-	std::stringstream remotes_stream;
-	remotes_stream << remotes;
-	std::string addr;
-	while (std::getline(remotes_stream, addr, ' ')) {
-		try {
-			node.add_remote(addr.c_str());
-		} catch(...) {}
-	}
 
 	auto routes = session.get_routes();
 	std::set<int> groups_set;

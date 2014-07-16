@@ -333,27 +333,8 @@ struct dnet_config
 	 */
 	int			flags;
 
-	/*
-	 * If node joins network this will be used to find a group to join.
-	 */
-	int			group_id;
-
 	/* Private logger */
 	struct dnet_log		*log;
-
-	/*
-	 * Network command handler.
-	 * Returns negative error value or zero in case of success.
-	 *
-	 * Private data is accessible from the handler as parameter.
-	 */
-	struct dnet_backend_callbacks	*cb;
-
-	/*
-	 * Free and total space on given storage.
-	 */
-	unsigned long long	storage_free;
-	unsigned long long	storage_size;
 
 	/* Notify hash table size */
 	unsigned int		hash_size;
@@ -383,14 +364,6 @@ struct dnet_config
 	 * Number of threads in network processing pool
 	 */
 	int			net_thread_num;
-
-	/*
-	 * This dir hosts:
-	 *  - 'ids' file automatically generated for ID ranges
-	 *  - python.init script used to initialize external python workers
-	 *  - all scripts are hosted here and are chrooted here
-	 */
-	char			history_env[1024];
 
 	/* IO nice parameters for background operations */
 	int			bg_ionice_class;
@@ -428,7 +401,7 @@ struct dnet_config
 	unsigned int		monitor_port;
 
 	/* so that we do not change major version frequently */
-	int			reserved_for_future_use[8 - (sizeof(unsigned int*) / sizeof(int))];
+	int			reserved_for_future_use[8];
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);

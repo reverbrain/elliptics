@@ -855,41 +855,9 @@ int dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct 
 	return err;
 }
 
-int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive)
+static int dnet_process_cmd_without_backend_backend(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	int err = 0;
-	unsigned long long size = cmd->size;
-	struct dnet_node *n = st->n;
-	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
-	struct dnet_io_attr *io = NULL;
-	struct timeval start, end;
-
-#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
-
-	long diff;
-	int handled_in_cache = 0;
-
-	int react_was_activated = 0;
-
-	if (n->monitor) {
-		if (!react_is_active()) {
-			err = react_activate(st->n->react_aggregator);
-
-			if (err) {
-				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init react\n");
-			} else {
-				react_was_activated = 1;
-			}
-		}
-	}
-
-	react_start_action(ACTION_DNET_PROCESS_CMD_RAW);
-
-	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
-		dnet_oplock(n, &cmd->id);
-	}
-
-	gettimeofday(&start, NULL);
 
 	switch (cmd->cmd) {
 		case DNET_CMD_AUTH:
@@ -910,6 +878,25 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 		case DNET_CMD_EXEC:
 			err = dnet_cmd_exec(st, cmd, data);
 			break;
+		case DNET_CMD_MONITOR_STAT:
+			err = dnet_monitor_process_cmd(st, cmd, data);
+			break;
+		default:
+			err = -ENOTSUP;
+			break;
+	}
+
+	return err;
+}
+
+static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int *handled_in_cache)
+{
+	int err = 0;
+	unsigned long long size = cmd->size;
+	struct dnet_node *n = st->n;
+	struct dnet_io_attr *io = NULL;
+
+	switch (cmd->cmd) {
 		case DNET_CMD_ITERATOR:
 			err = dnet_cmd_iterator(backend, st, cmd, data);
 			break;
@@ -947,9 +934,6 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 			}
 			react_stop_action(ACTION_DNET_CMD_BULK_READ);
 			break;
-		case DNET_CMD_MONITOR_STAT:
-			err = dnet_monitor_process_cmd(st, cmd, data);
-			break;
 		case DNET_CMD_READ:
 		case DNET_CMD_WRITE:
 		case DNET_CMD_DEL:
@@ -975,7 +959,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 				err = dnet_cmd_cache_io(backend, st, cmd, io, data + sizeof(struct dnet_io_attr));
 
 				if (err != -ENOTSUP) {
-					handled_in_cache = 1;
+					*handled_in_cache = 1;
 					break;
 				}
 			}
@@ -996,7 +980,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 				err = dnet_cmd_cache_lookup(backend, st, cmd);
 
 				if (err != -ENOTSUP) {
-					handled_in_cache = 1;
+					*handled_in_cache = 1;
 					break;
 				}
 			}
@@ -1020,6 +1004,51 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 				dnet_update_notify(st, cmd, data);
 			}
 			break;
+	}
+
+	return err;
+}
+
+int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive)
+{
+	int err = 0;
+	struct dnet_node *n = st->n;
+	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
+	struct dnet_io_attr *io = NULL;
+	struct timeval start, end;
+
+#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
+
+	long diff;
+	int handled_in_cache = 0;
+
+	int react_was_activated = 0;
+
+	if (n->monitor) {
+		if (!react_is_active()) {
+			err = react_activate(st->n->react_aggregator);
+
+			if (err) {
+				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init react\n");
+			} else {
+				react_was_activated = 1;
+			}
+		}
+	}
+
+	react_start_action(ACTION_DNET_PROCESS_CMD_RAW);
+
+	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
+		dnet_oplock(n, &cmd->id);
+	}
+
+	gettimeofday(&start, NULL);
+
+	err = dnet_process_cmd_without_backend_backend(st, cmd, data);
+	if (err == -ENOTSUP && backend) {
+		err = dnet_process_cmd_with_backend_raw(backend, st, cmd, data, &handled_in_cache);
+	} else {
+		err = -ENOTSUP;
 	}
 
 	dnet_stat_inc(st->stat, cmd->cmd, err);

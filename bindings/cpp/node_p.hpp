@@ -31,9 +31,9 @@ class node_data {
 				dnet_node_destroy(node_ptr);
 		}
 
-		bool			destroy_node;
 		struct dnet_node	*node_ptr;
 		logger			log;
+		bool			destroy_node;
 };
 
 class session_data

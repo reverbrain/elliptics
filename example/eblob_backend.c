@@ -1058,7 +1058,7 @@ static void dnet_eblob_log_implemenation(void *priv, int level, const char *msg)
 	dnet_backend_log(log, level, "%s", msg);
 }
 
-static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
+static int dnet_blob_config_init(struct dnet_config_backend *b)
 {
 	struct eblob_backend_config *c = b->data;
 	struct dnet_stat st;
@@ -1100,9 +1100,6 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	c->vm_total = st.vm_total * st.vm_total * 1024 * 1024;
 
-	cfg->cb = &b->cb;
-	cfg->storage_size = b->storage_size;
-	cfg->storage_free = b->storage_free;
 	b->cb.storage_stat = eblob_backend_storage_stat;
 	b->cb.storage_stat_json = eblob_backend_storage_stat_json;
 

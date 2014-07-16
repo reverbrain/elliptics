@@ -528,7 +528,7 @@ static void dnet_file_db_cleanup(struct file_backend_root *r)
 	eblob_cleanup(r->meta);
 }
 
-static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c, const char *path)
+static int dnet_file_db_init(struct file_backend_root *r, const char *path)
 {
 	static char meta_path[PATH_MAX];
 	struct eblob_config ecfg;
@@ -544,7 +544,7 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 	ecfg.blob_size = r->blob_size;
 	ecfg.defrag_percentage = r->defrag_percentage;
 	ecfg.defrag_timeout = r->defrag_timeout;
-	ecfg.log = (struct eblob_log *)c->log;
+	ecfg.log = &r->log;
 
 	r->meta = eblob_init(&ecfg);
 	if (!r->meta) {
@@ -574,12 +574,11 @@ static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id
 	return dnet_checksum_file(n, file, 0, 0, csum, *csize);
 }
 
-static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)
+static int dnet_file_config_init(struct dnet_config_backend *b)
 {
 	struct file_backend_root *r = b->data;
 	int err;
 
-	c->cb = &b->cb;
 	r->blog = b->log;
 
 	b->cb.command_private = r;
@@ -587,14 +586,11 @@ static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_conf
 	b->cb.command_handler = file_backend_command_handler;
 	b->cb.checksum = file_backend_checksum;
 
-	c->storage_size = b->storage_size;
-	c->storage_free = b->storage_free;
-
 	b->cb.storage_stat = file_backend_storage_stat;
 	b->cb.backend_cleanup = file_backend_cleanup;
 
 	mkdir("history", 0755);
-	err = dnet_file_db_init(r, c, "history");
+	err = dnet_file_db_init(r, "history");
 	if (err)
 		return err;
 

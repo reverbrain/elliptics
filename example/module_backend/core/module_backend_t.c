@@ -29,7 +29,7 @@ static void module_backend_cleanup(void *private_data)
 	destroy_module_backend_config(&module_backend->config);
 }
 
-static int dnet_module_config_init(struct dnet_config_backend *b, struct dnet_config *c)
+static int dnet_module_config_init(struct dnet_config_backend *b)
 {
 	int err;
 	module_constructor* constructor;
@@ -52,7 +52,6 @@ static int dnet_module_config_init(struct dnet_config_backend *b, struct dnet_co
 		goto err_out_constructor;
 	}
 
-	c->cb = &b->cb;
 	b->cb.command_private = module_backend;
 	b->cb.command_handler = module_backend->api->command_handler;
 	b->cb.iterator        = module_backend->api->iterator;
