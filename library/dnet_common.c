@@ -309,8 +309,10 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 		goto err_out_exit;
 	}
 
-	if (n->addr_num == 0
-		|| cnt->addr_num % n->addr_num != 0) {
+	if (cnt->node_addr_num == 0
+		|| cnt->addr_num % cnt->node_addr_num != 0) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid route list reply: recv-addr-num: %d, rec-node-addr-num: %d\n",
+				server_addr, cnt->addr_num, cnt->node_addr_num);
 		err = -EINVAL;
 		goto err_out_exit;
 	}
