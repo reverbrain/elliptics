@@ -46,14 +46,14 @@ class Session(Session):
         Returns current routes table\n
         routes = session.routes
         """
-        return self.get_routes()
+        return RouteList.from_routes(super(Session, self).get_routes())
 
     def get_routes(self):
         """
         Returns current routes table\n
         routes = session.get_routes
         """
-        return RouteList.from_routes(super(Session, self).get_routes())
+        return self.routes()
 
     def lookup_address(self, key, group_id):
         """

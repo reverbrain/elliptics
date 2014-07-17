@@ -32,7 +32,7 @@ def check_write_results(results, number, data, session):
         assert r.size == 48 + len(data)  # 48 is the size of data header
         assert r.error.code == 0
         assert r.error.message == ''
-        assert r.address.group_id == session.routes.get_address_group_id(r.address)
+        assert r.group_id in session.routes.get_address_groups(r.address)
 
 
 def checked_write(session, key, data,):
@@ -49,7 +49,7 @@ def check_read_results(results, number, data, session):
     assert len(results) == number
     assert type(results[0]) == elliptics.core.ReadResultEntry
     assert results[0].data == data
-    assert results[0].address.group_id == session.routes.get_address_group_id(results[0].address)
+    assert results[0].group_id in session.routes.get_address_groups(results[0].address)
     return results
 
 
@@ -108,7 +108,7 @@ class TestSession:
             session.groups = [group]
             checked_write(session, tmp_key, data)
 
-            other_groups = session.routes.groups()
+            other_groups = list(session.routes.groups())
             other_groups.remove(group)
             session.groups = other_groups
             with pytest.raises(elliptics.NotFoundError):

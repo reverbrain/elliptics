@@ -29,11 +29,11 @@ class Address(object):
     # Allowed families, AF_UNSPEC means any
     ALLOWED_FAMILIES = (AF_UNSPEC, AF_INET, AF_INET6)
 
-    def __init__(self, host, port=None, family=AF_UNSPEC, group_id=0):
+    def __init__(self, host, port=None, family=AF_UNSPEC):
         """
-        Initializes Address from host, port and optional family, group_id\n
+        Initializes Address from host, port and optional family\n
         address = elliptics.Address(host='host.com', port=1025,
-                                    family=2, group_id=0)
+                                    family=2)
         """
         if family not in self.ALLOWED_FAMILIES:
             raise ValueError("Family '{0}' is not in {1}"
@@ -56,29 +56,24 @@ class Address(object):
         self.host = host
         self.port = port
         self.family = family
-        self.group_id = group_id
 
     @classmethod
-    def from_host_port(cls, addr_str, group_id=0):
+    def from_host_port(cls, addr_str):
         """
-        Creates address from string "host:port" and optional group_id.\n
-        address = elliptics.Address.from_host_port(addr_str='host.com:1025',
-                                                   group_id=0)
+        Creates address from string "host:port".\n
+        address = elliptics.Address.from_host_port(addr_str='host.com:1025')
         """
         host, port = addr_str.rsplit(':', 1)
-        return cls(host=host, port=int(port), family=0, group_id=group_id)
+        return cls(host=host, port=int(port), family=0)
 
     @classmethod
-    def from_host_port_family(cls, addr_str, group_id=0):
+    def from_host_port_family(cls, addr_str):
         """
-        Creates address from string "host:port:family" and optional group_id.\n
-        address = elliptics.Address.from_host_port_family(
-            addr_str='host.com:1025:2',
-            group_id=0)
+        Creates address from string "host:port:family".\n
+        address = elliptics.Address.from_host_port_family(addr_str='host.com:1025:2')
         """
         host, port, family = addr_str.rsplit(':', 2)
-        return cls(host=host, port=int(port),
-                   family=int(family), group_id=group_id)
+        return cls(host=host, port=int(port), family=int(family))
 
     def __hash__(self):
         """
@@ -90,15 +85,13 @@ class Address(object):
         """
         x.__repr__() <==> repr(x)
         """
-        return "Address({0}, {1}, {2}, {3})".format(self.host, self.port,
-                                                    self.family, self.group_id)
+        return "<Address: {0}:{1}:{2}>".format(self.host, self.port, self.family)
 
     def __str__(self):
         """
         x.__str__() <==> str(x)
         """
-        return "{0}:{1}:{2} {3}".format(self.host, self.port,
-                                        self.family, self.group_id)
+        return "{0}:{1}:{2}".format(self.host, self.port, self.family)
 
     def __iter__(self):
         """
@@ -113,8 +106,7 @@ class Address(object):
         if other is None:
             return False
 
-        return (self.host, self.port, self.family) == \
-               (other.host, other.port, other.family)
+        return tuple(self) == tuple(other)
 
     def __ne__(self, other):
         """
@@ -132,25 +124,26 @@ class Address(object):
 class Route(object):
     """
     Simple route container.
-    Route consists of key and address to which this key belongs
+    Route consists of id and address to which this id belongs
     """
-    __slots__ = ('key', 'address')
+    __slots__ = ('id', 'address', 'backend_id')
 
-    def __init__(self, key, address):
-        self.key = key
+    def __init__(self, id, address, backend_id):
+        self.id = id
         self.address = address
+        self.backend_id = backend_id
 
     def __hash__(self):
         return hash(tuple(self))
 
     def __repr__(self):
-        return 'Route({0}, {1})'.format(repr(self.key), repr(self.address))
+        return '<Route: {0}, {1}, <backend_id: {2}>>'.format(repr(self.id), repr(self.address), repr(self.backend_id))
 
     def __str__(self):
-        return 'Route({0}, {1})'.format(self.key, self.address)
+        return 'Route({0}, {1}, {2})'.format(self.id, self.address, self.backend_id)
 
     def __iter__(self):
-        return iter((self.key, self.address))
+        return iter((self.id, self.address, self.backend_id))
 
     def __eq__(self, other):
         return tuple(self) == tuple(other)
@@ -164,8 +157,8 @@ class Route(object):
 
 class RouteList(object):
     """
-    Route list that sorts entries by key and also merges
-    keys that belongs to the same node.
+    Route list that sorts entries by id and also merges
+    ids that belongs to the same node.
     """
 
     def __init__(self, routes):
@@ -184,27 +177,27 @@ class RouteList(object):
         """
         sorted_routes = []
 
-        # First pass - sort keys and construct addresses from text routes
-        for key, str_address in sorted(routes, key=lambda route: route[0].id):
-            address = Address.from_host_port(str_address, key.group_id)
-            sorted_routes.append(Route(key, address))
+        # First pass - sort ids and construct addresses from text routes
+        for route in sorted(routes, key=lambda route: route.id):
+            sorted_routes.append(Route(route.id, route.address, route.backend_id))
 
-        # Merge adj. keys for same address
+        # Merge adj. ids for same address
         smallest_id = [0] * 64
         biggest_id = [255] * 64
         merged_routes = []
         for group in cls(sorted_routes).groups():
-            group_routes = cls(sorted_routes).filter_by_group_id(group).routes
-            last_address = group_routes[-1].address
+            group_routes = cls(sorted_routes).filter_by_group(group).routes
+            last = (group_routes[-1].address,
+                    group_routes[-1].backend_id)
 
             # Insert implicit first route if needed
-            if group_routes[0].key.id != smallest_id:
-                route = Route(Id(smallest_id, group), last_address)
+            if group_routes[0].id.id != smallest_id:
+                route = Route(Id(smallest_id, group), *last)
                 group_routes.insert(0, route)
 
             # Insert implicit last route if needed
-            if group_routes[-1].key.id != biggest_id:
-                route = Route(Id(biggest_id, group), last_address)
+            if group_routes[-1].id.id != biggest_id:
+                route = Route(Id(biggest_id, group), *last)
                 group_routes.append(route)
 
             # Extend route list
@@ -225,117 +218,136 @@ class RouteList(object):
         return RouteList([route for route in self.routes
                           if route.address == address])
 
-    def filter_by_group_id(self, group_id):
+    def filter_by_group(self, group_id):
         """
         Filters routes for specified group_id\n
         routes = routes.filter_by_group_id(1)
         """
-        return self.filter_by_group_ids([group_id])
+        return self.filter_by_groups([group_id])
 
-    def filter_by_group_ids(self, group_ids):
+    def filter_by_groups(self, group_ids):
         """
         Filters routes for specified group_ids\n
         routes = routes.filter_by_group_ids([1, 2, 3])
         """
         return RouteList([route for route in self.routes
-                          if route.address.group_id in group_ids])
+                          if route.id.group_id in group_ids])
 
     def groups(self):
         """
         Returns all groups which are presented in route table\n
         groups = routes.groups()
         """
-        return list(set(route.address.group_id for route in self.routes))
+        return tuple(set(route.id.group_id for route in self.routes))
 
     def addresses(self):
         """
         Returns all addresses which are presented in route table\n
         addresses = routes.addresses()
         """
-        return list(set(route.address for route in self.routes))
+        return tuple(set(route.address for route in self.routes))
 
-    def addresses_with_id(self):
+    def get_unique_routes(self):
         """
         Returns all addresses with elliptics.Id which are presented in routes\n
         addresses_with_id = routes.addresses_with_id()
         """
-        res = dict()
-        for route in self.routes:
-            if route.address not in res:
-                res[route.address] = route.key
-        return res.items()
+        tmp = set()
+        def seen(route):
+            val = (route.address, route.id.group_id, route.backend_id)
+            return val in tmp or tmp.add(val)
 
-    def get_address_group_id(self, address):
+        return tuple(route for route in self.routes if not seen(route))
+
+    def get_id_routes(self, id):
+        """
+        Returns tuple of (address, group, backend)s that responsible for the id.
+
+        id_routes = routes.get_id_routes(id)
+        """
+        from bisect import bisect
+        route_id = bisect([r.id for r in self.routes], id)
+        group_dict = {}
+        while route_id > -1 and len(group_dict) != len(self.groups()):
+            route = self.routes[route_id]
+            if route.id.group_id not in group_dict:
+                group_dict[route.id.group_id] = (route.address, route.backend_id)
+            route_id -= 1
+
+        return tuple((address, group, backend) for group, (address, backend) in group_dict.items())
+
+    def get_address_unique_routes(self, address):
+        """
+        Returns address routes unique by backend_id.
+        """
+        tmp = set()
+        def seen(route):
+            return route.backend_id in tmp or tmp.add(route.backend_id)
+        return tuple(route for route in self.routes if route.address == address and not seen(route))
+
+    def get_address_groups(self, address):
         """
         Returns group_id of address based on route table\n
-        group_id = routes.get_address_group_id(
+        groups = routes.get_address_groups(
             Address.from_host_port_family('host.com:1025:2'))
         """
-        return self.filter_by_address(address)[0].key.group_id
-
-    def get_address_id(self, address):
-        """
-        Returns first key for specified address from route table\n
-        id = routes.get_address_id(
-            Address.from_host_port_family('host.com:1025:2'))
-        """
-        return self.filter_by_address(address)[0].key
-
-    def get_address_eid(self, address):
-        """
-        Returns first key for specified address from route table
-        """
-        return self.get_address_id(address)
+        return tuple(set(route.id.group_id for route in self.routes if route.address == address))
 
     def get_address_ranges(self, address):
         """
-        Returns key ranges which belong to specified address\n
+        Returns id ranges which belong to specified address\n
         ranges = routes.get_address_ranges(
             Address.from_host_port_family('host.com:1025:2'))
         """
         ranges = []
-        group_id = self.get_address_group_id(address)
-        key = None
-        for route in self.filter_by_group_id(group_id):
+        groups = self.get_address_groups(address)
+        id = None
+        for route in self.filter_by_groups(groups):
             if route.address == address:
-                if key is None:
-                    key = route.key
-            elif key:
-                ranges.append((key, route.key))
-                key = None
+                if id is None:
+                    id = route.id
+            elif id:
+                ranges.append((id, route.id))
+                id = None
 
-        if key:
-            ranges.append((key, Id([255] * 64, group_id)))
+        if id:
+            ranges.append((id, Id([255] * 64, id.group_id)))
 
         return ranges
 
     def percentages(self):
         """
-        Returns parts of DHT ring each node occupies (in percents)\n
+        Returns parts of DHT ring each node and each node backend occupies (in percents)\n
         print routes.percentages()
         """
         perc = {}
-        for g in self.groups():
-            routes = self.filter_by_group_id(g)
+        for group in self.groups():
+            routes = self.filter_by_group(group)
             prev = None
-            perc[g] = {}
+            perc[group] = {}
             for r in routes:
                 if prev:
-                    amount = int(str(r.key), 16) - int(str(prev.key), 16)
-                    if prev.address not in perc[g]:
-                        perc[g][prev.address] = amount
+                    amount = int(str(r.id), 16) - int(str(prev.id), 16)
+                    if prev.address not in perc[group]:
+                        perc[group][prev.address] = {prev.backend_id: amount}
+                    elif prev.backend_id not in perc[group][prev.address]:
+                        perc[group][prev.address][prev.backend_id] = amount
                     else:
-                        perc[g][prev.address] += amount
+                        perc[group][prev.address][prev.backend_id] += amount
 
                 prev = r
 
         max = int(str(Id([255] * 64, 0)), 16)
 
-        for g in perc:
+        for group in perc:
             sum = 0
-            for p in perc[g]:
-                sum += perc[g][p]
-                perc[g][p] = perc[g][p] * 100.0 / max
+            for address in perc[group]:
+                address_sum = 0
+                for backend in perc[group][address]:
+                    sum += perc[group][address][backend]
+                    address_sum += perc[group][address][backend]
+                    perc[group][address][backend] = perc[group][address][backend] * 100.0 / max
+                perc[group][address]['total'] = address_sum * 100.0 / max
             assert(sum == max)
 
         return perc
@@ -358,6 +370,9 @@ class RouteList(object):
     def __getitem__(self, item):
         """x.__getitem__(y) <==> x[y]"""
         return self.routes[item % len(self.routes)]
+
+    def __repr__(self):
+        return "(" + ",\n".join(map(repr, self.routes)) + ")"
 
     def __str__(self):
         """x.__str__() <==> str(x)"""

@@ -121,7 +121,7 @@ class TestSession:
                         reason="COCAINE wasn't specified")
     def test_exec_fanout_auto(self, elliptics_client, elliptics_groups, exec_func, server):
         ''' Fan out using None as id '''
-        nodes = elliptics_client.routes.addresses_with_id()
+        nodes = elliptics_client.routes.addresses()
 
         results, error = exec_func(self, elliptics_client, None, event=EVENT)
         for i in results:
@@ -142,12 +142,12 @@ class TestSession:
                         reason="COCAINE wasn't specified")
     def test_exec_fanout_manual(self, elliptics_client, elliptics_groups, exec_func, server):
         ''' Fan out using manual lookup into routing table '''
-        nodes = elliptics_client.routes.addresses_with_id()
+        nodes = elliptics_client.routes.get_unique_routes()
 
         collected = []
-        for addr, key in nodes:
-            print '\nFor addr %s, key %r:' % (addr, key)
-            results, error = exec_func(self, elliptics_client, key, event=EVENT)
+        for route in nodes:
+            print '\nFor addr %s, key %r:' % (route.address, route.id)
+            results, error = exec_func(self, elliptics_client, route.id, event=EVENT)
             for i in results:
                 self.print_result(i)
             self.print_error(error)
@@ -155,14 +155,14 @@ class TestSession:
             assert error.code == 0
             assert len(results) == 1
 
-            collected.append((addr, key, results[0]))
+            collected.append((route.address, route.id, results[0]))
 
-        for addr, key, r in collected:
+        for route.address, route.id, r in collected:
             assert r.context.address
             assert r.address == r.context.address
 
             #TODO: check if src_id isn't empty
-            #assert r.context.src_id == key
+            #assert r.context.src_id == id
 
     @pytest.mark.skipif(pytest.config.option.without_cocaine,
                         reason="COCAINE wasn't specified")
