@@ -855,31 +855,7 @@ int dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct 
 	return err;
 }
 
-static int dnet_cmd_control_backend(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
-{
-	struct dnet_id_container *container = data;
-	int i;
-
-	if (cmd->size < sizeof(struct dnet_id_container)) {
-		return -EINVAL;
-	}
-
-	if (cmd->size != sizeof(struct dnet_id_container) + container->backends_count * sizeof(struct dnet_backend_ids)) {
-		return -EINVAL;
-	}
-
-	for (i = 0; i < container->backends_count; ++i) {
-		struct dnet_backend_ids *backend = &container->backends[i];
-
-		if (backend->flags & DNET_BACKEND_DISABLE)
-			dnet_backend_cleanup(st->n, backend->backend_id);
-		else
-			dnet_backend_init(st->n, backend->backend_id);
-	}
-
-	return 0;
-}
-
+// Keep this enums in sync with enums from dnet_cmd_needs_backend
 static int dnet_process_cmd_without_backend_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	int err = 0;
@@ -906,8 +882,11 @@ static int dnet_process_cmd_without_backend_raw(struct dnet_net_state *st, struc
 		case DNET_CMD_MONITOR_STAT:
 			err = dnet_monitor_process_cmd(st, cmd, data);
 			break;
-		case DNET_CMD_CONTROL_BACKEND:
-			err = dnet_cmd_control_backend(st, cmd, data);
+		case DNET_CMD_BACKEND_CONTROL:
+			err = dnet_cmd_backend_control(st, cmd, data);
+			break;
+		case DNET_CMD_BACKEND_STATUS:
+			err = dnet_cmd_backend_status(st, cmd, data);
 			break;
 		default:
 			err = -ENOTSUP;

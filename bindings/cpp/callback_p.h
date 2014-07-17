@@ -132,6 +132,10 @@ struct entry_converter
 		dnet_convert_addr_stat(entry.statistics(), 0);
 	}
 
+	static void convert(backend_status_result_entry &, callback_result_data *)
+	{
+	}
+
 	static void convert(callback_result_entry &, callback_result_data *)
 	{
 	}
@@ -1170,12 +1174,13 @@ class cmd_callback
 		default_callback<callback_result_entry> cb;
 };
 
+template <typename CallbackEntry = callback_result_entry>
 class single_cmd_callback
 {
 	public:
-		typedef std::shared_ptr<single_cmd_callback> ptr;
+		typedef std::shared_ptr<single_cmd_callback<CallbackEntry>> ptr;
 
-		single_cmd_callback(const session &sess, const async_generic_result &result, const transport_control &ctl)
+		single_cmd_callback(const session &sess, const async_result<CallbackEntry> &result, const transport_control &ctl)
 			: sess(sess), ctl(ctl.get_native()), cb(sess, result)
 		{
 		}
@@ -1186,7 +1191,13 @@ class single_cmd_callback
 			ctl.complete = func;
 			ctl.priv = priv;
 
-			int err = dnet_trans_alloc_send(sess.get_native(), &ctl);
+			int err;
+			if (state)
+				err = dnet_trans_alloc_send_state(sess.get_native(), state.get(), &ctl);
+			else
+				err = dnet_trans_alloc_send(sess.get_native(), &ctl);
+			state.reset();
+
 			if (err < 0) {
 				*error = create_error(err, "failed to request cmd: %s", dnet_cmd_string(ctl.cmd));
 				return true;
@@ -1208,7 +1219,8 @@ class single_cmd_callback
 
 		session sess;
 		dnet_trans_control ctl;
-		default_callback<callback_result_entry> cb;
+		net_state_ptr state;
+		default_callback<CallbackEntry> cb;
 };
 
 class remove_index_callback

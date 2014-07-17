@@ -22,16 +22,9 @@ struct dnet_backend_config_entry
 	std::vector<char> value;
 };
 
-enum dnet_backend_state {
-	dnet_backend_disabled,
-	dnet_backend_enabled,
-	dnet_backend_activating,
-	dnet_backend_deactivating,
-};
-
 struct dnet_backend_info
 {
-	dnet_backend_info() : log(NULL), group(0), cache(NULL), state(new std::atomic_uint(dnet_backend_disabled))
+	dnet_backend_info() : log(NULL), group(0), cache(NULL), state(new std::atomic_uint(DNET_BACKEND_DISABLED))
 	{
 	}
 
@@ -56,6 +49,17 @@ extern "C" {
 #else // __cplusplus
 typedef struct dnet_backend_info_list_t dnet_backend_info_list;
 #endif // __cplusplus
+
+int dnet_backend_init(struct dnet_node *n, size_t backend_id, unsigned *state);
+int dnet_backend_cleanup(struct dnet_node *n, size_t backend_id, unsigned *state);
+
+int dnet_backend_init_all(struct dnet_node *n);
+void dnet_backend_cleanup_all(struct dnet_node *n);
+
+size_t dnet_backend_info_list_count(dnet_backend_info_list *backends);
+
+int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
+int dnet_cmd_backend_status(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 
 #ifdef __cplusplus
 }

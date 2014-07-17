@@ -160,7 +160,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 			control.set_key(indexes_id);
 
 			async_generic_result result(sess);
-			auto cb = createCallback<single_cmd_callback>(sess, result, control);
+			auto cb = createCallback<single_cmd_callback<>>(sess, result, control);
 
 			startCallback(cb);
 
@@ -216,7 +216,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 				control.set_key(id);
 
 				async_generic_result result(sess);
-				auto cb = createCallback<single_cmd_callback>(sess, result, control);
+				auto cb = createCallback<single_cmd_callback<>>(sess, result, control);
 
 				startCallback(cb);
 

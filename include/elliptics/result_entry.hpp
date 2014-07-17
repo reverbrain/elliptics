@@ -232,6 +232,20 @@ class iterator_result_container
 		uint64_t m_write_position;
 };
 
+class backend_status_result_entry : public callback_result_entry
+{
+	public:
+		backend_status_result_entry();
+		backend_status_result_entry(const backend_status_result_entry &other);
+		~backend_status_result_entry();
+
+		backend_status_result_entry &operator =(const backend_status_result_entry &other);
+
+		dnet_backend_status_list *list() const;
+		uint32_t count() const;
+		dnet_backend_status *backend(uint32_t index) const;
+};
+
 typedef lookup_result_entry write_result_entry;
 typedef callback_result_entry remove_result_entry;
 
@@ -282,6 +296,11 @@ typedef async_result<stat_count_result_entry> async_stat_count_result;
 typedef std::vector<stat_count_result_entry> sync_stat_count_result;
 typedef async_result<monitor_stat_result_entry> async_monitor_stat_result;
 typedef std::vector<monitor_stat_result_entry> sync_monitor_stat_result;
+
+typedef async_result<callback_result_entry> async_backend_control_result;
+typedef std::vector<callback_result_entry> sync_backend_control_result;
+typedef async_result<backend_status_result_entry> async_backend_status_result;
+typedef std::vector<backend_status_result_entry> sync_backend_status_result;
 
 typedef async_result<iterator_result_entry> async_iterator_result;
 typedef std::vector<iterator_result_entry> sync_iterator_result;

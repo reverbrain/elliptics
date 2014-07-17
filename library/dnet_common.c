@@ -1581,6 +1581,26 @@ struct dnet_update_status_priv {
 	atomic_t refcnt;
 };
 
+int dnet_request_cmd_addr(struct dnet_session *s, struct dnet_addr *addr, struct dnet_trans_control *ctl)
+{
+	struct dnet_net_state *st;
+	int err;
+
+	st = dnet_state_search_by_addr(s->node, addr);
+	if (!st) {
+		return -ENXIO;
+	}
+
+	err = dnet_request_cmd_single(s, st, ctl);
+
+	dnet_state_put(st);
+
+	if (err)
+		return err;
+	else
+		return 1;
+}
+
 int dnet_request_cmd_id(struct dnet_session *s, struct dnet_id *id, struct dnet_trans_control *ctl) {
 	int err = 0;
 

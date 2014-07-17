@@ -581,6 +581,7 @@ int dnet_create_addr(struct dnet_addr *addr, const char *addr_str, int port, int
 
 int dnet_state_num(struct dnet_session *s);
 int dnet_node_state_num(struct dnet_node *n);
+struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, const struct dnet_id *id);
 void dnet_state_put(struct dnet_net_state *st);
 
@@ -807,6 +808,7 @@ struct dnet_trans_control
  * Allocate and send transaction according to above control structure.
  */
 int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl);
+int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl);
 int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *ctl);
 
 int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl);

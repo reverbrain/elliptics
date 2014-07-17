@@ -226,6 +226,23 @@ static inline void list_stat_log(struct list_stat *st, struct dnet_node *node, c
 	}
 }
 
+// Keep this enums in sync with enums from dnet_process_cmd_without_backend_raw
+static int dnet_cmd_needs_backend(int command)
+{
+	switch (command) {
+	case DNET_CMD_AUTH:
+	case DNET_CMD_STATUS:
+	case DNET_CMD_REVERSE_LOOKUP:
+	case DNET_CMD_JOIN:
+	case DNET_CMD_ROUTE_LIST:
+	case DNET_CMD_EXEC:
+	case DNET_CMD_MONITOR_STAT:
+	case DNET_CMD_BACKEND_CONTROL:
+	case DNET_CMD_BACKEND_STATUS:
+		return 0;
+	}
+	return 1;
+}
 
 static void *dnet_io_process(void *data_);
 static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
@@ -235,7 +252,8 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	struct dnet_io_pool *io_pool = &n->io->pool;
 	struct dnet_cmd *cmd = r->header;
 	int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
-	ssize_t backend_id;
+	ssize_t backend_id = -1;
+	int need_backend = dnet_cmd_needs_backend(cmd->cmd);
 
 	if (cmd->size > 0) {
 		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d\n",
@@ -253,7 +271,8 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
 	}
 
-	backend_id = dnet_state_search_backend(n, &cmd->id);
+	if (need_backend)
+		backend_id = dnet_state_search_backend(n, &cmd->id);
 
 	if (backend_id >= 0) {
 		io_pool = &n->io->backends[backend_id].pool;

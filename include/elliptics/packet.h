@@ -68,7 +68,8 @@ enum dnet_commands {
 	DNET_CMD_INDEXES_FIND,		/* Find all objects by indexes */
 	DNET_CMD_MONITOR_STAT,		/* Gather monitor json statistics */
 	DNET_CMD_UPDATE_IDS,		/* Update buckets' information */
-	DNET_CMD_CONTROL_BACKEND,	/* Special commands to start or stop backends */
+	DNET_CMD_BACKEND_CONTROL,	/* Special command to start or stop backends */
+	DNET_CMD_BACKEND_STATUS,	/* Special command to see current statuses of backends */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
@@ -124,6 +125,13 @@ enum dnet_monitor_categories {
 
 enum dnet_backend_flags {
 	DNET_BACKEND_DISABLE	= 0x01
+};
+
+enum dnet_backend_state {
+	DNET_BACKEND_DISABLED,
+	DNET_BACKEND_ENABLED,
+	DNET_BACKEND_ACTIVATING,
+	DNET_BACKEND_DEACTIVATING,
 };
 
 /*
@@ -302,6 +310,19 @@ static inline int dnet_validate_id_container(struct dnet_id_container *ids, size
 		return -EINVAL;
 	return 0;
 }
+
+struct dnet_backend_status
+{
+	uint32_t backend_id;
+	uint32_t state;
+	uint64_t reserved[8];
+} __attribute__ ((packed));
+
+struct dnet_backend_status_list
+{
+	uint32_t backends_count;
+	struct dnet_backend_status backends[0];
+} __attribute__ ((packed));
 
 struct dnet_addr_cmd
 {

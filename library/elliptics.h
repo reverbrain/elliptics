@@ -838,12 +838,6 @@ int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_srw_cleanup(struct dnet_node *n);
 int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *header, const void *data);
 
-int dnet_backend_init(struct dnet_node *n, size_t backend_id);
-int dnet_backend_init_all(struct dnet_node *n);
-void dnet_backend_cleanup(struct dnet_node *n, size_t backend_id);
-void dnet_backend_cleanup_all(struct dnet_node *n);
-size_t dnet_backend_info_list_count(dnet_backend_info_list *backends);
-
 void *dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend);
 void dnet_cache_cleanup(void *);
 int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);

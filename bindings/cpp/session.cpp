@@ -1446,16 +1446,19 @@ async_generic_result session::request_cmd(const transport_control &ctl)
 	return result;
 }
 
+static int parse_addr(dnet_addr *result, const char *saddr, int port, int family)
+{
+	memset(result, 0, sizeof(dnet_addr));
+	result->addr_len = sizeof(result->addr);
+	result->family = family;
+
+	return dnet_fill_addr(result, saddr, port, SOCK_STREAM, IPPROTO_TCP);
+}
+
 void session::update_status(const char *saddr, const int port, const int family, dnet_node_status *status)
 {
-	int err;
 	dnet_addr addr;
-
-	memset(&addr, 0, sizeof(addr));
-	addr.addr_len = sizeof(addr.addr);
-	addr.family = family;
-
-	err = dnet_fill_addr(&addr, saddr, port, SOCK_STREAM, IPPROTO_TCP);
+	int err = parse_addr(&addr, saddr, port, family);
 	if (!err)
 		err = dnet_update_status(m_data->session_ptr, &addr, NULL, status);
 
@@ -1475,6 +1478,114 @@ void session::update_status(const key &id, dnet_node_status *status)
 	if (err < 0) {
 		throw_error(err, id.id(), "failed to request set status %p", status);
 	}
+}
+
+static async_backend_control_result update_backend_status(session &sess, const char *saddr, int port, int family, uint32_t backend_id, uint64_t flags)
+{
+	async_backend_control_result result(sess);
+	dnet_addr addr;
+	net_state_ptr state;
+
+	int err = parse_addr(&addr, saddr, port, family);
+	error_info error;
+	if (err) {
+		error = create_error(-EINVAL, "BACKEND_CONTROL: failed to parse addr: %s, port: %d, family: %d", saddr, port, family);
+	}
+
+	if (!err) {
+		state = net_state_ptr(dnet_state_search_by_addr(sess.get_native_node(), &addr));
+		if (!state) {
+			error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s, port: %d, family: %d", saddr, port, family);
+		}
+	}
+
+	if (error) {
+		if (sess.get_exceptions_policy() & session::throw_at_start) {
+			error.throw_error();
+		} else {
+			async_result_handler<callback_result_entry> handler(result);
+			handler.complete(error);
+			return result;
+		}
+	}
+
+	dnet_id_container container;
+	memset(&container, 0, sizeof(container));
+	container.backends_count = 1;
+
+	dnet_backend_ids backend;
+	memset(&backend, 0, sizeof(backend));
+
+	backend.backend_id = backend_id;
+	backend.flags = flags;
+
+	data_buffer buffer;
+	buffer.write(container);
+	buffer.write(backend);
+
+	data_pointer data = std::move(buffer);
+
+	transport_control control;
+	control.set_command(DNET_CMD_BACKEND_CONTROL);
+	control.set_cflags(DNET_FLAGS_NEED_ACK);
+	control.set_data(data.data(), data.size());
+
+	auto cb = createCallback<single_cmd_callback<>>(sess, result, control);
+	cb->state = std::move(state);
+
+	startCallback(cb);
+	return result;
+}
+
+async_backend_control_result session::enable_backend(const char *addr, int port, int family, uint32_t backend_id)
+{
+	return update_backend_status(*this, addr, port, family, backend_id, 0);
+}
+
+async_backend_control_result session::disable_backend(const char *addr, int port, int family, uint32_t backend_id)
+{
+	return update_backend_status(*this, addr, port, family, backend_id, DNET_BACKEND_DISABLE);
+}
+
+async_backend_status_result session::request_backends_status(const char *saddr, int port, int family)
+{
+	async_backend_status_result result(*this);
+	dnet_addr addr;
+	net_state_ptr state;
+
+	int err = parse_addr(&addr, saddr, port, family);
+	error_info error;
+	if (err) {
+		error = create_error(-EINVAL, "BACKEND_CONTROL: failed to parse addr: %s, port: %d, family: %d", saddr, port, family);
+	}
+
+	if (!err) {
+		state = net_state_ptr(dnet_state_search_by_addr(get_native_node(), &addr));
+		if (!state) {
+			error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s, port: %d, family: %d", saddr, port, family);
+		}
+	}
+
+	if (error) {
+		if (get_exceptions_policy() & throw_at_start) {
+			error.throw_error();
+		} else {
+			async_result_handler<backend_status_result_entry> handler(result);
+			handler.complete(error);
+			return result;
+		}
+	}
+
+	transport_control control;
+	control.set_command(DNET_CMD_BACKEND_STATUS);
+	control.set_cflags(DNET_FLAGS_NEED_ACK);
+
+	auto cb = createCallback<single_cmd_callback<backend_status_result_entry>>(*this, result, control);
+	cb->state = std::move(state);
+
+	startCallback(cb);
+
+	return result;
 }
 
 class read_data_range_callback

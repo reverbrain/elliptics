@@ -413,4 +413,45 @@ dnet_iterator_response iterator_result_container::operator [](size_t n) const
 	return response;
 }
 
+backend_status_result_entry::backend_status_result_entry()
+{
+}
+
+backend_status_result_entry::backend_status_result_entry(const backend_status_result_entry &other) : callback_result_entry(other)
+{
+}
+
+backend_status_result_entry::~backend_status_result_entry()
+{
+}
+
+backend_status_result_entry &backend_status_result_entry::operator =(const backend_status_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+dnet_backend_status_list *backend_status_result_entry::list() const
+{
+	DNET_DATA_BEGIN();
+	return data()
+		.data<dnet_backend_status_list>();
+	DNET_DATA_END(sizeof(dnet_backend_status_list));
+}
+
+uint32_t backend_status_result_entry::count() const
+{
+	return list()->backends_count;
+}
+
+dnet_backend_status *backend_status_result_entry::backend(uint32_t index) const
+{
+	DNET_DATA_BEGIN();
+	return data()
+		.skip<dnet_backend_status_list>()
+		.skip(index * sizeof(dnet_backend_status))
+		.data<dnet_backend_status>();
+	DNET_DATA_END(sizeof(dnet_backend_status_list) + (index + 1) * sizeof(dnet_backend_status));
+}
+
 } } // namespace ioremap::elliptics
