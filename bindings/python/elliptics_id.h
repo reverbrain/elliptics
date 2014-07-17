@@ -31,6 +31,7 @@ public:
 	elliptics_id();
 	elliptics_id(const dnet_id &id);
 	elliptics_id(const dnet_raw_id &id);
+	elliptics_id(const dnet_raw_id &id, uint32_t group_id);
 	elliptics_id(const uint8_t id[DNET_ID_SIZE]);
 	elliptics_id(const elliptics_id &other);
 	elliptics_id(const bp::list &id, const uint32_t &group_id);

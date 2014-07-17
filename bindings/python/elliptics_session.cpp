@@ -420,22 +420,8 @@ public:
 	}
 
 	bp::list get_routes() {
-		bp::list res;
-		dnet_id id;
-		memset(&id, 0, sizeof(id));
-
 		auto routes = session::get_routes();
-
-		for (auto it = routes.begin(), end = routes.end(); it != end; ++it) {
-			dnet_setup_id(&id, it->group_id, it->id.id);
-
-			res.append(bp::make_tuple(elliptics_id(id),
-				std::string(dnet_server_convert_dnet_addr(&(it->addr))),
-				it->backend_id
-				));
-		}
-
-		return res;
+		return convert_to_list(routes);
 	}
 
 	python_iterator_result start_iterator(const bp::api::object &id, const bp::api::object &ranges,

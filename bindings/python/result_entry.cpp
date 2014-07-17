@@ -361,6 +361,14 @@ std::string dnet_stat_to_repr(const dnet_stat &stat)
 	return ret;
 }
 
+elliptics_id route_entry_get_id(const dnet_route_entry &entry) {
+	return elliptics_id(entry.id, entry.group_id);
+}
+
+std::string route_entry_get_address(const dnet_route_entry &entry) {
+	return std::string(dnet_server_convert_dnet_addr(&entry.addr));
+}
+
 void init_result_entry() {
 
 	bp::class_<index_entry>("IndexEntry")
@@ -542,6 +550,12 @@ void init_result_entry() {
 		.add_property("group_id", result_entry_group_id<monitor_stat_result_entry>)
 		.add_property("error", result_entry_error<monitor_stat_result_entry>,
 		              "elliptics.Error information")
+	;
+
+	bp::class_<dnet_route_entry>("RouteEntry")
+		.add_property("id", route_entry_get_id)
+		.add_property("address", route_entry_get_address)
+		.add_property("backend_id", &dnet_route_entry::backend_id)
 	;
 
 }

@@ -53,6 +53,12 @@ elliptics_id::elliptics_id(const dnet_raw_id &id) {
 	memcpy(m_id.id, id.id, DNET_ID_SIZE);
 }
 
+elliptics_id::elliptics_id(const dnet_raw_id &id, uint32_t group_id) {
+	memset(&m_id, 0, sizeof(m_id));
+	memcpy(m_id.id, id.id, DNET_ID_SIZE);
+	m_id.group_id = group_id;
+}
+
 elliptics_id::elliptics_id(const uint8_t id[DNET_ID_SIZE]) {
 	memset(&m_id, 0, sizeof(m_id));
 	memcpy(&m_id.id, id, DNET_ID_SIZE);
