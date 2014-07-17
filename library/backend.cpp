@@ -210,18 +210,18 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id)
 		}
 	}
 
-	err = dnet_backend_stat_provider_init(backend_io, node);
-	if (err) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init stat provider, err: %d", backend_id, err);
-		goto err_out_cache_cleanup;
-	}
-
 	backend_io->cb = &backend.config.cb;
 
 	err = dnet_backend_io_init(node, backend_io);
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init io pool, err: %d", backend_id, err);
 		goto err_out_stat_destroy;
+	}
+
+	err = dnet_backend_stat_provider_init(backend_io, node);
+	if (err) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init stat provider, err: %d", backend_id, err);
+		goto err_out_cache_cleanup;
 	}
 
 	ids_num = 0;

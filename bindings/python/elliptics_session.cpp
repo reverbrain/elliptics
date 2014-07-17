@@ -1739,7 +1739,7 @@ void init_elliptics_session() {
 		    "        print 'node_files_removed:', stat.statistics.node_files_removed\n")
 
 		.def("monitor_stat", &elliptics_session::monitor_stat,
-		     (bp::arg("key")="", bp::arg("category")=0),
+		     (bp::arg("key"), bp::arg("category")=0),
 		    "monitor_stat(key=None, category=elliptics.monitor_stat_categories.all)\n"
 		    "    Gather monitor statistics of specified category.\n"
 		    "    -- key - elliptics.Id which specifies node\n\n"

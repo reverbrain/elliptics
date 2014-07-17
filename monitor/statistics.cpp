@@ -178,6 +178,7 @@ rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapi
 	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
 		auto &cmd_stat = m_cmd_stats[i];
 		stat_value.AddMember(dnet_cmd_string(i),
+	                         allocator,
 		                     rapidjson::Value(rapidjson::kObjectType)
 		                     .AddMember("cache",
 		                                rapidjson::Value(rapidjson::kObjectType)
