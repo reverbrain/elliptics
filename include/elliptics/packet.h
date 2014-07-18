@@ -123,8 +123,10 @@ enum dnet_monitor_categories {
 	__DNET_MONITOR_MAX		/* Paranoidal check */
 };
 
-enum dnet_backend_flags {
-	DNET_BACKEND_DISABLE	= 0x01
+enum dnet_backend_command {
+	DNET_BACKEND_ENABLE = 0,
+	DNET_BACKEND_DISABLE,
+	DNET_BACKEND_START_DEFRAG,
 };
 
 enum dnet_backend_state {
@@ -132,6 +134,11 @@ enum dnet_backend_state {
 	DNET_BACKEND_ENABLED,
 	DNET_BACKEND_ACTIVATING,
 	DNET_BACKEND_DEACTIVATING,
+};
+
+enum dnet_backend_defrag_state {
+	DNET_BACKEND_DEFRAG_NOT_STARTED,
+	DNET_BACKEND_DEFRAG_STARTED,
 };
 
 /*
@@ -282,6 +289,13 @@ struct dnet_backend_ids
 	struct dnet_raw_id ids[0];
 } __attribute__ ((packed));
 
+struct dnet_backend_control
+{
+	uint32_t backend_id;
+	uint32_t command;
+	uint64_t reserved[8];
+} __attribute__ ((packed));
+
 struct dnet_id_container
 {
 	int backends_count;
@@ -310,19 +324,6 @@ static inline int dnet_validate_id_container(struct dnet_id_container *ids, size
 		return -EINVAL;
 	return 0;
 }
-
-struct dnet_backend_status
-{
-	uint32_t backend_id;
-	uint32_t state;
-	uint64_t reserved[8];
-} __attribute__ ((packed));
-
-struct dnet_backend_status_list
-{
-	uint32_t backends_count;
-	struct dnet_backend_status backends[0];
-} __attribute__ ((packed));
 
 struct dnet_addr_cmd
 {
@@ -594,6 +595,21 @@ static inline int dnet_time_is_empty(struct dnet_time *t)
 	return 0;
 }
 
+struct dnet_backend_status
+{
+	uint32_t backend_id;
+	uint32_t state;
+	uint32_t defrag_state;
+	struct dnet_time last_start;
+	int last_start_err;
+	uint64_t reserved[8];
+} __attribute__ ((packed));
+
+struct dnet_backend_status_list
+{
+	uint32_t backends_count;
+	struct dnet_backend_status backends[0];
+} __attribute__ ((packed));
 
 struct dnet_io_attr
 {
@@ -769,8 +785,9 @@ struct dnet_file_info {
 	int			flen;		/* filename length, which goes after this structure */
 	unsigned char		checksum[DNET_CSUM_SIZE];
 
-	uint64_t		size;
-	uint64_t		offset;		/* offset within eblob */
+	uint64_t		cache_size;	/* size of file in cache */
+	uint64_t		size;		/* size of file on disk */
+	uint64_t		offset;		/* offset of file on disk */
 
 	struct dnet_time	mtime;
 };

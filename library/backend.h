@@ -8,12 +8,7 @@
 #include <string>
 #include <vector>
 #include <memory>
-
-#if __GNUC__ == 4 && __GNUC_MINOR__ < 5
-#  include <cstdatomic>
-#else
-#  include <atomic>
-#endif
+#include <mutex>
 
 struct dnet_backend_config_entry
 {
@@ -24,8 +19,10 @@ struct dnet_backend_config_entry
 
 struct dnet_backend_info
 {
-	dnet_backend_info() : log(NULL), group(0), cache(NULL), enable_at_start(true), state(new std::atomic_uint(DNET_BACKEND_DISABLED))
+	dnet_backend_info() : log(NULL), group(0), cache(NULL), enable_at_start(true), state_mutex(new std::mutex), state(DNET_BACKEND_DISABLED)
 	{
+		dnet_empty_time(&last_start);
+		last_start_err = 0;
 	}
 
 	dnet_config_backend config_template;
@@ -35,7 +32,11 @@ struct dnet_backend_info
 	void *cache;
 	std::string history;
 	bool enable_at_start;
-	std::unique_ptr<std::atomic_uint> state;
+
+	std::unique_ptr<std::mutex> state_mutex;
+	dnet_backend_state state;
+	dnet_time last_start;
+	int last_start_err;
 
 	dnet_config_backend config;
 	std::vector<char> data;

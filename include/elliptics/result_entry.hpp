@@ -297,8 +297,8 @@ typedef std::vector<stat_count_result_entry> sync_stat_count_result;
 typedef async_result<monitor_stat_result_entry> async_monitor_stat_result;
 typedef std::vector<monitor_stat_result_entry> sync_monitor_stat_result;
 
-typedef async_result<callback_result_entry> async_backend_control_result;
-typedef std::vector<callback_result_entry> sync_backend_control_result;
+typedef async_result<backend_status_result_entry> async_backend_control_result;
+typedef std::vector<backend_status_result_entry> sync_backend_control_result;
 typedef async_result<backend_status_result_entry> async_backend_status_result;
 typedef std::vector<backend_status_result_entry> sync_backend_status_result;
 

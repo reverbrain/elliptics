@@ -777,6 +777,20 @@ err_out_exit:
 	return err;
 }
 
+int blob_defrag_status(void *priv)
+{
+	struct eblob_backend_config *c = priv;
+
+	return eblob_defrag_status(c->eblob);
+}
+
+int blob_defrag_start(void *priv)
+{
+	struct eblob_backend_config *c = priv;
+
+	return eblob_start_defrag(c->eblob);
+}
+
 static int blob_start_defrag(struct eblob_backend_config *c, struct dnet_cmd *cmd, void *data)
 {
 	react_start_action(ACTION_BACKEND_EBLOB_START_DEFRAG);
@@ -1109,6 +1123,9 @@ static int dnet_blob_config_init(struct dnet_config_backend *b)
 	b->cb.checksum = eblob_backend_checksum;
 
 	b->cb.iterator = dnet_eblob_iterator;
+
+	b->cb.defrag_start = blob_defrag_start;
+	b->cb.defrag_status = blob_defrag_status;
 
 	return 0;
 

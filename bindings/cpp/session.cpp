@@ -1480,7 +1480,7 @@ void session::update_status(const key &id, dnet_node_status *status)
 	}
 }
 
-static async_backend_control_result update_backend_status(session &sess, const dnet_addr &addr, uint32_t backend_id, uint64_t flags)
+static async_backend_control_result update_backend_status(session &sess, const dnet_addr &addr, uint32_t backend_id, dnet_backend_command command)
 {
 	async_backend_control_result result(sess);
 
@@ -1490,41 +1490,31 @@ static async_backend_control_result update_backend_status(session &sess, const d
 		if (sess.get_exceptions_policy() & session::throw_at_start) {
 			error.throw_error();
 		} else {
-			async_result_handler<callback_result_entry> handler(result);
+			async_result_handler<backend_status_result_entry> handler(result);
 			handler.complete(error);
 			return result;
 		}
 	}
 
-	dnet_id_container container;
-	memset(&container, 0, sizeof(container));
-	container.backends_count = 1;
+	dnet_backend_control backend_control;
+	memset(&backend_control, 0, sizeof(backend_control));
 
-	dnet_backend_ids backend;
-	memset(&backend, 0, sizeof(backend));
-
-	backend.backend_id = backend_id;
-	backend.flags = flags;
-
-	data_buffer buffer;
-	buffer.write(container);
-	buffer.write(backend);
-
-	data_pointer data = std::move(buffer);
+	backend_control.backend_id = backend_id;
+	backend_control.command = command;
 
 	transport_control control;
 	control.set_command(DNET_CMD_BACKEND_CONTROL);
 	control.set_cflags(DNET_FLAGS_NEED_ACK);
-	control.set_data(data.data(), data.size());
+	control.set_data(&backend_control, sizeof(backend_control));
 
-	auto cb = createCallback<single_cmd_callback<>>(sess, result, control);
+	auto cb = createCallback<single_cmd_callback<backend_status_result_entry>>(sess, result, control);
 	cb->state = std::move(state);
 
 	startCallback(cb);
 	return result;
 }
 
-static async_backend_control_result update_backend_status(session &sess, const char *saddr, int port, int family, uint32_t backend_id, uint64_t flags)
+static async_backend_control_result update_backend_status(session &sess, const char *saddr, int port, int family, uint32_t backend_id, dnet_backend_command command)
 {
 	dnet_addr addr;
 	int err = parse_addr(&addr, saddr, port, family);
@@ -1534,23 +1524,23 @@ static async_backend_control_result update_backend_status(session &sess, const c
 			error.throw_error();
 		} else {
 			async_backend_control_result result(sess);
-			async_result_handler<callback_result_entry> handler(result);
+			async_result_handler<backend_status_result_entry> handler(result);
 			handler.complete(error);
 			return result;
 		}
 	}
 
-	return update_backend_status(sess, addr, backend_id, flags);
+	return update_backend_status(sess, addr, backend_id, command);
 }
 
 async_backend_control_result session::enable_backend(const char *addr, int port, int family, uint32_t backend_id)
 {
-	return update_backend_status(*this, addr, port, family, backend_id, 0);
+	return update_backend_status(*this, addr, port, family, backend_id, DNET_BACKEND_ENABLE);
 }
 
 async_backend_control_result session::enable_backend(const dnet_addr &addr, uint32_t backend_id)
 {
-	return update_backend_status(*this, addr, backend_id, 0);
+	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_ENABLE);
 }
 
 async_backend_control_result session::disable_backend(const char *addr, int port, int family, uint32_t backend_id)
@@ -1561,6 +1551,16 @@ async_backend_control_result session::disable_backend(const char *addr, int port
 async_backend_control_result session::disable_backend(const dnet_addr &addr, uint32_t backend_id)
 {
 	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_DISABLE);
+}
+
+async_backend_control_result session::start_defrag(const char *addr, int port, int family, uint32_t backend_id)
+{
+	return update_backend_status(*this, addr, port, family, backend_id, DNET_BACKEND_START_DEFRAG);
+}
+
+async_backend_control_result session::start_defrag(const dnet_addr &addr, uint32_t backend_id)
+{
+	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_START_DEFRAG);
 }
 
 async_backend_status_result session::request_backends_status(const char *saddr, int port, int family)

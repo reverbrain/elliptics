@@ -295,6 +295,9 @@ struct dnet_backend_callbacks {
 	 */
 	int			(* iterator)(struct dnet_iterator_ctl *ictl);
 
+	int			(* defrag_status)(void *priv);
+	int			(* defrag_start)(void *priv);
+
 	/*
 	 * Returns dir used by backend
 	 */
