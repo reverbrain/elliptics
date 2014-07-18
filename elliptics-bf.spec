@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.5.0
+Version:	2.25.5.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jul 18 2014 Kirill Smorodinnikov <shaitkir@gmail.com> - 2.25.5.1
+- Recovery: fixed merge index mismatch if some of merging shards have unfilled shard_id and shard_count
+- Pytests: turned on exit on first fail to make it easer to find the problem. Used separated log files for all node and client
+- IOClient: fixed checking dnet_add_state result
+
 * Sun Jul 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.5.0
 - Let's use Travis-CI to check every commit
 - route: new batch request completion logic
