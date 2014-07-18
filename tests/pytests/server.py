@@ -65,7 +65,7 @@ class Servers:
         self.remotes = [str(x['remote']) for x in self.config['servers']]
         self.monitors = [str(x['monitor']) for x in self.config['servers']]
 
-    def stop(self):
+    def stop(self, failed):
         if self.p and self.p.poll() is None:
             self.p.terminate()
             self.p.wait()
@@ -89,7 +89,7 @@ def server(request):
 
     def fin():
         print "Finilizing Servers"
-        servers.stop()
+        servers.stop(request.node.exitstatus != 0)
     request.addfinalizer(fin)
 
     return servers

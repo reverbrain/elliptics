@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
 		}
 
 		err = dnet_add_state(n.get_native(), &ra, 1, remote_flags);
-		if (err)
+		if (err < 0)
 			return err;
 
 		s.set_groups(groups);

@@ -58,7 +58,7 @@ set_target_properties(dnet_cpp_capped_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_capped_test ${TEST_LIBRARIES})
 
 
-set(PYTESTS_FLAGS "")
+set(PYTESTS_FLAGS "-l" "-x")
 if(NOT WITH_COCAINE)
     list(APPEND PYTESTS_FLAGS "--without-cocaine")
 endif()

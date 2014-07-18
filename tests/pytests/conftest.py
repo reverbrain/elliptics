@@ -52,7 +52,7 @@ def raises(type, message, func, *args, **kwargs):
 
 @pytest.fixture(scope='class')
 def simple_node(request):
-    simple_node = elliptics.Node(elliptics.Logger("/dev/stderr", 4))
+    simple_node = elliptics.Node(elliptics.Logger("client.log", 4))
     for r in request.config.option.remotes:
         simple_node.add_remote(r)
 
@@ -128,7 +128,8 @@ def elliptics_client(request):
     remote = request.config.option.remotes
     groups = [int(g) for g in request.config.option.groups.split(',')]
     loglevel = request.config.option.loglevel
-    return connect(remote, groups, loglevel=loglevel)
+    logfile = 'client.log'
+    return connect(remote, groups, loglevel=loglevel, logfile=logfile)
     # client = connect([remote], groups, loglevel=loglevel)
     # client.set_filter(elliptics.filters.all_with_ack)
     # return client
