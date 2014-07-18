@@ -155,12 +155,15 @@ static int dnet_backend_stat_check_category(void *priv, int category)
 
 static int dnet_backend_stat_provider_init(struct dnet_backend_io *backend, struct dnet_node *n)
 {
+	char provider_name[128];
+	sprintf(provider_name, "backend_%zu", backend->backend_id);
+
 	struct stat_provider_raw stat_provider;
 	stat_provider.stat_private = backend->cb;
 	stat_provider.json = &dnet_backend_stat_json;
 	stat_provider.stop = &dnet_backend_stat_stop;
 	stat_provider.check_category = &dnet_backend_stat_check_category;
-	dnet_monitor_add_provider(n, stat_provider, "backend");
+	dnet_monitor_add_provider(n, stat_provider, provider_name);
 	return 0;
 }
 
