@@ -1480,26 +1480,13 @@ void session::update_status(const key &id, dnet_node_status *status)
 	}
 }
 
-static async_backend_control_result update_backend_status(session &sess, const char *saddr, int port, int family, uint32_t backend_id, uint64_t flags)
+static async_backend_control_result update_backend_status(session &sess, const dnet_addr &addr, uint32_t backend_id, uint64_t flags)
 {
 	async_backend_control_result result(sess);
-	dnet_addr addr;
-	net_state_ptr state;
 
-	int err = parse_addr(&addr, saddr, port, family);
-	error_info error;
-	if (err) {
-		error = create_error(-EINVAL, "BACKEND_CONTROL: failed to parse addr: %s, port: %d, family: %d", saddr, port, family);
-	}
-
-	if (!err) {
-		state = net_state_ptr(dnet_state_search_by_addr(sess.get_native_node(), &addr));
-		if (!state) {
-			error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s, port: %d, family: %d", saddr, port, family);
-		}
-	}
-
-	if (error) {
+	net_state_ptr state = net_state_ptr(dnet_state_search_by_addr(sess.get_native_node(), &addr));
+	if (!state) {
+		error_info error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s", dnet_server_convert_dnet_addr(&addr));
 		if (sess.get_exceptions_policy() & session::throw_at_start) {
 			error.throw_error();
 		} else {
@@ -1537,9 +1524,33 @@ static async_backend_control_result update_backend_status(session &sess, const c
 	return result;
 }
 
+static async_backend_control_result update_backend_status(session &sess, const char *saddr, int port, int family, uint32_t backend_id, uint64_t flags)
+{
+	dnet_addr addr;
+	int err = parse_addr(&addr, saddr, port, family);
+	if (err) {
+		error_info error = create_error(-EINVAL, "BACKEND_CONTROL: failed to parse addr: %s, port: %d, family: %d", saddr, port, family);
+		if (sess.get_exceptions_policy() & session::throw_at_start) {
+			error.throw_error();
+		} else {
+			async_backend_control_result result(sess);
+			async_result_handler<callback_result_entry> handler(result);
+			handler.complete(error);
+			return result;
+		}
+	}
+
+	return update_backend_status(sess, addr, backend_id, flags);
+}
+
 async_backend_control_result session::enable_backend(const char *addr, int port, int family, uint32_t backend_id)
 {
 	return update_backend_status(*this, addr, port, family, backend_id, 0);
+}
+
+async_backend_control_result session::enable_backend(const dnet_addr &addr, uint32_t backend_id)
+{
+	return update_backend_status(*this, addr, backend_id, 0);
 }
 
 async_backend_control_result session::disable_backend(const char *addr, int port, int family, uint32_t backend_id)
@@ -1547,29 +1558,41 @@ async_backend_control_result session::disable_backend(const char *addr, int port
 	return update_backend_status(*this, addr, port, family, backend_id, DNET_BACKEND_DISABLE);
 }
 
+async_backend_control_result session::disable_backend(const dnet_addr &addr, uint32_t backend_id)
+{
+	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_DISABLE);
+}
+
 async_backend_status_result session::request_backends_status(const char *saddr, int port, int family)
 {
-	async_backend_status_result result(*this);
 	dnet_addr addr;
-	net_state_ptr state;
-
 	int err = parse_addr(&addr, saddr, port, family);
-	error_info error;
 	if (err) {
-		error = create_error(-EINVAL, "BACKEND_CONTROL: failed to parse addr: %s, port: %d, family: %d", saddr, port, family);
-	}
-
-	if (!err) {
-		state = net_state_ptr(dnet_state_search_by_addr(get_native_node(), &addr));
-		if (!state) {
-			error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s, port: %d, family: %d", saddr, port, family);
-		}
-	}
-
-	if (error) {
+		error_info error = create_error(-EINVAL, "BACKEND_CONTROL: failed to parse addr: %s, port: %d, family: %d", saddr, port, family);
 		if (get_exceptions_policy() & throw_at_start) {
 			error.throw_error();
 		} else {
+			async_backend_status_result result(*this);
+			async_result_handler<backend_status_result_entry> handler(result);
+			handler.complete(error);
+			return result;
+		}
+	}
+
+	return request_backends_status(addr);
+}
+
+async_backend_status_result session::request_backends_status(const dnet_addr &addr)
+{
+	async_backend_status_result result(*this);
+
+	net_state_ptr state = net_state_ptr(dnet_state_search_by_addr(get_native_node(), &addr));
+	if (!state) {
+		error_info error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s", dnet_server_convert_dnet_addr(&addr));
+		if (get_exceptions_policy() & throw_at_start) {
+			error.throw_error();
+		} else {
+			async_backend_status_result result(*this);
 			async_result_handler<backend_status_result_entry> handler(result);
 			handler.complete(error);
 			return result;

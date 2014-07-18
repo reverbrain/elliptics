@@ -521,7 +521,7 @@ static bool is_bindable(int port)
 	addr.addr_len = sizeof(addr.addr);
 	addr.family = family;
 
-	int err = dnet_fill_addr(&addr, "localhost", port, SOCK_STREAM, IPPROTO_TCP);
+	int err = dnet_fill_addr(&addr, "127.0.0.1", port, SOCK_STREAM, IPPROTO_TCP);
 
 	if (err) {
 		::close(s);
@@ -609,7 +609,7 @@ static std::vector<std::string> generate_ports(size_t count, std::set<std::strin
 
 static std::string create_remote(const std::string &port)
 {
-	return "localhost:" + port + ":2";
+	return "127.0.0.1:" + port + ":2";
 }
 
 typedef std::map<std::string, std::string> substitute_context;
@@ -695,7 +695,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 	for (size_t j = 0; j < configs.size(); ++j) {
 		if (j > 0)
 			cocaine_remotes += ", ";
-		cocaine_remotes += "\"localhost:" + ports[j] + ":2\"";
+		cocaine_remotes += "\"127.0.0.1:" + ports[j] + ":2\"";
 		for (auto it = configs[j].backends.begin(); it != configs[j].backends.end(); ++it) {
 			const std::string group = it->string_value("group");
 			if (cocaine_unique_groups.insert(group).second) {
@@ -714,13 +714,19 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 
 	for (size_t i = 0; i < configs.size(); ++i) {
 		debug_stream << "Starting server #" << (i + 1) << std::endl;
+		server_config config = configs[i];
 
 		const std::string server_suffix = "/server-" + boost::lexical_cast<std::string>(i + 1);
 		const std::string server_path = base_path + server_suffix;
 
 		create_directory(server_path);
-		create_directory(server_path + "/blob");
-		create_directory(server_path + "/history");
+
+		for (size_t i = 0; i < config.backends.size(); ++i) {
+			std::string prefix = server_path + "/" + boost::lexical_cast<std::string>(i);
+			create_directory(prefix);
+			create_directory(prefix + "/history");
+			create_directory(prefix + "/blob");
+		}
 
 		std::vector<std::string> remotes;
 		for (size_t j = 0; j < configs.size(); ++j) {
@@ -730,7 +736,6 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 			remotes.push_back(create_remote(ports[j]));
 		}
 
-		server_config config = configs[i];
 		if (!remotes.empty())
 			config.options("remote", remotes);
 
@@ -770,10 +775,13 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 				("monitor_port", boost::lexical_cast<int>(monitor_ports[i]))
 				;
 
-		config.backends[0]
-				("history", server_path + "/history")
-				("data", server_path + "/blob/data")
-				;
+		for (size_t i = 0; i < config.backends.size(); ++i) {
+			std::string prefix = server_path + "/" + boost::lexical_cast<std::string>(i);
+			config.backends[i]
+					("history", prefix + "/history")
+					("data", prefix + "/blob")
+					;
+		}
 
 		config.write(server_path + "/ioserv.conf");
 

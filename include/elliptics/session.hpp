@@ -617,8 +617,11 @@ class session
 		void			update_status(const key &id, dnet_node_status *status);
 
 		async_backend_control_result enable_backend(const char *addr, int port, int family, uint32_t backend_id);
+		async_backend_control_result enable_backend(const dnet_addr &addr, uint32_t backend_id);
 		async_backend_control_result disable_backend(const char *addr, int port, int family, uint32_t backend_id);
+		async_backend_control_result disable_backend(const dnet_addr &addr, uint32_t backend_id);
 		async_backend_status_result request_backends_status(const char *addr, int port, int family);
+		async_backend_status_result request_backends_status(const dnet_addr &addr);
 
 		/*!
 		 * Reads data in range specified in \a io at group \a group_id.

@@ -289,6 +289,8 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 	}
 
 	dnet_backend_io *backend_io = node->io ? &node->io->backends[backend_id] : NULL;
+	if (backend_io)
+		backend_io->need_exit = 1;
 
 	if (node->route)
 		dnet_route_list_disable_backend(node->route, backend_id);
@@ -365,26 +367,18 @@ int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 
 int dnet_cmd_backend_status(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
-	(void) cmd;
 	(void) data;
 	dnet_node *node = st->n;
 
 	const auto &backends = node->config_data->backends->backends;
-	const size_t total_size = sizeof(dnet_cmd) + sizeof(dnet_backend_status_list) + backends.size() * sizeof(dnet_backend_status);
+	const size_t total_size = sizeof(dnet_backend_status_list) + backends.size() * sizeof(dnet_backend_status);
 
-	std::unique_ptr<dnet_cmd, free_destroyer> result_cmd(reinterpret_cast<dnet_cmd *>(malloc(total_size)));
-	if (!result_cmd) {
+	std::unique_ptr<dnet_backend_status_list, free_destroyer> list(reinterpret_cast<dnet_backend_status_list *>(malloc(total_size)));
+	if (!list) {
 		return -ENOMEM;
 	}
-	memset(result_cmd.get(), 0, total_size);
+	memset(list.get(), 0, total_size);
 
-	memcpy(&result_cmd->id, &cmd->id, sizeof(struct dnet_id));
-	result_cmd->size = total_size - sizeof(struct dnet_cmd);
-	result_cmd->cmd = cmd->cmd;
-	result_cmd->flags = cmd->flags & DNET_FLAGS_NOLOCK;
-	result_cmd->trans = cmd->trans | DNET_TRANS_REPLY;
-
-	dnet_backend_status_list *list = reinterpret_cast<dnet_backend_status_list *>(cmd + 1);
 	list->backends_count = backends.size();
 
 	for (size_t i = 0; i < backends.size(); ++i) {
@@ -394,10 +388,12 @@ int dnet_cmd_backend_status(struct dnet_net_state *st, struct dnet_cmd *cmd, voi
 		status.state = *backend.state;
 	}
 
-	int err = dnet_send(st, cmd, total_size);
+	cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 
-	if (err == 0) {
-		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+	int err = dnet_send_reply(st, cmd, list.get(), total_size, false);
+
+	if (err != 0) {
+		cmd->flags |= DNET_FLAGS_NEED_ACK;
 	}
 
 	return err;

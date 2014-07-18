@@ -57,6 +57,11 @@ private:
 
 	slru_cache_t(const slru_cache_t &) = delete;
 
+	bool need_exit() const
+	{
+		return dnet_need_exit(m_node) || m_backend->need_exit;
+	}
+
 	size_t get_next_page_number(size_t page_number) const {
 		if (page_number == 0) {
 			return 0;

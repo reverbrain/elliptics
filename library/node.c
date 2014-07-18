@@ -441,7 +441,7 @@ static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, const str
 	return dnet_state_get(sid->idc->st);
 }
 
-struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr)
+struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, const struct dnet_addr *addr)
 {
 	struct dnet_net_state *st, *found = NULL;
 	struct dnet_idc *idc;

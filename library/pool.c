@@ -951,7 +951,7 @@ static void *dnet_io_process(void *data_)
 	dnet_log(n, DNET_LOG_NOTICE, "started io thread: %d, nonblocking: %d",
 		wio->thread_index, pool->mode == DNET_WORK_IO_MODE_NONBLOCKING);
 
-	while (!n->need_exit) {
+	while (!n->need_exit && (!pool->io || !pool->io->need_exit)) {
 		r = NULL;
 		err = 0;
 
@@ -1200,8 +1200,10 @@ void dnet_io_exit(struct dnet_node *n)
 
 	for (j = 0; j < n->io->backends_count; ++j) {
 		struct dnet_backend_io *io = &n->io->backends[j];
-		dnet_work_pool_cleanup(&io->pool.recv_pool);
-		dnet_work_pool_cleanup(&io->pool.recv_pool_nb);
+		if (io->pool.recv_pool.pool)
+			dnet_work_pool_cleanup(&io->pool.recv_pool);
+		if (io->pool.recv_pool_nb.pool)
+			dnet_work_pool_cleanup(&io->pool.recv_pool_nb);
 		dnet_work_pool_place_cleanup(&io->pool.recv_pool_nb);
 		dnet_work_pool_place_cleanup(&io->pool.recv_pool);
 	}

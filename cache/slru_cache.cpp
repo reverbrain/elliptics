@@ -684,7 +684,7 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 
 void slru_cache_t::life_check(void) {
 
-	while (!dnet_need_exit(m_node)) {
+	while (!need_exit()) {
 		if (m_node->monitor) {
 			react_activate(m_node->react_aggregator);
 		}
@@ -703,7 +703,7 @@ void slru_cache_t::life_check(void) {
 				react_stop_action(ACTION_CACHE_LOCK);
 
 				react_start_action(ACTION_CACHE_PREPARE_SYNC);
-				while (!dnet_need_exit(m_node) && !m_treap.empty()) {
+				while (!need_exit() && !m_treap.empty()) {
 					size_t time = ::time(NULL);
 					last_time = time;
 
