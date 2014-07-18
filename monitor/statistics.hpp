@@ -366,6 +366,7 @@ public:
 	 * external statistics provider
 	 */
 	void add_provider(stat_provider *stat, const std::string &name);
+	void remove_provider(const std::string &name);
 private:
 	/*!
 	 * \internal

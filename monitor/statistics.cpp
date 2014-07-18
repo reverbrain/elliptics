@@ -122,6 +122,24 @@ void statistics::add_provider(stat_provider *stat, const std::string &name) {
 	m_stat_providers.emplace_back(std::unique_ptr<stat_provider>(stat), name);
 }
 
+struct provider_remover_condition
+{
+	std::string name;
+
+	bool operator() (const std::pair<std::unique_ptr<stat_provider>, std::string> &pair)
+	{
+		return pair.second == name;
+	}
+};
+
+void statistics::remove_provider(const std::string &name) {
+	provider_remover_condition condition = { name };
+
+	std::unique_lock<std::mutex> guard(m_provider_mutex);
+	auto it = std::remove_if(m_stat_providers.begin(), m_stat_providers.end(), condition);
+	m_stat_providers.erase(it, m_stat_providers.end());
+}
+
 inline std::string convert_report(const rapidjson::Document &report) {
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);

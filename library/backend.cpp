@@ -1,7 +1,7 @@
 #include <memory>
 #include <fcntl.h>
 #include "elliptics.h"
-#include "../monitor/monitor.h"
+#include "../monitor/monitor.hpp"
 
 static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned long long storage_free)
 {
@@ -131,40 +131,45 @@ err_out_exit:
 	return NULL;
 }
 
-static const char* dnet_backend_stat_json(void *priv)
-{
-	struct dnet_backend_callbacks* cb = (struct dnet_backend_callbacks*) priv;
+class backend_stat_provider : public ioremap::monitor::stat_provider {
+public:
+	backend_stat_provider(const dnet_backend_io &backend_io)
+	: m_backend_io(backend_io)
+	{}
 
-	char* json_stat;
-	size_t size;
+	static std::string name(uint64_t backend_id)
+	{
+		return "backend_%zu" + std::to_string(backend_id);
+	}
 
-	cb->storage_stat_json(cb->command_private, &json_stat, &size);
-	return json_stat;
-}
+	virtual std::string json() const {
+		char *json_stat = NULL;
+		size_t size = 0;
+		m_backend_io.cb->storage_stat_json(m_backend_io.cb, &json_stat, &size);
+		return std::string(json_stat, size);
+	}
 
-static void dnet_backend_stat_stop(void *priv)
-{
-	(void) priv;
-}
+	virtual bool check_category(int category) const {
+		return category == DNET_MONITOR_BACKEND || category == DNET_MONITOR_ALL;
+	}
 
-static int dnet_backend_stat_check_category(void *priv, int category)
-{
-	(void) priv;
-	return category == DNET_MONITOR_BACKEND || category == DNET_MONITOR_ALL;
-}
+private:
+	const dnet_backend_io &m_backend_io;
+};
 
 static int dnet_backend_stat_provider_init(struct dnet_backend_io *backend, struct dnet_node *n)
 {
-	char provider_name[128];
-	sprintf(provider_name, "backend_%zu", backend->backend_id);
-
-	struct stat_provider_raw stat_provider;
-	stat_provider.stat_private = backend->cb;
-	stat_provider.json = &dnet_backend_stat_json;
-	stat_provider.stop = &dnet_backend_stat_stop;
-	stat_provider.check_category = &dnet_backend_stat_check_category;
-	dnet_monitor_add_provider(n, stat_provider, provider_name);
+	try {
+		ioremap::monitor::add_provider(n, new backend_stat_provider(*backend), backend_stat_provider::name(backend->backend_id));
+	} catch (...) {
+		return -ENOMEM;
+	}
 	return 0;
+}
+
+static void dnet_backend_stat_provider_cleanup(struct dnet_backend_io *backend, struct dnet_node *n)
+{
+	ioremap::monitor::remove_provider(n, backend_stat_provider::name(backend->backend_id));
 }
 
 int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state)
@@ -253,6 +258,7 @@ err_out_backend_io_cleanup:
 	dnet_backend_io_cleanup(node, backend_io);
 	node->io->backends[backend_id].cb = NULL;
 err_out_stat_destroy:
+	dnet_backend_stat_provider_cleanup(backend_io, node);
 err_out_cache_cleanup:
 	dnet_cache_cleanup(backend_io);
 	backend.cache = NULL;
@@ -285,6 +291,9 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 
 	if (node->route)
 		dnet_route_list_disable_backend(node->route, backend_id);
+
+	dnet_backend_stat_provider_cleanup(backend_io, node);
+
 	if (backend_io)
 		dnet_backend_io_cleanup(node, backend_io);
 

@@ -49,11 +49,13 @@ private:
 	const cache_manager	&m_manager;
 };
 
-cache_manager::cache_manager(dnet_backend_io *backend, struct dnet_node *n) {
+cache_manager::cache_manager(dnet_backend_io *backend, struct dnet_node *n) : m_node(n) {
 	size_t caches_number = n->caches_number;
 	m_cache_pages_number = n->cache_pages_number;
 	m_max_cache_size = n->cache_size;
 	size_t max_size = m_max_cache_size / caches_number;
+
+	m_backend_id = backend->backend_id;
 
 	size_t proportionsSum = 0;
 	for (size_t i = 0; i < m_cache_pages_number; ++i) {
@@ -69,10 +71,11 @@ cache_manager::cache_manager(dnet_backend_io *backend, struct dnet_node *n) {
 		m_caches.emplace_back(std::make_shared<slru_cache_t>(backend, n, pages_max_sizes));
 	}
 
-	ioremap::monitor::dnet_monitor_add_provider(n, new cache_stat_provider(*this), "cache");
+	ioremap::monitor::add_provider(m_node, new cache_stat_provider(*this), "cache_" + std::to_string(m_backend_id));
 }
 
 cache_manager::~cache_manager() {
+	ioremap::monitor::remove_provider(m_node, "cache_" + std::to_string(m_backend_id));
 }
 
 int cache_manager::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {

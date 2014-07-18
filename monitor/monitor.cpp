@@ -37,7 +37,7 @@ void monitor::stop() {
 	m_server.stop();
 }
 
-void dnet_monitor_add_provider(struct dnet_node *n, stat_provider *provider, const char *name) {
+void add_provider(struct dnet_node *n, stat_provider *provider, const std::string &name) {
 	if (!n->monitor) {
 		delete provider;
 		return;
@@ -48,6 +48,17 @@ void dnet_monitor_add_provider(struct dnet_node *n, stat_provider *provider, con
 		real_monitor->get_statistics().add_provider(provider, name);
 	else
 		delete provider;
+}
+
+void remove_provider(dnet_node *n, const std::string &name)
+{
+	if (!n->monitor) {
+		return;
+	}
+
+	auto real_monitor = static_cast<monitor*>(n->monitor);
+	if (real_monitor)
+		real_monitor->get_statistics().remove_provider(name);
 }
 
 }} /* namespace ioremap::monitor */

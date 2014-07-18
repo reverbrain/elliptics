@@ -57,7 +57,8 @@ private:
 	statistics	m_statistics;
 };
 
-void dnet_monitor_add_provider(struct dnet_node *n, stat_provider *provider, const char *name);
+void add_provider(struct dnet_node *n, stat_provider *provider, const std::string &name);
+void remove_provider(struct dnet_node *n, const std::string &name);
 
 }} /* namespace ioremap::monitor */
 

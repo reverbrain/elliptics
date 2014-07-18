@@ -382,6 +382,8 @@ class cache_manager {
 		std::string stat_json() const;
 
 	private:
+		dnet_node *m_node;
+		uint64_t m_backend_id;
 		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
 		size_t m_max_cache_size;
 		size_t m_cache_pages_number;
