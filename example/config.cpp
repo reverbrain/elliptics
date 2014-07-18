@@ -801,6 +801,7 @@ void parse_backends(config_data *data, const config &backends)
 
 		info->group = backend.at<int>("group");
 		info->history = backend.at<std::string>("history");
+		info->enable_at_start = backend.at<bool>("enable", true);
 		info->cache = NULL;
 
 		for (int i = 0; i < info->config.num; ++i) {

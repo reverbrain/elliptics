@@ -315,6 +315,10 @@ int dnet_backend_init_all(struct dnet_node *node)
 
 	auto &backends = node->config_data->backends->backends;
 	for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
+		dnet_backend_info &backend = node->config_data->backends->backends[backend_id];
+		if (!backend.enable_at_start)
+			continue;
+
 		int tmp = dnet_backend_init(node, backend_id, &state);
 		if (!tmp)
 			err = 0;

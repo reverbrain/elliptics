@@ -24,7 +24,7 @@ struct dnet_backend_config_entry
 
 struct dnet_backend_info
 {
-	dnet_backend_info() : log(NULL), group(0), cache(NULL), state(new std::atomic_uint(DNET_BACKEND_DISABLED))
+	dnet_backend_info() : log(NULL), group(0), cache(NULL), enable_at_start(true), state(new std::atomic_uint(DNET_BACKEND_DISABLED))
 	{
 	}
 
@@ -34,6 +34,7 @@ struct dnet_backend_info
 	int group;
 	void *cache;
 	std::string history;
+	bool enable_at_start;
 	std::unique_ptr<std::atomic_uint> state;
 
 	dnet_config_backend config;
