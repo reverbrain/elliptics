@@ -161,10 +161,19 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 {
 	react::action_guard monitor_process_cmd_guard(ACTION_DNET_MONITOR_PROCESS_CMD);
 
+	if (cmd->size != sizeof(dnet_monitor_stat_request)) {
+		dnet_log(orig->n, DNET_LOG_DEBUG, "%s: %s: process MONITOR_STAT, invalid size: %llu",
+			dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), static_cast<unsigned long long>(cmd->size));
+		return -EINVAL;
+	}
+
 	struct dnet_node *n = orig->n;
 	struct dnet_monitor_stat_request *req = static_cast<struct dnet_monitor_stat_request *>(data);
 	dnet_convert_monitor_stat_request(req);
 	static const std::string disabled_reply = "{\"monitor_status\":\"disabled\"}";
+
+	dnet_log(orig->n, DNET_LOG_DEBUG, "%s: %s: process MONITOR_STAT, category: %d, monitor: %p",
+		dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), req->category, n->monitor);
 
 	if ((req->category >= __DNET_MONITOR_MAX) || (req->category < 0)) {
 		static const std::string rep = "{\"monitor_status\":\"invalid category\"}";

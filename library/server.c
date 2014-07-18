@@ -192,6 +192,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 
 	dnet_srw_cleanup(n);
 err_out_backends_cleanup:
+	dnet_set_need_exit(n);
 	dnet_backend_cleanup_all(n);
 err_out_state_destroy:
 	dnet_state_put(n->st);

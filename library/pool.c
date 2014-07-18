@@ -248,6 +248,7 @@ static void *dnet_io_process(void *data_);
 static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 {
 	struct dnet_work_pool_place *place = NULL;
+	struct dnet_work_pool_place *backend_place = NULL;
 	struct dnet_work_pool *pool = NULL;
 	struct dnet_io_pool *io_pool = &n->io->pool;
 	struct dnet_cmd *cmd = r->header;
@@ -290,9 +291,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 		}
 	}
 
-	dnet_log(n, DNET_LOG_DEBUG, "%s: %s: backend_id: %zd, pool: %p, pool->backend_id: %zd",
-		dnet_state_dump_addr(r->st), dnet_dump_id(r->header), backend_id, place,
-		place && place->pool->io ? (ssize_t)place->pool->io->backend_id : (ssize_t)-1);
+	backend_place = place;
 
 	if (place == NULL) {
 		if (nonblocking) {
@@ -303,6 +302,10 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 
 		pthread_mutex_lock(&place->lock);
 	}
+
+	dnet_log(n, DNET_LOG_DEBUG, "%s: %s: backend_id: %zd, place: %p, backend_place: %p, backend_place->pool->backend_id: %zd",
+		dnet_state_dump_addr(r->st), dnet_dump_id(r->header), backend_id, place, backend_place,
+		backend_place && backend_place->pool->io ? (ssize_t)backend_place->pool->io->backend_id : (ssize_t)-1);
 
 	pool = place->pool;
 
@@ -945,7 +948,8 @@ static void *dnet_io_process(void *data_)
 
 	dnet_set_name("io_pool");
 
-	dnet_log(n, DNET_LOG_NOTICE, "started io pool");
+	dnet_log(n, DNET_LOG_NOTICE, "started io thread: %d, nonblocking: %d",
+		wio->thread_index, pool->mode == DNET_WORK_IO_MODE_NONBLOCKING);
 
 	while (!n->need_exit) {
 		r = NULL;
@@ -1007,6 +1011,9 @@ static void *dnet_io_process(void *data_)
 		dnet_io_req_free(r);
 		dnet_state_put(st);
 	}
+
+	dnet_log(n, DNET_LOG_NOTICE, "finished io thread: %d, nonblocking: %d",
+		wio->thread_index, pool->mode == DNET_WORK_IO_MODE_NONBLOCKING);
 
 	return NULL;
 }

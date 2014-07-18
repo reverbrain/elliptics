@@ -133,19 +133,20 @@ err_out_exit:
 
 class backend_stat_provider : public ioremap::monitor::stat_provider {
 public:
-	backend_stat_provider(const dnet_backend_io &backend_io)
-	: m_backend_io(backend_io)
+	backend_stat_provider(const dnet_backend_io *backend_io)
+	: m_cb(backend_io->cb)
 	{}
 
 	static std::string name(uint64_t backend_id)
 	{
-		return "backend_%zu" + std::to_string(backend_id);
+		return "backend_" + std::to_string(backend_id);
 	}
 
 	virtual std::string json() const {
 		char *json_stat = NULL;
 		size_t size = 0;
-		m_backend_io.cb->storage_stat_json(m_backend_io.cb, &json_stat, &size);
+		if (m_cb->storage_stat_json)
+			m_cb->storage_stat_json(m_cb->command_private, &json_stat, &size);
 		return std::string(json_stat, size);
 	}
 
@@ -154,22 +155,22 @@ public:
 	}
 
 private:
-	const dnet_backend_io &m_backend_io;
+	const dnet_backend_callbacks *m_cb;
 };
 
 static int dnet_backend_stat_provider_init(struct dnet_backend_io *backend, struct dnet_node *n)
 {
 	try {
-		ioremap::monitor::add_provider(n, new backend_stat_provider(*backend), backend_stat_provider::name(backend->backend_id));
+		ioremap::monitor::add_provider(n, new backend_stat_provider(backend), backend_stat_provider::name(backend->backend_id));
 	} catch (...) {
 		return -ENOMEM;
 	}
 	return 0;
 }
 
-static void dnet_backend_stat_provider_cleanup(struct dnet_backend_io *backend, struct dnet_node *n)
+static void dnet_backend_stat_provider_cleanup(size_t backend_id, struct dnet_node *n)
 {
-	ioremap::monitor::remove_provider(n, backend_stat_provider::name(backend->backend_id));
+	ioremap::monitor::remove_provider(n, backend_stat_provider::name(backend_id));
 }
 
 int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state)
@@ -258,7 +259,7 @@ err_out_backend_io_cleanup:
 	dnet_backend_io_cleanup(node, backend_io);
 	node->io->backends[backend_id].cb = NULL;
 err_out_stat_destroy:
-	dnet_backend_stat_provider_cleanup(backend_io, node);
+	dnet_backend_stat_provider_cleanup(backend_id, node);
 err_out_cache_cleanup:
 	dnet_cache_cleanup(backend_io);
 	backend.cache = NULL;
@@ -292,7 +293,7 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 	if (node->route)
 		dnet_route_list_disable_backend(node->route, backend_id);
 
-	dnet_backend_stat_provider_cleanup(backend_io, node);
+	dnet_backend_stat_provider_cleanup(backend_id, node);
 
 	if (backend_io)
 		dnet_backend_io_cleanup(node, backend_io);
