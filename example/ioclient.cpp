@@ -289,40 +289,45 @@ int main(int argc, char *argv[])
 		s.set_namespace(ns, nsize);
 
 		if (defrag) {
-			if (defrag && single_node_stat && backend_id < 0) {
+			const bool request_status = !strcmp(defrag, "status");
+
+			if (!request_status && backend_id < 0) {
 				fprintf(stderr, "You must specify backend id (-b)\n");
 				return -EINVAL;
 			}
 
-			struct dnet_defrag_ctl ctl;
+			session sess = s.clone();
+			sess.set_exceptions_policy(session::no_exceptions);
 
-			memset(&ctl, 0, sizeof(struct dnet_defrag_ctl));
+			async_backend_status_result result;
+			if (request_status)
+				result = sess.request_backends_status(ra);
+			else
+				result = sess.start_defrag(ra, backend_id);
 
-			if (!strcmp(defrag, "status"))
-				ctl.flags = DNET_DEFRAG_FLAGS_STATUS;
+			result.wait();
 
-			err = dnet_start_defrag(s.get_native(), &ctl, backend_id);
+			if (result.error())
+				std::cout << "result: " << result.error().message() << std::endl;
 
-			std::string str_status("Ok");
-
-			if (err < 0) {
-				str_status = strerror(-err);
-			} else {
-				if (!strcmp(defrag, "status")) {
-					if (err > 0)
-						str_status = "defragmentation is in progress";
-					else
-						str_status = "defragmentation is not running";
-				} else {
-					if (err == 0)
-						str_status = "started successfully";
-					else if (err > 0)
-						str_status = "unknown positive status";
+			backend_status_result_entry entry = result.get_one();
+			if (entry.is_valid()) {
+				for (size_t i = 0; i < entry.count(); ++i) {
+					dnet_backend_status *status = entry.backend(i);
+					std::cout << "backend: " << status->backend_id << " at " << dnet_server_convert_dnet_addr(entry.address()) << std::endl;
+					std::cout << "backend state: " << dnet_backend_state_string(status->state) << std::endl;
+					std::cout << "defrag  state: " << dnet_backend_defrag_state_string(status->defrag_state) << std::endl;
+					if (dnet_time_is_empty(&status->last_start)) {
+						std::cout << "has never been started" << std::endl;
+					} else {
+						std::cout << "last start: " << dnet_print_time(&status->last_start) << ", err: " << status->last_start_err << std::endl;
+					}
 				}
+			} else {
+				std::cout << "status results are missed" << std::endl;
 			}
 
-			fprintf(stdout, "DEFRAG: %s: %s [%d]\n", defrag, str_status.c_str(), err);
-			return err;
+			return result.error().code();
 		}
 
 		if (writef)

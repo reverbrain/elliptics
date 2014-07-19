@@ -786,40 +786,16 @@ int blob_defrag_status(void *priv)
 
 int blob_defrag_start(void *priv)
 {
-	struct eblob_backend_config *c = priv;
-
-	return eblob_start_defrag(c->eblob);
-}
-
-static int blob_start_defrag(struct eblob_backend_config *c, struct dnet_cmd *cmd, void *data)
-{
 	react_start_action(ACTION_BACKEND_EBLOB_START_DEFRAG);
 
-	struct dnet_defrag_ctl *ctl = data;
-	int err;
+	struct eblob_backend_config *c = priv;
 
-	if (cmd->size != sizeof(struct dnet_defrag_ctl)) {
-		err = -EPROTO;
-		dnet_backend_log(c->blog, DNET_LOG_ERROR, "DEFRAG: invalid defragmetation request: cmd-size: %llu, must-be: %zu\n",
-				(unsigned long long)cmd->size, sizeof(struct dnet_defrag_ctl));
-		goto err_out_exit;
-	}
+	int err = eblob_start_defrag(c->eblob);
 
-	dnet_convert_defrag_ctl(ctl);
+	dnet_backend_log(c->blog, DNET_LOG_INFO, "DEFRAG: defragmetation request: status: %d\n", err);
 
-	if (ctl->flags & DNET_DEFRAG_FLAGS_STATUS) {
-		ctl->status = eblob_defrag_status(c->eblob);
-	} else {
-		ctl->status = eblob_start_defrag(c->eblob);
-	}
-
-	dnet_backend_log(c->blog, DNET_LOG_INFO, "DEFRAG: defragmetation request: flags: 0x%llx, status: %d\n",
-			(unsigned long long)ctl->flags, ctl->status);
-
-	err = ctl->status;
-
-err_out_exit:
 	react_stop_action(ACTION_BACKEND_EBLOB_START_DEFRAG);
+
 	return err;
 }
 
@@ -865,9 +841,6 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 			break;
 		case DNET_CMD_DEL:
 			err = blob_del(c, cmd);
-			break;
-		case DNET_CMD_DEFRAG:
-			err = blob_start_defrag(c, cmd, data);
 			break;
 		default:
 			err = -ENOTSUP;

@@ -984,6 +984,8 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp);
 
 char * __attribute__((weak)) dnet_cmd_string(int cmd);
 char *dnet_counter_string(int cntr, int cmd_num);
+const char *dnet_backend_state_string(uint32_t state);
+const char *dnet_backend_defrag_state_string(uint32_t state);
 
 int dnet_checksum_file(struct dnet_node *n, const char *file, uint64_t offset, uint64_t size, void *csum, int csize);
 int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size, void *csum, int csize);
@@ -1021,8 +1023,6 @@ void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)
 
 #define DNET_CONF_ADDR_DELIM	':'
 int dnet_parse_addr(char *addr, int *portp, int *familyp);
-
-int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl, int backend_id);
 
 int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, int remote_family);
 

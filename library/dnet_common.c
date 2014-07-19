@@ -148,7 +148,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_DEL_RANGE] = "DEL_RANGE",
 	[DNET_CMD_AUTH] = "AUTH",
 	[DNET_CMD_BULK_READ] = "BULK_READ",
-	[DNET_CMD_DEFRAG] = "DEFRAG",
+	[DNET_CMD_DEFRAG_DEPRECATED] = "DEFRAG_DEPRECATED",
 	[DNET_CMD_ITERATOR] = "ITERATOR",
 	[DNET_CMD_INDEXES_UPDATE] = "INDEXES_UPDATE",
 	[DNET_CMD_INDEXES_INTERNAL] = "INDEXES_INTERNAL",
@@ -211,6 +211,34 @@ char *dnet_counter_string(int cntr, int cmd_num)
 
 	cntr += DNET_CNTR_LA1 - cmd_num * 2;
 	return dnet_counter_strings[cntr];
+}
+
+const char *dnet_backend_state_string(uint32_t state)
+{
+	switch ((enum dnet_backend_state)state) {
+		case DNET_BACKEND_ENABLED:
+			return "enabled";
+		case DNET_BACKEND_DISABLED:
+			return "disabled";
+		case DNET_BACKEND_ACTIVATING:
+			return "activating";
+		case DNET_BACKEND_DEACTIVATING:
+			return "deactivating";
+		default:
+			return "unknown";
+	}
+}
+
+const char *dnet_backend_defrag_state_string(uint32_t state)
+{
+	switch ((enum dnet_backend_defrag_state)state) {
+		case DNET_BACKEND_DEFRAG_IN_PROGRESS:
+			return "in-progress";
+		case DNET_BACKEND_DEFRAG_NOT_STARTED:
+			return "not-started";
+		default:
+			return "unknown";
+	}
 }
 
 int dnet_copy_addrs(struct dnet_net_state *nst, struct dnet_addr *addrs, int addr_num)
@@ -2118,84 +2146,6 @@ err_out_free:
 int dnet_flags(struct dnet_node *n)
 {
 	return n->flags;
-}
-
-static int dnet_start_defrag_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
-{
-	struct dnet_wait *w = priv;
-
-	if (is_trans_destroyed(state, cmd)) {
-		dnet_wakeup(w, w->cond++);
-		if (cmd)
-			w->status = cmd->status;
-		dnet_wait_put(w);
-		return 0;
-	}
-
-	return 0;
-}
-
-static int dnet_start_defrag_single(struct dnet_session *s, struct dnet_idc *idc, void *priv, uint64_t cflags, struct dnet_defrag_ctl *dctl)
-{
-	struct dnet_trans_control ctl;
-	struct dnet_net_state *st = idc->st;
-
-	memset(&ctl, 0, sizeof(struct dnet_trans_control));
-
-	dnet_setup_id(&ctl.id, idc->group->group_id, idc->ids[0].raw.id);
-	ctl.cmd = DNET_CMD_DEFRAG;
-	ctl.complete = dnet_start_defrag_complete;
-	ctl.priv = priv;
-	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
-	ctl.data = dctl;
-	ctl.size = sizeof(struct dnet_defrag_ctl);
-
-	return dnet_trans_alloc_send_state(s, st, &ctl);
-}
-
-int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl, int backend_id)
-{
-	struct dnet_node *n = s->node;
-	struct dnet_net_state *st;
-	struct dnet_wait *w;
-	struct dnet_idc *idc;
-	int num = 0;
-	int err;
-
-	w = dnet_wait_alloc(0);
-	if (!w) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	dnet_convert_defrag_ctl(ctl);
-
-	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(st, &n->dht_state_list, node_entry) {
-		list_for_each_entry(idc, &st->idc_list, state_entry) {
-			st = idc->st;
-			if (st == n->st || (backend_id >= 0 && idc->backend_id != backend_id))
-				continue;
-
-			dnet_wait_get(w);
-
-			dnet_start_defrag_single(s, idc, w, dnet_session_get_cflags(s), ctl);
-			num++;
-		}
-	}
-	pthread_mutex_unlock(&n->state_lock);
-
-	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
-	if (!err)
-		err = w->status;
-
-	dnet_wait_put(w);
-
-err_out_exit:
-	if (err < 0) {
-		dnet_log(n, DNET_LOG_ERROR, "Defragmentation didn't start: %s [%d]\n", strerror(-err), err);
-	}
-	return err;
 }
 
 /*!

@@ -61,7 +61,7 @@ enum dnet_commands {
 	DNET_CMD_DEL_RANGE,			/* Remove range of objects */
 	DNET_CMD_AUTH,				/* Authentification cookie check */
 	DNET_CMD_BULK_READ,			/* Read a number of ids at one time */
-	DNET_CMD_DEFRAG,			/* Start defragmentation process if backend supports it */
+	DNET_CMD_DEFRAG_DEPRECATED,			/* Start defragmentation process if backend supports it. Deprecated and forbidden */
 	DNET_CMD_ITERATOR,			/* Start/stop/pause/status for server-side iterator */
 	DNET_CMD_INDEXES_UPDATE,		/* Update secondary indexes for id */
 	DNET_CMD_INDEXES_INTERNAL,		/* Update identificators table for certain secondary index. Internal usage only */
@@ -138,7 +138,7 @@ enum dnet_backend_state {
 
 enum dnet_backend_defrag_state {
 	DNET_BACKEND_DEFRAG_NOT_STARTED,
-	DNET_BACKEND_DEFRAG_STARTED,
+	DNET_BACKEND_DEFRAG_IN_PROGRESS,
 };
 
 /*
