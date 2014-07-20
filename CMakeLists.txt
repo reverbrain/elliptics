@@ -148,6 +148,7 @@ install(FILES
         include/elliptics/error.hpp
         include/elliptics/result_entry.hpp
         include/elliptics/session.hpp
+        include/elliptics/timer.hpp
         include/elliptics/utils.hpp
         include/elliptics/backends.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h
