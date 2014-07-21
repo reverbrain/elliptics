@@ -966,14 +966,6 @@ static int dnet_blob_set_defrag_percentage(struct dnet_config_backend *b, char *
 	return 0;
 }
 
-static int dnet_blob_set_iterate_thread_num(struct dnet_config_backend *b, char *key __unused, char *value)
-{
-	struct eblob_backend_config *c = b->data;
-
-	c->data.iterate_threads = strtoul(value, NULL, 0);
-	return 0;
-}
-
 static int dnet_blob_set_blob_flags(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct eblob_backend_config *c = b->data;
@@ -1119,7 +1111,6 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"sync", dnet_blob_set_sync},
 	{"data", dnet_blob_set_data},
 	{"blob_flags", dnet_blob_set_blob_flags},
-	{"iterate_thread_num", dnet_blob_set_iterate_thread_num},
 	{"blob_size", dnet_blob_set_blob_size},
 	{"records_in_blob", dnet_blob_set_records_in_blob},
 	{"defrag_timeout", dnet_blob_set_defrag_timeout},
