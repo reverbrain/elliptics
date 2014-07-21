@@ -94,9 +94,7 @@ static void test_enable_at_start(session &sess)
 			for (size_t j = 0; j < backends.size(); ++j) {
 				size_t node_id = group_id * nodes_count + i;
 				server_node &node = global_data->nodes[node_id];
-				std::string host = node.remote();
-				// Remove family
-				host.resize(host.size() - 2);
+				std::string host = node.remote().to_string();
 
 				auto tuple = std::make_tuple(host, group_id, backends[j]);
 
@@ -111,9 +109,7 @@ static void test_enable_backend(session &sess)
 {
 	server_node &node = global_data->nodes[0];
 
-	std::string host = node.remote();
-	// Remove family
-	host.resize(host.size() - 2);
+	std::string host = node.remote().to_string();
 	auto tuple = std::make_tuple(host, 0, 1);
 
 	auto unique_hosts = get_unique_hosts(sess);
@@ -122,6 +118,9 @@ static void test_enable_backend(session &sess)
 		"Host must not exist: " + host + ", group: 0, backend: 1");
 
 	ELLIPTICS_REQUIRE(enable_result, sess.enable_backend(node.get_native()->addrs[0], 1));
+
+	// Wait 0.5 secs to ensure that route list was changed
+	usleep(500 * 1000);
 
 	unique_hosts = get_unique_hosts(sess);
 
@@ -164,9 +163,7 @@ static void test_disable_backend(session &sess)
 {
 	server_node &node = global_data->nodes[0];
 
-	std::string host = node.remote();
-	// Remove family
-	host.resize(host.size() - 2);
+	std::string host = node.remote().to_string();
 	auto tuple = std::make_tuple(host, 0, 1);
 
 	auto unique_hosts = get_unique_hosts(sess);
@@ -175,6 +172,9 @@ static void test_disable_backend(session &sess)
 		"Host must exist: " + host + ", group: 0, backend: 1");
 
 	ELLIPTICS_REQUIRE(enable_result, sess.disable_backend(node.get_native()->addrs[0], 1));
+
+	// Wait 0.5 secs to ensure that route list was changed
+	usleep(500 * 1000);
 
 	unique_hosts = get_unique_hosts(sess);
 

@@ -39,7 +39,7 @@ struct node_info
 		info.groups = groups;
 		info.path = data.directory.path();
 		for (auto it = data.nodes.begin(); it != data.nodes.end(); ++it)
-			info.remotes.push_back(it->remote());
+			info.remotes.push_back(it->remote().to_string_with_family());
 
 		return info;
 	}

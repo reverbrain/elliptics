@@ -234,8 +234,8 @@ static int run_servers(const rapidjson::Value &doc)
 			rapidjson::Value server;
 			server.SetObject();
 
-			rapidjson::Value remote(node.remote().c_str(), node.remote().size(), info.GetAllocator());
-			remote.SetString(node.remote().c_str(), info.GetAllocator());
+			rapidjson::Value remote;
+			remote.SetString(node.remote().to_string_with_family().c_str(), info.GetAllocator());
 			server.AddMember("remote", remote, info.GetAllocator());
 
 			rapidjson::Value monitor_port;

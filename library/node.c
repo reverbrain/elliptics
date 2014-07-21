@@ -316,8 +316,8 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	if (n->log->log_level >= DNET_LOG_DEBUG) {
 		for (i=0; i<g->id_num; ++i) {
 			struct dnet_state_id *id = &g->ids[i];
-			dnet_log(n, DNET_LOG_DEBUG, "%d: %s -> %s\n", g->group_id,
-				dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st));
+			dnet_log(n, DNET_LOG_DEBUG, "dnet_idc_update: group: %d, id: %s -> host: %s, backend: %d\n",
+				g->group_id, dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st), id->idc->backend_id);
 		}
 	}
 

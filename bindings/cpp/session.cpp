@@ -1625,7 +1625,7 @@ static async_backend_control_result update_backend_status(session &sess, const a
 
 	transport_control control;
 	control.set_command(DNET_CMD_BACKEND_CONTROL);
-	control.set_cflags(DNET_FLAGS_NEED_ACK);
+	control.set_cflags(DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT);
 	control.set_data(&backend_control, sizeof(backend_control));
 
 	auto cb = createCallback<single_cmd_callback<backend_status_result_entry>>(sess, result, control);
@@ -1669,7 +1669,7 @@ async_backend_status_result session::request_backends_status(const address &addr
 
 	transport_control control;
 	control.set_command(DNET_CMD_BACKEND_STATUS);
-	control.set_cflags(DNET_FLAGS_NEED_ACK);
+	control.set_cflags(DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT);
 
 	auto cb = createCallback<single_cmd_callback<backend_status_result_entry>>(*this, result, control);
 	cb->state = std::move(state);

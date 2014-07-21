@@ -356,7 +356,7 @@ server_node::server_node() : m_node(NULL), m_monitor_port(0), m_fork(false), m_k
 {
 }
 
-server_node::server_node(const std::string &path, const std::string &remote, int monitor_port, bool fork)
+server_node::server_node(const std::string &path, const address &remote, int monitor_port, bool fork)
 	: m_node(NULL), m_path(path), m_remote(remote), m_monitor_port(monitor_port), m_fork(fork), m_kill_sent(false), m_pid(0)
 {
 }
@@ -488,7 +488,7 @@ bool server_node::is_stopped() const
 	return true;
 }
 
-std::string server_node::remote() const
+address server_node::remote() const
 {
 	return m_remote;
 }
@@ -853,7 +853,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 	try {
 		std::vector<std::string> remotes;
 		for (size_t i = 0; i < data->nodes.size(); ++i) {
-			remotes.push_back(data->nodes[i].remote());
+			remotes.push_back(data->nodes[i].remote().to_string_with_family());
 		}
 
 		start_client_nodes(data, debug_stream, remotes);
