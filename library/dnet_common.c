@@ -583,7 +583,10 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		goto err_out_free;
 	}
 
-	dnet_validate_id_container(id_container, size, backends);
+	err = dnet_validate_id_container(id_container, size, backends);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: failed to validate id container: %d", dnet_server_convert_dnet_addr(addr), err);
+	}
 
 	idx = -1;
 	for (i = 0; i < cnt->addr_num; ++i) {
