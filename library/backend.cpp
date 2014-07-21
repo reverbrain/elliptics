@@ -221,13 +221,13 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 	err = dnet_backend_io_init(node, backend_io);
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init io pool, err: %d", backend_id, err);
-		goto err_out_stat_destroy;
+		goto err_out_cache_cleanup;
 	}
 
 	err = dnet_backend_stat_provider_init(backend_io, node);
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init stat provider, err: %d", backend_id, err);
-		goto err_out_cache_cleanup;
+		goto err_out_backend_io_cleanup;
 	}
 
 	ids_num = 0;
@@ -237,7 +237,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to add backend to route list, err: %d", backend_id, err);
-		goto err_out_backend_io_cleanup;
+		goto err_out_stat_destroy;
 	}
 
 	dnet_log(node, DNET_LOG_INFO, "backend_init: backend: %zu, initialized", backend_id);
@@ -251,14 +251,18 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 	return 0;
 
 	dnet_route_list_disable_backend(node->route, backend_id);
-err_out_backend_io_cleanup:
-	dnet_backend_io_cleanup(node, backend_io);
-	node->io->backends[backend_id].cb = NULL;
 err_out_stat_destroy:
 	dnet_backend_stat_provider_cleanup(backend_id, node);
+err_out_backend_io_cleanup:
+	backend_io->need_exit = 1;
+	dnet_backend_io_cleanup(node, backend_io);
+	node->io->backends[backend_id].cb = NULL;
 err_out_cache_cleanup:
-	dnet_cache_cleanup(backend_io);
-	backend.cache = NULL;
+	if (backend.cache) {
+		dnet_cache_cleanup(backend.cache);
+		backend.cache = NULL;
+		backend_io->cache = NULL;
+	}
 err_out_backend_cleanup:
 	backend.config.cleanup(&backend.config);
 err_out_exit:

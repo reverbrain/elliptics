@@ -824,17 +824,23 @@ static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *c
 
 	if (cmd->size < sizeof(struct dnet_id_container)) {
 		err = -EINVAL;
+		dnet_log(st->n, DNET_LOG_ERROR, "failed to validate route-list container from state: %s, it's too small, err: %d",
+			dnet_state_dump_addr(st), err);
 		goto err_out_exit;
 	}
 
 	backends = malloc(container->backends_count * sizeof(struct dnet_backend_ids));
 	if (!backends) {
+		dnet_log(st->n, DNET_LOG_ERROR, "failed to allocate memory for container from state: %s, err: %d",
+			dnet_state_dump_addr(st), err);
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
 	err = dnet_validate_id_container(container, cmd->size, backends);
 	if (err) {
+		dnet_log(st->n, DNET_LOG_ERROR, "failed to validate route-list container from state: %s, err: %d",
+			dnet_state_dump_addr(st), err);
 		goto err_out_free;
 	}
 
@@ -843,6 +849,9 @@ static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *c
 		if (err) {
 			dnet_log(st->n, DNET_LOG_ERROR, "failed to update route-list for backend: %d from state: %s, err: %d",
 				backends[i]->backend_id, dnet_state_dump_addr(st), err);
+		} else {
+			dnet_log(st->n, DNET_LOG_NOTICE, "successfully to update route-list for backend: %d from state: %s",
+				backends[i]->backend_id, dnet_state_dump_addr(st));
 		}
 	}
 

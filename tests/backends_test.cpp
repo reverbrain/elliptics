@@ -31,7 +31,7 @@ static std::shared_ptr<nodes_data> global_data;
 
 static size_t groups_count = 2;
 static size_t nodes_count = 2;
-static size_t backends_count = 4;
+static size_t backends_count = 8;
 
 static void configure_nodes(const std::string &path)
 {
@@ -52,6 +52,7 @@ static void configure_nodes(const std::string &path)
 			server.backends.resize(backends_count, server.backends.front());
 
 			server.backends[0]("enable", true);
+			server.backends[3]("enable", true);
 			servers.push_back(server);
 		}
 	}
@@ -78,25 +79,30 @@ static std::set<std::tuple<std::string, int, int>> get_unique_hosts(session &ses
 static void test_enable_at_start(session &sess)
 {
 	auto unique_hosts = get_unique_hosts(sess);
+	std::vector<uint32_t> backends = {
+		0, 3
+	};
 
-	for (auto it = unique_hosts.begin(); it != unique_hosts.end(); ++it) {
-		std::cout << std::get<0>(*it) << " " << std::get<1>(*it) << " " << std::get<2>(*it) << std::endl;
-	}
+//	for (auto it = unique_hosts.begin(); it != unique_hosts.end(); ++it) {
+//		std::cout << std::get<0>(*it) << " " << std::get<1>(*it) << " " << std::get<2>(*it) << std::endl;
+//	}
 
-	BOOST_REQUIRE_EQUAL(unique_hosts.size(), groups_count * nodes_count);
+	BOOST_REQUIRE_EQUAL(unique_hosts.size(), groups_count * nodes_count * backends.size());
 
 	for (size_t group_id = 0; group_id < groups_count; ++group_id) {
 		for (size_t i = 0; i < nodes_count; ++i) {
-			size_t node_id = group_id * nodes_count + i;
-			server_node &node = global_data->nodes[node_id];
-			std::string host = node.remote();
-			// Remove family
-			host.resize(host.size() - 2);
+			for (size_t j = 0; j < backends.size(); ++j) {
+				size_t node_id = group_id * nodes_count + i;
+				server_node &node = global_data->nodes[node_id];
+				std::string host = node.remote();
+				// Remove family
+				host.resize(host.size() - 2);
 
-			auto tuple = std::make_tuple(host, group_id, 0);
+				auto tuple = std::make_tuple(host, group_id, backends[j]);
 
-			BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) != unique_hosts.end(),
-				"Host must exist: " + host + ", group: " + std::to_string(group_id) + ", backend: 0");
+				BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) != unique_hosts.end(),
+					"Host must exist: " + host + ", group: " + std::to_string(group_id) + ", backend: " + std::to_string(backends[j]));
+			}
 		}
 	}
 }
@@ -113,14 +119,14 @@ static void test_enable_backend(session &sess)
 	auto unique_hosts = get_unique_hosts(sess);
 
 	BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) == unique_hosts.end(),
-		"Host must not exist: " + host + ", group: 0, backend: 0");
+		"Host must not exist: " + host + ", group: 0, backend: 1");
 
 	ELLIPTICS_REQUIRE(enable_result, sess.enable_backend(node.get_native()->addrs[0], 1));
 
 	unique_hosts = get_unique_hosts(sess);
 
-	BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) == unique_hosts.end(),
-		"Host must exist: " + host + ", group: 0, backend: 0");
+	BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) != unique_hosts.end(),
+		"Host must exist: " + host + ", group: 0, backend: 1");
 }
 
 static void test_backend_status(session &sess)
@@ -139,7 +145,7 @@ static void test_backend_status(session &sess)
 	for (size_t i = 0; i < backends_count; ++i) {
 		dnet_backend_status *status = entry.backend(i);
 		BOOST_REQUIRE_EQUAL(status->backend_id, i);
-		if (i < 2) {
+		if (i < 2 || i == 3) {
 			BOOST_REQUIRE_EQUAL(status->state, DNET_BACKEND_ENABLED);
 		} else {
 			BOOST_REQUIRE_EQUAL(status->state, DNET_BACKEND_DISABLED);
@@ -165,15 +171,15 @@ static void test_disable_backend(session &sess)
 
 	auto unique_hosts = get_unique_hosts(sess);
 
-	BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) == unique_hosts.end(),
-		"Host must exist: " + host + ", group: 0, backend: 0");
+	BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) != unique_hosts.end(),
+		"Host must exist: " + host + ", group: 0, backend: 1");
 
 	ELLIPTICS_REQUIRE(enable_result, sess.disable_backend(node.get_native()->addrs[0], 1));
 
 	unique_hosts = get_unique_hosts(sess);
 
 	BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) == unique_hosts.end(),
-		"Host must not exist: " + host + ", group: 0, backend: 0");
+		"Host must not exist: " + host + ", group: 0, backend: 1");
 }
 
 static void test_disable_backend_again(session &sess)

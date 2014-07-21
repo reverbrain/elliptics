@@ -586,6 +586,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	err = dnet_validate_id_container(id_container, size, backends);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: failed to validate id container: %d", dnet_server_convert_dnet_addr(addr), err);
+		goto err_out_free_backends;
 	}
 
 	idx = -1;
@@ -2131,7 +2132,9 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries) {
 				entry->group_id = idc->group->group_id;
 				entry->backend_id = idc->backend_id;
 			}
-			dnet_log(n, DNET_LOG_INFO, "%s: %s\n", dnet_state_dump_addr(st), dnet_dump_id_str(idc->ids[0].raw.id));
+			dnet_log(n, DNET_LOG_INFO, "%s: %s, group: %d, backend: %d, idc: %p\n",
+				dnet_state_dump_addr(st), dnet_dump_id_str(idc->ids[0].raw.id),
+				idc->group->group_id, idc->backend_id, idc);
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);

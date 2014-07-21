@@ -308,6 +308,7 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	idc->id_num = id_num;
 	idc->st = st;
 	idc->group = g;
+	idc->backend_id = backend->backend_id;
 
 	list_add_tail(&idc->state_entry, &st->idc_list);
 	list_add_tail(&idc->group_entry, &g->idc_list);
@@ -325,8 +326,8 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 
-	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, total ids: %d, added ids: %d, received ids: %d, time-took: %ld usecs.\n",
-			g->group_id, g->id_num, num, id_num, diff);
+	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, total ids: %d, added ids: %d, received ids: %d, state: %s, backend: %d, idc: %p, time-took: %ld usecs.\n",
+			g->group_id, g->id_num, num, id_num, dnet_state_dump_addr(st), backend->backend_id, idc, diff);
 
 	dnet_state_set_server_prio(st);
 
@@ -340,7 +341,8 @@ err_out_unlock:
 err_out_exit:
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_ERROR, "Failed to initialized group %d with %d ids: err: %d: %ld usecs.\n", group_id, id_num, err, diff);
+	dnet_log(n, DNET_LOG_ERROR, "Failed to initialized group %d with %d ids, state: %s, backend: %d, err: %d: %ld usecs.\n",
+		group_id, id_num, dnet_state_dump_addr(st), backend->backend_id, err, diff);
 	return err;
 }
 

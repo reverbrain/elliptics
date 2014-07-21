@@ -1001,8 +1001,8 @@ static void *dnet_io_process(void *data_)
 		cmd = r->header;
 		trace_id = cmd->id.trace_id;
 
-		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu, mode: %s, backend_id: %zd",
-			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize, dnet_work_io_mode_str(pool->mode),
+		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: got IO event: %p: cmd: %s, hsize: %zu, dsize: %zu, mode: %s, backend_id: %zd",
+			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, dnet_cmd_string(cmd->cmd), r->hsize, r->dsize, dnet_work_io_mode_str(pool->mode),
 			wio->pool->io ? (ssize_t)wio->pool->io->backend_id : (ssize_t)-1);
 
 		err = dnet_process_recv(wio->pool->io, st, r);

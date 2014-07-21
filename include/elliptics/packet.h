@@ -309,9 +309,6 @@ static inline int dnet_validate_id_container(struct dnet_id_container *ids, size
 	struct dnet_backend_ids *backend;
 
 	for (i = 0; i < ids->backends_count; ++i) {
-		if (total_size > size)
-			return -EINVAL;
-
 		backend = (struct dnet_backend_ids *)(total_size + (char *)ids);
 		if (backends)
 			backends[i] = backend;

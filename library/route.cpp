@@ -128,9 +128,9 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
 
 	memcpy(&st->addr, &cnt->addrs[idx], sizeof(struct dnet_addr));
+	pthread_mutex_unlock(&n->state_lock);
 
 	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
-	pthread_mutex_unlock(&n->state_lock);
 	if (err)
 		goto err_out_free;
 
@@ -161,6 +161,7 @@ static int dnet_state_join_nolock(struct dnet_net_state *st)
 	int err;
 	struct dnet_node *n = st->n;
 	struct dnet_id id;
+	memset(&id, 0, sizeof(id));
 
 	err = dnet_route_list_send_all_ids_nolock(st, &id, 0, DNET_CMD_JOIN, 0, 1);
 	if (err) {
@@ -206,12 +207,14 @@ int dnet_route_list::enable_backend(size_t backend_id, int group_id, dnet_raw_id
 
 	cmd->cmd = DNET_CMD_UPDATE_IDS;
 	cmd->flags = DNET_FLAGS_DIRECT | DNET_FLAGS_NOLOCK;
-	cmd->size = sizeof(dnet_backend_update_cmd) - sizeof(dnet_cmd);
+	cmd->size = sizeof(dnet_backend_update_cmd) + ids_count * sizeof(dnet_raw_id) - sizeof(dnet_cmd);
 	container->backends_count = 1;
 	backend_ids->backend_id = backend_id;
 	backend_ids->group_id = group_id;
 	backend_ids->ids_count = ids_count;
 	memcpy(backend_ids->ids, ids, ids_count * sizeof(dnet_raw_id));
+
+	assert_perror(dnet_validate_id_container(container, cmd->size, NULL));
 
 	std::lock_guard<std::mutex> lock_guard(m_mutex);
 
@@ -253,6 +256,8 @@ int dnet_route_list::disable_backend(size_t backend_id)
 	cmd.ids.backend_id = backend_id;
 	cmd.ids.flags = DNET_BACKEND_DISABLE;
 
+	assert_perror(dnet_validate_id_container(&cmd.container, cmd.cmd.size, NULL));
+
 	send_update_to_states(&cmd.cmd, backend_id);
 
 	return 0;
@@ -283,8 +288,14 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64
 	std::lock_guard<std::mutex> lock_guard(m_mutex);
 
 	size_t total_size = sizeof(dnet_addr_cmd) + m_node->addr_num * sizeof(dnet_addr) + sizeof(dnet_id_container);
+	size_t backends_count = 0;
 
 	for (auto it = m_backends.begin(); it != m_backends.end(); ++it) {
+		backend_info &backend = *it;
+		if (!backend.activated)
+			continue;
+
+		++backends_count;
 		total_size += sizeof(dnet_backend_ids);
 		total_size += it->ids.size() * sizeof(dnet_raw_id);
 	}
@@ -313,12 +324,15 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64
 	memcpy(addrs, m_node->addrs, m_node->addr_num * sizeof(dnet_addr));
 
 	dnet_id_container *id_container = reinterpret_cast<dnet_id_container *>(addrs + m_node->addr_num);
-	id_container->backends_count = m_backends.size();
+	id_container->backends_count = backends_count;
 
 	dnet_backend_ids *backend_ids = reinterpret_cast<dnet_backend_ids *>(id_container + 1);
 
 	for (size_t backend_id = 0; backend_id < m_backends.size(); ++backend_id) {
 		backend_info &backend = m_backends[backend_id];
+		if (!backend.activated)
+			continue;
+
 		backend_ids->backend_id = backend_id;
 		backend_ids->group_id = backend.group_id;
 		backend_ids->ids_count = backend.ids.size();
@@ -328,6 +342,8 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64
 
 		backend_ids = reinterpret_cast<dnet_backend_ids *>(ids + backend.ids.size());
 	}
+
+	assert_perror(dnet_validate_id_container(id_container, total_size - (sizeof(dnet_addr_cmd) + m_node->addr_num * sizeof(dnet_addr)), NULL));
 
 	st->__ids_sent = 1;
 	return dnet_send(st, buffer, total_size);
