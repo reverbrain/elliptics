@@ -138,6 +138,14 @@ class elliptics_node_python : public node, public bp::wrapper<node> {
 			: node(l, cfg) {}
 
 		elliptics_node_python(const node &n): node(n) {}
+
+		void add_remote(const char *host, int port, int family) {
+			node::add_remote(address(host, port, family));
+		}
+
+		void add_remote(const char *addr) {
+			node::add_remote(address(addr));
+		}
 };
 
 
@@ -329,14 +337,14 @@ BOOST_PYTHON_MODULE(core)
 		     "__init__(self, logger, config)\n"
 		     "    Initializes node by the logger and custom configuration\n\n"
 		     "node = elliptics.Node(logger, config)"))
-		.def("add_remote", static_cast<void (node::*)(const char*, int, int)>(&node::add_remote),
+		.def("add_remote", static_cast<void (node::*)(const char*, int, int)>(&elliptics_node_python::add_remote),
 		     (bp::arg("addr"), bp::arg("port"), bp::arg("family") = AF_INET),
 		     "add_remote(addr, port, family=AF_INET)\n"
 		     "    Adds connection to Elliptics node\n"
 		     "    which located on address, port, family.\n"
 		     "    Throws exception if connection hasn't been established\n\n"
 		     "    node.add_remote(addr='host.com', port=1025, family=2)")
-		.def("add_remote", static_cast<void (node::*)(const char*)>(&node::add_remote),
+		.def("add_remote", static_cast<void (node::*)(const char*)>(&elliptics_node_python::add_remote),
 		     (bp::arg("addr")),
 		     "add_remote(addr)\n"
 		     "    Adds connection to Elliptics node which located on address.\n"

@@ -48,25 +48,8 @@ class finder : public session {
 		finder(node &n) : session(n) {}
 		virtual ~finder() {}
 
-		void add_remote(char *addr);
-
 		void parse_lookup(const sync_generic_result &ret);
 };
-
-void finder::add_remote(char *addr)
-{
-	int remote_port, remote_family;
-	int err;
-
-	err = dnet_parse_addr(addr, &remote_port, &remote_family);
-	if (err < 0) {
-		std::ostringstream str;
-		str << "Failed to parse addr: " << addr;
-		throw std::runtime_error(str.str());
-	}
-
-    get_node().add_remote(addr, remote_port, remote_family);
-}
 
 void finder::parse_lookup(const sync_generic_result &ret)
 {
@@ -175,7 +158,7 @@ int main(int argc, char *argv[])
 		node n(log);
 		finder find(n);
 
-		find.add_remote(remote);
+		n.add_remote(remote);
 
 		{
 			transport_control ctl(raw, DNET_CMD_LOOKUP,

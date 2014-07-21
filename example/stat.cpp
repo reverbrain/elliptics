@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
 		session sess(n);
 		sess.set_timeout(timeout);
 
-		n.add_remote(remote_addr, remote_port, remote_family);
+		n.add_remote(address(remote_addr, remote_port, remote_family));
 
 		for (;;) {
 			struct dnet_id raw;

@@ -485,7 +485,12 @@ int main(int argc, char *argv[])
 	file_logger logger("/dev/stderr", DNET_LOG_DATA);
 	node n(logger);
 
-	n.add_remote("localhost", 1025);
+	try {
+		n.add_remote(address("localhost", 1025));
+	} catch (std::exception &exc) {
+		std::cerr << exc.what() << std::endl;
+		return -1;
+	}
 
 	session sess(n);
 	std::vector<int> groups = { 1, 2, 3 };

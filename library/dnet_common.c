@@ -644,7 +644,7 @@ err_out_exit:
 	return NULL;
 }
 
-int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int flags)
+int dnet_add_state(struct dnet_node *n, const struct dnet_addr *addr, int num, int flags)
 {
 	int i, err, join = DNET_WANT_RECONNECT, good_num = 0;
 	struct dnet_net_state *st;

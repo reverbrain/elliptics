@@ -338,7 +338,7 @@ int dnet_create_addr(struct dnet_addr *addr, const char *addr_str, int port, int
  * It is still required to run over @sockets array to find out which sockets were successfully created
  * and what errors happened to every address.
  */
-int dnet_socket_create(struct dnet_node *n, struct dnet_addr *addr, struct dnet_addr_socket **sockets, int num, int listening)
+int dnet_socket_create(struct dnet_node *n, const struct dnet_addr *addr, struct dnet_addr_socket **sockets, int num, int listening)
 {
 	int err = -EINVAL, i;
 	int good_num = 0;

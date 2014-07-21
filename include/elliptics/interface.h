@@ -569,7 +569,7 @@ void dnet_server_node_destroy(struct dnet_node *s);
  * routes are added the less network lookups will be performed to send/receive
  * data requests.
  */
-int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int flags);
+int dnet_add_state(struct dnet_node *n, const struct dnet_addr *addr, int num, int flags);
 
 /*
  * Converts address string into dnet_addr structure.
@@ -1003,7 +1003,7 @@ struct dnet_route_entry
 	struct dnet_raw_id id;
 	struct dnet_addr addr;
 	int group_id;
-	int backend_id;
+	uint32_t backend_id;
 };
 
 int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries);

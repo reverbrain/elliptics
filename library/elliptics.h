@@ -715,7 +715,7 @@ struct dnet_addr_socket {
 	int				ok;
 };
 
-int dnet_socket_create(struct dnet_node *n, struct dnet_addr *addr, struct dnet_addr_socket **sockets, int num, int listening);
+int dnet_socket_create(struct dnet_node *n, const struct dnet_addr *addr, struct dnet_addr_socket **sockets, int num, int listening);
 
 void dnet_set_sockopt(struct dnet_node *n, int s);
 void dnet_sock_close(struct dnet_node *n, int s);

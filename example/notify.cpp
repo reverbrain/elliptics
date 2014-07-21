@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
 		file_logger log(logfile, DNET_LOG_INFO);
 
 		node n(log, cfg);
-		n.add_remote(remote_addr, remote_port, remote_family);
+		n.add_remote(address(remote_addr, remote_port, remote_family));
 
 		session s(n);
 

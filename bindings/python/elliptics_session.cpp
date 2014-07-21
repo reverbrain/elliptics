@@ -185,7 +185,11 @@ public:
 	}
 
 	void set_direct_id(std::string saddr, int port, int family) {
-		session::set_direct_id(saddr.c_str(), port, family);
+		session::set_direct_id(address(saddr.c_str(), port, family));
+	}
+
+	void set_direct_id_with_backend(std::string saddr, int port, int family, uint32_t backend_id) {
+		session::set_direct_id(address(saddr.c_str(), port, family), backend_id);
 	}
 
 	struct elliptics_id get_direct_id() {
@@ -836,6 +840,12 @@ void init_elliptics_session() {
 		    "set_direct_id(addr, port, family)\n"
 		    "    Makes elliptics.Session works with only specified node directly\n\n"
 		    "    session.set_direct_id(addr='host.com', port = 1025, family=2)")
+
+		.def("set_direct_id", &elliptics_session::set_direct_id_with_backend,
+		     (bp::arg("addr"), bp::arg("port"), bp::arg("family") = 2, bp::arg("backend_id")),
+		    "set_direct_id(addr, port, family)\n"
+		    "    Makes elliptics.Session works with only specified backend directly\n\n"
+		    "    session.set_direct_id(addr='host.com', port = 1025, family=2, backend_id=5)")
 
 		.def("get_direct_id", &elliptics_session::get_direct_id,
 		    "get_direct_id()\n"

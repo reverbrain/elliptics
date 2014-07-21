@@ -104,15 +104,45 @@ class transport_control
 		dnet_trans_control m_data;
 };
 
-struct address
+class address
 {
-	address(const std::string &l_host, const int l_port, const int l_family = AF_INET)
-		: host(l_host), port(l_port), family(l_family) {}
+public:
+	address();
+	address(const std::string &host, int port, int family = AF_INET);
+	address(const char *host, int port, int family = AF_INET);
+	address(const std::string &addr);
+	address(const char *addr);
+	address(const dnet_addr &addr);
+	~address();
 
-	std::string		host;
-	int			port;
-	int			family;
+	address(const address &other);
+	address &operator =(const address &other);
+
+	bool operator ==(const address &other) const;
+
+	bool is_valid() const;
+
+	std::string host() const;
+	int port() const;
+	int family() const;
+
+	std::string to_string() const;
+	std::string to_string_with_family() const;
+	const dnet_addr &to_raw() const;
+
+private:
+	dnet_addr m_addr;
 };
+
+inline bool operator ==(const dnet_addr &first, const address &second)
+{
+	return dnet_addr_equal(&first, &second.to_raw());
+}
+
+inline bool operator ==(const address &first, const dnet_addr &second)
+{
+	return dnet_addr_equal(&first.to_raw(), &second);
+}
 
 class logger_interface
 {
@@ -167,12 +197,8 @@ class node
 
 		node &operator =(const node &other);
 
-		void			add_remote(const std::string &addr, const int port, const int family = AF_INET);
-		void			add_remote(const char *addr, const int port, const int family = AF_INET);
-		void			add_remote(const std::string &addr);
-		void			add_remote(const char *addr);
-
-		void			add_remote(const std::vector<std::string> &addrs);
+		void			add_remote(const address &addr);
+		void			add_remote(const std::vector<address> &addrs);
 
 		void			set_timeouts(const int wait_timeout, const int check_timeout);
 
@@ -332,9 +358,8 @@ class session
 		/*!
 		 * Stick session to particular remote address.
 		 */
-		void			set_direct_id(const dnet_addr &remote_addr);
-		void			set_direct_id(const std::string &addr, int port, int family);
-		void			set_direct_id(const char *saddr, int port, int family);
+		void			set_direct_id(const address &remote_addr);
+		void			set_direct_id(const address &remote_addr, uint32_t backend_id);
 
 		/*!
 		 * Gets command flags of the session.
@@ -616,14 +641,10 @@ class session
 		 */
 		void			update_status(const key &id, dnet_node_status *status);
 
-		async_backend_control_result enable_backend(const char *addr, int port, int family, uint32_t backend_id);
-		async_backend_control_result enable_backend(const dnet_addr &addr, uint32_t backend_id);
-		async_backend_control_result disable_backend(const char *addr, int port, int family, uint32_t backend_id);
-		async_backend_control_result disable_backend(const dnet_addr &addr, uint32_t backend_id);
-		async_backend_control_result start_defrag(const char *addr, int port, int family, uint32_t backend_id);
-		async_backend_control_result start_defrag(const dnet_addr &addr, uint32_t backend_id);
-		async_backend_status_result request_backends_status(const char *addr, int port, int family);
-		async_backend_status_result request_backends_status(const dnet_addr &addr);
+		async_backend_control_result enable_backend(const address &addr, uint32_t backend_id);
+		async_backend_control_result disable_backend(const address &addr, uint32_t backend_id);
+		async_backend_control_result start_defrag(const address &addr, uint32_t backend_id);
+		async_backend_status_result request_backends_status(const address &addr);
 
 		/*!
 		 * Reads data in range specified in \a io at group \a group_id.

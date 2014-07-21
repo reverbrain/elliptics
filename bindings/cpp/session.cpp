@@ -91,6 +91,137 @@ struct dnet_trans_control transport_control::get_native() const
 	return m_data;
 }
 
+address::address()
+{
+	memset(&m_addr, 0, sizeof(m_addr));
+}
+
+static void address_construct(dnet_addr *result, const char *addr, int port, int family)
+{
+	int err = dnet_create_addr(result, addr, port, family);
+	if (err) {
+		throw_error(err, "dnet_fill_addr failed, address: %s, port: %d, family: %d", addr, port, family);
+	}
+}
+
+static void address_construct(dnet_addr *result, const char *addr, size_t addr_len)
+{
+	// dnet_parse_addr will modify the string
+	std::vector<char> tmp;
+	tmp.reserve(addr_len + 1);
+	tmp.assign(addr, addr + addr_len);
+	tmp.push_back('\0');
+
+	int port;
+	int family;
+	int err = dnet_parse_addr(tmp.data(), &port, &family);
+	if (err) {
+		throw_error(err, "dnet_parse_addr failed, address: %s", addr);
+	}
+
+	address_construct(result, tmp.data(), port, family);
+}
+
+address::address(const std::string &host, int port, int family)
+{
+	address_construct(&m_addr, host.c_str(), port, family);
+}
+
+address::address(const char *host, int port, int family)
+{
+	address_construct(&m_addr, host, port, family);
+}
+
+address::address(const std::string &addr)
+{
+	address_construct(&m_addr, addr.c_str(), addr.size());
+}
+
+address::address(const char *addr)
+{
+	address_construct(&m_addr, addr, strlen(addr));
+}
+
+address::address(const dnet_addr &addr) : m_addr(addr)
+{
+}
+
+address::~address()
+{
+}
+
+address::address(const address &other) : m_addr(other.m_addr)
+{
+}
+
+address &address::operator =(const address &other)
+{
+	m_addr = other.m_addr;
+	return *this;
+}
+
+bool address::operator ==(const address &other) const
+{
+	return dnet_addr_equal(&m_addr, &other.m_addr);
+}
+
+bool address::is_valid() const
+{
+	return m_addr.addr_len > 0;
+}
+
+std::string address::host() const
+{
+	if (m_addr.family == AF_INET) {
+		const struct sockaddr_in *in = reinterpret_cast<const struct sockaddr_in *>(m_addr.addr);
+		return inet_ntoa(in->sin_addr);
+	} else if (m_addr.family == AF_INET6) {
+		const struct sockaddr_in6 *in = reinterpret_cast<const struct sockaddr_in6 *>(m_addr.addr);
+		char buffer[128];
+		memset(buffer, 0, sizeof(buffer));
+		snprintf(buffer, sizeof(buffer), NIP6_FMT, NIP6(in->sin6_addr));
+		return buffer;
+	}
+	return std::string();
+}
+
+int address::port() const
+{
+	if (m_addr.family == AF_INET) {
+		const struct sockaddr_in *in = reinterpret_cast<const struct sockaddr_in *>(m_addr.addr);
+		return ntohs(in->sin_port);
+	} else if (m_addr.family == AF_INET6) {
+		const struct sockaddr_in6 *in = reinterpret_cast<const struct sockaddr_in6 *>(m_addr.addr);
+		return ntohs(in->sin6_port);
+	}
+	return 0;
+}
+
+int address::family() const
+{
+	return m_addr.family;
+}
+
+std::string address::to_string() const
+{
+	return dnet_server_convert_dnet_addr(&m_addr);
+}
+
+std::string address::to_string_with_family() const
+{
+	std::string str = to_string();
+	if (!str.empty()) {
+		str += ':';
+		str += std::to_string(m_addr.family);
+	}
+	return str;
+}
+
+const dnet_addr &address::to_raw() const
+{
+	return m_addr;
+}
+
 struct exec_context_data
 {
 	data_pointer srw_data;
@@ -490,47 +621,37 @@ dnet_id session::get_direct_id()
 	return *dnet_session_get_direct_id(get_native());
 }
 
-void session::set_direct_id(const dnet_addr &remote_addr)
+template <bool CheckBackend>
+static void session_set_direct_id(session &sess, const address &remote_addr, uint32_t backend_id)
 {
-	std::vector<dnet_route_entry> routes = get_routes();
+	std::vector<dnet_route_entry> routes = sess.get_routes();
 
 	if (routes.empty())
-		throw ioremap::elliptics::error(-ENXIO, "Route list is empty");
+		throw_error(-ENXIO, "Route list is empty");
 
 	for (auto it = routes.begin(); it != routes.end(); ++it) {
-		if (dnet_addr_equal(&remote_addr, &it->addr)) {
+		if (remote_addr == it->addr && (!CheckBackend || it->backend_id == backend_id)) {
 			dnet_id id;
 			memset(&id, 0, sizeof(id));
 			dnet_setup_id(&id, it->group_id, it->id.id);
 
-			dnet_session_set_direct_id(get_native(), &id);
-			set_cflags(get_cflags() | DNET_FLAGS_DIRECT);
+			dnet_session_set_direct_id(sess.get_native(), &id);
+			sess.set_cflags(sess.get_cflags() | DNET_FLAGS_DIRECT);
 			return;
 		}
 	}
 
-	throw ioremap::elliptics::error(-ESRCH, "Route not found");
+	throw_error(-ESRCH, "Route not found");
 }
 
-void session::set_direct_id(const std::string &addr, int port, int family)
+void session::set_direct_id(const address &remote_addr)
 {
-	set_direct_id(addr.c_str(), port, family);
+	session_set_direct_id<false>(*this, remote_addr, 0);
 }
 
-void session::set_direct_id(const char *saddr, int port, int family)
+void session::set_direct_id(const address &remote_addr, uint32_t backend_id)
 {
-	dnet_addr addr;
-	int err;
-
-	memset(&addr, 0, sizeof(addr));
-	addr.addr_len = sizeof(addr.addr);
-	addr.family = family;
-
-	err = dnet_fill_addr(&addr, saddr, port, SOCK_STREAM, IPPROTO_TCP);
-	if (err != 0)
-		throw_error(err, "dnet_fill_addr failed: addr: %s, port: %d, family: %d", saddr, port, family);
-
-	set_direct_id(addr);
+	session_set_direct_id<true>(*this, remote_addr, backend_id);
 }
 
 void session::set_cflags(uint64_t cflags)
@@ -1480,13 +1601,13 @@ void session::update_status(const key &id, dnet_node_status *status)
 	}
 }
 
-static async_backend_control_result update_backend_status(session &sess, const dnet_addr &addr, uint32_t backend_id, dnet_backend_command command)
+static async_backend_control_result update_backend_status(session &sess, const address &addr, uint32_t backend_id, dnet_backend_command command)
 {
 	async_backend_control_result result(sess);
 
-	net_state_ptr state = net_state_ptr(dnet_state_search_by_addr(sess.get_native_node(), &addr));
+	net_state_ptr state = net_state_ptr(dnet_state_search_by_addr(sess.get_native_node(), &addr.to_raw()));
 	if (!state) {
-		error_info error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s", dnet_server_convert_dnet_addr(&addr));
+		error_info error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s", dnet_server_convert_dnet_addr(&addr.to_raw()));
 		if (sess.get_exceptions_policy() & session::throw_at_start) {
 			error.throw_error();
 		} else {
@@ -1514,81 +1635,28 @@ static async_backend_control_result update_backend_status(session &sess, const d
 	return result;
 }
 
-static async_backend_control_result update_backend_status(session &sess, const char *saddr, int port, int family, uint32_t backend_id, dnet_backend_command command)
-{
-	dnet_addr addr;
-	int err = parse_addr(&addr, saddr, port, family);
-	if (err) {
-		error_info error = create_error(-EINVAL, "BACKEND_CONTROL: failed to parse addr: %s, port: %d, family: %d", saddr, port, family);
-		if (sess.get_exceptions_policy() & session::throw_at_start) {
-			error.throw_error();
-		} else {
-			async_backend_control_result result(sess);
-			async_result_handler<backend_status_result_entry> handler(result);
-			handler.complete(error);
-			return result;
-		}
-	}
-
-	return update_backend_status(sess, addr, backend_id, command);
-}
-
-async_backend_control_result session::enable_backend(const char *addr, int port, int family, uint32_t backend_id)
-{
-	return update_backend_status(*this, addr, port, family, backend_id, DNET_BACKEND_ENABLE);
-}
-
-async_backend_control_result session::enable_backend(const dnet_addr &addr, uint32_t backend_id)
+async_backend_control_result session::enable_backend(const address &addr, uint32_t backend_id)
 {
 	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_ENABLE);
 }
 
-async_backend_control_result session::disable_backend(const char *addr, int port, int family, uint32_t backend_id)
-{
-	return update_backend_status(*this, addr, port, family, backend_id, DNET_BACKEND_DISABLE);
-}
-
-async_backend_control_result session::disable_backend(const dnet_addr &addr, uint32_t backend_id)
+async_backend_control_result session::disable_backend(const address &addr, uint32_t backend_id)
 {
 	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_DISABLE);
 }
 
-async_backend_control_result session::start_defrag(const char *addr, int port, int family, uint32_t backend_id)
-{
-	return update_backend_status(*this, addr, port, family, backend_id, DNET_BACKEND_START_DEFRAG);
-}
-
-async_backend_control_result session::start_defrag(const dnet_addr &addr, uint32_t backend_id)
+async_backend_control_result session::start_defrag(const address &addr, uint32_t backend_id)
 {
 	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_START_DEFRAG);
 }
 
-async_backend_status_result session::request_backends_status(const char *saddr, int port, int family)
-{
-	dnet_addr addr;
-	int err = parse_addr(&addr, saddr, port, family);
-	if (err) {
-		error_info error = create_error(-EINVAL, "BACKEND_CONTROL: failed to parse addr: %s, port: %d, family: %d", saddr, port, family);
-		if (get_exceptions_policy() & throw_at_start) {
-			error.throw_error();
-		} else {
-			async_backend_status_result result(*this);
-			async_result_handler<backend_status_result_entry> handler(result);
-			handler.complete(error);
-			return result;
-		}
-	}
-
-	return request_backends_status(addr);
-}
-
-async_backend_status_result session::request_backends_status(const dnet_addr &addr)
+async_backend_status_result session::request_backends_status(const address &addr)
 {
 	async_backend_status_result result(*this);
 
-	net_state_ptr state = net_state_ptr(dnet_state_search_by_addr(get_native_node(), &addr));
+	net_state_ptr state = net_state_ptr(dnet_state_search_by_addr(get_native_node(), &addr.to_raw()));
 	if (!state) {
-		error_info error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s", dnet_server_convert_dnet_addr(&addr));
+		error_info error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s", dnet_server_convert_dnet_addr(&addr.to_raw()));
 		if (get_exceptions_policy() & throw_at_start) {
 			error.throw_error();
 		} else {
