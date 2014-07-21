@@ -935,7 +935,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	}
 
 	/* Run iterator */
-	err = st->n->cb->iterator(&ictl);
+	err = st->n->cb->iterator(&ictl, ireq, irange);
 
 	/* Remove iterator */
 	dnet_iterator_destroy(st->n, cpriv.it);

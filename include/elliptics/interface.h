@@ -293,7 +293,8 @@ struct dnet_backend_callbacks {
 	 * Iterator.
 	 * Invokes callback on each record's data and metadata.
 	 */
-	int			(* iterator)(struct dnet_iterator_ctl *ictl);
+	int			(* iterator)(struct dnet_iterator_ctl *ictl,
+			struct dnet_iterator_request *ireq, struct dnet_iterator_range *irange);
 
 	/*
 	 * Returns dir used by backend

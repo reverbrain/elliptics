@@ -18,7 +18,7 @@ public:
 	virtual int file_info(module_backend_t *r, void *state, dnet_cmd *cmd);
 	virtual int file_del(module_backend_t *r, void *state, dnet_cmd *cmd);
 	virtual int file_bulk_read(module_backend_t *r, void *state, dnet_cmd *cmd, void *data);
-	virtual int file_iterator(dnet_iterator_ctl *ictl);
+	virtual int file_iterator(struct dnet_iterator_ctl *ictl, struct dnet_iterator_request *ireq, struct dnet_iterator_range *irange);
 private:
 	std::unique_ptr<uncomplicated_handler> m_uncomplicated_handler;
 };

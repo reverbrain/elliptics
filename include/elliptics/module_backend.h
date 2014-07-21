@@ -44,7 +44,7 @@ struct module_backend_api_t;
 
 typedef void (destroy_handler_t)(struct module_backend_api_t*);
 typedef int (command_handler_t)(void *, void *, struct dnet_cmd *, void *);
-typedef int (iterator_t)(struct dnet_iterator_ctl *);
+typedef int (iterator_t)(struct dnet_iterator_ctl *, struct dnet_iterator_request *, struct dnet_iterator_range *);
 
 /**
  * You should provide this structure via @a module_constructor from module.

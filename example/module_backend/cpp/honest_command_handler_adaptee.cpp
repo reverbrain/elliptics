@@ -55,8 +55,12 @@ int ell::honest_command_handler_adaptee::file_bulk_read(module_backend_t * /*r*/
 	return -ENOTSUP;
 }
 
-int ell::honest_command_handler_adaptee::file_iterator(dnet_iterator_ctl * /*ictl*/)
+int ell::honest_command_handler_adaptee::file_iterator(struct dnet_iterator_ctl *ictl,
+		struct dnet_iterator_request *ireq, struct dnet_iterator_range *irange)
 {
+	(void) ictl;
+	(void) ireq;
+	(void) irange;
 	ell::throw_error(-EINVAL, "Iterator is not implemented here");
 	return -ENOTSUP;
 }
