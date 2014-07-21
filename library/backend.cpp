@@ -2,57 +2,44 @@
 #include <fcntl.h>
 #include "elliptics.h"
 #include "../monitor/monitor.hpp"
+#include <fstream>
 
 static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned long long storage_free)
 {
-	int fd, err, size = 1024, i, num;
-	struct dnet_raw_id id;
-	struct dnet_raw_id raw;
-	unsigned long long q = 100 * 1024 * 1024 * 1024ULL;
-	char *buf;
+	const unsigned long long size_per_id = 100 * 1024 * 1024 * 1024ULL;
+	const size_t num = storage_free / size_per_id + 1;
+	dnet_raw_id tmp;
+	const char *random_source = "/dev/urandom";
 
-	srand(time(NULL) + (unsigned long)n + (unsigned long)file + (unsigned long)&buf);
+	std::ifstream in(random_source, std::ofstream::binary);
+	if (!in) {
+		int err = -errno;
+		dnet_log_err(n, "failed to open '%s' as source of ids file '%s'", random_source, file);
+		return err;
+	}
 
-	fd = open(file, O_RDWR | O_CREAT | O_TRUNC | O_APPEND | O_CLOEXEC, 0644);
-	if (fd < 0) {
-		err = -errno;
+	std::ofstream out(file, std::ofstream::binary | std::ofstream::trunc);
+	if (!out) {
+		int err = -errno;
 		dnet_log_err(n, "failed to open/create ids file '%s'", file);
-		goto err_out_exit;
+		return err;
 	}
 
-	buf = reinterpret_cast<char *>(malloc(size));
-	if (!buf) {
-		err = -ENOMEM;
-		goto err_out_close;
-	}
-	memset(buf, 0, size);
+	for (size_t i = 0; i < num; ++i) {
+		if (!in.read(reinterpret_cast<char *>(tmp.id), sizeof(tmp.id))) {
+			int err = -errno;
+			dnet_log_err(n, "failed to read id from '%s'", random_source);
+			return err;
+		}
 
-	num = storage_free / q + 1;
-	for (i=0; i<num; ++i) {
-		int r = rand();
-		memcpy(buf, &r, sizeof(r));
-
-		dnet_transform_node(n, buf, size, id.id, sizeof(id.id));
-		memcpy(&raw, id.id, sizeof(struct dnet_raw_id));
-
-		err = write(fd, &raw, sizeof(struct dnet_raw_id));
-		if (err != sizeof(struct dnet_raw_id)) {
+		if (!out.write(reinterpret_cast<char *>(tmp.id), sizeof(tmp.id))) {
+			int err = -errno;
 			dnet_log_err(n, "failed to write id into ids file '%s'", file);
-			goto err_out_unlink;
+			return err;
 		}
 	}
 
-	free(buf);
-	close(fd);
 	return 0;
-
-err_out_unlink:
-	unlink(file);
-	free(buf);
-err_out_close:
-	close(fd);
-err_out_exit:
-	return err;
 }
 
 static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num, unsigned long long storage_free, struct dnet_addr *cfg_addrs, size_t backend_id)
