@@ -364,7 +364,7 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_addr *addr, struct dnet_
 
 		st = dnet_state_search_by_addr(n, &addr[i]);
 		if (st) {
-			dnet_log(n, DNET_LOG_ERROR, "Address %s already exists in route table\n", dnet_server_convert_dnet_addr(&addr[i]));
+			dnet_log(n, DNET_LOG_NOTICE, "Address %s already exists in route table\n", dnet_server_convert_dnet_addr(&addr[i]));
 			dnet_state_put(st);
 			rem->s = -EEXIST;
 		} else {
@@ -373,7 +373,7 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_addr *addr, struct dnet_
 	}
 
 	if (good_num == 0) {
-		dnet_log(n, DNET_LOG_ERROR, "All %d nodes are already exist in route table\n", num);
+		dnet_log(n, DNET_LOG_NOTICE, "All %d nodes are already exist in route table\n", num);
 		err = -EEXIST;
 		goto err_out_exit;
 	}
