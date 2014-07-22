@@ -323,10 +323,10 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 	int err = 0, ids_num;
 
 	if (is_trans_destroyed(st, cmd)) {
-		dnet_log(st->n, DNET_LOG_INFO, "%s: status: %d, going to add %d received routes", dnet_state_dump_addr(st), cmd ? cmd->status : -9999999, route->addr_num);
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: status: %d, going to add %d received routes", dnet_state_dump_addr(st), cmd ? cmd->status : -9999999, route->addr_num);
 		if (route->addr_num)
 			err = dnet_add_state(st->n, route->addr, route->addr_num, DNET_CFG_NO_ROUTE_LIST);
-		dnet_log(st->n, DNET_LOG_INFO, "%s: added %d routes: %d", dnet_state_dump_addr(st), route->addr_num, err);
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: added %d routes: %d", dnet_state_dump_addr(st), route->addr_num, err);
 
 		err = -EINVAL;
 		if (cmd)
