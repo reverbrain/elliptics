@@ -824,6 +824,10 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 		t->st = dnet_state_get_first(n, &s->direct_id);
 	}
 
+	if (s->cflags & DNET_FLAGS_DIRECT_BACKEND) {
+		cmd->backend_id = s->direct_backend;
+	}
+
 	if (!t->st) {
 		err = -ENXIO;
 		goto err_out_destroy;

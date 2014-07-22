@@ -220,6 +220,35 @@ static void test_enable_backend_at_empty_node(session &sess)
 		"Host must exist: " + host + ", group: 2, backend: 1");
 }
 
+static void test_direct_backend(session &sess)
+{
+	const key id = std::string("direct-backend-test");
+	sess.set_groups({ 0 });
+	const std::string first_str = "first-data";
+	const std::string second_str = "second-data";
+
+	server_node &node = global_data->nodes.front();
+
+	session first = sess.clone();
+	first.set_direct_id(node.remote(), 0);
+
+	session second = sess.clone();
+	second.set_direct_id(node.remote(), 3);
+
+	ELLIPTICS_REQUIRE(async_first_write, first.write_data(id, first_str, 0));
+	ELLIPTICS_REQUIRE(async_second_write, second.write_data(id, second_str, 0));
+
+	ELLIPTICS_REQUIRE(async_first_read, first.read_data(id, 0, 0));
+	read_result_entry first_read = async_first_read.get_one();
+	BOOST_REQUIRE_EQUAL(first_read.file().to_string(), first_str);
+	BOOST_REQUIRE_EQUAL(first_read.command()->backend_id, 0);
+
+	ELLIPTICS_REQUIRE(async_second_read, second.read_data(id, 0, 0));
+	read_result_entry second_read = async_second_read.get_one();
+	BOOST_REQUIRE_EQUAL(second_read.file().to_string(), second_str);
+	BOOST_REQUIRE_EQUAL(second_read.command()->backend_id, 3);
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_enable_at_start, create_session(n, { 1, 2, 3 }, 0, 0));
@@ -229,6 +258,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_disable_backend, create_session(n, { 1, 2, 3 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_disable_backend_again, create_session(n, { 1, 2, 3 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_enable_backend_at_empty_node, create_session(n, { 1, 2, 3 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_direct_backend, create_session(n, { 0 }, 0, 0));
 
 	return true;
 }

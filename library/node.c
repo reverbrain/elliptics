@@ -914,3 +914,13 @@ void dnet_session_set_direct_id(struct dnet_session *s, const struct dnet_id *id
 {
 	s->direct_id = *id;
 }
+
+uint32_t dnet_session_get_direct_backend(struct dnet_session *s)
+{
+	return s->direct_backend;
+}
+
+void dnet_session_set_direct_backend(struct dnet_session *s, uint32_t backend_id)
+{
+	s->direct_backend = backend_id;
+}

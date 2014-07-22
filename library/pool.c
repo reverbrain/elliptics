@@ -254,7 +254,6 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	struct dnet_cmd *cmd = r->header;
 	int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
 	ssize_t backend_id = -1;
-	int need_backend = dnet_cmd_needs_backend(cmd->cmd);
 
 	if (cmd->size > 0) {
 		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d\n",
@@ -272,10 +271,12 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
 	}
 
-	if (need_backend)
+	if (cmd->flags & DNET_FLAGS_DIRECT_BACKEND)
+		backend_id = cmd->backend_id;
+	else if (dnet_cmd_needs_backend(cmd->cmd))
 		backend_id = dnet_state_search_backend(n, &cmd->id);
 
-	if (backend_id >= 0) {
+	if (backend_id >= 0 && backend_id < (ssize_t)n->io->backends_count) {
 		io_pool = &n->io->backends[backend_id].pool;
 		if (nonblocking) {
 			place = &io_pool->recv_pool_nb;
@@ -283,11 +284,13 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 			place = &io_pool->recv_pool;
 		}
 
-		pthread_mutex_lock(&place->lock);
-		if (!place->pool) {
-			pthread_mutex_unlock(&place->lock);
-			io_pool = &n->io->pool;
-			place = NULL;
+		if (place) {
+			pthread_mutex_lock(&place->lock);
+			if (!place->pool) {
+				pthread_mutex_unlock(&place->lock);
+				io_pool = &n->io->pool;
+				place = NULL;
+			}
 		}
 	}
 
@@ -303,11 +306,20 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 		pthread_mutex_lock(&place->lock);
 	}
 
-	dnet_log(n, DNET_LOG_DEBUG, "%s: %s: backend_id: %zd, place: %p, backend_place: %p, backend_place->pool->backend_id: %zd",
-		dnet_state_dump_addr(r->st), dnet_dump_id(r->header), backend_id, place, backend_place,
-		backend_place && backend_place->pool->io ? (ssize_t)backend_place->pool->io->backend_id : (ssize_t)-1);
-
 	pool = place->pool;
+
+	// If we are processing the command we should update cmd->backend_id to actual one
+	if (!(cmd->trans & DNET_TRANS_REPLY)) {
+		if (pool->io)
+			cmd->backend_id = pool->io->backend_id;
+		else
+			cmd->backend_id = -1;
+	}
+
+	dnet_log(n, DNET_LOG_DEBUG, "%s: %s: backend_id: %zd, place: %p, backend_place: %p, backend_place->pool->backend_id: %zd, cmd->backend_id: %d",
+		dnet_state_dump_addr(r->st), dnet_dump_id(r->header), backend_id, place, backend_place,
+		backend_place && backend_place->pool->io ? (ssize_t)backend_place->pool->io->backend_id : (ssize_t)-1,
+		cmd->backend_id);
 
 	pthread_mutex_lock(&pool->lock);
 

@@ -652,6 +652,9 @@ void session::set_direct_id(const address &remote_addr)
 void session::set_direct_id(const address &remote_addr, uint32_t backend_id)
 {
 	session_set_direct_id<true>(*this, remote_addr, backend_id);
+
+	dnet_session_set_direct_backend(get_native(), backend_id);
+	set_cflags(get_cflags() | DNET_FLAGS_DIRECT_BACKEND);
 }
 
 void session::set_cflags(uint64_t cflags)

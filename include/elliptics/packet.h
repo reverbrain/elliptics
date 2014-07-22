@@ -180,6 +180,9 @@ enum dnet_backend_defrag_state {
 /* Currently only valid flag for LOOKUP command - when set, don't check fileinfo in cache */
 #define DNET_FLAGS_NOCACHE		(1<<6)
 
+/* Do not choose correct backend by route list, but choose already set one */
+#define DNET_FLAGS_DIRECT_BACKEND	(1<<7)
+
 typedef uint64_t trace_id_t;
 #define DNET_TRACE_BIT		(1ll<<63)		/*is used in trace_id for ignoring current log level*/
 
@@ -208,6 +211,7 @@ struct dnet_cmd
 	struct dnet_id		id;
 	int			status;
 	int			cmd;
+	int			backend_id;
 	uint64_t		flags;
 	uint64_t		trans;
 	uint64_t		size;

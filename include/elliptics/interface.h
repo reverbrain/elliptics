@@ -423,6 +423,8 @@ void dnet_session_get_timestamp(struct dnet_session *s, struct dnet_time *ts);
 
 struct dnet_id *dnet_session_get_direct_id(struct dnet_session *s);
 void dnet_session_set_direct_id(struct dnet_session *s, const struct dnet_id *id);
+uint32_t dnet_session_get_direct_backend(struct dnet_session *s);
+void dnet_session_set_direct_backend(struct dnet_session *s, uint32_t backend_id);
 
 void dnet_session_set_user_flags(struct dnet_session *s, uint64_t user_flags);
 uint64_t dnet_session_get_user_flags(struct dnet_session *s);

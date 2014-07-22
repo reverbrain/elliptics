@@ -643,6 +643,7 @@ struct dnet_session {
 	 * direct_id.id.
 	 */
 	struct dnet_id		direct_id;
+	int			direct_backend;
 
 	/* Namespace */
 	char			*ns;
