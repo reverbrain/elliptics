@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.5.1
+Version:	2.25.6.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jul 22 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.0
+- package: depend on 0.22.0+ eblob which provides range iterators
+- iterate: output more useful info about iterated keys
+- iterate: added option to parse dnet_balance output file and select ranges which DO NOT belong to selected node and request those ranges from remote node
+- dnet_add_state: if we failed to add any remote addr because they already exist in the route table, return 0 to indicate success
+- iterator: switched to new iterator scheme where ranges and ctl structure are provided directly into backend. Eblob uses this data to skip ranges in indexes if they are sorted.Eblob: removed iterate_thread_num specification at eblob_backend.
+- cmake: install timer.hpp with other headers
+- tests: stop after the first test failure
+
 * Fri Jul 18 2014 Kirill Smorodinnikov <shaitkir@gmail.com> - 2.25.5.1
 - Recovery: fixed merge index mismatch if some of merging shards have unfilled shard_id and shard_count
 - Pytests: turned on exit on first fail to make it easer to find the problem. Used separated log files for all node and client
