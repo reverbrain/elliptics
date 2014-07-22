@@ -948,8 +948,8 @@ static void *dnet_io_process(void *data_)
 
 	dnet_set_name("io_pool");
 
-	dnet_log(n, DNET_LOG_NOTICE, "started io thread: %d, nonblocking: %d",
-		wio->thread_index, pool->mode == DNET_WORK_IO_MODE_NONBLOCKING);
+	dnet_log(n, DNET_LOG_NOTICE, "started io thread: #%d, nonblocking: %d, backend: %zd",
+		wio->thread_index, pool->mode == DNET_WORK_IO_MODE_NONBLOCKING, pool->io ? (ssize_t)pool->io->backend_id : -1);
 
 	while (!n->need_exit && (!pool->io || !pool->io->need_exit)) {
 		r = NULL;
@@ -1012,8 +1012,8 @@ static void *dnet_io_process(void *data_)
 		dnet_state_put(st);
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, "finished io thread: %d, nonblocking: %d",
-		wio->thread_index, pool->mode == DNET_WORK_IO_MODE_NONBLOCKING);
+	dnet_log(n, DNET_LOG_NOTICE, "finished io thread: #%d, nonblocking: %d, backend: %zd",
+		wio->thread_index, pool->mode == DNET_WORK_IO_MODE_NONBLOCKING, pool->io ? (ssize_t)pool->io->backend_id : -1);
 
 	return NULL;
 }
