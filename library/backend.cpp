@@ -195,6 +195,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 	backend.config.log = backend.log;
 
 	dnet_backend_io *backend_io = &node->io->backends[backend_id];
+	backend_io->need_exit = 0;
 
 	for (auto it = backend.options.begin(); it != backend.options.end(); ++it) {
 		dnet_backend_config_entry &entry = *it;
