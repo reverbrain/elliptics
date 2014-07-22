@@ -72,8 +72,10 @@ void iterate_node(Ctx &ctx, const dnet_addr &node) {
 		          << ", key: "   << dnet_dump_id_len_raw(it->reply()->key.id, DNET_ID_SIZE, buffer)
 		          << ", flags: " << it->reply()->user_flags
 		          << ", ts: "    << it->reply()->timestamp.tsec << "/" << it->reply()->timestamp.tnsec
-		          << " size: "   << it->reply_data().size()
-		          << " data: "   << it->reply_data().to_string()
+			  << ", keys: "  << it->reply()->iterated_keys << "/" << it->reply()->total_keys
+			  << ", status: " << it->reply()->status
+		          << ", size: "   << it->reply_data().size()
+		          << ", data: "   << it->reply_data().to_string()
 		          << std::endl;
 	}
 }
