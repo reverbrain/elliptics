@@ -367,8 +367,9 @@ enum dnet_work_io_mode {
 
 struct dnet_work_pool;
 struct dnet_work_io {
-	struct list_head	wio_entry;
+	struct list_head	list;
 	int			thread_index;
+	uint64_t		trans;
 	pthread_t		tid;
 	struct dnet_work_pool	*pool;
 };
@@ -423,8 +424,7 @@ struct dnet_work_pool {
 	struct list_stat	list_stats;
 	pthread_mutex_t		lock;
 	pthread_cond_t		wait;
-	struct list_head	wio_list;
-	uint64_t		*trans;
+	struct dnet_work_io	*wio_list;
 };
 
 struct dnet_work_pool_place
