@@ -446,19 +446,11 @@ static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, const str
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, const struct dnet_addr *addr)
 {
 	struct dnet_net_state *st, *found = NULL;
-	struct dnet_idc *idc;
-	struct dnet_group *g;
 
 	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(idc, &g->idc_list, group_entry) {
-			st = idc->st;
-			if (dnet_addr_equal(&st->addr, addr)) {
-				found = st;
-				break;
-			}
-		}
-		if (found) {
+	list_for_each_entry(st, &n->dht_state_list, node_entry) {
+		if (dnet_addr_equal(&st->addr, addr)) {
+			found = st;
 			dnet_state_get(found);
 			break;
 		}

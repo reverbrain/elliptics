@@ -325,6 +325,7 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 int dnet_backend_init_all(struct dnet_node *node)
 {
 	int err = 1;
+	bool all_ok = true;
 	unsigned state = DNET_BACKEND_ENABLED;
 
 	auto &backends = node->config_data->backends->backends;
@@ -334,13 +335,20 @@ int dnet_backend_init_all(struct dnet_node *node)
 			continue;
 
 		int tmp = dnet_backend_init(node, backend_id, &state);
-		if (!tmp)
+		if (!tmp) {
 			err = 0;
-		else if (err == 1)
+		} else if (err == 1) {
 			err = tmp;
+			all_ok = false;
+		}
 	}
 
-	return err == 1 ? -EINVAL : err;
+	if (all_ok)
+		return 0;
+	else if (err == 1)
+		return -EINVAL;
+	else
+		return err;
 }
 
 void dnet_backend_cleanup_all(struct dnet_node *node)

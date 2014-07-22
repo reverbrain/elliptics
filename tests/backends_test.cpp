@@ -33,29 +33,37 @@ static size_t groups_count = 2;
 static size_t nodes_count = 2;
 static size_t backends_count = 8;
 
+static server_config default_value(int group)
+{
+	// Minimize number of threads
+	server_config server = server_config::default_value();
+	server.options
+		("io_thread_num", 1)
+		("nonblocking_io_thread_num", 1)
+		("net_thread_num", 1)
+		("caches_number", 1)
+	;
+
+	server.backends[0]("enable", false)("group", group);
+
+	server.backends.resize(backends_count, server.backends.front());
+
+	return server;
+}
+
 static void configure_nodes(const std::string &path)
 {
 	std::vector<server_config> servers;
 	for (size_t i = 0; i < groups_count; ++i) {
 		for (size_t j = 0; j < nodes_count; ++j) {
-			// Minimize number of threads
-			server_config server = server_config::default_value();
-			server.options
-				("io_thread_num", 1)
-				("nonblocking_io_thread_num", 1)
-				("net_thread_num", 1)
-				("caches_number", 1)
-			;
-
-			server.backends[0]("enable", false)("group", int(i));
-
-			server.backends.resize(backends_count, server.backends.front());
-
+			server_config server = default_value(i);
 			server.backends[0]("enable", true);
 			server.backends[3]("enable", true);
 			servers.push_back(server);
 		}
 	}
+
+	servers.push_back(default_value(groups_count));
 
 	global_data = start_nodes(results_reporter::get_stream(), servers, path);
 }
@@ -189,6 +197,29 @@ static void test_disable_backend_again(session &sess)
 	ELLIPTICS_REQUIRE_ERROR(enable_result, sess.disable_backend(node.get_native()->addrs[0], 1), -EALREADY);
 }
 
+static void test_enable_backend_at_empty_node(session &sess)
+{
+	server_node &node = global_data->nodes.back();
+
+	std::string host = node.remote().to_string();
+	auto tuple = std::make_tuple(host, groups_count, 1);
+
+	auto unique_hosts = get_unique_hosts(sess);
+
+	BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) == unique_hosts.end(),
+		"Host must not exist: " + host + ", group: 2, backend: 1");
+
+	ELLIPTICS_REQUIRE(enable_result, sess.enable_backend(node.remote(), 1));
+
+	// Wait 0.5 secs to ensure that route list was changed
+	usleep(500 * 1000);
+
+	unique_hosts = get_unique_hosts(sess);
+
+	BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) != unique_hosts.end(),
+		"Host must exist: " + host + ", group: 2, backend: 1");
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_enable_at_start, create_session(n, { 1, 2, 3 }, 0, 0));
@@ -197,6 +228,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_enable_backend_again, create_session(n, { 1, 2, 3 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_disable_backend, create_session(n, { 1, 2, 3 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_disable_backend_again, create_session(n, { 1, 2, 3 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_enable_backend_at_empty_node, create_session(n, { 1, 2, 3 }, 0, 0));
 
 	return true;
 }

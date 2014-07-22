@@ -136,12 +136,16 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 		struct dnet_addr_socket *socket;
 
 		err = dnet_locks_init(n, 1024);
-		if (err)
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "failed to init locks: %s %d\n", strerror(-err), err);
 			goto err_out_addr_cleanup;
+		}
 
 		n->route = dnet_route_list_create(n);
-		if (!n->route)
+		if (!n->route) {
+			dnet_log(n, DNET_LOG_ERROR, "failed to create route list: %s %d\n", strerror(-err), err);
 			goto err_out_locks_destroy;
+		}
 
 		err = dnet_create_addr(&la, NULL, cfg->port, cfg->family);
 		if (err < 0) {
@@ -159,17 +163,20 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 
 		if (s < 0) {
 			err = s;
+			dnet_log(n, DNET_LOG_ERROR, "failed to create socket: %s %d\n", strerror(-err), err);
 			goto err_out_route_list_destroy;
 		}
 
 		n->st = dnet_state_create(n, NULL, 0, &la, s, &err, DNET_JOIN, 1, -1, dnet_state_accept_process);
 
 		if (!n->st) {
+			dnet_log(n, DNET_LOG_ERROR, "failed to create state: %s %d\n", strerror(-err), err);
 			goto err_out_state_destroy;
 		}
 
 		err = dnet_backend_init_all(n);
 		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "failed to init backends: %s %d\n", strerror(-err), err);
 			goto err_out_state_destroy;
 		}
 
