@@ -127,8 +127,8 @@ static void test_enable_backend(session &sess)
 
 	ELLIPTICS_REQUIRE(enable_result, sess.enable_backend(node.get_native()->addrs[0], 1));
 
-	// Wait 0.5 secs to ensure that route list was changed
-	usleep(500 * 1000);
+	// Wait 0.1 secs to ensure that route list was changed
+	usleep(100 * 1000);
 
 	unique_hosts = get_unique_hosts(sess);
 
@@ -181,8 +181,8 @@ static void test_disable_backend(session &sess)
 
 	ELLIPTICS_REQUIRE(enable_result, sess.disable_backend(node.get_native()->addrs[0], 1));
 
-	// Wait 0.5 secs to ensure that route list was changed
-	usleep(500 * 1000);
+	// Wait 0.1 secs to ensure that route list was changed
+	usleep(100 * 1000);
 
 	unique_hosts = get_unique_hosts(sess);
 
@@ -211,8 +211,8 @@ static void test_enable_backend_at_empty_node(session &sess)
 
 	ELLIPTICS_REQUIRE(enable_result, sess.enable_backend(node.remote(), 1));
 
-	// Wait 0.5 secs to ensure that route list was changed
-	usleep(500 * 1000);
+	// Wait 0.1 secs to ensure that route list was changed
+	usleep(100 * 1000);
 
 	unique_hosts = get_unique_hosts(sess);
 
@@ -249,6 +249,105 @@ static void test_direct_backend(session &sess)
 	BOOST_REQUIRE_EQUAL(second_read.command()->backend_id, 3);
 }
 
+static std::vector<dnet_raw_id> backend_ids(session &sess, const address &addr, uint32_t backend_id)
+{
+	std::vector<dnet_route_entry> routes = sess.get_routes();
+	std::vector<dnet_raw_id> result;
+
+	for (auto it = routes.begin(); it != routes.end(); ++it) {
+		if (it->addr == addr && it->backend_id == backend_id)
+			result.push_back(it->id);
+	}
+
+	return result;
+}
+
+static std::vector<dnet_raw_id> generate_ids(size_t count)
+{
+	std::vector<dnet_raw_id> result;
+	result.reserve(count);
+
+	for (size_t i = 0; i < count; ++i) {
+		dnet_raw_id id;
+		int seed = rand();
+		dnet_digest_transform_raw(&seed, sizeof(seed), id.id, sizeof(id.id));
+		result.push_back(id);
+	}
+
+	return result;
+}
+
+static bool dnet_raw_id_less_than(const dnet_raw_id &first, const dnet_raw_id &second)
+{
+	return memcmp(first.id, second.id, DNET_ID_SIZE) < 0;
+}
+
+static bool dnet_raw_id_equal(const dnet_raw_id &first, const dnet_raw_id &second)
+{
+	return memcmp(first.id, second.id, DNET_ID_SIZE) == 0;
+}
+
+static bool compare_ids(std::vector<dnet_raw_id> first, std::vector<dnet_raw_id> second)
+{
+	if (first.size() != second.size())
+		return false;
+
+	std::sort(first.begin(), first.end(), dnet_raw_id_less_than);
+	std::sort(second.begin(), second.end(), dnet_raw_id_less_than);
+
+	return std::equal(first.begin(), first.end(), second.begin(), dnet_raw_id_equal);
+}
+
+static void test_set_backend_ids_for_disabled(session &sess)
+{
+	server_node &node = global_data->nodes.back();
+
+	auto ids = generate_ids(16);
+
+	ELLIPTICS_REQUIRE(async_set_result, sess.set_backend_ids(node.remote(), 4, ids));
+
+	backend_status_result_entry result = async_set_result.get_one();
+	BOOST_REQUIRE(result.is_valid());
+	BOOST_REQUIRE_EQUAL(result.count(), 1);
+
+	dnet_backend_status *status = result.backend(0);
+	BOOST_REQUIRE_EQUAL(status->backend_id, 4);
+	BOOST_REQUIRE_EQUAL(status->state, DNET_BACKEND_DISABLED);
+
+	ELLIPTICS_REQUIRE(async_enable_result, sess.enable_backend(node.remote(), 4));
+
+	// Wait 0.1 secs to ensure that route list was changed
+	usleep(100 * 1000);
+
+	auto route_ids = backend_ids(sess, node.remote(), 4);
+	BOOST_REQUIRE_EQUAL(ids.size(), route_ids.size());
+	BOOST_REQUIRE(compare_ids(ids, route_ids));
+}
+
+static void test_set_backend_ids_for_enabled(session &sess)
+{
+	server_node &node = global_data->nodes.back();
+
+	auto ids = generate_ids(16);
+
+	ELLIPTICS_REQUIRE(async_set_result, sess.set_backend_ids(node.remote(), 4, ids));
+
+	backend_status_result_entry result = async_set_result.get_one();
+	BOOST_REQUIRE(result.is_valid());
+	BOOST_REQUIRE_EQUAL(result.count(), 1);
+
+	dnet_backend_status *status = result.backend(0);
+	BOOST_REQUIRE_EQUAL(status->backend_id, 4);
+	BOOST_REQUIRE_EQUAL(status->state, DNET_BACKEND_ENABLED);
+
+	// Wait 0.1 secs to ensure that route list was changed
+	usleep(100 * 1000);
+
+	auto route_ids = backend_ids(sess, node.remote(), 4);
+	BOOST_REQUIRE_EQUAL(ids.size(), route_ids.size());
+	BOOST_REQUIRE(compare_ids(ids, route_ids));
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_enable_at_start, create_session(n, { 1, 2, 3 }, 0, 0));
@@ -259,6 +358,8 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_disable_backend_again, create_session(n, { 1, 2, 3 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_enable_backend_at_empty_node, create_session(n, { 1, 2, 3 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_direct_backend, create_session(n, { 0 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_set_backend_ids_for_disabled, create_session(n, { 0 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_set_backend_ids_for_enabled, create_session(n, { 0 }, 0, 0));
 
 	return true;
 }

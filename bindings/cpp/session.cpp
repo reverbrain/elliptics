@@ -1592,7 +1592,8 @@ void session::update_status(const key &id, dnet_node_status *status)
 	}
 }
 
-static async_backend_control_result update_backend_status(session &sess, const address &addr, uint32_t backend_id, dnet_backend_command command)
+static async_backend_control_result update_backend_status(session &sess, const address &addr, uint32_t backend_id,
+	dnet_backend_command command, const std::vector<dnet_raw_id> &ids = std::vector<dnet_raw_id>())
 {
 	async_backend_control_result result(sess);
 
@@ -1608,16 +1609,23 @@ static async_backend_control_result update_backend_status(session &sess, const a
 		}
 	}
 
-	dnet_backend_control backend_control;
-	memset(&backend_control, 0, sizeof(backend_control));
+	data_pointer data = data_pointer::allocate(sizeof(dnet_backend_control) + ids.size() * sizeof(dnet_raw_id));
+	dnet_backend_control *backend_control = data.data<dnet_backend_control>();
+	memset(backend_control, 0, sizeof(dnet_backend_control));
 
-	backend_control.backend_id = backend_id;
-	backend_control.command = command;
+	backend_control->backend_id = backend_id;
+	backend_control->command = command;
+	backend_control->ids_count = ids.size();
+
+	if (!ids.empty()) {
+		data_pointer tmp = data.skip<dnet_backend_control>();
+		memcpy(tmp.data(), ids.data(), ids.size() * sizeof(dnet_raw_id));
+	}
 
 	transport_control control;
 	control.set_command(DNET_CMD_BACKEND_CONTROL);
 	control.set_cflags(DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT);
-	control.set_data(&backend_control, sizeof(backend_control));
+	control.set_data(data.data(), data.size());
 
 	auto cb = createCallback<single_cmd_callback<backend_status_result_entry>>(sess, result, control);
 	cb->state = std::move(state);
@@ -1639,6 +1647,11 @@ async_backend_control_result session::disable_backend(const address &addr, uint3
 async_backend_control_result session::start_defrag(const address &addr, uint32_t backend_id)
 {
 	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_START_DEFRAG);
+}
+
+async_backend_control_result session::set_backend_ids(const address &addr, uint32_t backend_id, const std::vector<dnet_raw_id> &ids)
+{
+	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_SET_IDS, ids);
 }
 
 async_backend_status_result session::request_backends_status(const address &addr)

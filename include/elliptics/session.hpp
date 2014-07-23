@@ -643,6 +643,7 @@ class session
 		async_backend_control_result enable_backend(const address &addr, uint32_t backend_id);
 		async_backend_control_result disable_backend(const address &addr, uint32_t backend_id);
 		async_backend_control_result start_defrag(const address &addr, uint32_t backend_id);
+		async_backend_control_result set_backend_ids(const address &addr, uint32_t backend_id, const std::vector<dnet_raw_id> &ids);
 		async_backend_status_result request_backends_status(const address &addr);
 
 		/*!

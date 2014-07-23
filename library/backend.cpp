@@ -371,6 +371,64 @@ void dnet_backend_cleanup_all(struct dnet_node *node)
 	}
 }
 
+static int dnet_backend_set_ids(dnet_node *node, uint32_t backend_id, dnet_raw_id *ids, uint32_t ids_count)
+{
+	auto &backends = node->config_data->backends->backends;
+	if (backend_id >= backends.size()) {
+		return -EINVAL;
+	}
+
+	dnet_backend_info &backend = backends[backend_id];
+	char tmp_ids[1024];
+	char target_ids[1024];
+	snprintf(tmp_ids, sizeof(tmp_ids), "%s/ids_%08x%08x", backend.history.c_str(), rand(), rand());
+	snprintf(target_ids, sizeof(target_ids), "%s/ids", backend.history.c_str());
+	int err = 0;
+
+	std::ofstream out(tmp_ids, std::ofstream::binary | std::ofstream::trunc);
+	if (!out) {
+		err = -errno;
+		dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: failed to open temporary ids file: %s, err: %d", tmp_ids, err);
+		return err;
+	}
+
+	try {
+		out.write(reinterpret_cast<char *>(ids), ids_count * sizeof(dnet_raw_id));
+		out.flush();
+		out.close();
+
+		if (!out) {
+			err = -errno;
+			dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: failed to write ids to temporary file: %s, err: %d", tmp_ids, err);
+		} else {
+
+			if (!err) {
+				std::lock_guard<std::mutex> guard(*backend.state_mutex);
+				switch (backend.state) {
+					case DNET_BACKEND_ENABLED:
+						err = std::rename(tmp_ids, target_ids);
+						if (err)
+							break;
+						err = dnet_route_list_enable_backend(node->route, backend_id, backend.group, ids, ids_count);
+						break;
+					case DNET_BACKEND_DISABLED:
+						err = std::rename(tmp_ids, target_ids);
+						break;
+					default:
+						err = -EBUSY;
+						break;
+				}
+			}
+		}
+	} catch (...) {
+		out.close();
+		err = -ENOMEM;
+	}
+
+	unlink(tmp_ids);
+	return err;
+}
+
 static void backend_fill_status(dnet_node *node, dnet_backend_status &status, size_t backend_id)
 {
 	const auto &backends = node->config_data->backends->backends;
@@ -393,13 +451,20 @@ int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	dnet_node *node = st->n;
 	const auto &backends = node->config_data->backends->backends;
 
-	if (cmd->size != sizeof(dnet_backend_control)) {
+	if (cmd->size < sizeof(dnet_backend_control)) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_control: command size is not enough for dnet_backend_control, state: %s", dnet_state_dump_addr(st));
 		return -EINVAL;
 	}
 
 	struct dnet_backend_control *control = reinterpret_cast<dnet_backend_control *>(data);
 
 	if (control->backend_id >= backends.size()) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_control: there is no such backend: %u, state: %s", control->backend_id, dnet_state_dump_addr(st));
+		return -EINVAL;
+	}
+
+	if (cmd->size != sizeof(dnet_backend_control) + control->ids_count * sizeof(dnet_raw_id)) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_control: command size is not enough for ids, state: %s", dnet_state_dump_addr(st));
 		return -EINVAL;
 	}
 
@@ -409,7 +474,7 @@ int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	const dnet_backend_callbacks &cb = backend.config.cb;
 
 	int err = 0;
-	switch (control->command) {
+	switch (dnet_backend_command(control->command)) {
 	case DNET_BACKEND_ENABLE:
 		err = dnet_backend_init(st->n, control->backend_id, &state);
 		break;
@@ -422,6 +487,9 @@ int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		} else {
 			err = -ENOTSUP;
 		}
+		break;
+	case DNET_BACKEND_SET_IDS:
+		err = dnet_backend_set_ids(st->n, control->backend_id, control->ids, control->ids_count);
 		break;
 	}
 

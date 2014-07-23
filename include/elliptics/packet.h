@@ -127,6 +127,7 @@ enum dnet_backend_command {
 	DNET_BACKEND_ENABLE = 0,
 	DNET_BACKEND_DISABLE,
 	DNET_BACKEND_START_DEFRAG,
+	DNET_BACKEND_SET_IDS,
 };
 
 enum dnet_backend_state {
@@ -297,7 +298,10 @@ struct dnet_backend_control
 {
 	uint32_t backend_id;
 	uint32_t command;
-	uint64_t reserved[8];
+	uint64_t reserved[7];
+	uint32_t reserved2;
+	uint32_t ids_count;
+	struct dnet_raw_id ids[0];
 } __attribute__ ((packed));
 
 struct dnet_id_container
