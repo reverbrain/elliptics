@@ -575,6 +575,11 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		s = -1;
 		goto err_out_free;
 	}
+
+	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
+	if (err)
+		goto err_out_put;
+
 	memcpy(st->version, version, sizeof(st->version));
 	dnet_log(n, DNET_LOG_NOTICE, "%s: reverse lookup completed: id-num: %d, addr-num: %d, idx: %d.\n",
 			dnet_server_convert_dnet_addr(addr), num, cnt->addr_num, idx);
@@ -582,6 +587,8 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	return st;
 
+err_out_put:
+	dnet_state_put(st);
 err_out_free:
 	free(data);
 err_out_exit:
