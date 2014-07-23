@@ -169,6 +169,9 @@ static int run_servers(const rapidjson::Value &doc)
 			const std::string name(it->name.GetString(), it->name.GetStringLength());
 			const rapidjson::Value &value = it->value;
 
+			if (name == "backends") {
+			}
+
 			if (value.IsInt64()) {
 				config(name, value.GetInt64());
 			} else if (value.IsString()) {

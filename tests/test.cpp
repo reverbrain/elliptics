@@ -177,6 +177,10 @@ static void test_recovery(session &sess, const std::string &id, const std::strin
 	ELLIPTICS_REQUIRE(write_result, sess.write_data(id, data, 0));
 	ELLIPTICS_REQUIRE(recovery_read_result, sess.read_data(id, groups, 0, 0));
 
+	// We need to sleep 100 ms as recovery process is run asynchronously in background
+	// so we need to give the server a bit more time to process this write command
+	usleep(100 * 1000);
+
 	for (size_t i = 0; i < groups.size(); ++i) {
 		std::vector<int> current_groups(1, groups[i]);
 		ELLIPTICS_CHECK(read_result, sess.read_data(id, current_groups, 0, 0));
