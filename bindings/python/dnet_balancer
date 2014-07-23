@@ -71,11 +71,11 @@ def compute_ranges(routes):
     '''
     ranges = []
     for index, route in enumerate(routes):
-        position = int(str(route.key), 16)
+        position = int(str(route.id), 16)
         if index == len(routes) - 1:
-            length = total - position + int(str(routes.routes[0].key), 16)
+            length = total - position + int(str(routes.routes[0].id), 16)
         else:
-            length = int(str(routes[index + 1].key), 16) - position
+            length = int(str(routes[index + 1].id), 16) - position
         ranges.append(length)
     return ranges
 
@@ -113,9 +113,12 @@ def log_spread(spread):
     '''
     spread_str = ''
     spread = spread.items()
-    spread.sort(key=itemgetter(1))
-    for address, part in spread:
-        spread_str += '\tHost {0} {1:.2f}\n'.format(address, part)
+    spread.sort(key=lambda addr_info: addr_info[1]['total'], reverse=True)
+    for address, addr_spread in spread:
+        addr_spread = addr_spread.items()
+        addr_spread.sort(key=itemgetter(1), reverse=True)
+        for backend, perc in addr_spread:
+            spread_str += '\tHost {0}/{1} {2:.2f}\n'.format(address, backend, perc)
     return spread_str
 
 
@@ -126,14 +129,14 @@ def save_ids(routes, addresses):
     '''
     mapping = []
     from struct import pack
-    for addr in addresses:
-        addr_routes = routes.filter_by_address(addr)
-        filename = 'ids.' + str(hash(addr))
+    for addr, backend_id in addresses:
+        addr_routes = routes.filter_by_address(addr).filter_by_backend(backend_id)
+        filename = 'ids.' + str(hash(addr)) + '.' + str(backend_id)
         with open(filename, 'w') as f:
             for r in addr_routes:
-                data = pack('B' * 64, *r.key.id)
+                data = pack('B' * 64, *r.id.id)
                 f.write(data)
-        mapping.append((filename, addr))
+        mapping.append((filename, addr, backend_id))
     return mapping
 
 
@@ -154,13 +157,15 @@ def restore_fake_routes(routes, group):
     Adds fake 0x00..0 and 0xff..f routes to route list
     '''
     #Adds fake 0x00..0 route for calculating spread
-    if routes.routes[0].key != elliptics.Id([0] * 64, group):
+    if routes.routes[0].id != elliptics.Id([0] * 64, group):
         routes.routes.insert(0, elliptics.Route(elliptics.Id([0] * 64, group),
-                                                routes.routes[-1].address))
+                                                routes.routes[-1].address,
+                                                routes.routes[-1].backend_id))
     #Adds fake 0xff..f route for calculating spread value
-    if routes.routes[-1].key != elliptics.Id([255] * 64, group):
+    if routes.routes[-1].id != elliptics.Id([255] * 64, group):
         routes.routes.append(elliptics.Route(elliptics.Id([255] * 64, group),
-                                             routes.routes[-1].address))
+                                             routes.routes[-1].address,
+                                             routes.routes[-1].backend_id))
 
 
 def balance_group(group, routes, min_deviation, max_deviation):
@@ -203,9 +208,9 @@ def balance_group(group, routes, min_deviation, max_deviation):
         max_route = routes.routes[max_range[0]]
 
         #position of smallest range
-        min_position = int(str(min_route.key), 16)
+        min_position = int(str(min_route.id), 16)
         #position of largest range
-        max_position = int(str(max_route.key), 16)
+        max_position = int(str(max_route.id), 16)
 
         #shift from max_position where route for smallest range should be moved
         shift = middle_size
@@ -261,16 +266,16 @@ def balance_group(group, routes, min_deviation, max_deviation):
         new_id = convert_to_id(new_position, group)
         iterations += 1
 
-        log.debug("Old id:{0}".format(routes.routes[min_range[0]].key))
+        log.debug("Old id:{0}".format(routes.routes[min_range[0]].id))
         log.debug("New id:{0}".format(new_id))
 
         #replaces elliptics.Id in route list for smallest range
-        routes.routes[min_range[0]].key = new_id
+        routes.routes[min_range[0]].id = new_id
         #sorts route list by ids
-        routes.routes.sort(key=attrgetter('key'))
+        routes.routes.sort(key=attrgetter('id'))
 
         #adds address of changed route to set for futher creation of ids file
-        updated_addresses.add(min_route.address)
+        updated_addresses.add((min_route.address, min_route.backend_id))
 
     for index, length in enumerate(ranges):
         log.debug("Route #{0} length {1}"
@@ -282,8 +287,7 @@ def balance_group(group, routes, min_deviation, max_deviation):
     ids_mapping = save_ids(routes, updated_addresses)
 
     for index, length in enumerate(ranges):
-        print("Range #{0} - {1}".format(index,
-                                        length * 1. / middle_size))
+        print("Range #{0} - {1}".format(index, length * 1. / middle_size))
 
     restore_fake_routes(routes, group)
     log.debug("Final routes:\n{0}".format(routes))
@@ -299,7 +303,7 @@ def get_routes(options):
     logger = elliptics.Logger(options.log,
                               int(options.log_level))
     node = elliptics.Node(logger)
-    node.add_remote(options.remote)
+    node.add_remote(elliptics.Address.from_host_port_family(options.remote))
 
     session = elliptics.Session(node)
 
@@ -326,13 +330,12 @@ def balance(options):
     ids_mapping = []
 
     for g in groups:
-        ids_mapping += balance_group(g, routes.filter_by_group_id(g),
+        ids_mapping += balance_group(g, routes.filter_by_group(g),
                                      options.min_deviation,
                                      options.max_deviation)
 
-    for filename, address in ids_mapping:
-        line = "IDS file '{0}' should be copied to node: {1}".format(filename,
-                                                                     address)
+    for filename, address, backend_id in ids_mapping:
+        line = "IDS file '{0}' should be copied to node: {1}/{2}".format(filename, address, backend_id)
         log.debug(line)
         print(line)
 
@@ -347,7 +350,7 @@ def check(options):
 
     for group in groups:
         print("Group #{0} route list info".format(group))
-        group_routes = routes.filter_by_group_id(group)
+        group_routes = routes.filter_by_group(group)
         remove_fake_routes(group_routes)
         ranges_count = len(group_routes)
         middle_size = total / ranges_count  # calculates middle size of range

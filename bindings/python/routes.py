@@ -27,11 +27,10 @@ def percentage(routes):
     from operator import itemgetter
     percentages = routes.percentages()
     for group in percentages:
-        print 'Group: {0}'.format(group)
-        items = percentages[group].items()
-        items.sort(key=itemgetter(1))
-        for host, percent in items:
-            print 'host {0} {1:.2f}'.format(host, percent)
+        print 'Group {0}:'.format(group)
+        for host in percentages[group]:
+            for backend_id in percentages[group][host]:
+                print '\thost {0}/{1}\t{2:.2f}'.format(host, backend_id, percentages[group][host][backend_id])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Get remote route table and print its statistics.')
