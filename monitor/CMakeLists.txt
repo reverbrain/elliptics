@@ -26,7 +26,7 @@ set_target_properties(elliptics_monitor PROPERTIES
     LINKER_LANGUAGE CXX
     )
 
-target_link_libraries(elliptics_monitor ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} react)
+target_link_libraries(elliptics_monitor ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} react elliptics_client)
 
 install(TARGETS elliptics_monitor
     EXPORT EllipticsTargets
