@@ -121,12 +121,10 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 
 		dnet_server_convert_dnet_addr_raw(&st->addr, addr_str, dump_size);
 
-		dnet_log(n, DNET_LOG_NOTICE, "route-list: request-from: %s, route-table-node: %s, group: %d, "
-				"first-id: %s, id_num: %d, addr_num: %d, first-addr: %s, skip: %d\n",
+		dnet_log(n, DNET_LOG_NOTICE, "route-list: request-from: %s, route-table-node: %s, "
+				"addr_num: %d, first-addr: %s, skip: %d\n",
 				orig_addr_str, addr_str,
-				g->group_id,
-				dnet_dump_id_str(st->idc->ids[0].raw.id),
-				st->idc->id_num, n->addr_num,
+				n->addr_num,
 				first_addr_str, skip);
 
 		if (skip)
