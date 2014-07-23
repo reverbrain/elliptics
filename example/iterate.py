@@ -86,12 +86,16 @@ def iterate_node(ctx, node):
         if result.status != 0:
             raise AssertionError("Wrong status: {0}".format(result.status))
 
-        print ("node: {0}, key: {1}, flags: {2}, ts: {3}/{4}, data: {5}"
+        print ("node: {0}, key: {1}, flags: {2}, ts: {3}/{4}, keys: {5}/{6}, status: {7}, size: {8}, data: {9}"
                .format(node,
                        result.response.key,
                        result.response.user_flags,
                        result.response.timestamp.tsec,
                        result.response.timestamp.tnsec,
+                       result.response.iterated_keys,
+                       result.response.total_keys,
+                       result.response.status,
+                       result.response.size,
                        result.response_data))
 
 
@@ -102,6 +106,62 @@ def iterate_groups(ctx):
         group_addresses = group_routes.addresses()
         for a in group_addresses:
             iterate_node(ctx, a)
+
+def parse_route_ranges(route_file, route_addr):
+    import re
+    with open(route_file) as route_in:
+        group_prog = re.compile('Group #')
+        route_prog = re.compile('Route\(([0-9a-fA-F]*), ([0-9a-fA-F:]*) ')
+
+        ranges = []
+        key_range = elliptics.IteratorRange()
+        key_range.key_begin = elliptics.Id([0] * 64, 0)
+
+        want_start_key = False
+
+        our_group = False
+        for line in route_in:
+            if group_prog.search(line):
+                if our_group:
+                    # our group has been processed, exit
+                    break
+                continue
+
+            match = route_prog.search(line)
+            if match:
+                route = match.group(1)
+                addr = match.group(2)
+
+                if addr == route_addr:
+                    # we only want to parse a single group where our address was found
+                    our_group = True
+
+                    if want_start_key:
+                        # we have received a range start which belongs to us
+                        # but we are inside of the range which still belongs to us
+                        # so combine this new range with previous one
+                        # i.e. just skip this new start
+                        continue
+
+                    if not want_start_key:
+                        key_range.key_end = elliptics.Id(transf(route), 0)
+                        ranges.append(key_range)
+                        want_start_key = True
+                        continue
+
+                if want_start_key:
+                    key_range = elliptics.IteratorRange()
+                    key_range.key_begin = elliptics.Id(transf(route), 0)
+                    want_start_key = False
+                    continue
+
+        if not want_start_key:
+            key_range.key_end = elliptics.Id([255] * 64, 0)
+            ranges.append(key_range)
+
+        for r in ranges:
+            print r.key_begin, r.key_end
+        return ranges
 
 
 def parse_args():
@@ -121,14 +181,18 @@ def parse_args():
                       help="Elliptics node address [default: %default]")
     parser.add_option("-d", "--data", action="store_true", dest="data", default=False,
                       help="Requests object's data with other info [default: %default]")
-    parser.add_option("-k", "--key-begin", action="store", dest="key_begin", default="0",
+    parser.add_option("-k", "--key-begin", action="store", dest="key_begin", default=None,
                       help="Begin key of range for iterating")
-    parser.add_option("-K", "--key-end", action="store", dest="key_end", default="-1",
+    parser.add_option("-K", "--key-end", action="store", dest="key_end", default=None,
                       help="End key of range for iterating")
     parser.add_option("-t", "--time-begin", action="store", dest="time_begin", default=None,
                       help="Begin timestamp of time range for iterating")
     parser.add_option("-T", "--time-end", action="store", dest="time_end", default=None,
                       help="End timestamp of time range for iterating")
+    parser.add_option("-A", "--addr", action="store", dest="route_addr", default=None,
+                      help="Address to lookup in route file. This address will be used to determine iterator ranges - ranges which DO NOT belong to selected node.")
+    parser.add_option("-R", "--route-file", action="store", dest="route_file", default=None,
+                      help="Route file contains 'dnet_balance' tool's output - route table dump, which will be parsed to find out ranges which DO NOT belong to selected address.")
 
     (options, args) = parser.parse_args()
 
@@ -178,7 +242,7 @@ def parse_args():
             ctx.time_begin = Time.from_epoch(options.time_begin)
         else:
             ctx.time_begin = None
-    except Exception:
+    except Exception as e:
         raise ValueError("Can't parse timestamp: '{0}': {1}"
                          .format(options.timestamp, repr(e)))
     print("Using time_begin: {0}".format(ctx.time_begin))
@@ -188,7 +252,7 @@ def parse_args():
             ctx.time_end = Time.from_epoch(options.time_end)
         else:
             ctx.time_end = None
-    except Exception:
+    except Exception as e:
         raise ValueError("Can't parse timestamp: '{0}': {1}"
                          .format(options.timestamp, repr(e)))
     print("Using time_end: {0}".format(ctx.time_end))
@@ -202,9 +266,7 @@ def parse_args():
             key_range.key_begin = elliptics.Id([255] * 64, 0)
         elif options.key_begin:
             key_range.key_begin = elliptics.Id(transf(options.key_begin), 0)
-        else:
-            key_range.key_begin = elliptics.Id([0] * 64, 0)
-    except Exception:
+    except Exception as e:
         raise ValueError("Can't parse key_begin: '{0}': {1}"
                          .format(options.key_begin, repr(e)))
 
@@ -213,13 +275,21 @@ def parse_args():
             key_range.key_end = elliptics.Id([255] * 64, 0)
         elif options.key_end:
             key_range.key_end = elliptics.Id(transf(options.key_end), 0)
-        else:
-            key_range.key_end = elliptics.Id([255] * 64, 0)
-    except Exception:
+    except Exception as e:
         raise ValueError("Can't parse key_end: '{0}': {1}"
                          .format(options.key_end, repr(e)))
 
-    ctx.ranges = [key_range]
+    ctx.ranges = []
+    if options.key_begin or options.key_end:
+        ctx.ranges = [key_range]
+
+    try:
+        if options.route_file and options.route_addr:
+            ranges = parse_route_ranges(options.route_file, options.route_addr)
+            ctx.ranges += ranges
+    except Exception as e:
+        raise ValueError("Can't parse route_file '{0}' and route_addr '{1}' options: {2}"
+                .format(options.route_file, options.route_addr, repr(e)))
 
     return ctx
 
@@ -235,6 +305,8 @@ if __name__ == '__main__':
             print("Couldn't connect to remote: {0} got: {1}"
                   .format(r, e))
     ctx.session = elliptics.Session(ctx.node)
+    ctx.session.set_timeout(60)
+
     if ctx.groups:
         ctx.session.groups = ctx.groups
     else:

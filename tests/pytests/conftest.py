@@ -52,7 +52,7 @@ def raises(type, message, func, *args, **kwargs):
 
 @pytest.fixture(scope='class')
 def simple_node(request):
-    simple_node = elliptics.Node(elliptics.Logger("/dev/stderr", 4))
+    simple_node = elliptics.Node(elliptics.Logger("client.log", 4))
     for r in request.config.option.remotes:
         simple_node.add_remote(elliptics.Address.from_host_port_family(r))
 

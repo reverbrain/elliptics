@@ -364,7 +364,7 @@ int dnet_socket_create(struct dnet_node *n, const struct dnet_addr *addr, struct
 
 		st = dnet_state_search_by_addr(n, &addr[i]);
 		if (st) {
-			dnet_log(n, DNET_LOG_ERROR, "Address %s already exists in route table\n", dnet_server_convert_dnet_addr(&addr[i]));
+			dnet_log(n, DNET_LOG_NOTICE, "Address %s already exists in route table\n", dnet_server_convert_dnet_addr(&addr[i]));
 			dnet_state_put(st);
 			rem->s = -EEXIST;
 		} else {
@@ -373,7 +373,7 @@ int dnet_socket_create(struct dnet_node *n, const struct dnet_addr *addr, struct
 	}
 
 	if (good_num == 0) {
-		dnet_log(n, DNET_LOG_ERROR, "All %d nodes are already exist in route table\n", num);
+		dnet_log(n, DNET_LOG_NOTICE, "All %d nodes are already exist in route table\n", num);
 		err = -EEXIST;
 		goto err_out_exit;
 	}
@@ -881,11 +881,12 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 
 	if (cmd->trans & DNET_TRANS_REPLY) {
 		uint64_t tid = cmd->trans & ~DNET_TRANS_REPLY;
+		uint64_t flags = cmd->flags;
 
 		pthread_mutex_lock(&st->trans_lock);
 		t = dnet_trans_search(st, tid);
 		if (t) {
-			if (!(cmd->flags & DNET_FLAGS_MORE)) {
+			if (!(flags & DNET_FLAGS_MORE)) {
 				dnet_trans_remove_nolock(st, t);
 			} else {
 				dnet_trans_timestamp(st, t);
@@ -929,7 +930,7 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 		}
 
 		dnet_trans_put(t);
-		if (!(cmd->flags & DNET_FLAGS_MORE)) {
+		if (!(flags & DNET_FLAGS_MORE)) {
 			memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 			dnet_trans_put(t);
 		} else {

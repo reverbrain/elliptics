@@ -62,7 +62,7 @@ set_target_properties(dnet_backends_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_backends_test ${TEST_LIBRARIES})
 
 
-set(PYTESTS_FLAGS "")
+set(PYTESTS_FLAGS "-l" "-x")
 if(NOT WITH_COCAINE)
     list(APPEND PYTESTS_FLAGS "--without-cocaine")
 endif()
@@ -115,7 +115,7 @@ add_custom_command(TARGET test
         . bin/activate &&
         pip install pytest &&
         export LD_LIBRARY_PATH=.:.. &&
-        ${TEST_ENV} py.test ${CMAKE_CURRENT_SOURCE_DIR}/pytests ${PYTESTS_FLAGS} -x
+        ${TEST_ENV} py.test -x ${CMAKE_CURRENT_SOURCE_DIR}/pytests ${PYTESTS_FLAGS}
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)

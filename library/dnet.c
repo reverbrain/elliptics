@@ -558,43 +558,50 @@ static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_
 		struct dnet_iterator_request *ireq,
 		struct dnet_iterator_range *irange)
 {
-	struct dnet_iterator_range *i = NULL;
-	struct dnet_iterator_range *end = irange + ireq->range_num;
+	unsigned int i;
+	char k1[2*DNET_ID_SIZE+1];
+	char k2[2*DNET_ID_SIZE+1];
 
 	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
 		struct dnet_raw_id empty_key = { .id = {} };
 
 		/* Unset DNET_IFLAGS_KEY_RANGE if all keys are empty */
-		for (i = irange; i < end; ++i) {
-			if (memcmp(&empty_key, &i->key_begin, sizeof(struct dnet_raw_id)) != 0
-					|| memcmp(&empty_key, &i->key_end, sizeof(struct dnet_raw_id)) != 0) {
+		for (i = 0; i < ireq->range_num; ++i) {
+			struct dnet_iterator_range *range = &irange[i];
+
+			if (memcmp(&empty_key, &range->key_begin, sizeof(struct dnet_raw_id)) != 0
+					|| memcmp(&empty_key, &range->key_end, sizeof(struct dnet_raw_id)) != 0) {
 				break;
 			}
 		}
-		if (i == end) {
+
+		if (i == ireq->range_num) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: all keys in all ranges are 0\n",
 				dnet_dump_id(&cmd->id));
 			ireq->flags &= ~DNET_IFLAGS_KEY_RANGE;
+			return 0;
 		}
 
 		/* Check that each range is valid */
-		for (i = irange; i < end; ++i) {
-			if (dnet_id_cmp_str(i->key_begin.id, i->key_end.id) > 0) {
-				dnet_log(st->n, DNET_LOG_ERROR, "%s: %tu: key_start > key_begin: cmd: %u\n",
-					dnet_dump_id(&cmd->id), i - irange, cmd->cmd);
+		for (i = 0; i < ireq->range_num; ++i) {
+			struct dnet_iterator_range *range = &irange[i];
+
+			if (dnet_id_cmp_str(range->key_begin.id, range->key_end.id) > 0) {
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: %u: key_begin (%s) > key_end (%s)\n",
+					dnet_dump_id(&cmd->id), i,
+					dnet_dump_id_len_raw(range->key_begin.id, DNET_ID_SIZE, k1),
+					dnet_dump_id_len_raw(range->key_end.id, DNET_ID_SIZE, k2));
 				return -ERANGE;
 			}
 		}
-	}
-	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
-		const short id_len = 6, buf_sz = id_len * 2 + 1;
-		char buf1[buf_sz], buf2[buf_sz];
 
-		for (i = irange; i < end; ++i) {
+		for (i = 0; i < ireq->range_num; ++i) {
+			struct dnet_iterator_range *range = &irange[i];
+
 			dnet_log(st->n, DNET_LOG_NOTICE, "%s: using key range: %s...%s\n",
 					dnet_dump_id(&cmd->id),
-					dnet_dump_id_len_raw(i->key_begin.id, id_len, buf1),
-					dnet_dump_id_len_raw(i->key_end.id, id_len, buf2));
+					dnet_dump_id_len_raw(range->key_begin.id, DNET_ID_SIZE, k1),
+					dnet_dump_id_len_raw(range->key_end.id, DNET_ID_SIZE, k2));
 		}
 	}
 	return 0;
@@ -696,7 +703,7 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	}
 
 	/* Run iterator */
-	err = backend->cb->iterator(&ictl);
+	err = backend->cb->iterator(&ictl, ireq, irange);
 
 	/* Remove iterator */
 	dnet_iterator_destroy(st->n, cpriv.it);

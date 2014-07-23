@@ -653,6 +653,9 @@ int dnet_add_state(struct dnet_node *n, const struct dnet_addr *addr, int num, i
 
 	err = dnet_socket_create(n, addr, &remote, num, 0);
 	if (err) {
+		if (err == -EEXIST) {
+			err = 0;
+		}
 		goto err_out_reconnect;
 	}
 
@@ -662,7 +665,7 @@ int dnet_add_state(struct dnet_node *n, const struct dnet_addr *addr, int num, i
 	for (i = 0; i < num; ++i) {
 		struct dnet_addr_socket *rem = &remote[i];
 
-		dnet_log(n, DNET_LOG_INFO, "%s: socket: %d, ok: %d", dnet_server_convert_dnet_addr(&rem->addr), rem->s, rem->ok);
+		dnet_log(n, DNET_LOG_NOTICE, "%s: socket: %d, ok: %d", dnet_server_convert_dnet_addr(&rem->addr), rem->s, rem->ok);
 		if (rem->s < 0)
 			continue;
 

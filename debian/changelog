@@ -1,3 +1,23 @@
+elliptics (2.25.6.0) unstable; urgency=low
+
+  * package: depend on 0.22.0+ eblob which provides range iterators
+  * iterate: output more useful info about iterated keys
+  * iterate: added option to parse dnet_balance output file and select ranges which DO NOT belong to selected node and request those ranges from remote node
+  * dnet_add_state: if we failed to add any remote addr because they already exist in the route table, return 0 to indicate success
+  * iterator: switched to new iterator scheme where ranges and ctl structure are provided directly into backend. Eblob uses this data to skip ranges in indexes if they are sorted.Eblob: removed iterate_thread_num specification at eblob_backend.
+  * cmake: install timer.hpp with other headers
+  * tests: stop after the first test failure
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Jul 2014 20:22:58 +0400
+
+elliptics (2.25.5.1) unstable; urgency=low
+
+  * Recovery: fixed merge index mismatch if some of merging shards have unfilled shard_id and shard_count
+  * Pytests: turned on exit on first fail to make it easer to find the problem. Used separated log files for all node and client
+  * IOClient: fixed checking dnet_add_state result
+
+ -- Kirill Smorodinnikov <shaitkir@gmail.com>  Fri, 18 Jul 2014 15:40:41 +0400
+
 elliptics (2.25.5.0) unstable; urgency=low
 
   * Let's use Travis-CI to check every commit

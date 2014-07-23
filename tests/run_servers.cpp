@@ -180,7 +180,6 @@ static int run_servers(const rapidjson::Value &doc)
 		}
 
 		configs[i].apply_options(config);
-//		configs[i].log_path = "/dev/stderr";
 	}
 
 	try {

@@ -134,28 +134,6 @@ err:
 	return err;
 }
 
-/* Eblob-specific data/metadata iterator */
-static int blob_iterate(struct eblob_backend_config *c, struct dnet_iterator_ctl *ictl)
-{
-	/* Sanity */
-	assert(c != NULL);
-	assert(ictl != NULL);
-
-	/* Init iterator config */
-	struct eblob_backend *b = c->eblob;
-	struct eblob_iterate_control eictl = {
-		.priv = ictl,
-		.b = b,
-		.log = c->data.log,
-		.flags = EBLOB_ITERATE_FLAGS_ALL | EBLOB_ITERATE_FLAGS_READONLY,
-		.iterator_cb = {
-			.iterator = blob_iterate_callback,
-		},
-	};
-
-	return eblob_iterate(b, &eictl);
-}
-
 static int blob_write(struct eblob_backend_config *c, void *state,
 		struct dnet_cmd *cmd, void *data)
 {
@@ -1025,10 +1003,47 @@ static void eblob_backend_cleanup(void *priv)
 	free(c->data.file);
 }
 
-static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl)
+static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl, struct dnet_iterator_request *ireq, struct dnet_iterator_range *irange)
 {
+	struct eblob_index_block *range = NULL;
 	struct eblob_backend_config *c = ictl->iterate_private;
-	return blob_iterate(c, ictl);
+	struct eblob_backend *b = c->eblob;
+	int err;
+
+	/* Init iterator config */
+	struct eblob_iterate_control eictl = {
+		.priv = ictl,
+		.b = b,
+		.log = c->data.log,
+		.flags = EBLOB_ITERATE_FLAGS_ALL | EBLOB_ITERATE_FLAGS_READONLY,
+		.iterator_cb = {
+			.iterator = blob_iterate_callback,
+		},
+	};
+
+	if (ireq->range_num) {
+		unsigned int i;
+
+		range = calloc(ireq->range_num, sizeof(struct eblob_index_block));
+		if (!range) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
+
+		for (i = 0; i < ireq->range_num; ++i) {
+			memcpy(range[i].start_key.id, irange[i].key_begin.id, DNET_ID_SIZE);
+			memcpy(range[i].end_key.id, irange[i].key_end.id, DNET_ID_SIZE);
+		}
+
+		eictl.range = range;
+		eictl.range_num = ireq->range_num;
+	}
+
+	err = eblob_iterate(b, &eictl);
+
+	free(range);
+err_out_exit:
+	return err;
 }
 
 static void dnet_eblob_log_implemenation(void *priv, int level, const char *msg)

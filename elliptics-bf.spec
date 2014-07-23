@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.5.0
+Version:	2.25.6.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:	python-devel
 BuildRequires:	libcocaine-core2-devel >= 0.11.2.0
 BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
-BuildRequires:	eblob-devel >= 0.21.40
+BuildRequires:	eblob-devel >= 0.22.0
 BuildRequires:	react-devel >= 2.3.1
 BuildRequires:	libev-devel libtool-ltdl-devel
 BuildRequires:	cmake msgpack-devel libblackhole-devel python-msgpack
@@ -143,6 +143,20 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jul 22 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.0
+- package: depend on 0.22.0+ eblob which provides range iterators
+- iterate: output more useful info about iterated keys
+- iterate: added option to parse dnet_balance output file and select ranges which DO NOT belong to selected node and request those ranges from remote node
+- dnet_add_state: if we failed to add any remote addr because they already exist in the route table, return 0 to indicate success
+- iterator: switched to new iterator scheme where ranges and ctl structure are provided directly into backend. Eblob uses this data to skip ranges in indexes if they are sorted.Eblob: removed iterate_thread_num specification at eblob_backend.
+- cmake: install timer.hpp with other headers
+- tests: stop after the first test failure
+
+* Fri Jul 18 2014 Kirill Smorodinnikov <shaitkir@gmail.com> - 2.25.5.1
+- Recovery: fixed merge index mismatch if some of merging shards have unfilled shard_id and shard_count
+- Pytests: turned on exit on first fail to make it easer to find the problem. Used separated log files for all node and client
+- IOClient: fixed checking dnet_add_state result
+
 * Sun Jul 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.5.0
 - Let's use Travis-CI to check every commit
 - route: new batch request completion logic
