@@ -59,6 +59,7 @@
     of recovery this option should be bounded even more). <b>[default: 1]</b>
   - <b>-o ELLIPTICS_REMOTE, --one-node=ELLIPTICS_REMOTE</b> - recovery will iterates only specified node, so only it's keys will be recovered.
     Nodes provided by <b>-r/--remote</b> will be used for gathering full route list.
+    <b> -i BACKEND_ID, --backend_id=BACKEND_ID - Specifies backend data on which should be recovered. IT WORKS ONLY WITH --one-node
   - <b>-b BATCH_SIZE, --batch-size=BATCH_SIZE</b> - Number of keys which will be read/write/remove at once by one subprocess.
     While bigger values speed up recovery they also consume more memory (memory consumption can be computed as avg_record_size * batch size * 2). <b>[default: 1024]</b>
   - <b>-t TIMESTAMP, --time=TIMESTAMP</b> - Recover keys modified since `time`. Can be specified
@@ -122,8 +123,10 @@
     -# if it is necessary copy key from origin node to proper node
     -# remove key from origin node (this step can be skipped if run dnet_recovery with '-S' option)
 
-  By option '<b>-o, --one-node</b>' recovery can be limited to iterate only one node specified by <b>-r/--remote</b>.
-  It means that only node specified by <b>-r/--remote</b> will be iterated and only its keys which shouldn't be on it will be moved to the proper node.
+  By option '<b>-o, --one-node</b>' recovery can be limited to iterate only one specified node.
+  It means that only node specified by <b>-o/--one-node</b> will be iterated and only its keys which shouldn't be on it will be moved to the proper node.
+  By combining options '<b>-o, --one-node</b>', '<b>-i, --backend-id</b>' recovery can be limited to iterate only one specified backend of one specified node.
+  It means that only backend specified by '<b>-i, --backend-id</b>' on node specified by <b>-o/--one-node</b> will be iterated and only its keys which shouldn't be on it will be moved to the proper node.
   By default, merge will process all nodes from groups specified by <b>-g/--groups</b>.
 
   If merge recovery runs with <b>-f/--dump-file</b> merge will make follow steps:
@@ -170,6 +173,12 @@
   DC recovery also recovers indexes by merging index shards from different groups.
   DC recovery provides interface for using custom user-wrote recovery for user data when it is necessary.
   User can use index recovering as an example for writting smart recovery for own format of data.
+
+  By option '<b>-o, --one-node</b>' recovery can be limited to process only one specified node ranges.
+  It means that only ranges of node specified by <b>-o/--one-node</b> will be iterated and only its keys from all groups will be compared and recovered.
+  By combining options '<b>-o, --one-node</b>', '<b>-i, --backend-id</b>' recovery can be limited to process only ranges of one specified backend of one specified node.
+  It means that only ranges from backend specified by '<b>-i, --backend-id</b>' on node specified by <b>-o/--one-node</b> will be iterated and only its keys from all groups will be compared and recovered.
+  By default, merge will process all nodes from groups specified by <b>-g/--groups</b>.
 
 
   \subsection dc_algo How DC recovery works

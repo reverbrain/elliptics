@@ -38,11 +38,11 @@ def id_to_int(key_id):
     """Returns numerical equivalent of key"""
     return int(''.join('%02x' % b for b in key_id.id[:64]), 16)
 
-def mk_container_name(address, prefix="iterator_"):
+def mk_container_name(address, backend_id, prefix="iterator_"):
     """
     Makes filename for iterators' results
     """
-    return "{0}{1}".format(prefix, hashlib.sha256(str(address)).hexdigest())
+    return "{0}{1}.{2}".format(prefix, hashlib.sha256(str(address)).hexdigest(), backend_id)
 
 def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_timeout=60, flags=0, io_thread_num=1, net_thread_num=1, nonblocking_io_thread_num=1, remotes=[]):
     """
@@ -57,7 +57,7 @@ def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_time
     cfg.config.nonblocking_io_thread_num = nonblocking_io_thread_num
     cfg.config.net_thread_num = net_thread_num
     node = elliptics.Node(elog, cfg)
-    node.add_remote(addr=address.host, port=address.port, family=address.family)
+    node.add_remote(address)
     for remote in remotes:
         node.add_remote(remote)
     log.info("Created node: {0}".format(node))
@@ -164,13 +164,13 @@ class RecoverStat(object):
 
 # base class for direct operations with id from address in group
 class DirectOperation(object):
-    def __init__(self, address, id, group, ctx, node, callback):
+    def __init__(self, address, backend_id, id, group, ctx, node, callback):
         # creates new session
         self.session = elliptics.Session(node)
         # turns off exceptions
         self.session.exceptions_policy = elliptics.core.exceptions_policy.no_exceptions
         # makes session direct to the address
-        self.session.set_direct_id(*address)
+        self.session.set_direct_id(address, backend_id)
         # sets groups
         self.session.groups = [group]
         self.id = id
@@ -180,6 +180,7 @@ class DirectOperation(object):
         self.callback = callback
         self.async_result = None
         self.address = address
+        self.backend_id = backend_id
 
     def wait(self):
         if self.async_result:
@@ -231,8 +232,8 @@ class RemoveDirect(DirectOperation):
     def onremove(self, results, error):
         try:
             if error.code:
-                log.debug("Remove key: {0} on node: {1} has been failed: {2}"
-                          .format(self.id, self.address, repr(error)))
+                log.debug("Remove key: {0} on node: {1}/{2} has been failed: {3}"
+                          .format(self.id, self.address, self.backend_id, repr(error)))
                 # if removing filed - retry it predetermined number of times
                 if self.attempt < self.ctx.attempts:
                     old_timeout = self.session.timeout
@@ -246,8 +247,8 @@ class RemoveDirect(DirectOperation):
                     self.stats.remove_retries += 1
                     self.run()
                     return
-                log.error("Key: {0} hasn't been removed from node: {1}: {2}"
-                          .format(repr(self.id), self.address, repr(error)))
+                log.error("Key: {0} hasn't been removed from node: {1}/{2}: {3}"
+                          .format(repr(self.id), self.address, backend_id, repr(error)))
                 self.stats.remove_failed += 1
                 self.callback(False, self.stats)
                 return

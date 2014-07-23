@@ -31,10 +31,10 @@ log = logging.getLogger(__name__)
 
 
 def iterate_node(arg):
-    address, ranges = arg
+    address, backend_id, ranges = arg
     ctx = g_ctx
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
-    stats_name = 'iterate_{0}'.format(address)
+    stats_name = 'iterate_{0}/{1}'.format(address, backend_id)
     stats = ctx.monitor.stats[stats_name]
     stats.timer('process', 'started')
     log.info("Running iterator")
@@ -43,7 +43,7 @@ def iterate_node(arg):
         log.debug(repr(range))
     stats.timer('process', 'iterate')
 
-    node_id = ctx.routes.get_address_id(address)
+    node_id = ctx.routes.get_address_backend_route_id(address, backend_id)
 
     node = elliptics_create_node(address=address,
                                  elog=ctx.elog,
@@ -54,7 +54,7 @@ def iterate_node(arg):
     try:
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
 
-        log.debug("Running iterator on node: {0}".format(address))
+        log.debug("Running iterator on node: {0}/{1}".format(address, backend_id))
         results, results_len = Iterator.iterate_with_stats(
             node=node,
             eid=node_id,
@@ -62,19 +62,21 @@ def iterate_node(arg):
             key_ranges=ranges,
             tmp_dir=ctx.tmp_dir,
             address=address,
+            backend_id=backend_id,
+            group_id = node_id.group_id,
             batch_size=ctx.batch_size,
             stats=stats,
             leave_file=True,
             separately=True)
 
     except Exception as e:
-        log.error("Iteration failed for: {0}: {1}, traceback: {2}"
-                  .format(address, repr(e), traceback.format_exc()))
+        log.error("Iteration failed for node {0}/{1}: {2}, traceback: {3}"
+                  .format(address, backend_id, repr(e), traceback.format_exc()))
         stats.counter('iterations', -1)
         return None
 
-    log.debug("Iterator {0} obtained: {1} record(s)"
-              .format(address, results_len))
+    log.debug("Iterator for node {0}/{1} obtained: {2} record(s)"
+              .format(address, backend_id, results_len))
     stats.counter('iterations', 1)
 
     stats.timer('process', 'sort')
@@ -82,7 +84,7 @@ def iterate_node(arg):
         results[range_id].sort()
 
     stats.timer('process', 'finished')
-    return [(range_id, container.filename, container.address)
+    return [(range_id, container.filename, container.address, container.backend_id, container.group_id)
             for range_id, container in results.items()]
 
 
@@ -93,13 +95,13 @@ def transpose_results(results):
     # for each address iterator results
     for res_dict in results:
         # for each range
-        for range_id, filepath, address in res_dict:
+        for range_id, filepath, address, backend_id, group_id in res_dict:
             # if it first time with this range
             if range_id not in result_tree:
                 # initialize it
                 result_tree[range_id] = []
             # add iterator result to tree
-            result_tree[range_id].append((filepath, address))
+            result_tree[range_id].append((filepath, address, backend_id, group_id))
 
     return result_tree
 
@@ -110,11 +112,11 @@ def merge_results(arg):
 
     range_id, results = arg
     log.debug("Merging iteration results of range: {0}".format(range_id))
-    stats = ctx.monitor.stats["merging_range_{0}".format(range_id)]
-    stats.timer('process', 'started')
     results = [IteratorResult.load_filename(
         filename=r[0],
         address=r[1],
+        backend_id=r[2],
+        group_id=r[3],
         is_sorted=True,
         tmp_dir=ctx.tmp_dir)
         for r in results]
@@ -134,18 +136,19 @@ def merge_results(arg):
             min_data = heapq.heappop(heap)
             key_data = (min_data.value.key,
                         [KeyInfo(min_data.address,
+                                 min_data.group_id,
                                  min_data.value.timestamp,
                                  min_data.value.size,
                                  min_data.value.user_flags)])
             same_datas = [min_data]
             while len(heap) and min_data.value.key == heap[0].value.key:
                 key_data[1].append(KeyInfo(heap[0].address,
+                                           heap[0].group_id,
                                            heap[0].value.timestamp,
                                            heap[0].value.size,
                                            heap[0].value.user_flags))
                 same_datas.append(heapq.heappop(heap))
             pickler.dump(key_data)
-            stats.counter("merged_keys", 1)
             for i in same_datas:
                 try:
                     i.next()
@@ -153,29 +156,35 @@ def merge_results(arg):
                 except StopIteration:
                     pass
 
-    stats.timer('process', 'finished')
     return filename
 
 
 def get_ranges(ctx):
-    routes = ctx.routes.filter_by_group_ids(ctx.groups)
+    routes = ctx.routes.filter_by_groups(ctx.groups)
     addresses = dict()
     groups_number = len(routes.groups())
-    prev_key = None
+    prev_id = None
     ranges = []
     for i in range(groups_number):
         route = routes[i]
-        addresses[route.key.group_id] = route.address
-        prev_key = route.key
+        addresses[route.id.group_id] = (route.address, route.backend_id)
+        prev_id = route.id
 
     for i in range(groups_number, len(routes) - groups_number + 1):
         route = routes[i]
-        ranges.append((prev_key, routes[i].key, addresses.values()))
-        prev_key = route.key
-        addresses[route.key.group_id] = route.address
+        ranges.append((prev_id, routes[i].id, addresses.values()))
+        prev_id = route.id
+        addresses[route.id.group_id] = (route.address, route.backend_id)
+
+
+    def contains(addresses_with_backends, address, backend_id):
+        for addr, bid in addresses_with_backends:
+            if addr == address and (backend_id == None or backend_id == bid):
+                return True
+        return False
 
     if ctx.one_node:
-        ranges = [x for x in ranges if ctx.address in x[2]]
+        ranges = [x for x in ranges if contains(x[2], ctx.address, ctx.backend_id)]
 
     address_range = dict()
 
@@ -207,7 +216,7 @@ def main(ctx):
                   "sdc recovery could not be made."
                   .format(ctx.routes.groups()))
         return False
-    processes = min(g_ctx.nprocess, len(g_ctx.routes.addresses()))
+    processes = min(g_ctx.nprocess, len(g_ctx.routes.addresses_with_backends()))
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
 
@@ -217,7 +226,7 @@ def main(ctx):
 
     try:
         results = pool.map(iterate_node,
-                           ((addr, ranges[addr], ) for addr in ranges))
+                           ((addr[0], addr[1], ranges[addr], ) for addr in ranges))
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
         pool.terminate()
@@ -301,8 +310,8 @@ def lookup_keys(ctx):
                 try:
                     result = l.get()[0]
                     address = result.address
-                    address.group_id = ctx.groups[i]
                     key_infos.append(KeyInfo(address,
+                                             ctx.groups[i],
                                              result.timestamp,
                                              result.size,
                                              result.user_flags))

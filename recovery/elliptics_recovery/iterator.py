@@ -19,6 +19,7 @@ Wrappers for iterator and it's result container
 """
 
 import sys
+import logging
 import os
 
 from .utils.misc import logged_class, mk_container_name
@@ -30,6 +31,7 @@ import traceback
 sys.path.insert(0, "bindings/python/")  # XXX
 import elliptics
 
+log = logging.getLogger(__name__)
 
 @logged_class
 class IteratorResult(object):
@@ -40,6 +42,8 @@ class IteratorResult(object):
 
     def __init__(self,
                  address=None,
+                 backend_id=0,
+                 group_id=0,
                  container=None,
                  tmp_dir="",
                  leave_file=False,
@@ -47,6 +51,8 @@ class IteratorResult(object):
                  range_id=0,
                  ):
         self.address = address
+        self.backend_id = backend_id
+        self.group_id = group_id
         self.container = container
         self.tmp_dir = tmp_dir
         self.__file = None
@@ -91,9 +97,12 @@ class IteratorResult(object):
         Computes diff between two sorted results. Returns container that consists of difference.
         """
         import hashlib
-        filename = 'diff_' + hashlib.sha256(str(self.address)).hexdigest() + '-' + hashlib.sha256(str(other.address)).hexdigest()
+        filename = 'diff_{0}.{1}-{2}.{3}'.format(hashlib.sha256(str(self.address)).hexdigest(), self.backend_id,
+                                                 hashlib.sha256(str(other.address)).hexdigest(), other.backend_id)
         diff_container = IteratorResult.from_filename(filename,
                                                       address=other.address,
+                                                      backend_id=other.backend_id,
+                                                      group_id=other.group_id,
                                                       tmp_dir=self.tmp_dir
                                                       )
         self.container.diff(other.container, diff_container.container)
@@ -123,10 +132,12 @@ class IteratorResult(object):
         if len(results) == 1:
             import shutil
             diff = results[0]
-            filename = os.path.join(tmp_dir, mk_container_name(diff.address, "merge_"))
+            filename = os.path.join(tmp_dir, mk_container_name(diff.address, diff.backend_id, "merge_"))
             shutil.copyfile(diff.filename, filename)
             return [cls.load_filename(filename,
                                       address=diff.address,
+                                      backend_id=diff.backend_id,
+                                      group_id=diff.group_id,
                                       is_sorted=True,
                                       tmp_dir=tmp_dir,
                                       leave_file=True
@@ -150,8 +161,10 @@ class IteratorResult(object):
             try:
                 heapq.heappush(heap,
                                MergeData(d,
-                                         IteratorResult.from_filename(os.path.join(tmp_dir, mk_container_name(d.address, "merge_")),
+                                         IteratorResult.from_filename(os.path.join(tmp_dir, mk_container_name(d.address, d.backend_id, "merge_")),
                                                                       address=d.address,
+                                                                      backend_id=d.backend_id,
+                                                                      group_id=d.group_id,
                                                                       tmp_dir=tmp_dir,
                                                                       leave_file=True
                                                                       )))
@@ -254,6 +267,8 @@ class Iterator(object):
               timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime()),
               tmp_dir='/var/tmp',
               address=None,
+              backend_id=0,
+              group_id=0,
               leave_file=False,
               batch_size=1024):
         assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now"
@@ -268,15 +283,20 @@ class Iterator(object):
                     prefix = 'iterator_{0}_'.format(range.range_id)
                     filename = os.path.join(tmp_dir,
                                             mk_container_name(address=address,
+                                                              backend_id=backend_id,
                                                               prefix=prefix))
                     results[range.range_id] = IteratorResult.from_filename(filename=filename,
                                                                            address=address,
+                                                                           backend_id=backend_id,
+                                                                           group_id=group_id,
                                                                            tmp_dir=tmp_dir,
                                                                            leave_file=leave_file)
             else:
-                filename = os.path.join(tmp_dir, mk_container_name(address))
+                filename = os.path.join(tmp_dir, mk_container_name(address, backend_id))
                 results[0] = IteratorResult.from_filename(filename=filename,
                                                           address=address,
+                                                          backend_id=backend_id,
+                                                          group_id=group_id,
                                                           tmp_dir=tmp_dir,
                                                           leave_file=leave_file)
 
@@ -322,15 +342,17 @@ class Iterator(object):
 
     @classmethod
     def iterate_with_stats(cls, node, eid, timestamp_range,
-                           key_ranges, tmp_dir, address, batch_size,
+                           key_ranges, tmp_dir, address, group_id, backend_id, batch_size,
                            stats, leave_file=False,
                            separately=False):
-        iterator = cls(node, address.group_id, separately)
+        iterator = cls(node, group_id, separately)
         result = iterator.start(eid=eid,
                                 timestamp_range=timestamp_range,
                                 key_ranges=key_ranges,
                                 tmp_dir=tmp_dir,
                                 address=address,
+                                backend_id=backend_id,
+                                group_id=group_id,
                                 batch_size=batch_size,
                                 leave_file=leave_file,
                                 )
@@ -363,6 +385,8 @@ class MergeData(object):
         self.value = None
         self.next_value = None
         self.address = result.address
+        self.group_id = result.group_id
+        self.backend_id = result.backend_id
         self.next()
 
     def __cmp__(self, other):
@@ -402,4 +426,4 @@ class MergeData(object):
             self.iter = None
 
 
-KeyInfo = namedtuple('KeyInfo', 'address, timestamp, size, user_flags')
+KeyInfo = namedtuple('KeyInfo', 'address, group_id, timestamp, size, user_flags')

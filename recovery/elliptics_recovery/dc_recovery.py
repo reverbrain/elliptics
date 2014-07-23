@@ -220,17 +220,17 @@ def filter(filepath, groups):
             else:
                 diffs.append(key_info)
 
-        same_groups = set((x.address.group_id for x in same))
-        diff_groups = set((x.address.group_id for x in diffs))
+        same_groups = set((x.group_id for x in same))
+        diff_groups = set((x.group_id for x in diffs))
 
         missed_groups = groups.difference(same_groups) \
                               .difference(diff_groups) \
-                              .difference([origin.address.group_id])
+                              .difference([origin.group_id])
 
         if not diff_groups and not missed_groups:
             continue
 
-        yield (key, origin.address.group_id, diff_groups, missed_groups)
+        yield (key, origin.group_id, diff_groups, missed_groups)
 
 
 def recover(ctx):

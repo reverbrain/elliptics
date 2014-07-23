@@ -124,6 +124,8 @@ if __name__ == '__main__':
                       help="Sets custom recover app which accepts file path and returns file path to filtered keys")
     parser.add_option("-f", '--dump-file', action='store', dest='dump_file', default='',
                       help='Sets dump file which contains hex ids of object that should be recovered')
+    parser.add_option('-i', '--backend-id', action='store', dest='backend_id', default=None,
+                      help='Specifies backend data on which should be recovered. IT WORKS ONLY WITH --one-node')
 
     (options, args) = parser.parse_args()
 
@@ -212,6 +214,7 @@ if __name__ == '__main__':
             raise ValueError("Can't parse host:port:family: '{0}': {1}, traceback: {2}"
                              .format(remote, repr(e), traceback.format_exc()))
 
+    ctx.backend_id = None
     # if one_node mode is on then use his address as a main otherwise use first from remotes
     if ctx.one_node:
         try:
@@ -219,6 +222,12 @@ if __name__ == '__main__':
         except Exception as e:
             raise ValueError("Can't parse host:port:family: '{0}': {1}, traceback: {2}"
                              .format(remote, repr(e), traceback.format_exc()))
+        try:
+            if options.backend_id != None:
+                ctx.backend_id = int(options.backend_id)
+        except Exception as e:
+            raise ValueError("Can't parse backend_id: '{0}': {1}, traceback: {2}"
+                             .format(options.backend_id, repr(e), traceback.format_exc()))
     elif ctx.remotes:
         ctx.address = ctx.remotes[0]
     log.info("Using host:port:family: {0}".format(ctx.address))
@@ -331,8 +340,6 @@ if __name__ == '__main__':
     if len(ctx.groups) == 0:
         ctx.groups = ctx.routes.groups()
         log.info("No groups specified: using all available groups: {0}".format(ctx.groups))
-
-    ctx.address.group_id = ctx.routes.get_address_eid(ctx.address).group_id
 
     if recovery_type == TYPE_MERGE:
         if ctx.dump_file:
