@@ -1,3 +1,11 @@
+elliptics (2.25.6.1) unstable; urgency=low
+
+  * state: when (re)creating state after recevied reverse lookup we must copy received address array into this new state
+  * route: cleaned up debug messages
+  * trans: cache transaction reply flags to make processing bulletproof against callback which can change cmd->flags
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 23 Jul 2014 21:52:34 +0400
+
 elliptics (2.25.6.0) unstable; urgency=low
 
   * package: depend on 0.22.0+ eblob which provides range iterators
