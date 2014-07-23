@@ -1208,7 +1208,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	fcntl(st->write_s, F_SETFD, FD_CLOEXEC);
 
-	dnet_log(n, DNET_LOG_DEBUG, "%s: sockets: %d/%d\n", dnet_server_convert_dnet_addr(addr), st->read_s, st->write_s);
+	dnet_log(n, DNET_LOG_DEBUG, "dnet_state_create: %s: sockets: %d/%d\n", dnet_server_convert_dnet_addr(addr), st->read_s, st->write_s);
 
 	err = dnet_state_micro_init(st, n, addr, join, process);
 	if (err)

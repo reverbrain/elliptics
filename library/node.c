@@ -246,7 +246,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	if (n->log->log_level >= DNET_LOG_DEBUG) {
 		for (i=0; i<g->id_num; ++i) {
 			struct dnet_state_id *id = &g->ids[i];
-			dnet_log(n, DNET_LOG_DEBUG, "%d: %s -> %s\n", g->group_id,
+			dnet_log(n, DNET_LOG_DEBUG, "idc_create: group: %d: %s -> %s\n", g->group_id,
 				dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st));
 		}
 	}
@@ -295,7 +295,7 @@ err_out_unlock:
 err_out_exit:
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_ERROR, "Failed to initialized group %d with %d ids: err: %d: %ld usecs.\n", group_id, id_num, err, diff);
+	dnet_log(n, DNET_LOG_ERROR, "Failed to initialize group %d with %d ids: err: %d: %ld usecs.\n", group_id, id_num, err, diff);
 	return err;
 }
 

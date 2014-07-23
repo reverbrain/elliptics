@@ -337,11 +337,32 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	void *buf = NULL;
 	size_t size, orig_size = 0;
 	int err;
+	const int dump_size = 128;
+	char orig_addr_str[dump_size+1], addr_str[dump_size+1], first_addr_str[dump_size+1];
+
+	dnet_server_convert_dnet_addr_raw(&orig->addr, orig_addr_str, dump_size);
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (dnet_addr_equal(&st->addr, &orig->addr) || !st->addrs)
+			int skip = dnet_addr_equal(&st->addr, &orig->addr) || !st->addrs;
+
+			if (!st->addrs)
+				snprintf(first_addr_str, sizeof(first_addr_str), "no-address");
+			else
+				dnet_server_convert_dnet_addr_raw(&st->addrs[0], first_addr_str, dump_size);
+
+			dnet_server_convert_dnet_addr_raw(&st->addr, addr_str, dump_size);
+
+			dnet_log(n, DNET_LOG_NOTICE, "route-list: request-from: %s, route-table-node: %s, group: %d, "
+					"first-id: %s, id_num: %d, addr_num: %d, first-addr: %s, skip: %d\n",
+					orig_addr_str, addr_str,
+					g->group_id,
+					dnet_dump_id_str(st->idc->ids[0].raw.id),
+					st->idc->id_num, n->addr_num,
+					first_addr_str, skip);
+
+			if (skip)
 				continue;
 
 			size = st->idc->id_num * sizeof(struct dnet_raw_id) +
@@ -356,11 +377,6 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 
 				orig_size = size;
 			}
-
-			dnet_log(n, DNET_LOG_NOTICE, "%s: %d %s, id_num: %d, addr_num: %d\n",
-					dnet_server_convert_dnet_addr(&st->addrs[0]),
-					g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id),
-					st->idc->id_num, n->addr_num);
 
 			memset(buf, 0, size);
 			cmd->id.group_id = g->group_id;
