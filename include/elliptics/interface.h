@@ -822,7 +822,7 @@ int dnet_request_cmd_id(struct dnet_session *s, struct dnet_id *id, struct dnet_
 int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, const int sock_type, const int proto);
 
 /* Change node status on given address or ID */
-int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dnet_id *id, struct dnet_node_status *status);
+int dnet_update_status(struct dnet_session *s, const struct dnet_addr *addr, struct dnet_id *id, struct dnet_node_status *status);
 
 /*
  * Remove object by @id

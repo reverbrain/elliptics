@@ -1679,7 +1679,7 @@ static int dnet_update_status_complete(struct dnet_net_state *state, struct dnet
 	return -ENOENT;
 }
 
-int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dnet_id *id, struct dnet_node_status *status)
+int dnet_update_status(struct dnet_session *s, const struct dnet_addr *addr, struct dnet_id *id, struct dnet_node_status *status)
 {
 	int err;
 	struct dnet_update_status_priv *priv;

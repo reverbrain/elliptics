@@ -485,7 +485,7 @@ int main(int argc, char *argv[])
 		}
 
 		if (update_status) {
-			s.update_status(remote_addr, port, family, &node_status);
+			s.update_status(address(remote_addr, port, family), &node_status);
 		}
 
 	} catch (const std::exception &e) {

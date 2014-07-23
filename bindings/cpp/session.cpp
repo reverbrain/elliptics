@@ -1570,24 +1570,12 @@ async_generic_result session::request_cmd(const transport_control &ctl)
 	return result;
 }
 
-static int parse_addr(dnet_addr *result, const char *saddr, int port, int family)
+void session::update_status(const address &addr, dnet_node_status *status)
 {
-	memset(result, 0, sizeof(dnet_addr));
-	result->addr_len = sizeof(result->addr);
-	result->family = family;
-
-	return dnet_fill_addr(result, saddr, port, SOCK_STREAM, IPPROTO_TCP);
-}
-
-void session::update_status(const char *saddr, const int port, const int family, dnet_node_status *status)
-{
-	dnet_addr addr;
-	int err = parse_addr(&addr, saddr, port, family);
-	if (!err)
-		err = dnet_update_status(m_data->session_ptr, &addr, NULL, status);
+	int err = dnet_update_status(m_data->session_ptr, &addr.to_raw(), NULL, status);
 
 	if (err < 0) {
-		throw_error(err, "%s:%d: failed to request set status %p", saddr, port, status);
+		throw_error(err, "%s: failed to request set status %p", dnet_server_convert_dnet_addr(&addr.to_raw()), status);
 	}
 }
 

@@ -632,10 +632,9 @@ class session
 		async_generic_result request_cmd(const transport_control &ctl);
 
 		/*!
-		 * Changes node \a status on given \a address, \a port and network \a family.
+		 * Changes node \a status on given \a address.
 		 */
-		void			update_status(const char *addr, const int port,
-						const int family, dnet_node_status *status);
+		void			update_status(const address &addr, dnet_node_status *status);
 		/*!
 		 * Changes node \a status on key \a id.
 		 */
