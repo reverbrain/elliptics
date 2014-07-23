@@ -48,15 +48,15 @@ static char *dnet_work_io_mode_str(int mode)
 
 static void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
 {
+	int i;
 	struct dnet_io_req *r, *tmp;
-	struct dnet_work_io *wio, *wio_tmp;
+	struct dnet_work_io *wio;
 
 	pthread_mutex_lock(&place->lock);
 
-	list_for_each_entry_safe(wio, wio_tmp, &place->pool->wio_list, wio_entry) {
+	for (i = 0; i < place->pool->num; ++i) {
+		wio = &place->pool->wio_list[i];
 		pthread_join(wio->tid, NULL);
-		list_del(&wio->wio_entry);
-		free(wio);
 	}
 
 
@@ -65,10 +65,19 @@ static void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
 		dnet_io_req_free(r);
 	}
 
+	for (i = 0; i < place->pool->num; ++i) {
+		wio = &place->pool->wio_list[i];
+
+		list_for_each_entry_safe(r, tmp, &wio->list, req_entry) {
+			list_del(&r->req_entry);
+			dnet_io_req_free(r);
+		}
+	}
+
 	pthread_mutex_destroy(&place->pool->lock);
 	pthread_cond_destroy(&place->pool->wait);
 
-	free(place->pool->trans);
+	free(place->pool->wio_list);
 	free(place->pool);
 
 	place->pool = NULL;
@@ -78,50 +87,48 @@ static void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
 
 static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool, int num, void *(* process)(void *))
 {
-	int i, err;
-	struct dnet_work_io *wio, *tmp;
+	int i, j, err;
+	struct dnet_work_io *wio;
 
 	pthread_mutex_lock(&pool->lock);
 
-	pool->trans = realloc(pool->trans, sizeof(uint64_t) * (pool->num + num));
+	pool->wio_list = malloc(num * sizeof(struct dnet_work_io));
+	if (!pool->wio_list) {
+		err = -ENOMEM;
+		goto err_out_io_threads;
+	}
 
 	for (i = 0; i < num; ++i) {
-		wio = malloc(sizeof(struct dnet_work_io));
-		if (!wio) {
-			err = -ENOMEM;
-			goto err_out_io_threads;
-		}
+		wio = &pool->wio_list[i];
 
 		wio->thread_index = i;
 		wio->pool = pool;
-
-		pool->trans[pool->num + i] = ~0ULL;
+		wio->trans = ~0ULL;
+		INIT_LIST_HEAD(&wio->list);
 
 		err = pthread_create(&wio->tid, NULL, process, wio);
 		if (err) {
-			free(wio);
 			err = -err;
 			dnet_log(n, DNET_LOG_ERROR, "Failed to create IO thread: %d\n", err);
 			goto err_out_io_threads;
 		}
-
-		list_add_tail(&wio->wio_entry, &pool->wio_list);
 	}
 
 	dnet_log(n, DNET_LOG_INFO, "Grew %s pool by: %d -> %d IO threads\n",
 			dnet_work_io_mode_str(pool->mode), pool->num, pool->num + num);
 
-	pool->num += num;
+	pool->num = num;
 	pthread_mutex_unlock(&pool->lock);
 
 	return 0;
 
 err_out_io_threads:
-	list_for_each_entry_safe(wio, tmp, &pool->wio_list, wio_entry) {
+	for (j = 0; j < i; ++j) {
+		wio = &pool->wio_list[j];
 		pthread_join(wio->tid, NULL);
-		list_del(&wio->wio_entry);
-		free(wio);
 	}
+
+	free(pool->wio_list);
 
 	pthread_mutex_unlock(&pool->lock);
 
@@ -190,7 +197,6 @@ static int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_
 	place->pool->io = io;
 	INIT_LIST_HEAD(&place->pool->list);
 	list_stat_init(&place->pool->list_stats);
-	INIT_LIST_HEAD(&place->pool->wio_list);
 
 	err = dnet_work_pool_grow(n, place->pool, num, process);
 	if (err)
@@ -905,17 +911,26 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 	n->st = NULL;
 }
 
-static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_index)
+static struct dnet_io_req *take_request(struct dnet_work_io *wio)
 {
-	struct dnet_io_req *it = NULL;
+	struct dnet_work_pool *pool = wio->pool;
+	struct dnet_io_req *it = NULL, *tmp;
 	struct dnet_cmd *cmd;
-	uint64_t tid;
+	uint64_t trans;
 	int i;
 	int ok;
 
-	list_for_each_entry(it, &pool->list, req_entry) {
+	if (!list_empty(&wio->list)) {
+		it = list_first_entry(&wio->list, struct dnet_io_req, req_entry);
 		cmd = it->header;
-		tid = cmd->trans & ~DNET_TRANS_REPLY;
+		trans = cmd->trans & ~DNET_TRANS_REPLY;
+		wio->trans = trans;
+		return it;
+	}
+
+	list_for_each_entry_safe(it, tmp, &pool->list, req_entry) {
+		cmd = it->header;
+		trans = cmd->trans & ~DNET_TRANS_REPLY;
 		ok = 1;
 
 		/* This is not a transaction reply, process it right now */
@@ -924,12 +939,17 @@ static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_
 
 		for (i = 0; i < pool->num; ++i) {
 			 /* Someone claimed transaction @tid */
-			if (pool->trans[i] == tid) {
+			if (pool->wio_list[i].trans == trans) {
+				list_move_tail(&it->req_entry, &pool->wio_list[i].list);
+				continue;
 				/* we should not touch it */
 				ok = 0;
 				break;
 			}
 		}
+
+		wio->trans = trans;
+		return it;
 
 		/*
 		 * 'ok' here means no one claimed given transaction, we can process it,
@@ -938,7 +958,7 @@ static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_
 		if (ok) {
 			/* only claim this transaction if there will be others */
 			if (cmd->flags & DNET_FLAGS_MORE)
-				pool->trans[thread_index] = tid;
+				wio->trans = trans;
 			return it;
 		}
 	}
@@ -991,11 +1011,11 @@ static void *dnet_io_process(void *data_)
 		 * transactions they are assigned to, thus not allowing any further process, since no thread will be able to
 		 * process current request and move to the next one.
 		 */
-		pool->trans[wio->thread_index] = -1;
+		wio->trans = ~0ULL;
 
-		if (!(r = take_request(pool, wio->thread_index))) {
+		if (!(r = take_request(wio))) {
 			err = pthread_cond_timedwait(&pool->wait, &pool->lock, &ts);
-			if ((r = take_request(pool, wio->thread_index)))
+			if ((r = take_request(wio)))
 				err = 0;
 		}
 
