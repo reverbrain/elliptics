@@ -53,7 +53,7 @@ class Session(Session):
         Returns current routes table\n
         routes = session.get_routes
         """
-        return self.routes()
+        return self.routes
 
     def lookup_address(self, key, group_id):
         """
@@ -65,6 +65,10 @@ class Session(Session):
                                       .lookup_address(key, group_id), group_id)
 
     def bulk_write(self, datas):
+        """
+        WRites several objects at once.
+        @datas - can be dict: {key:value} or iterable container of tuples (elliptics.IoAttr, data)
+        """
         if type(datas) is dict:
             return super(Session, self).bulk_write(datas.items())
         else:
@@ -154,3 +158,72 @@ class Session(Session):
             indexes = indexes.keys()
 
         return super(Session, self).update_indexes_internal(id, indexes, datas)
+
+    def set_direct_id(self, address, backend_id=None):
+        """
+        Makes session sends all request directly to @address without forwarding.
+        If @backend_id is not None all requests sent by session will be handled at specified backend
+        """
+        if backend_id is None:
+            super(Session, self).set_direct_id(host=address.host,
+                                               port=address.port,
+                                               family=address.family)
+        else:
+            super(Session, self).set_direct_id(host=address.host,
+                                               port=address.port,
+                                               family=address.family,
+                                               backend_id=backend_id)
+
+    def update_status(self, id_or_address, status):
+        """
+        Updates status of @id_or_address to @status.
+        If id_or_address is elliptics.Id then this id will be used for determining the node.
+        If id_or_address is elliptics.Address then status of this node will be updated.
+        """
+        if type(id_or_address) is Address:
+            super(Session, self).update_status(host=address.host,
+                                               port=address.port,
+                                               family=address.family,
+                                               status=status)
+        else:
+            super(Session, self).update_status(id=id_or_address,
+                                               status=status)
+
+    def enable_backend(self, address, backend_id):
+        """
+        Enables backend @backend_id on @address.
+        Return elliptics.AsyncResult that provides new status of backend
+        """
+        return super(Session, self).enable_backend(host=address.host,
+                                                   port=address.port,
+                                                   family=address.family,
+                                                   backend_id=backend_id)
+
+    def disable_backend(self, address, backend_id):
+        """
+        Disables backend @backend_id on @address.
+        Return elliptics.AsyncResult that provides new status of backend
+        """
+        return super(Session, self).disable_backend(host=address.host,
+                                                    port=address.port,
+                                                    family=address.family,
+                                                    backend_id=backend_id)
+
+    def start_defrag(self, address, backend_id):
+        """
+        Starts defragmentation of backend @backend_id on @address.
+        Return elliptics.AsyncResult that provides new status of backend
+        """
+        return super(Session, self).start_defrag(host=address.host,
+                                                 port=address.port,
+                                                 family=address.family,
+                                                 backend_id=backend_id)
+
+    def request_backends_status(self, address):
+        """
+        Request statuses of all backends from @address.
+        Return elliptics.AsyncResult that provides statuses of all presented backend
+        """
+        return super(Session, self).request_backends_status(host=address.host,
+                                                            port=address.port,
+                                                            family=address.family)

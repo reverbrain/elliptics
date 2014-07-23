@@ -140,7 +140,7 @@ class Route(object):
         return '<Route: {0}, {1}, <backend_id: {2}>>'.format(repr(self.id), repr(self.address), repr(self.backend_id))
 
     def __str__(self):
-        return 'Route({0}, {1}, {2})'.format(self.id, self.address, self.backend_id)
+        return 'Route({0}:{1}, {2}/{3})'.format(self.id.group_id, self.id, self.address, self.backend_id)
 
     def __iter__(self):
         return iter((self.id, self.address, self.backend_id))
@@ -221,17 +221,25 @@ class RouteList(object):
     def filter_by_group(self, group_id):
         """
         Filters routes for specified group_id\n
-        routes = routes.filter_by_group_id(1)
+        routes = routes.filter_by_group(1)
         """
         return self.filter_by_groups([group_id])
 
     def filter_by_groups(self, group_ids):
         """
         Filters routes for specified group_ids\n
-        routes = routes.filter_by_group_ids([1, 2, 3])
+        routes = routes.filter_by_groups((1, 2, 3))
         """
         return RouteList([route for route in self.routes
                           if route.id.group_id in group_ids])
+
+    def filter_by_backend(self, backend_id):
+        """
+        Filters routes for specified backend_id\n
+        routes = routes.filter_by_backend((1, 2, 3))
+        """
+        return RouteList([route for route in self.routes
+                            if route.backend_id == backend_id])
 
     def groups(self):
         """
@@ -246,6 +254,13 @@ class RouteList(object):
         addresses = routes.addresses()
         """
         return tuple(set(route.address for route in self.routes))
+
+    def addresses_with_backends(self):
+        """
+        Returns all addresses and backend's ids which are presented in route table\n
+        addresses = routes.addresses_with_backends()
+        """
+        return tuple(set((route.address, route.backend_id) for route in self.routes))
 
     def get_unique_routes(self):
         """
@@ -266,7 +281,7 @@ class RouteList(object):
         id_routes = routes.get_id_routes(id)
         """
         from bisect import bisect
-        route_id = bisect([r.id for r in self.routes], id)
+        route_id = bisect([r.id for r in self.routes], id) - 1
         group_dict = {}
         while route_id > -1 and len(group_dict) != len(self.groups()):
             route = self.routes[route_id]
@@ -285,17 +300,42 @@ class RouteList(object):
             return route.backend_id in tmp or tmp.add(route.backend_id)
         return tuple(route for route in self.routes if route.address == address and not seen(route))
 
+    def get_address_backend_routes(self, address, backend_id):
+        """
+        Returns all routes for specified @address and @backend_id
+        """
+        return tuple(route for route in self.routes if (route.address, route.backend_id) == (address, backend_id))
+
+    def get_address_backend_route_id(self, address, backend_id):
+        """
+        Returns only elliptics.Id from all routes for specified @address and @backend_id
+        """
+        return next(route.id for route in self.routes if (route.address, route.backend_id) == (address, backend_id))
+
+    def get_address_backend_group(self, address, backend_id):
+        """
+        Returns group's id of specified @backend_id at node @address
+        """
+        return next(route.id.group_id for route in self.routes
+                    if route.address == address and route.backend_id == backend_id)
+
     def get_address_groups(self, address):
         """
-        Returns group_id of address based on route table\n
+        Returns all group_ids of address based on route table\n
         groups = routes.get_address_groups(
             Address.from_host_port_family('host.com:1025:2'))
         """
         return tuple(set(route.id.group_id for route in self.routes if route.address == address))
 
+    def get_address_backends(self, address):
+        """
+        Returns all backend_ids presented at @address
+        """
+        return tuple(set(route.backend_id for route in self.routes if route.address == address))
+
     def get_address_ranges(self, address):
         """
-        Returns id ranges which belong to specified address\n
+        Returns id ranges which belong to specified @address\n
         ranges = routes.get_address_ranges(
             Address.from_host_port_family('host.com:1025:2'))
         """
@@ -313,6 +353,26 @@ class RouteList(object):
         if id:
             ranges.append((id, Id([255] * 64, id.group_id)))
 
+        return ranges
+
+    def get_address_backend_ranges(self, address, backend_id):
+        """
+        Returns id ranges which belong to specified @backend_id at @address\n
+        ranges = routes.get_address_backend_ranges(
+            Address.from_host_port_family('host.com:1025:2', 0))
+        """
+        ranges = []
+        group = self.get_address_backend_group(address, backend_id)
+        id = None
+        for route in self.filter_by_groups([group]):
+            if (route.address, route.backend_id) == (address, backend_id):
+                if id is None:
+                    id = route.id
+            elif id:
+                ranges.append((id, route.id))
+                id = None
+        if id:
+            ranges.append((id, Id([255] * 64, id.group_id)))
         return ranges
 
     def percentages(self):

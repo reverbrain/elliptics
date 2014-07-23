@@ -184,17 +184,17 @@ public:
 		session::set_groups(convert_to_vector<int>(groups));
 	}
 
-	void set_direct_id(std::string saddr, int port, int family) {
-		session::set_direct_id(address(saddr.c_str(), port, family));
-	}
-
-	void set_direct_id_with_backend(std::string saddr, int port, int family, uint32_t backend_id) {
-		session::set_direct_id(address(saddr.c_str(), port, family), backend_id);
+	void set_direct_id(std::string host, int port, int family, const bp::api::object &backend_id) {
+		if (backend_id.ptr() != Py_None) {
+			bp::extract<uint32_t> get_backend(backend_id);
+			session::set_direct_id(address(host, port, family), get_backend());
+		} else {
+			session::set_direct_id(address(host, port, family));
+		}
 	}
 
 	struct elliptics_id get_direct_id() {
-		dnet_id id = session::get_direct_id();
-		return id;
+		return session::get_direct_id();
 	}
 
 	bp::list get_groups() {
@@ -408,12 +408,28 @@ public:
 		return status;
 	}
 
-	elliptics_status update_status_addr(const std::string &saddr, const int port,
+	elliptics_status update_status_addr(const std::string &host, const int port,
 	                                    const int family, elliptics_status &status) {
-		py_allow_threads_scoped pythr;
-		session::update_status(saddr.c_str(), port, family, &status);
+		session::update_status(address(host, port, family), &status);
 		return status;
 	}
+
+	python_backend_status_result enable_backend(const std::string &host, int port, int family, uint32_t backend_id) {
+		return create_result(std::move(session::enable_backend(address(host, port, family), backend_id)));
+	}
+
+	python_backend_status_result disable_backend(const std::string &host, int port, int family, uint32_t backend_id) {
+		return create_result(std::move(session::disable_backend(address(host, port, family), backend_id)));
+	}
+
+	python_backend_status_result start_defrag(const std::string &host, int port, int family, uint32_t backend_id) {
+		return create_result(std::move(session::start_defrag(address(host, port, family), backend_id)));
+	}
+
+	python_backend_status_result request_backends_status(const std::string &host, int port, int family) {
+		return create_result(std::move(session::request_backends_status(address(host, port, family))));
+	}
+
 
 	python_read_result read_data_range(const elliptics_range &r) {
 		return create_result(std::move(session::read_data_range(r.io_attr(), r.group_id)));
@@ -836,16 +852,10 @@ void init_elliptics_session() {
 		.def("get_ioflags", &elliptics_session::get_ioflags)
 
 		.def("set_direct_id", &elliptics_session::set_direct_id,
-		     (bp::arg("addr"), bp::arg("port"), bp::arg("family") = 2),
-		    "set_direct_id(addr, port, family)\n"
-		    "    Makes elliptics.Session works with only specified node directly\n\n"
-		    "    session.set_direct_id(addr='host.com', port = 1025, family=2)")
-
-		.def("set_direct_id", &elliptics_session::set_direct_id_with_backend,
-		     (bp::arg("addr"), bp::arg("port"), bp::arg("family") = 2, bp::arg("backend_id")),
-		    "set_direct_id(addr, port, family)\n"
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family") = 2, bp::arg("backend_id")=bp::api::object()),
+		    "set_direct_id(host, port, family=2, backend_id=None)\n"
 		    "    Makes elliptics.Session works with only specified backend directly\n\n"
-		    "    session.set_direct_id(addr='host.com', port = 1025, family=2, backend_id=5)")
+		    "    session.set_direct_id(host='host.com', port = 1025, family=2, backend_id=5)")
 
 		.def("get_direct_id", &elliptics_session::get_direct_id,
 		    "get_direct_id()\n"
@@ -1321,14 +1331,43 @@ void init_elliptics_session() {
 		    "    session.update_status(id, new_status)")
 
 		.def("update_status", &elliptics_session::update_status_addr,
-		     (bp::arg("addr"), bp::arg("port"),
+		     (bp::arg("host"), bp::arg("port"),
 		      bp::arg("family"), bp::arg("status")),
 		    "update_status(addr, port, family, status)\n"
 		    "    Updates status of node specified by address to status.\n\n"
 		    "    new_status = elliptics.SessionStatus()\n"
 		    "    new_status.nflags = elliptics.status_flags.change\n"
 		    "    new_status.log_level = elliptics.log_level.error\n"
-		    "    session.update_status(Address.from_host_port('host.com:1025'), new_status)")
+		    "    session.update_status(host='host.com', port=1025, family=AF_INET, new_status)")
+
+		.def("enable_backend", &elliptics_session::enable_backend,
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id")),
+		     "enable_backend(host, port, family, backend_id)\n"
+		     "    Enables backend @backend_id at node addressed by @host, @port, @family\n"
+		     "    Returns AsyncResult which provides new backend status\n\n"
+		     "    new_status = session.enable_backend(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]")
+
+		.def("disable_backend", &elliptics_session::disable_backend,
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id")),
+		     "disable_backend(host, port, family, backend_id)\n"
+		     "    Disables backend @backend_id at node addressed by @host, @port, @family\n"
+		     "    Returns AsyncResult which provides new backend status\n\n"
+		     "    new_status = session.enable_backend(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]")
+
+		.def("start_defrag", &elliptics_session::start_defrag,
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id")),
+		     "start_defrag(host, port, family, backend_id)\n"
+		     "    Start defragmentation of backend @backend_id at node addressed by @host, @port, @family\n"
+		     "    Returns AsyncResult which provides new backend status\n\n"
+		     "    new_status = session.enable_backend(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]\n"
+		     "    defrag_state = new_state.defrag_state")
+
+		.def("request_backends_status", &elliptics_session::request_backends_status,
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family")),
+		     "request_backends_status(host, port, family)\n"
+		     "    Request all backends status from node addressed by @host, @port, @family\n"
+		     "    Returns AsyncResult which provides backends statuses\n\n"
+		     "    backends_statuses = session.enable_backend(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends")
 
 // Remove operations
 

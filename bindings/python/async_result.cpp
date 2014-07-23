@@ -147,7 +147,8 @@ void init_async_results() {
 						iterator_result_entry,
 						exec_result_entry,
 						find_indexes_result_entry,
-						index_entry
+						index_entry,
+						backend_status_result_entry
 					>::init();
 
 }

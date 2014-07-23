@@ -54,7 +54,7 @@ def raises(type, message, func, *args, **kwargs):
 def simple_node(request):
     simple_node = elliptics.Node(elliptics.Logger("/dev/stderr", 4))
     for r in request.config.option.remotes:
-        simple_node.add_remote(r)
+        simple_node.add_remote(elliptics.Address.from_host_port_family(r))
 
     def fin():
         print "Finilizing simple node"
@@ -79,8 +79,7 @@ class PassthroughWrapper(object):
 def connect(endpoints, groups, **kw):
     remotes = []
     for r in endpoints:
-        parts = r.split(":")
-        remotes.append((parts[0], int(parts[1])))
+        remotes.append(elliptics.Address.from_host_port_family(r))
 
     def rename(kw, old, new):
         if old in kw:
@@ -98,8 +97,10 @@ def connect(endpoints, groups, **kw):
 
     for r in remotes:
         try:
-            n.add_remote(r[0], r[1])
-        except Exception:
+            n.add_remote(r)
+        except Exception as e:
+            import sys
+            sys.stderr.write("{0}\n".format(repr(e)))
             pass
 
     s = elliptics.Session(n)
@@ -128,7 +129,8 @@ def elliptics_client(request):
     remote = request.config.option.remotes
     groups = [int(g) for g in request.config.option.groups.split(',')]
     loglevel = request.config.option.loglevel
-    return connect(remote, groups, loglevel=loglevel)
+    logfile = 'client.log'
+    return connect(remote, groups, loglevel=loglevel, logfile=logfile)
     # client = connect([remote], groups, loglevel=loglevel)
     # client.set_filter(elliptics.filters.all_with_ack)
     # return client

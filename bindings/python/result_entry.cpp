@@ -24,6 +24,7 @@
 #include "elliptics_id.h"
 #include "elliptics_time.h"
 #include "elliptics_io_attr.h"
+#include "py_converters.h"
 
 namespace bp = boost::python;
 
@@ -205,13 +206,7 @@ elliptics_id find_indexes_result_get_id(find_indexes_result_entry &result)
 
 bp::list find_indexes_result_get_indexes(find_indexes_result_entry &result)
 {
-	bp::list ret;
-
-	for (auto it = result.indexes.begin(), end = result.indexes.end(); it != end; ++it) {
-		ret.append(*it);
-	}
-
-	return ret;
+	return convert_to_list(result.indexes);
 }
 
 bool callback_result_is_valid(callback_result_entry &result)
@@ -367,6 +362,20 @@ elliptics_id route_entry_get_id(const dnet_route_entry &entry) {
 
 std::string route_entry_get_address(const dnet_route_entry &entry) {
 	return std::string(dnet_server_convert_dnet_addr(&entry.addr));
+}
+
+elliptics_time dnet_backend_status_get_last_start(const dnet_backend_status &result) {
+	return elliptics_time(result.last_start);
+}
+
+bp::list dnet_backend_status_result_get_backends(const backend_status_result_entry &result) {
+	bp::list ret;
+
+	for (size_t i = 0; i < result.count(); ++i) {
+		ret.append(result.backend(i));
+	}
+
+	return ret;
 }
 
 void init_result_entry() {
@@ -556,6 +565,18 @@ void init_result_entry() {
 		.add_property("id", route_entry_get_id)
 		.add_property("address", route_entry_get_address)
 		.add_property("backend_id", &dnet_route_entry::backend_id)
+	;
+
+	bp::class_<backend_status_result_entry>("BackendStatusResultEntry")
+		.add_property("backends", &dnet_backend_status_result_get_backends)
+	;
+
+	bp::class_<dnet_backend_status>("BackendStatus")
+		.add_property("backend_id", &dnet_backend_status::backend_id)
+		.add_property("state", &dnet_backend_status::state)
+		.add_property("defrag_state", &dnet_backend_status::defrag_state)
+		.add_property("last_start", dnet_backend_status_get_last_start)
+		.add_property("last_start_err", &dnet_backend_status::last_start_err)
 	;
 
 }

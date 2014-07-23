@@ -142,10 +142,6 @@ class elliptics_node_python : public node, public bp::wrapper<node> {
 		void add_remote(const char *host, int port, int family) {
 			node::add_remote(address(host, port, family));
 		}
-
-		void add_remote(const char *addr) {
-			node::add_remote(address(addr));
-		}
 };
 
 
@@ -202,8 +198,6 @@ void ios_base_failure_translator(const std::ios_base::failure &exc)
 {
 	PyErr_SetString(PyExc_IOError, exc.what());
 }
-
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
 
 void logger_log(logger &log, const char *msg, int level)
 {
@@ -337,20 +331,13 @@ BOOST_PYTHON_MODULE(core)
 		     "__init__(self, logger, config)\n"
 		     "    Initializes node by the logger and custom configuration\n\n"
 		     "node = elliptics.Node(logger, config)"))
-		.def("add_remote", static_cast<void (node::*)(const char*, int, int)>(&elliptics_node_python::add_remote),
-		     (bp::arg("addr"), bp::arg("port"), bp::arg("family") = AF_INET),
-		     "add_remote(addr, port, family=AF_INET)\n"
+		.def("add_remote", &elliptics_node_python::add_remote,
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family") = AF_INET),
+		     "add_remote(host, port, family=AF_INET)\n"
 		     "    Adds connection to Elliptics node\n"
 		     "    which located on address, port, family.\n"
 		     "    Throws exception if connection hasn't been established\n\n"
-		     "    node.add_remote(addr='host.com', port=1025, family=2)")
-		.def("add_remote", static_cast<void (node::*)(const char*)>(&elliptics_node_python::add_remote),
-		     (bp::arg("addr")),
-		     "add_remote(addr)\n"
-		     "    Adds connection to Elliptics node which located on address.\n"
-		     "    addr is string in format 'host:port:family'.\n"
-		     "    Throws exception if connection hasn't been established\n\n"
-		     "    node.add_remote('host.com:1025:2')")
+		     "    node.add_remote(host='host.com', port=1025, family=2)")
 		.def("set_timeouts", static_cast<void (node::*)(const int, const int)>(&node::set_timeouts),
 		     (bp::arg("wait_timeout"), bp::arg("check_timeout")),
 		     "set_timeouts(wait_timeout, check_timeout)\n"

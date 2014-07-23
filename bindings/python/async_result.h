@@ -153,20 +153,21 @@ python_async_result<T> create_result(async_result<T> &&result)
 	return pyresult;
 }
 
-typedef python_async_result<iterator_result_entry>		python_iterator_result;
-typedef python_async_result<read_result_entry> 			python_read_result;
-typedef python_async_result<lookup_result_entry>		python_lookup_result;
-typedef python_async_result<write_result_entry>			python_write_result;
-typedef python_async_result<remove_result_entry>		python_remove_result;
-typedef python_async_result<exec_result_entry>			python_exec_result;
-typedef python_async_result<callback_result_entry>		python_callback_result;
+typedef python_async_result<iterator_result_entry>			python_iterator_result;
+typedef python_async_result<read_result_entry> 				python_read_result;
+typedef python_async_result<lookup_result_entry>			python_lookup_result;
+typedef python_async_result<write_result_entry>				python_write_result;
+typedef python_async_result<remove_result_entry>			python_remove_result;
+typedef python_async_result<exec_result_entry>				python_exec_result;
+typedef python_async_result<callback_result_entry>			python_callback_result;
 
-typedef python_async_result<find_indexes_result_entry>	python_find_indexes_result;
-typedef python_async_result<index_entry>				python_check_indexes_result;
+typedef python_async_result<find_indexes_result_entry>		python_find_indexes_result;
+typedef python_async_result<index_entry>					python_check_indexes_result;
 
-typedef python_async_result<stat_result_entry>			python_stat_result;
-typedef python_async_result<stat_count_result_entry>	python_stat_count_result;
-typedef python_async_result<monitor_stat_result_entry>	python_monitor_stat_result;
+typedef python_async_result<stat_result_entry>				python_stat_result;
+typedef python_async_result<stat_count_result_entry>		python_stat_count_result;
+typedef python_async_result<monitor_stat_result_entry>		python_monitor_stat_result;
+typedef python_async_result<backend_status_result_entry>	python_backend_status_result;
 
 void init_async_results();
 
