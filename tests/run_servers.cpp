@@ -90,6 +90,38 @@ static bool read_option(const rapidjson::Value &doc, const std::string &value, b
 	return default_value;
 }
 
+static int fill_config(tests::config_data &config, std::vector<tests::config_data> &backends, std::string &prefix, const rapidjson::Value &options, bool is_server)
+{
+	for (auto it = options.MemberBegin(); it != options.MemberEnd(); ++it) {
+		const std::string name(it->name.GetString(), it->name.GetStringLength());
+		const rapidjson::Value &value = it->value;
+
+		if (is_server && name == "backends") {
+			backends.resize(value.Size());
+
+			for (size_t i = 0; i < value.Size(); ++i) {
+				size_t prefix_size = prefix.size();
+				prefix += ".backends[" + boost::lexical_cast<std::string>(i) + "]";
+				int err = fill_config(backends[i], backends, prefix, value[i], false);
+				prefix.resize(prefix_size);
+				if (err)
+					return err;
+			}
+		}
+
+		if (value.IsInt64()) {
+			config(name, value.GetInt64());
+		} else if (value.IsString()) {
+			config(name, std::string(value.GetString(), value.GetStringLength()));
+		} else {
+			std::cerr << "Field \"" << prefix << "." << name << "\" has unknown type" << std::endl;
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 /*!
  * \brief Run servers by json configuration
  *
@@ -165,22 +197,10 @@ static int run_servers(const rapidjson::Value &doc)
 				unique_groups.insert(group.GetInt());
 		}
 
-		for (auto it = server.MemberBegin(); it != server.MemberEnd(); ++it) {
-			const std::string name(it->name.GetString(), it->name.GetStringLength());
-			const rapidjson::Value &value = it->value;
-
-			if (name == "backends") {
-			}
-
-			if (value.IsInt64()) {
-				config(name, value.GetInt64());
-			} else if (value.IsString()) {
-				config(name, std::string(value.GetString(), value.GetStringLength()));
-			} else {
-				std::cerr << "Field \"servers[" << i << "]." << name << "\" has unknown type" << std::endl;
-				return 1;
-			}
-		}
+		std::string prefix = "servers[" + boost::lexical_cast<std::string>(i) + "]";
+		int err = fill_config(config, configs[i].backends, prefix, server, true);
+		if (err)
+			return err;
 
 		configs[i].apply_options(config);
 	}
