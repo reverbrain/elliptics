@@ -50,7 +50,7 @@ void app_context::init(const std::string &, const std::vector<std::string> &chun
 	tests::node_info info;
 	info.unpack(context.data().to_string());
 
-	const std::string log_path = info.path + "/app.log";
+	const std::string log_path = info.path + "/" + id + ".log";
 
 	logger.reset(new elliptics::file_logger(log_path.c_str(), DNET_LOG_DEBUG));
 	node.reset(new elliptics::node(*logger));
