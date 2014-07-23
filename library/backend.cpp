@@ -10,36 +10,45 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 	const size_t num = storage_free / size_per_id + 1;
 	dnet_raw_id tmp;
 	const char *random_source = "/dev/urandom";
+	int err = 0;
 
 	std::ifstream in(random_source, std::ofstream::binary);
+	std::ofstream out;
+
 	if (!in) {
-		int err = -errno;
+		err = -errno;
 		dnet_log_err(n, "failed to open '%s' as source of ids file '%s'", random_source, file);
-		return err;
+		goto err_out_exit;
 	}
 
-	std::ofstream out(file, std::ofstream::binary | std::ofstream::trunc);
+	out.open(file, std::ofstream::binary | std::ofstream::trunc);
 	if (!out) {
-		int err = -errno;
+		err = -errno;
 		dnet_log_err(n, "failed to open/create ids file '%s'", file);
-		return err;
+		goto err_out_unlink;
 	}
 
 	for (size_t i = 0; i < num; ++i) {
 		if (!in.read(reinterpret_cast<char *>(tmp.id), sizeof(tmp.id))) {
-			int err = -errno;
+			err = -errno;
 			dnet_log_err(n, "failed to read id from '%s'", random_source);
-			return err;
+			goto err_out_unlink;
 		}
 
 		if (!out.write(reinterpret_cast<char *>(tmp.id), sizeof(tmp.id))) {
-			int err = -errno;
+			err = -errno;
 			dnet_log_err(n, "failed to write id into ids file '%s'", file);
-			return err;
+			goto err_out_unlink;
 		}
 	}
 
 	return 0;
+
+err_out_unlink:
+	out.close();
+	unlink(file);
+err_out_exit:
+	return err;
 }
 
 static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num, unsigned long long storage_free, struct dnet_addr *cfg_addrs, size_t backend_id)
