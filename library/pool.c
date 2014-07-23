@@ -87,7 +87,7 @@ static void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
 
 static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool, int num, void *(* process)(void *))
 {
-	int i, j, err;
+	int i = 0, j, err;
 	struct dnet_work_io *wio;
 
 	pthread_mutex_lock(&pool->lock);
@@ -941,24 +941,13 @@ static struct dnet_io_req *take_request(struct dnet_work_io *wio)
 			 /* Someone claimed transaction @tid */
 			if (pool->wio_list[i].trans == trans) {
 				list_move_tail(&it->req_entry, &pool->wio_list[i].list);
-				continue;
-				/* we should not touch it */
 				ok = 0;
 				break;
 			}
 		}
 
-		wio->trans = trans;
-		return it;
-
-		/*
-		 * 'ok' here means no one claimed given transaction, we can process it,
-		 * but only if 'we' do not wait for another transaction already.
-		 */
 		if (ok) {
-			/* only claim this transaction if there will be others */
-			if (cmd->flags & DNET_FLAGS_MORE)
-				wio->trans = trans;
+			wio->trans = trans;
 			return it;
 		}
 	}
@@ -1039,6 +1028,9 @@ static void *dnet_io_process(void *data_)
 
 		err = dnet_process_recv(wio->pool->io, st, r);
 		trace_id = 0;
+
+		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: processed IO event: %p, cmd: %s",
+			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, dnet_cmd_string(cmd->cmd));
 
 		dnet_io_req_free(r);
 		dnet_state_put(st);
