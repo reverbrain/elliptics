@@ -827,11 +827,12 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 
 	if (cmd->trans & DNET_TRANS_REPLY) {
 		uint64_t tid = cmd->trans & ~DNET_TRANS_REPLY;
+		uint64_t flags = cmd->flags;
 
 		pthread_mutex_lock(&st->trans_lock);
 		t = dnet_trans_search(st, tid);
 		if (t) {
-			if (!(cmd->flags & DNET_FLAGS_MORE)) {
+			if (!(flags & DNET_FLAGS_MORE)) {
 				dnet_trans_remove_nolock(st, t);
 			} else {
 				dnet_trans_timestamp(st, t);
@@ -875,7 +876,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 		}
 
 		dnet_trans_put(t);
-		if (!(cmd->flags & DNET_FLAGS_MORE)) {
+		if (!(flags & DNET_FLAGS_MORE)) {
 			memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 			dnet_trans_put(t);
 		} else {
