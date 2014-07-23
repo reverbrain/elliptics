@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.0
+Version:	2.25.6.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jul 23 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.1
+- state: when (re)creating state after recevied reverse lookup we must copy received address array into this new state
+- route: cleaned up debug messages
+- trans: cache transaction reply flags to make processing bulletproof against callback which can change cmd->flags
+
 * Tue Jul 22 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.0
 - package: depend on 0.22.0+ eblob which provides range iterators
 - iterate: output more useful info about iterated keys

@@ -341,7 +341,7 @@ err_out_unlock:
 err_out_exit:
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_ERROR, "Failed to initialized group %d with %d ids, state: %s, backend: %d, err: %d: %ld usecs.\n",
+	dnet_log(n, DNET_LOG_ERROR, "Failed to initialize group %d with %d ids, state: %s, backend: %d, err: %d: %ld usecs.\n",
 		group_id, id_num, dnet_state_dump_addr(st), backend->backend_id, err, diff);
 	return err;
 }

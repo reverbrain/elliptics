@@ -642,6 +642,11 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		s = -1;
 		goto err_out_free_backends;
 	}
+
+	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
+	if (err)
+		goto err_out_put;
+
 	memcpy(st->version, version, sizeof(st->version));
 	dnet_log(n, DNET_LOG_NOTICE, "%s: connected: backends-num: %d, addr-num: %d, idx: %d.\n",
 			dnet_server_convert_dnet_addr(addr), id_container->backends_count, cnt->addr_num, idx);
@@ -650,6 +655,8 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	return st;
 
+err_out_put:
+	dnet_state_put(st);
 err_out_free_backends:
 	free(backends);
 err_out_free:
