@@ -85,7 +85,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 				dnet_dump_id(&cmd->id), client_addr, server_addr,
 				idx, cnt->addr_num, n->addr_num);
 		err = -EINVAL;
-		goto err_out_free;
+		goto err_out_exit;
 	}
 
 	id_container = (struct dnet_id_container *)((char *)data + sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr));

@@ -288,6 +288,15 @@ struct dnet_route_list_control
 	int addrs_num;
 };
 
+static inline void dnet_route_list_control_put(struct dnet_route_list_control *control)
+{
+	if (atomic_dec_and_test(&control->w->refcnt)) {
+		free(control->addrs);
+		dnet_wait_destroy(control->w);
+		free(control);
+	}
+}
+
 static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv)
 {
 	struct dnet_route_list_control *control = priv;
@@ -308,7 +317,7 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 
 		w->status = err;
 		dnet_wakeup(w, w->cond = 1);
-		dnet_wait_put(w);
+		dnet_route_list_control_put(control);
 		goto err_out_exit;
 	}
 
@@ -396,7 +405,7 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 	struct dnet_trans *t;
 	struct dnet_cmd *cmd;
 	struct dnet_wait *w;
-	struct dnet_route_list_control control;
+	struct dnet_route_list_control *control;
 	int err;
 
 	w = dnet_wait_alloc(0);
@@ -405,17 +414,24 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 		goto err_out_exit;
 	}
 
+	control = malloc(sizeof(struct dnet_route_list_control));
+	if (!control) {
+		err = -ENOMEM;
+		dnet_wait_put(w);
+		goto err_out_exit;
+	}
+
+	memset(control, 0, sizeof(struct dnet_route_list_control));
+	control->w = w;
+
 	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd));
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_wait_put;
 	}
 
-	memset(&control, 0, sizeof(struct dnet_route_list_control));
-	control.w = w;
-
 	t->complete = dnet_recv_route_list_complete;
-	t->priv = &control;
+	t->priv = control;
 
 	cmd = (struct dnet_cmd *)(t + 1);
 
@@ -445,18 +461,18 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 		goto err_out_destroy;
 
 	err = dnet_wait_event(w, w->cond != 0, &n->wait_ts);
-	dnet_wait_put(w);
 
-	if (control.addrs && control.addrs_num)
-		err = dnet_add_state(n, control.addrs, control.addrs_num, DNET_CFG_NO_ROUTE_LIST);
-	free(control.addrs);
+	if (control->addrs && control->addrs_num)
+		err = dnet_add_state(n, control->addrs, control->addrs_num, DNET_CFG_NO_ROUTE_LIST);
+
+	dnet_route_list_control_put(control);
 
 	return 0;
 
 err_out_destroy:
 	dnet_trans_put(t);
 err_out_wait_put:
-	dnet_wait_put(w);
+	dnet_route_list_control_put(control);
 err_out_exit:
 	return err;
 }
