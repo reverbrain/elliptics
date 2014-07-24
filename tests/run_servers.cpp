@@ -107,9 +107,7 @@ static int fill_config(tests::config_data &config, std::vector<tests::config_dat
 				if (err)
 					return err;
 			}
-		}
-
-		if (value.IsInt64()) {
+		} else if (value.IsInt64()) {
 			config(name, value.GetInt64());
 		} else if (value.IsString()) {
 			config(name, std::string(value.GetString(), value.GetStringLength()));
