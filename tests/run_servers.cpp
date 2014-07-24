@@ -191,18 +191,19 @@ static int run_servers(const rapidjson::Value &doc)
 
 		tests::config_data config;
 
-		if (server.HasMember("group")) {
-			const auto &group = server["group"];
-			if (group.IsInt())
-				unique_groups.insert(group.GetInt());
-		}
-
 		std::string prefix = "servers[" + boost::lexical_cast<std::string>(i) + "]";
 		int err = fill_config(config, configs[i].backends, prefix, server, true);
 		if (err)
 			return err;
 
 		configs[i].apply_options(config);
+
+		for (size_t j = 0; j < configs[i].backends.size(); ++j) {
+			tests::config_data &backend = configs[i].backends[j];
+
+			if (backend.has_value("group"))
+				unique_groups.insert(atoi(backend.string_value("group").c_str()));
+		}
 	}
 
 	try {
