@@ -324,6 +324,7 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 		backend_io->cb = NULL;
 	backend.cache = NULL;
 	backend.config.cleanup(&backend.config);
+	memset(&backend.config.cb, 0, sizeof(backend.config.cb));
 
 	{
 		std::lock_guard<std::mutex> guard(*backend.state_mutex);
@@ -440,7 +441,7 @@ static void backend_fill_status(dnet_node *node, dnet_backend_status &status, si
 
 	status.backend_id = backend_id;
 	status.state = backend.state;
-	if (cb.defrag_status)
+	if (backend.state == DNET_BACKEND_ENABLED && cb.defrag_status)
 		status.defrag_state = cb.defrag_status(cb.command_private);
 	status.last_start = backend.last_start;
 	status.last_start_err = backend.last_start_err;
