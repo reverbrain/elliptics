@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.1
+Version:	2.25.6.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jul 24 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.2
+- weight: print full weight change, not only first 3 digits
+- Logs: changed trace_id output to hex
+
 * Wed Jul 23 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.1
 - state: when (re)creating state after recevied reverse lookup we must copy received address array into this new state
 - route: cleaned up debug messages

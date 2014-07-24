@@ -1,3 +1,10 @@
+elliptics (2.25.6.2) unstable; urgency=low
+
+  * weight: print full weight change, not only first 3 digits
+  * Logs: changed trace_id output to hex
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Jul 2014 21:31:55 +0400
+
 elliptics (2.25.6.1) unstable; urgency=low
 
   * state: when (re)creating state after recevied reverse lookup we must copy received address array into this new state
