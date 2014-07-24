@@ -132,7 +132,7 @@ class file_logger_interface : public logger_interface {
 			localtime_r((time_t *)&tv.tv_sec, &tm);
 			strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-			snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %llu/%ld/%d : ", tv.tv_usec, (trace_id & ~DNET_TRACE_BIT), dnet_get_id(), getpid());
+			snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %llx/%ld/%d : ", tv.tv_usec, (trace_id & ~DNET_TRACE_BIT), dnet_get_id(), getpid());
 
 			if (m_stream) {
 				m_stream << str << usecs_and_id << msg;
