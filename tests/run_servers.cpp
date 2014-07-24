@@ -97,7 +97,7 @@ static int fill_config(tests::config_data &config, std::vector<tests::config_dat
 		const rapidjson::Value &value = it->value;
 
 		if (is_server && name == "backends") {
-			backends.resize(value.Size());
+			backends.resize(value.Size(), backends.front());
 
 			for (size_t i = 0; i < value.Size(); ++i) {
 				size_t prefix_size = prefix.size();
