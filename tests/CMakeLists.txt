@@ -105,10 +105,12 @@ add_custom_target(test
 add_custom_command(TARGET test
     POST_BUILD
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/pytests/elliptics
+    COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/pytests/elliptics_recovery
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../bindings/python/core.so* pytests/elliptics/
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp/libelliptics_cpp.so* pytests/
     COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/../*/libelliptics*.so* pytests/
     COMMAND cp ${CMAKE_SOURCE_DIR}/bindings/python/src/* pytests/elliptics/
+    COMMAND cp -r ${CMAKE_SOURCE_DIR}/recovery/elliptics_recovery/* pytests/elliptics_recovery/
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_custom_command(TARGET test
@@ -117,7 +119,7 @@ add_custom_command(TARGET test
         . bin/activate &&
         pip install pytest &&
         export LD_LIBRARY_PATH=.:.. &&
-        ${TEST_ENV} py.test -x ${CMAKE_CURRENT_SOURCE_DIR}/pytests ${PYTESTS_FLAGS}
+        ${TEST_ENV} py.test -x --durations=10 ${CMAKE_CURRENT_SOURCE_DIR}/pytests ${PYTESTS_FLAGS}
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)

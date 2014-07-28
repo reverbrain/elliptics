@@ -39,9 +39,12 @@ class Servers:
         config['monitor'] = True
         config['path'] = self.path
         servers = []
-        for g in groups:
-            for i in xrange(3):
-                servers.append({'group': g})
+        for node in xrange(3):
+            backends = []
+            for g in groups:
+                for i in xrange(3):
+                    backends.append({'group': g})
+            servers.append({'backends': backends})
         config['servers'] = servers
         js = json.dumps(config)
 
