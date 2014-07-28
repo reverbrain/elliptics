@@ -910,30 +910,6 @@ static inline void dnet_version_decode(struct dnet_id *id, int version[4])
 		version[i] = dnet_bswap32(ids[i]);
 }
 
-static inline int dnet_version_check(struct dnet_net_state *st, int *version)
-{
-	struct dnet_node *n = st->n;
-	int err = 0;
-
-	if ((version[0] == CONFIG_ELLIPTICS_VERSION_0) && (version[1] == CONFIG_ELLIPTICS_VERSION_1)) {
-		dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: network version: %d.%d.%d.%d, local version: %d.%d.%d.%d\n",
-				dnet_state_dump_addr(st),
-				version[0], version[1], version[2], version[3],
-				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
-				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3);
-	} else {
-		dnet_log(n, DNET_LOG_ERROR, "%s: reverse lookup command: VERSION MISMATCH: "
-				"network version: %d.%d.%d.%d, local version: %d.%d.%d.%d\n",
-				dnet_state_dump_addr(st),
-				version[0], version[1], version[2], version[3],
-				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
-				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3);
-		err = -EPROTO;
-	}
-
-	return err;
-}
-
 static inline void dnet_indexes_shard_count_encode(struct dnet_id *id, int count)
 {
     int *data = (int *)(id->id);
