@@ -91,7 +91,7 @@ enum elliptics_exceptions_policy {
 enum elliptics_config_flags {
 	config_flags_join_network		= DNET_CFG_JOIN_NETWORK,
 	config_flags_no_route_list		= DNET_CFG_NO_ROUTE_LIST,
-	config_flags_mix_stats			= DNET_CFG_MIX_STATES,
+	config_flags_mix_states			= DNET_CFG_MIX_STATES,
 	config_flags_no_csum			= DNET_CFG_NO_CSUM,
 	config_flags_randomize_states	= DNET_CFG_RANDOMIZE_STATES,
 };
@@ -444,13 +444,13 @@ BOOST_PYTHON_MODULE(core)
 	bp::enum_<elliptics_config_flags>("config_flags",
 	    "Bit flags which could be used at elliptics.Config.flags:\n\n"
 	    "no_route_list\n    Do not request route table from remote nodes\n"
-	    "mix_stats\n    Mix states according to their weights before reading data\n"
+	    "mix_states\n    Mix states according to their weights before reading data\n"
 	    "no_csum\n    Globally disable checksum verification and update\n"
 	    "randomize_states\n    Randomize states for read requests\n\n"
 	    "config.flags = elliptics.config_flags.mix_stats | elliptics.config_flags.randomize_states\n"
 	    )
 		.value("no_route_list", config_flags_no_route_list)
-		.value("mix_stats", config_flags_mix_stats)
+		.value("mix_states", config_flags_mix_states)
 		.value("no_csum", config_flags_no_csum)
 		.value("randomize_states", config_flags_randomize_states)
 	;

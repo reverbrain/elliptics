@@ -95,6 +95,8 @@ endif()
 add_executable(dnet_run_servers run_servers.cpp)
 target_link_libraries(dnet_run_servers ${RUN_SERVERS_LIBRARIES})
 
+list(APPEND TESTS_DEPS dnet_run_servers)
+
 add_custom_target(test
     COMMAND ${TEST_ENV} "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" ${TESTS_LIST}
     DEPENDS ${TESTS_DEPS}
