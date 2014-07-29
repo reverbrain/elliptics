@@ -3,6 +3,9 @@
 #include "../../library/elliptics.h"
 #include <stdarg.h>
 
+// For BigBang
+#include <blackhole/repository.hpp>
+
 #include <blackhole/sink/files.hpp>
 #include <blackhole/formatter/string.hpp>
 #include <blackhole/frontend/files.hpp>
