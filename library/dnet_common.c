@@ -1393,17 +1393,18 @@ int dnet_send_cmd(struct dnet_session *s,
 		memset(&tmp_id, 0, sizeof(struct dnet_id));
 
 		pthread_mutex_lock(&n->state_lock);
-		list_for_each_entry(g, &n->group_list, group_entry) {
-			found_group = 0;
-			for (i = 0; i < s->group_num; ++i) {
-				found_group |= ((unsigned)s->groups[i] == g->group_id);
-			}
-			if (!found_group)
+		list_for_each_entry(st, &n->dht_state_list, node_entry) {
+			if (st == n->st)
 				continue;
 
-			list_for_each_entry(idc, &g->idc_list, group_entry) {
-				st = idc->st;
-				if (st == n->st)
+			list_for_each_entry(idc, &st->idc_list, state_entry) {
+				g = idc->group;
+
+				found_group = 0;
+				for (i = 0; i < s->group_num; ++i) {
+					found_group |= ((unsigned)s->groups[i] == g->group_id);
+				}
+				if (!found_group)
 					continue;
 
 				dnet_setup_id(&tmp_id, g->group_id, idc->ids[0].raw.id);
