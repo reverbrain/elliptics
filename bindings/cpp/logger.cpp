@@ -47,11 +47,12 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 {
 	using blackhole::scoped_attributes_t;
 
-	blackhole_attributes = reinterpret_cast<scoped_attributes_t *>(blackhole_scoped_attributes_buffer);
 	if (blackhole_attributes) {
 		dnet_log_only_log(logger, DNET_LOG_ERROR, "logic error: you must not call dnet_node_set_trace_id twice, dnet_node_unset_trace_id call missed");
 		return;
 	}
+
+	blackhole_attributes = reinterpret_cast<scoped_attributes_t *>(blackhole_scoped_attributes_buffer);
 
 	try {
 		new (blackhole_attributes) scoped_attributes_t(*logger, {

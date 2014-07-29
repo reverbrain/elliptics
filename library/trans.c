@@ -365,7 +365,8 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	cmd->size = ctl->size;
 	cmd->cmd = t->command = ctl->cmd;
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
-	cmd->trace_id = dnet_session_get_trace_id(s);
+	if (s)
+		cmd->trace_id = dnet_session_get_trace_id(s);
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
