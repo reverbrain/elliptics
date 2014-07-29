@@ -1411,6 +1411,8 @@ int dnet_send_cmd(struct dnet_session *s,
 				memcpy(e->src.id, idc->ids[0].raw.id, DNET_ID_SIZE);
 				err = dnet_send_cmd_single(s, st, &tmp_id, complete, priv, e, dnet_session_get_cflags(s));
 				num++;
+
+				break;
 			}
 		}
 		pthread_mutex_unlock(&n->state_lock);
