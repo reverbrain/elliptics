@@ -121,6 +121,12 @@ void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw sta
 
 /*!
  * \internal
+ * Removes statistics provider by \a name from \a monitor.
+ */
+void dnet_monitor_remove_provider(struct dnet_node *n, const char *name);
+
+/*!
+ * \internal
  *
  * Creates stat provider for io queues and adds it to provider list
  */
