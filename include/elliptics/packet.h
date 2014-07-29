@@ -213,6 +213,7 @@ struct dnet_cmd
 	int			status;
 	int			cmd;
 	int			backend_id;
+	uint64_t		trace_id;
 	uint64_t		flags;
 	uint64_t		trans;
 	uint64_t		size;
