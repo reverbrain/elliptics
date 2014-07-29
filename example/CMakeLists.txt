@@ -1,7 +1,7 @@
 add_library(common STATIC common.c)
 set(ECOMMON_LIBRARIES common elliptics_client)
 
-set(DNET_IOSERV_SRCS ioserv.c config.cpp file_backend.c backends.c eblob_backend.c)
+set(DNET_IOSERV_SRCS ioserv.c config.hpp config.cpp config_impl.cpp file_backend.c backends.c eblob_backend.c)
 set(DNET_IOSERV_LIBRARIES ${ECOMMON_LIBRARIES} elliptics elliptics_cocaine dl ${EBLOB_LIBRARIES})
 
 if (HAVE_MODULE_BACKEND_SUPPORT)
