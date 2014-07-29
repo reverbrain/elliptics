@@ -174,7 +174,7 @@ int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 
 		err = dnet_parse_addr(addr, &remote_port, &remote_family);
 		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to parse addr '%s': %d.\n", addr, err);
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to parse addr '%s': %d.", addr, err);
 			goto next;
 		}
 
@@ -187,7 +187,7 @@ int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 
 			err = dnet_create_addr(&ra, addr, remote_port, remote_family);
 			if (err) {
-				dnet_log_raw(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+				dnet_log_raw(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.",
 						addr, remote_port, remote_family, err, strerror(-err));
 				goto next;
 			}
@@ -213,7 +213,7 @@ next:
 
 	if (!added) {
 		err = 0;
-		dnet_log_raw(n, DNET_LOG_ERROR, "No remote addresses added. Continue to work though.\n");
+		dnet_log_raw(n, DNET_LOG_ERROR, "No remote addresses added. Continue to work though.");
 		goto err_out_exit;
 	}
 

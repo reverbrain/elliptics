@@ -86,14 +86,14 @@ again:
 		goto err_out_close;
 
 	if (st.st_size % sizeof(struct dnet_raw_id)) {
-		dnet_log(n, DNET_LOG_ERROR, "Ids file size (%lu) is wrong, must be modulo of raw ID size (%zu).\n",
+		dnet_log(n, DNET_LOG_ERROR, "Ids file size (%lu) is wrong, must be modulo of raw ID size (%zu).",
 				(unsigned long)st.st_size, sizeof(struct dnet_raw_id));
 		goto err_out_close;
 	}
 
 	num = st.st_size / sizeof(struct dnet_raw_id);
 	if (!num) {
-		dnet_log(n, DNET_LOG_ERROR, "No ids read, exiting.\n");
+		dnet_log(n, DNET_LOG_ERROR, "No ids read, exiting.");
 		err = -EINVAL;
 		goto err_out_close;
 	}

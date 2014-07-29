@@ -33,17 +33,15 @@ node::node(const std::shared_ptr<node_data> &data) : m_data(data)
 {
 }
 
-node::node(const logger &l) : m_data(new node_data)
+node::node(logger &&l) : m_data(new node_data(std::move(l)))
 {
-	m_data->log = l;
-
 	struct dnet_config cfg;
 
 	memset(&cfg, 0, sizeof(cfg));
 
 	cfg.wait_timeout = 5;
 	cfg.check_timeout = 20;
-	cfg.log = m_data->log.get_native();
+	cfg.log = &m_data->log;
 
 	m_data->node_ptr = dnet_node_create(&cfg);
 	if (!m_data->node_ptr) {
@@ -51,11 +49,9 @@ node::node(const logger &l) : m_data(new node_data)
 	}
 }
 
-node::node(const logger &l, struct dnet_config &cfg) : m_data(new node_data)
+node::node(logger &&l, dnet_config &cfg) : m_data(new node_data(std::move(l)))
 {
-	m_data->log = l;
-
-	cfg.log = m_data->log.get_native();
+	cfg.log = &m_data->log;
 
 	m_data->node_ptr = dnet_node_create(&cfg);
 	if (!m_data->node_ptr) {
@@ -69,29 +65,18 @@ node::node(const node &other) : m_data(other.m_data)
 node::~node()
 {}
 
-class dnet_node_logger_interface : public logger_interface
-{
-public:
-	dnet_node_logger_interface(dnet_node *node) : m_node(node)
-	{
-	}
-
-	void log(const int level, const char *msg)
-	{
-		dnet_log_raw(m_node, level, "%s", msg);
-	}
-
-private:
-	dnet_node *m_node;
-};
-
 node node::from_raw(dnet_node *n)
 {
+	return node::from_raw(n, blackhole::log::attributes_t());
+}
+
+node node::from_raw(dnet_node *n, blackhole::log::attributes_t attributes)
+{
 	node result;
+	logger log(*dnet_node_get_logger(n), std::move(attributes));
 
 	result.m_data->destroy_node = false;
-	result.m_data = std::make_shared<node_data>();
-	result.m_data->log = logger(new dnet_node_logger_interface(n), 4);
+	result.m_data = std::make_shared<node_data>(std::move(log));
 	result.m_data->node_ptr = n;
 
 	return result;
@@ -101,6 +86,11 @@ node &node::operator =(const node &other)
 {
 	m_data = other.m_data;
 	return *this;
+}
+
+bool node::is_valid() const
+{
+	return !!m_data;
 }
 
 void node::add_remote(const address &addr)
@@ -140,9 +130,9 @@ void node::set_keepalive(int idle, int cnt, int interval)
 		dnet_set_keepalive(m_data->node_ptr, idle, cnt, interval);
 }
 
-logger node::get_log() const
+logger &node::get_log() const
 {
-	return m_data ? m_data->log : logger();
+	return m_data->log;
 }
 
 dnet_node *node::get_native() const

@@ -43,7 +43,6 @@ using namespace ioremap::elliptics;
 #define __unused	__attribute__ ((unused))
 #endif
 
-static struct dnet_log stat_logger;
 static int stat_mem, stat_la, stat_fs;
 static FILE *stream = NULL;
 
@@ -125,6 +124,7 @@ int main(int argc, char *argv[])
 	const char *logfile = "/dev/stderr";
 	const char *statfile = "/dev/stdout";
 	int group = -1;
+	int log_level;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
 				timeout = atoi(optarg);
 				break;
 			case 'm':
-				stat_logger.log_level = strtoul(optarg, NULL, 0);
+				log_level = strtoul(optarg, NULL, 0);
 				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);
@@ -195,8 +195,8 @@ int main(int argc, char *argv[])
 	}
 
 	try {
-		file_logger log(logfile, DNET_LOG_ERROR);
-		node n(log, cfg);
+		file_logger log(logfile, log_level);
+		node n(logger(log, blackhole::log::attributes_t()), cfg);
 		session sess(n);
 		sess.set_timeout(timeout);
 

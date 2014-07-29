@@ -62,7 +62,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	react_stop_action(ACTION_CACHE_FIND);
 
 	if (!it && !cache) {
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not a cache call\n", dnet_dump_id_str(id));
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not a cache call", dnet_dump_id_str(id));
 		return -ENOTSUP;
 	}
 
@@ -165,13 +165,13 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 			dnet_transform_node(m_node, raw.data().data(), raw.size(), csum.id, sizeof(csum.id));
 
 			if (memcmp(csum.id, io->parent, DNET_ID_SIZE)) {
-				dnet_log(m_node, DNET_LOG_ERROR, "%s: cas: cache checksum mismatch\n", dnet_dump_id(&cmd->id));
+				dnet_log(m_node, DNET_LOG_ERROR, "%s: cas: cache checksum mismatch", dnet_dump_id(&cmd->id));
 				return -EBADFD;
 			}
 		}
 	}
 
-	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: CAS checked\n", dnet_dump_id_str(id));
+	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: CAS checked", dnet_dump_id_str(id));
 
 	size_t new_data_size = 0;
 
@@ -464,9 +464,9 @@ void slru_cache_t::insert_data_into_page(const unsigned char *id, size_t page_nu
 
 	// Recalc used space, free enough space for new data, move object to the end of the queue
 	if (m_cache_pages_sizes[page_number] + size > m_cache_pages_max_sizes[page_number]) {
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called: %lld ms\n", dnet_dump_id_str(id), timer.restart());
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called: %lld ms", dnet_dump_id_str(id), timer.restart());
 		resize_page(id, page_number, size);
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished: %lld ms\n", dnet_dump_id_str(id), timer.restart());
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished: %lld ms", dnet_dump_id_str(id), timer.restart());
 	}
 
 	data->set_cache_page_number(page_number);
@@ -631,9 +631,9 @@ void slru_cache_t::sync_element(const dnet_id &raw, bool after_append, const std
 
 	int err = sess.write(raw, data.data(), data.size(), user_flags, timestamp);
 	if (err) {
-		dnet_log(m_node, DNET_LOG_ERROR, "%s: CACHE: forced to sync to disk, err: %d\n", dnet_dump_id_str(raw.id), err);
+		dnet_log(m_node, DNET_LOG_ERROR, "%s: CACHE: forced to sync to disk, err: %d", dnet_dump_id_str(raw.id), err);
 	} else {
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: forced to sync to disk, err: %d\n", dnet_dump_id_str(raw.id), err);
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: forced to sync to disk, err: %d", dnet_dump_id_str(raw.id), err);
 	}
 }
 

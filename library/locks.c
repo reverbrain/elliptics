@@ -65,7 +65,7 @@ int dnet_locks_init(struct dnet_node *n, int num)
 	err = pthread_mutex_init(&n->locks->lock, NULL);
 	if (err) {
 		err = -err;
-		dnet_log(n, DNET_LOG_ERROR, "Could not create lock: %s [%d]\n", strerror(-err), err);
+		dnet_log(n, DNET_LOG_ERROR, "Could not create lock: %s [%d]", strerror(-err), err);
 
 		goto err_out_destroy;
 	}
@@ -78,14 +78,14 @@ int dnet_locks_init(struct dnet_node *n, int num)
 		err = pthread_mutex_init(&entry->lock, NULL);
 		if (err) {
 			err = -err;
-			dnet_log(n, DNET_LOG_ERROR, "Could not create lock %d/%d: %s [%d]\n", i, num, strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, "Could not create lock %d/%d: %s [%d]", i, num, strerror(-err), err);
 
 			goto err_out_destroy;
 		}
 		err = pthread_cond_init(&entry->wait, NULL);
 		if (err) {
 			err = -err;
-			dnet_log(n, DNET_LOG_ERROR, "Could not create cond %d/%d: %s [%d]\n", i, num, strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, "Could not create cond %d/%d: %s [%d]", i, num, strerror(-err), err);
 
 			pthread_mutex_destroy(&entry->lock);
 			goto err_out_destroy;
@@ -156,7 +156,7 @@ static void dnet_oplock_remove_nolock(struct dnet_node *n, struct dnet_locks_ent
 	struct rb_root *root = &n->locks->lock_tree;
 
 	if (!entry->lock_tree_entry.rb_parent_color) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: trying to remove non-existen oplock.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: trying to remove non-existen oplock.",
 			dnet_dump_id_str(entry->id.id));
 		return;
 	}
@@ -188,7 +188,7 @@ static struct dnet_locks_entry *dnet_oplock_ensure(struct dnet_node *n, struct d
 
 		dnet_oplock_insert_nolock(n, entry);
 	} else {
-		dnet_log(n, DNET_LOG_ERROR, "%s: oplock list is empty.\n", dnet_dump_id(id));
+		dnet_log(n, DNET_LOG_ERROR, "%s: oplock list is empty.", dnet_dump_id(id));
 	}
 
 	pthread_mutex_unlock(&n->locks->lock);
@@ -205,7 +205,7 @@ static struct dnet_locks_entry *dnet_oplock_take(struct dnet_node *n, struct dne
 	entry = dnet_oplock_search_nolock(n, id);
 
 	if (!entry) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: lock not found.\n", dnet_dump_id(id));
+		dnet_log(n, DNET_LOG_ERROR, "%s: lock not found.", dnet_dump_id(id));
 		goto err_out_complete;
 	}
 

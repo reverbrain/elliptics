@@ -27,28 +27,32 @@
 
 #include "elliptics/cppdef.h"
 
+#define BOOST_BIND_NO_PLACEHOLDERS
+#include <blackhole/formatter/string.hpp>
+#undef BOOST_BIND_NO_PLACEHOLDERS
+
 namespace cocaine {
 
 class elliptics_service_t;
 
 namespace storage {
 
-class log_adapter_impl_t : public ioremap::elliptics::logger_interface
+class log_adapter_impl_t : public blackhole::base_frontend_t
 {
 	public:
 		log_adapter_impl_t(const std::shared_ptr<logging::log_t> &log);
 
-		virtual void log(const int level, const char *msg);
+		virtual void handle(const blackhole::log::record_t &record);
 
 	private:
 		std::shared_ptr<logging::log_t> m_log;
+		blackhole::formatter::string_t m_formatter;
 };
 
-class log_adapter_t : public ioremap::elliptics::logger
+class log_adapter_t : public ioremap::elliptics::logger_base
 {
 	public:
-		log_adapter_t(const std::shared_ptr<logging::log_t> &log,
-		const int level);
+		log_adapter_t(const std::shared_ptr<logging::log_t> &log);
 };
 
 class elliptics_storage_t : public api::storage_t

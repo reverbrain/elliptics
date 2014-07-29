@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
 			cfg.flags |= DNET_CFG_NO_ROUTE_LIST;
 		}
 
-		node n(log, cfg);
+		node n(logger(log, blackhole::log::attributes_t()), cfg);
 		session s(n);
 
 		s.set_cflags(cflags);
@@ -276,7 +276,7 @@ int main(int argc, char *argv[])
 
 		err = dnet_create_addr(&ra, remote_addr, port, family);
 		if (err) {
-			dnet_log_raw(n.get_native(), DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+			dnet_log_raw(n.get_native(), DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.",
 					remote_addr, port, family, err, strerror(-err));
 			return err;
 		}
@@ -439,17 +439,17 @@ int main(int argc, char *argv[])
 				la[1] = (float)st->la[1] / 100.0;
 				la[2] = (float)st->la[2] / 100.0;
 
-				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: la: %.2f %.2f %.2f.\n",
+				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: la: %.2f %.2f %.2f.",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
 						la[0], la[1], la[2]);
 				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: mem: "
-						"total: %llu kB, free: %llu kB, cache: %llu kB.\n",
+						"total: %llu kB, free: %llu kB, cache: %llu kB.",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
 						(unsigned long long)st->vm_total,
 						(unsigned long long)st->vm_free,
 						(unsigned long long)st->vm_cached);
 				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: fs: "
-						"total: %llu mB, avail: %llu mB, files: %llu, fsid: 0x%llx.\n",
+						"total: %llu mB, avail: %llu mB, files: %llu, fsid: 0x%llx.",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
 						(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
 						(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),
@@ -467,16 +467,16 @@ int main(int argc, char *argv[])
 
 				for (int j = 0; j < (int)((cmd->size - sizeof(struct dnet_addr_stat)) / sizeof(struct dnet_stat_count)); ++j) {
 					if (j == 0)
-						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: storage-to-storage commands\n",
+						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: storage-to-storage commands",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
 					if (j == as->cmd_num)
-						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: client-to-storage commands\n",
+						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: client-to-storage commands",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
 					if (j == as->cmd_num * 2)
-						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Global stat counters\n",
+						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Global stat counters",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
 
-					dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
+					dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s:    cmd: %s, count: %llu, err: %llu",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
 							dnet_counter_string(j, as->cmd_num),
 							(unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);

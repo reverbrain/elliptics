@@ -249,7 +249,7 @@ int dnet_copy_addrs(struct dnet_net_state *nst, struct dnet_addr *addrs, int add
 
 	if (nst->addrs) {
 		// idx = -1 for just created server node, which can not have ->addrs yet
-		dnet_log(n, DNET_LOG_NOTICE, "%s: do not copy %d addrs, already have %d, idx: %d\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: do not copy %d addrs, already have %d, idx: %d",
 				dnet_server_convert_dnet_addr(&nst->addrs[nst->idx]),
 				addr_num, nst->addr_num, nst->idx);
 		goto err_out_exit;
@@ -271,7 +271,7 @@ int dnet_copy_addrs(struct dnet_net_state *nst, struct dnet_addr *addrs, int add
 
 	dnet_server_convert_dnet_addr_raw(dnet_state_addr(nst), addr_str, sizeof(addr_str));
 	for (i = 0; i < addr_num; ++i) {
-		dnet_log(n, DNET_LOG_NOTICE, "%s: copy addr: %s, idx: %d\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: copy addr: %s, idx: %d",
 				addr_str,
 				dnet_server_convert_dnet_addr(&nst->addrs[i]),
 				nst->idx);
@@ -343,7 +343,7 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 
 	/* only compare addr-num if we are server, i.e. joined node, clients do not have local addresses at all */
 	if (n->addr_num && (cnt->node_addr_num != n->addr_num)) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: invalid route list reply: recv-addr-num: %d, local-addr-num: %d\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid route list reply: recv-addr-num: %d, local-addr-num: %d",
 				server_addr, cnt->node_addr_num, n->addr_num);
 		err = -EINVAL;
 		goto err_out_exit;
@@ -351,7 +351,7 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 
 	if (cnt->node_addr_num == 0
 		|| cnt->addr_num % cnt->node_addr_num != 0) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: invalid route list reply: recv-addr-num: %d, rec-node-addr-num: %d\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid route list reply: recv-addr-num: %d, rec-node-addr-num: %d",
 				server_addr, cnt->addr_num, cnt->node_addr_num);
 		err = -EINVAL;
 		goto err_out_exit;
@@ -361,16 +361,16 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 
 	for (i = 0; i < cnt->addr_num; ++i) {
 		if (dnet_empty_addr(&cnt->addrs[i])) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: received zero address route reply, aborting route update\n",
+			dnet_log(n, DNET_LOG_ERROR, "%s: received zero address route reply, aborting route update",
 				server_addr);
 			err = -ENOTTY;
 			goto err_out_exit;
 		}
 
-		if (n->log && (n->log->log_level >= DNET_LOG_DEBUG)) {
-			dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr));
-			dnet_log(n, DNET_LOG_DEBUG, "route-list: from: %s, node: %d, addr: %s\n", server_addr, i / cnt->node_addr_num, rem_addr);
-		}
+		DNET_LOG_BEGIN(n, DNET_LOG_DEBUG);
+		dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr));
+		DNET_LOG_PRINT("route-list: from: %s, node: %d, addr: %s", server_addr, i / cnt->node_addr_num, rem_addr);
+		DNET_LOG_END();
 	}
 
 	addrs_tmp = realloc(control->addrs, control->addrs_num + states_num * sizeof(struct dnet_addr));
@@ -447,7 +447,7 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 
 	dnet_convert_cmd(cmd);
 
-	dnet_log(n, DNET_LOG_DEBUG, "%s: list route request to %s.\n", dnet_dump_id(&cmd->id),
+	dnet_log(n, DNET_LOG_DEBUG, "%s: list route request to %s.", dnet_dump_id(&cmd->id),
 		dnet_server_convert_dnet_addr(&st->addr));
 
 	memset(&req, 0, sizeof(req));
@@ -551,7 +551,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	if (indexes_shard_count != n->indexes_shard_count && indexes_shard_count != 0) {
 		dnet_log(n, DNET_LOG_INFO, "%s: local and remote indexes shard count are different: "
-				"local: %d, remote: %d, using remote (%d) one\n",
+				"local: %d, remote: %d, using remote (%d) one",
 				dnet_server_convert_dnet_addr(addr),
 				n->indexes_shard_count, indexes_shard_count, indexes_shard_count);
 
@@ -594,7 +594,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	backends = malloc(id_container->backends_count * sizeof(struct dnet_backend_ids *));
 	if (!backends) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate %llu bytes for dnet_backend_ids array from %s.\n",
+		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate %llu bytes for dnet_backend_ids array from %s.",
 				(unsigned long long)id_container->backends_count * sizeof(struct dnet_backend_ids *), dnet_server_convert_dnet_addr(addr));
 		goto err_out_free;
 	}
@@ -608,7 +608,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	idx = -1;
 	for (i = 0; i < cnt->addr_num; ++i) {
 		if (dnet_empty_addr(&cnt->addrs[i])) {
-			dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: received wildcard (like 0.0.0.0) addr: backends: %d, addr-num: %d, idx: %d.\n",
+			dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: received wildcard (like 0.0.0.0) addr: backends: %d, addr-num: %d, idx: %d.",
 					dnet_server_convert_dnet_addr(addr), id_container->backends_count, cnt->addr_num, idx);
 			err = -EPROTO;
 			goto err_out_free_backends;
@@ -628,7 +628,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	for (i = 0; i < id_container->backends_count; ++i) {
 		backend = backends[i];
 		for (j = 0; j < backend->ids_count; ++j) {
-			dnet_log(n, DNET_LOG_NOTICE, "connected-to-addr: %s: received backends: %d/%d, ids: %d/%d, addr-num: %d, idx: %d, backend_id: %d, group_id: %d, id: %s.\n",
+			dnet_log(n, DNET_LOG_NOTICE, "connected-to-addr: %s: received backends: %d/%d, ids: %d/%d, addr-num: %d, idx: %d, backend_id: %d, group_id: %d, id: %s.",
 					dnet_server_convert_dnet_addr(addr), i, id_container->backends_count,
 					j, backend->ids_count, cnt->addr_num, idx,
 					backend->backend_id, backend->group_id,
@@ -648,7 +648,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		goto err_out_put;
 
 	memcpy(st->version, version, sizeof(st->version));
-	dnet_log(n, DNET_LOG_NOTICE, "%s: connected: backends-num: %d, addr-num: %d, idx: %d.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "%s: connected: backends-num: %d, addr-num: %d, idx: %d.",
 			dnet_server_convert_dnet_addr(addr), id_container->backends_count, cnt->addr_num, idx);
 	free(data);
 	free(backends);
@@ -702,7 +702,7 @@ int dnet_add_state(struct dnet_node *n, const struct dnet_addr *addr, int num, i
 		if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST))
 			dnet_recv_route_list(st);
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: added new addr: flags: 0x%x, route-request: %d, socket: %d\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: added new addr: flags: 0x%x, route-request: %d, socket: %d",
 				dnet_state_dump_addr(st),
 				flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST), rem->s);
 	}
@@ -862,7 +862,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: 0x%llx, size: %llu, offset: %llu, "
-			"fd: %d, local_offset: %llu -> %s weight: %f, wait-ts: %ld.\n",
+			"fd: %d, local_offset: %llu -> %s weight: %f, wait-ts: %ld.",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
 			dnet_cmd_string(ctl->cmd), (unsigned long long)cmd->flags,
@@ -954,7 +954,7 @@ static int dnet_write_file_id_raw(struct dnet_session *s, const char *file, stru
 	if (!w) {
 		free(wc);
 		err = -ENOMEM;
-		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting structure.\n");
+		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting structure.");
 		goto err_out_exit;
 	}
 
@@ -1027,11 +1027,11 @@ static int dnet_write_file_id_raw(struct dnet_session *s, const char *file, stru
 		err = -EINVAL;
 
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to write file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to write file '%s' into the storage, transactions: %d, err: %d.", file, trans_num, err);
 		goto err_out_close;
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, "Successfully wrote file: '%s' into the storage, size: %llu.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "Successfully wrote file: '%s' into the storage, size: %llu.",
 			file, (unsigned long long)size);
 
 	close(fd);
@@ -1099,7 +1099,7 @@ static int dnet_read_file_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 	if (cmd->size <= sizeof(struct dnet_io_attr)) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.",
 				dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
 				sizeof(struct dnet_io_attr));
 		err = -EINVAL;
@@ -1126,7 +1126,7 @@ static int dnet_read_file_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 	close(fd);
-	dnet_log(n, DNET_LOG_NOTICE, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d.",
 			dnet_dump_id(&cmd->id), c->file, (unsigned long long)c->offset,
 			(unsigned long long)io->size, cmd->status);
 
@@ -1135,7 +1135,7 @@ static int dnet_read_file_complete(struct dnet_net_state *st, struct dnet_cmd *c
 err_out_close:
 	close(fd);
 err_out_exit:
-	dnet_log(n, DNET_LOG_ERROR, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d, err: %d.\n",
+	dnet_log(n, DNET_LOG_ERROR, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d, err: %d.",
 			dnet_dump_id(&cmd->id), c->file, (unsigned long long)io->offset,
 			(unsigned long long)io->size, cmd->status, err);
 err_out_exit_no_log:
@@ -1181,7 +1181,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 	c = malloc(sizeof(struct dnet_io_completion) + len + 1 + sizeof(DNET_HISTORY_SUFFIX));
 	if (!c) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate IO completion structure "
-				"for '%s' file reading.\n",
+				"for '%s' file reading.",
 				dnet_dump_id(&ctl.id), file);
 		err = -ENOMEM;
 		goto err_out_exit;
@@ -1207,7 +1207,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
 			err = w->cond;
-		dnet_log(n, DNET_LOG_ERROR, "%d:%s '%s' : failed to read data: %d\n",
+		dnet_log(n, DNET_LOG_ERROR, "%d:%s '%s' : failed to read data: %d",
 			ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str),
 			file, err);
 		goto err_out_exit;
@@ -1229,7 +1229,7 @@ static int dnet_read_file_raw(struct dnet_session *s, const char *file, struct d
 	w = dnet_wait_alloc(~0);
 	if (!w) {
 		err = -ENOMEM;
-		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting.\n");
+		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting.");
 		goto err_out_exit;
 	}
 
@@ -1499,7 +1499,7 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 	dnet_convert_cmd(cmd);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup to %s.\n", dnet_dump_id(id), dnet_server_convert_dnet_addr(&t->st->addr));
+	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup to %s.", dnet_dump_id(id), dnet_server_convert_dnet_addr(&t->st->addr));
 
 	memset(&req, 0, sizeof(req));
 	req.st = t->st;
@@ -1633,7 +1633,7 @@ int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_NOTICE, "request cmd: %s: %ld usecs, num: %d.\n", dnet_cmd_string(ctl->cmd), diff, num);
+	dnet_log(n, DNET_LOG_NOTICE, "request cmd: %s: %ld usecs, num: %d.", dnet_cmd_string(ctl->cmd), diff, num);
 
 	return num;
 }
@@ -2162,7 +2162,7 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries) {
 				entry->group_id = idc->group->group_id;
 				entry->backend_id = idc->backend_id;
 			}
-			dnet_log(n, DNET_LOG_INFO, "%s: %s, group: %d, backend: %d, idc: %p\n",
+			dnet_log(n, DNET_LOG_INFO, "%s: %s, group: %d, backend: %d, idc: %p",
 				dnet_state_dump_addr(st), dnet_dump_id_str(idc->ids[0].raw.id),
 				idc->group->group_id, idc->backend_id, idc);
 		}

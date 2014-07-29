@@ -4,6 +4,10 @@
 #include <elliptics/cppdef.h>
 #include <boost/variant.hpp>
 
+#ifndef TEST_DO_NOT_INCLUDE_PLACEHOLDERS
+# include <boost/bind/placeholders.hpp>
+#endif
+
 namespace tests {
 
 using namespace ioremap::elliptics;
@@ -165,6 +169,7 @@ struct nodes_data
 	int locator_port;
 #endif // NO_SERVER
 
+	std::unique_ptr<logger_base> logger;
 	std::unique_ptr<ioremap::elliptics::node> node;
 };
 

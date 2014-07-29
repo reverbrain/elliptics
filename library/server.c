@@ -42,12 +42,12 @@ static int dnet_node_check_stack(struct dnet_node *n)
 	}
 
 	if (stack_size <= 1024 * 1024) {
-		dnet_log(n, DNET_LOG_ERROR, "Stack size (%zd bytes) is too small, exiting\n", stack_size);
+		dnet_log(n, DNET_LOG_ERROR, "Stack size (%zd bytes) is too small, exiting", stack_size);
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, "Stack size: %zd bytes\n", stack_size);
+	dnet_log(n, DNET_LOG_NOTICE, "Stack size: %zd bytes", stack_size);
 
 err_out_exit:
 	return err;
@@ -122,7 +122,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 		if (err)
 			goto err_out_monitor_destroy;
 
-		dnet_log(n, DNET_LOG_NOTICE, "No notify hash size provided, using default %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "No notify hash size provided, using default %d.",
 				n->notify_hash_size);
 	}
 
@@ -137,19 +137,19 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 
 		err = dnet_locks_init(n, 1024);
 		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "failed to init locks: %s %d\n", strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, "failed to init locks: %s %d", strerror(-err), err);
 			goto err_out_addr_cleanup;
 		}
 
 		n->route = dnet_route_list_create(n);
 		if (!n->route) {
-			dnet_log(n, DNET_LOG_ERROR, "failed to create route list: %s %d\n", strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, "failed to create route list: %s %d", strerror(-err), err);
 			goto err_out_locks_destroy;
 		}
 
 		err = dnet_create_addr(&la, NULL, cfg->port, cfg->family);
 		if (err < 0) {
-			dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for 0.0.0.0:%d, family: %d, err: %d: %s.\n",
+			dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for 0.0.0.0:%d, family: %d, err: %d: %s.",
 				cfg->port, cfg->family, err, strerror(-err));
 			goto err_out_route_list_destroy;
 		}
@@ -163,36 +163,36 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 
 		if (s < 0) {
 			err = s;
-			dnet_log(n, DNET_LOG_ERROR, "failed to create socket: %s %d\n", strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, "failed to create socket: %s %d", strerror(-err), err);
 			goto err_out_route_list_destroy;
 		}
 
 		n->st = dnet_state_create(n, NULL, 0, &la, s, &err, DNET_JOIN, 1, -1, dnet_state_accept_process);
 
 		if (!n->st) {
-			dnet_log(n, DNET_LOG_ERROR, "failed to create state: %s %d\n", strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, "failed to create state: %s %d", strerror(-err), err);
 			goto err_out_state_destroy;
 		}
 
 		err = dnet_backend_init_all(n);
 		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "failed to init backends: %s %d\n", strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, "failed to init backends: %s %d", strerror(-err), err);
 			goto err_out_state_destroy;
 		}
 
 		if (!cfg->srw.config) {
-			dnet_log(n, DNET_LOG_INFO, "srw: no config\n");
+			dnet_log(n, DNET_LOG_INFO, "srw: no config");
 			n->srw = NULL;
 		} else {
 			err = dnet_srw_init(n, cfg);
 			if (err) {
-				dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
+				dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d", strerror(-err), err);
 				goto err_out_backends_cleanup;
 			}
 		}
 	}
 
-	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at port %d.\n", cfg->port);
+	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at port %d.", cfg->port);
 
 	pthread_sigmask(SIG_SETMASK, &previous_sigset, NULL);
 	return n;
@@ -223,7 +223,7 @@ err_out_exit:
 
 void dnet_server_node_destroy(struct dnet_node *n)
 {
-	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node.\n");
+	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node.");
 
 	/*
 	 * Cache can be accessed from the io threads, so firstly stop them.

@@ -28,37 +28,49 @@ using namespace cocaine::logging;
 using namespace cocaine::storage;
 namespace ell = ioremap::elliptics;
 
-log_adapter_impl_t::log_adapter_impl_t(const std::shared_ptr<logging::log_t> &log ): m_log(log)
+static cocaine::logging::priorities convert_verbosity(dnet_log_level level)
 {
-}
-
-void log_adapter_impl_t::log(const int level, const char *message)
-{
-	switch(level) {
+	switch (level) {
 		case DNET_LOG_DEBUG:
-			COCAINE_LOG_DEBUG(m_log, "%s", message);
-			break;
-
+			return cocaine::logging::debug;
 		case DNET_LOG_NOTICE:
-			COCAINE_LOG_INFO(m_log, "%s", message);
-			break;
-
 		case DNET_LOG_INFO:
-			COCAINE_LOG_INFO(m_log, "%s", message);
-			break;
-
+			return cocaine::logging::info;
 		case DNET_LOG_ERROR:
-			COCAINE_LOG_ERROR(m_log, "%s", message);
-			break;
-
+			return cocaine::logging::error;
 		default:
-			break;
+			return cocaine::logging::ignore;
 	};
 }
 
-log_adapter_t::log_adapter_t(const std::shared_ptr<logging::log_t> &log, const int level)
-	: ell::logger(new log_adapter_impl_t(log), level)
+static dnet_log_level convert_verbosity(cocaine::logging::priorities prio) {
+	dnet_log_level level = DNET_LOG_DATA;
+	if (prio == cocaine::logging::debug)
+		level = DNET_LOG_DEBUG;
+	if (prio == cocaine::logging::info)
+		level = DNET_LOG_INFO;
+	if (prio == cocaine::logging::warning)
+		level = DNET_LOG_INFO;
+	if (prio == cocaine::logging::error)
+		level = DNET_LOG_ERROR;
+	return level;
+}
+
+log_adapter_impl_t::log_adapter_impl_t(const std::shared_ptr<logging::log_t> &log): m_log(log), m_formatter("%(message)s %(...L)s")
 {
+}
+
+void log_adapter_impl_t::handle(const blackhole::log::record_t &record)
+{
+	dnet_log_level level = record.extract<dnet_log_level>(blackhole::keyword::severity<dnet_log_level>().name());
+	auto cocaine_level = convert_verbosity(level);
+	COCAINE_LOG(m_log, cocaine_level, "elliptics: %s", m_formatter.format(record));
+}
+
+log_adapter_t::log_adapter_t(const std::shared_ptr<logging::log_t> &log)
+{
+	add_frontend(blackhole::utils::make_unique<log_adapter_impl_t>(log));
+	verbosity(convert_verbosity(log->verbosity()));
 }
 
 namespace {
@@ -83,9 +95,9 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 	category_type(context, name, args),
 	m_context(context),
 	m_log(new log_t(context, name)),
-	m_log_adapter(m_log, args.get("verbosity", DNET_LOG_ERROR).asUInt()),
+	m_log_adapter(m_log),
 	m_config(parse_json_config(args)),
-	m_node(m_log_adapter, m_config),
+	m_node(ioremap::elliptics::logger(m_log_adapter, blackhole::log::attributes_t()), m_config),
 	m_session(m_node)
 {
 	Json::Value nodes(args["nodes"]);

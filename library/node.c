@@ -55,7 +55,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	n->wait = dnet_wait_alloc(0);
 	if (!n->wait) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate wait structure.\n");
+		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate wait structure.");
 		goto err_out_destroy_state;
 	}
 
@@ -132,7 +132,7 @@ static struct dnet_group *dnet_group_create(unsigned int group_id)
 void dnet_group_destroy(struct dnet_group *g)
 {
 	if (!list_empty(&g->idc_list)) {
-		fprintf(stderr, "BUG in dnet_group_destroy, reference leak.\n");
+		fprintf(stderr, "BUG in dnet_group_destroy, reference leak.");
 		exit(-1);
 	}
 	list_del(&g->group_entry);
@@ -223,7 +223,7 @@ int dnet_state_set_server_prio(struct dnet_net_state *st)
 		}
 
 		if (!err) {
-			dnet_log(n, DNET_LOG_INFO, "%s: server net TOS value set to %d\n",
+			dnet_log(n, DNET_LOG_INFO, "%s: server net TOS value set to %d",
 					dnet_server_convert_dnet_addr(&st->addr), n->server_prio);
 		}
 	}
@@ -313,10 +313,10 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	list_add_tail(&idc->state_entry, &st->idc_list);
 	list_add_tail(&idc->group_entry, &g->idc_list);
 
-	if (n->log->log_level >= DNET_LOG_DEBUG) {
+	if (dnet_log_enabled(n->log, DNET_LOG_DEBUG)) {
 		for (i=0; i<g->id_num; ++i) {
 			struct dnet_state_id *id = &g->ids[i];
-			dnet_log(n, DNET_LOG_DEBUG, "dnet_idc_update: group: %d, id: %s -> host: %s, backend: %d\n",
+			dnet_log(n, DNET_LOG_DEBUG, "dnet_idc_update: group: %d, id: %s -> host: %s, backend: %d",
 				g->group_id, dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st), id->idc->backend_id);
 		}
 	}
@@ -326,7 +326,7 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 
-	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, total ids: %d, added ids: %d, received ids: %d, state: %s, backend: %d, idc: %p, time-took: %ld usecs.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, total ids: %d, added ids: %d, received ids: %d, state: %s, backend: %d, idc: %p, time-took: %ld usecs.",
 			g->group_id, g->id_num, num, id_num, dnet_state_dump_addr(st), backend->backend_id, idc, diff);
 
 	dnet_state_set_server_prio(st);
@@ -341,7 +341,7 @@ err_out_unlock:
 err_out_exit:
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_ERROR, "Failed to initialize group %d with %d ids, state: %s, backend: %d, err: %d: %ld usecs.\n",
+	dnet_log(n, DNET_LOG_ERROR, "Failed to initialize group %d with %d ids, state: %s, backend: %d, err: %d: %ld usecs.",
 		group_id, id_num, dnet_state_dump_addr(st), backend->backend_id, err, diff);
 	return err;
 }
@@ -611,29 +611,29 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->log)
 		dnet_log_init(n, cfg->log);
 
-	dnet_log(n, DNET_LOG_INFO, "Elliptics starts\n");
+	dnet_log(n, DNET_LOG_INFO, "Elliptics starts");
 
 	if (!n->wait_ts.tv_sec) {
 		n->wait_ts.tv_sec = DNET_DEFAULT_WAIT_TIMEOUT_SEC;
-		dnet_log(n, DNET_LOG_NOTICE, "Using default wait timeout (%ld seconds).\n",
+		dnet_log(n, DNET_LOG_NOTICE, "Using default wait timeout (%ld seconds).",
 				n->wait_ts.tv_sec);
 	}
 
 	if (!n->check_timeout) {
 		n->check_timeout = DNET_DEFAULT_CHECK_TIMEOUT_SEC;
-		dnet_log(n, DNET_LOG_NOTICE, "Using default check timeout (%ld seconds).\n",
+		dnet_log(n, DNET_LOG_NOTICE, "Using default check timeout (%ld seconds).",
 				n->check_timeout);
 	}
 
 	if (!n->cache_sync_timeout) {
 		n->cache_sync_timeout = DNET_DEFAULT_CACHE_SYNC_TIMEOUT_SEC;
-		dnet_log(n, DNET_LOG_NOTICE, "Using default check timeout (%d seconds).\n",
+		dnet_log(n, DNET_LOG_NOTICE, "Using default check timeout (%d seconds).",
 				n->cache_sync_timeout);
 	}
 
 	if (!n->stall_count) {
 		n->stall_count = DNET_DEFAULT_STALL_TRANSACTIONS;
-		dnet_log(n, DNET_LOG_NOTICE, "Using default stall count (%ld transactions).\n",
+		dnet_log(n, DNET_LOG_NOTICE, "Using default stall count (%ld transactions).",
 				n->stall_count);
 	}
 
@@ -642,7 +642,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	if (!n->indexes_shard_count) {
 		n->indexes_shard_count = DNET_DEFAULT_INDEXES_SHARD_COUNT;
-		dnet_log(n, DNET_LOG_NOTICE, "Using default indexes shard count (%d shards).\n",
+		dnet_log(n, DNET_LOG_NOTICE, "Using default indexes shard count (%d shards).",
 				n->indexes_shard_count);
 	}
 
@@ -658,7 +658,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_io_exit;
 
-	dnet_log(n, DNET_LOG_DEBUG, "New node has been created.\n");
+	dnet_log(n, DNET_LOG_DEBUG, "New node has been created.");
 	pthread_sigmask(SIG_SETMASK, &previous_sigset, NULL);
 	return n;
 
@@ -671,8 +671,8 @@ err_out_free:
 err_out_exit:
 	pthread_sigmask(SIG_SETMASK, &previous_sigset, NULL);
 
-	if (cfg->log && cfg->log->log)
-		cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Error during node creation.\n");
+	dnet_log_only_log(cfg->log, DNET_LOG_ERROR, "Error during node creation.");
+
 	return NULL;
 }
 
@@ -714,7 +714,7 @@ void dnet_node_cleanup_common_resources(struct dnet_node *n)
 
 void dnet_node_destroy(struct dnet_node *n)
 {
-	dnet_log(n, DNET_LOG_DEBUG, "Destroying node.\n");
+	dnet_log(n, DNET_LOG_DEBUG, "Destroying node.");
 
 	dnet_node_cleanup_common_resources(n);
 	dnet_counter_destroy(n);
@@ -775,7 +775,7 @@ err_out_exit:
 
 void dnet_session_destroy(struct dnet_session *s)
 {
-	dnet_log(s->node, DNET_LOG_DEBUG, "Destroying session.\n");
+	dnet_log(s->node, DNET_LOG_DEBUG, "Destroying session.");
 
 	free(s->groups);
 	free(s->ns);

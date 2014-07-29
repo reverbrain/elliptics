@@ -57,9 +57,9 @@ static inline int64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint6
 	return size;
 }
 
-int backend_stat(struct dnet_log *l, void *state, char *path, struct dnet_cmd *cmd);
+int backend_stat(dnet_logger *l, void *state, char *path, struct dnet_cmd *cmd);
 
-int backend_stat_low_level(struct dnet_log *l, const char *path, struct dnet_stat *st);
+int backend_stat_low_level(dnet_logger *l, const char *path, struct dnet_stat *st);
 
 static inline char *file_backend_get_dir(const unsigned char *id, uint64_t bit_num, char *dst)
 {
@@ -86,7 +86,7 @@ struct dnet_config_backend {
 	unsigned long long		storage_size;
 	unsigned long long		storage_free;
 
-	struct dnet_log			*log;
+	dnet_logger			*log;
 
 	int				(* init)(struct dnet_config_backend *b);
 	void				(* cleanup)(struct dnet_config_backend *b);
@@ -147,8 +147,8 @@ void dnet_eblob_backend_exit(void);
 
 int backend_storage_size(struct dnet_config_backend *b, const char *root);
 
-int dnet_backend_check_log_level(struct dnet_log *logger, int level);
-void dnet_backend_log_raw(struct dnet_log *logger, int level, const char *fmt, ...) __attribute__ ((format(printf, 3, 4)));
+int dnet_backend_check_log_level(dnet_logger *logger, int level);
+void dnet_backend_log_raw(dnet_logger *logger, int level, const char *fmt, ...) __attribute__ ((format(printf, 3, 4)));
 #define dnet_backend_log(logger, level, format, a...)				\
 	do {								\
 		if (dnet_backend_check_log_level((logger), (level)))		\

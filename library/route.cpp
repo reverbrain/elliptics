@@ -21,7 +21,7 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	if (err)
 		goto err_out_exit;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: client indexes shard count: %d, server indexes shard count: %d\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: client indexes shard count: %d, server indexes shard count: %d",
 			dnet_state_dump_addr(st),
 			indexes_shard_count,
 			n->indexes_shard_count);
@@ -60,7 +60,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	if (cmd->size < sizeof(struct dnet_addr_container)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
-				"cmd-size: %llu, must be more than addr_container: %zd\n",
+				"cmd-size: %llu, must be more than addr_container: %zd",
 				dnet_dump_id(&cmd->id), client_addr, server_addr,
 				(unsigned long long)cmd->size, sizeof(struct dnet_addr_container));
 		err = -EINVAL;
@@ -71,7 +71,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	if (cmd->size < sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr) + sizeof(struct dnet_id_container *)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
-				"cmd-size: %llu, must be more than addr_container+addrs: %zd, addr_num: %d\n",
+				"cmd-size: %llu, must be more than addr_container+addrs: %zd, addr_num: %d",
 				dnet_dump_id(&cmd->id), client_addr, server_addr,
 				(unsigned long long)cmd->size, sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr) + sizeof(struct dnet_id_container *),
 				cnt->addr_num);
@@ -81,7 +81,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	if (idx < 0 || idx >= cnt->addr_num || cnt->addr_num != n->addr_num) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
-				"address idx: %d, received addr-num: %d, local addr-num: %d\n",
+				"address idx: %d, received addr-num: %d, local addr-num: %d",
 				dnet_dump_id(&cmd->id), client_addr, server_addr,
 				idx, cnt->addr_num, n->addr_num);
 		err = -EINVAL;
@@ -98,13 +98,13 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	err = dnet_validate_id_container(id_container, cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container), backends);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, failed to parse id_container, err: %d\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, failed to parse id_container, err: %d",
 				dnet_dump_id(&cmd->id), client_addr, server_addr, err);
 		goto err_out_free;
 	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: join request: client: %s -> %s, "
-			"address idx: %d, received addr-num: %d, local addr-num: %d, backends-num: %d\n",
+			"address idx: %d, received addr-num: %d, local addr-num: %d, backends-num: %d",
 			dnet_dump_id(&cmd->id), client_addr, server_addr,
 			idx, cnt->addr_num, n->addr_num, id_container->backends_count);
 
@@ -112,7 +112,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		backend = backends[i];
 		for (j = 0; j < backend->ids_count; ++j) {
 			dnet_log(n, DNET_LOG_NOTICE, "%s: join request: client: %s -> %s, "
-				"received backends: %d/%d, ids: %d/%d, addr-num: %d, idx: %d, backend_id: %d, group_id: %d, id: %s.\n",
+				"received backends: %d/%d, ids: %d/%d, addr-num: %d, idx: %d, backend_id: %d, group_id: %d, id: %s.",
 				dnet_dump_id(&cmd->id), client_addr, server_addr,
 				i, id_container->backends_count,
 				j, backend->ids_count, cnt->addr_num, idx,
@@ -147,7 +147,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	}
 
 	dnet_log(n, DNET_LOG_INFO, "%s: join request completed: client: %s -> %s, "
-			"address idx: %d, received addr-num: %d, local addr-num: %d, backends-num: %d, err: %d\n",
+			"address idx: %d, received addr-num: %d, local addr-num: %d, backends-num: %d, err: %d",
 			dnet_dump_id(&cmd->id), client_addr, server_addr,
 			idx, cnt->addr_num, n->addr_num, id_container->backends_count, err);
 err_out_free:
@@ -165,13 +165,13 @@ static int dnet_state_join_nolock(struct dnet_net_state *st)
 
 	err = dnet_route_list_send_all_ids_nolock(st, &id, 0, DNET_CMD_JOIN, 0, 1);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send join request to %s.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send join request to %s.",
 			dnet_dump_id(&id), dnet_server_convert_dnet_addr(&st->addr));
 		goto err_out_exit;
 	}
 
 	st->__join_state = DNET_JOIN;
-	dnet_log(n, DNET_LOG_INFO, "%s: successfully joined network, group %d.\n", dnet_dump_id(&id), id.group_id);
+	dnet_log(n, DNET_LOG_INFO, "%s: successfully joined network, group %d.", dnet_dump_id(&id), id.group_id);
 
 err_out_exit:
 	return err;

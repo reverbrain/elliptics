@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include "elliptics/logger.hpp"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,9 +33,8 @@ struct dlopen_handle_t {
 	void *handle;
 	void *symbol;
 };
-struct dnet_log;
 
-int create_dlopen_handle(struct dnet_log *log, struct dlopen_handle_t *handle, const char *path, const char *symbol_name);
+int create_dlopen_handle(dnet_logger *log, struct dlopen_handle_t *handle, const char *path, const char *symbol_name);
 void destroy_dlopen_handle(struct dlopen_handle_t *handle);
 
 #ifdef __cplusplus

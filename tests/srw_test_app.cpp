@@ -53,7 +53,7 @@ void app_context::init(const std::string &, const std::vector<std::string> &chun
 	const std::string log_path = info.path + "/" + id + ".log";
 
 	logger.reset(new elliptics::file_logger(log_path.c_str(), DNET_LOG_DEBUG));
-	node.reset(new elliptics::node(*logger));
+	node.reset(new elliptics::node(elliptics::logger(*logger, blackhole::log::attributes_t())));
 
 	for (auto it = info.remotes.begin(); it != info.remotes.end(); ++it) {
 		node->add_remote(it->c_str());

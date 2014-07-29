@@ -37,6 +37,8 @@
 #include <elliptics/packet.h>
 #include <elliptics/srw.h>
 
+#include "logger.hpp"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -203,20 +205,6 @@ int dnet_write_file_id(struct dnet_session *s, const char *file, struct dnet_id 
 int dnet_write_file(struct dnet_session *s, const char *file, const void *remote, int remote_len,
 		uint64_t local_offset, uint64_t remote_offset, uint64_t size);
 
-/*
- * Log level
- *
- * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new level
- * please also add it to elliptics_log_level and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
- */
-enum dnet_log_level {
-	DNET_LOG_DATA = 0,
-	DNET_LOG_ERROR,
-	DNET_LOG_INFO,
-	DNET_LOG_NOTICE,
-	DNET_LOG_DEBUG,
-};
-
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
 
@@ -232,18 +220,6 @@ enum dnet_log_level {
 #define DNET_CFG_NO_CSUM		(1<<3)		/* globally disable checksum verification and update */
 #define DNET_CFG_RANDOMIZE_STATES	(1<<5)		/* randomize states for read requests */
 #define DNET_CFG_KEEPS_IDS_IN_CLUSTER	(1<<6)		/* keeps ids in elliptics cluster */
-
-struct dnet_log {
-	/*
-	 * Logging parameters.
-	 * Mask specifies set of the events we are interested in to log.
-	 * Private data is used in the log function to get access to whatever
-	 * user pointed to.
-	 */
-	int			log_level;
-	void			*log_private;
-	void 			(* log)(void *priv, int level, const char *msg);
-};
 
 /*
  * New-style iterator control
@@ -338,7 +314,7 @@ struct dnet_config
 	int			flags;
 
 	/* Private logger */
-	struct dnet_log		*log;
+	dnet_logger		*log;
 
 	/* Notify hash table size */
 	unsigned int		hash_size;
@@ -446,9 +422,9 @@ struct dnet_node *dnet_session_get_node(struct dnet_session *s);
 /*
  * Initialize private logging system.
  */
-int dnet_log_init(struct dnet_node *s, struct dnet_log *l);
+int dnet_log_init(struct dnet_node *s, dnet_logger *l);
 void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, int level, const char *format, ...) DNET_LOG_CHECK;
-void __attribute__((weak)) dnet_log_raw_log_only(struct dnet_log *l, int level, const char *format, ...) DNET_LOG_CHECK;
+void __attribute__((weak)) dnet_log_raw_log_only(dnet_logger *l, int level, const char *format, ...) DNET_LOG_CHECK;
 
 #define NIP6(addr) \
 	(addr).s6_addr[0], \

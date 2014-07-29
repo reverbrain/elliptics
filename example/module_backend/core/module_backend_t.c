@@ -39,7 +39,7 @@ static int dnet_module_config_init(struct dnet_config_backend *b)
 
 	err = create_dlopen_handle(b->log, &module_backend->dlopen_handle, module_backend->config.module_path, module_backend->config.symbol_name);
 	if (err) {
-		dnet_backend_log(b->log, DNET_LOG_ERROR, "module_backend: fail to create dlopen handle from %s\n", module_backend->config.module_path);
+		dnet_backend_log(b->log, DNET_LOG_ERROR, "module_backend: fail to create dlopen handle from %s", module_backend->config.module_path);
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
@@ -47,7 +47,7 @@ static int dnet_module_config_init(struct dnet_config_backend *b)
 	constructor = module_backend->dlopen_handle.symbol;
 	module_backend->api = constructor(&module_backend->config);
 	if (!module_backend->api) {
-		dnet_backend_log(b->log, DNET_LOG_ERROR, "module_backend: fail to create api from %s\n", module_backend->config.module_path);
+		dnet_backend_log(b->log, DNET_LOG_ERROR, "module_backend: fail to create api from %s", module_backend->config.module_path);
 		err = -ENOMEM;
 		goto err_out_constructor;
 	}
@@ -56,7 +56,7 @@ static int dnet_module_config_init(struct dnet_config_backend *b)
 	b->cb.command_handler = module_backend->api->command_handler;
 	b->cb.iterator        = module_backend->api->iterator;
 	b->cb.backend_cleanup = module_backend_cleanup;
-	dnet_backend_log(b->log, DNET_LOG_NOTICE, "module_backend: load successful\n");
+	dnet_backend_log(b->log, DNET_LOG_NOTICE, "module_backend: load successful");
 	return 0;
 
 err_out_constructor:
@@ -131,7 +131,7 @@ void destroy_module_backend_config(struct module_backend_config_t *module_backen
 	free(module_backend_config->module_argument);
 }
 
-void report_module_backend_error(struct dnet_log *log, const char *what)
+void report_module_backend_error(dnet_logger *log, const char *what)
 {
-	dnet_backend_log(log, DNET_LOG_ERROR, "module_backend: failed: %s\n", what);
+	dnet_backend_log(log, DNET_LOG_ERROR, "module_backend: failed: %s", what);
 }

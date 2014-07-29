@@ -24,7 +24,7 @@
 
 #include "result_entry.hpp"
 #include "packet.h"
-#include "interface.h"
+#include "logger.hpp"
 
 namespace ioremap { namespace elliptics {
 
@@ -151,7 +151,7 @@ class logger_interface
 
 		virtual void log(const int level, const char *msg) = 0;
 };
-
+/*
 class logger_data;
 
 class logger
@@ -167,7 +167,6 @@ class logger
 		void 		log(const int level, const char *msg);
 		void 		print(int level, const char *format, ...) __attribute__ ((format(printf, 3, 4)));
 		int			get_log_level();
-		dnet_log		*get_native();
 
 	protected:
 		std::shared_ptr<logger_data> m_data;
@@ -179,7 +178,7 @@ class file_logger : public logger
 		explicit file_logger(const char *file, const int level);
 		~file_logger();
 };
-
+*/
 class node_data;
 class session_data;
 
@@ -188,14 +187,17 @@ class node
 	public:
 		node();
 		explicit node(const std::shared_ptr<node_data> &data);
-		explicit node(const logger &l);
-		node(const logger &l, dnet_config &cfg);
+		explicit node(logger &&l);
+		node(logger &&l, dnet_config &cfg);
 		node(const node &other);
 		~node();
 
 		static node from_raw(dnet_node *n);
+		static node from_raw(dnet_node *n, blackhole::log::attributes_t attributes);
 
 		node &operator =(const node &other);
+
+		bool			is_valid() const;
 
 		void			add_remote(const address &addr);
 		void			add_remote(const std::vector<address> &addrs);
@@ -204,8 +206,8 @@ class node
 
 		void			set_keepalive(int idle, int cnt, int interval);
 
-		logger get_log() const;
-		dnet_node *	get_native() const;
+		logger			&get_log() const;
+		dnet_node		*get_native() const;
 
 	protected:
 		std::shared_ptr<node_data> m_data;
@@ -919,7 +921,7 @@ class session
 		/*!
 		 * Returns logger object.
 		 */
-		logger get_logger() const;
+		logger &get_logger() const;
 		/*!
 		 * Returns reference to parent node.
 		 */
@@ -944,5 +946,8 @@ class session
 };
 
 }} /* namespace ioremap::elliptics */
+
+DECLARE_EVENT_KEYWORD(dnet_id, std::string)
+DECLARE_EVENT_KEYWORD(request_id, uint64_t)
 
 #endif // ELLIPTICS_SESSION_HPP

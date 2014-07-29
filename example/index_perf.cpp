@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
 
 
 	elliptics::file_logger logger(log.c_str(), log_level);
-	elliptics::node node(logger);
+	elliptics::node node(elliptics::logger(logger, blackhole::log::attributes_t()));
 
 	try {
 		node.add_remote(remote);

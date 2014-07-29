@@ -124,7 +124,7 @@ int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, 
 
 	err = dnet_fill_addr(&addr, remote_addr, remote_port, sock_type, proto);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.",
 				remote_addr, remote_port, remote_family, err, strerror(-err));
 		goto err_out_exit;
 	}
@@ -194,7 +194,7 @@ static int dnet_discovery_send(struct dnet_node *n)
 		dnet_log_err(n, "autodiscovery sent: %s - %.*s", dnet_server_convert_dnet_addr(addr),
 			(int)sizeof(auth->cookie), auth->cookie);
 	} else {
-		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery sent: %s - %.*s\n", dnet_server_convert_dnet_addr(addr),
+		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery sent: %s - %.*s", dnet_server_convert_dnet_addr(addr),
 			(int)sizeof(auth->cookie), auth->cookie);
 	}
 
@@ -227,18 +227,18 @@ static int dnet_discovery_recv(struct dnet_node *n)
 		err = poll(&pfd, 1, 100);
 		if (err < 0) {
 			err = -errno;
-			dnet_log(n, DNET_LOG_ERROR, "autodiscovery-recv: poll: %s [%d]\n", strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, "autodiscovery-recv: poll: %s [%d]", strerror(-err), err);
 		}
 
 		if (err == 0) {
-			dnet_log(n, DNET_LOG_DEBUG, "autodiscovery-recv: poll: no data\n");
+			dnet_log(n, DNET_LOG_DEBUG, "autodiscovery-recv: poll: no data");
 			return -EAGAIN;
 		}
 
 		err = recvfrom(n->autodiscovery_socket, buf, sizeof(buf), 0, (void *)&remote, &len);
 		if (err == -1) {
 			err = -errno;
-			dnet_log(n, DNET_LOG_ERROR, "audodiscovery recv: %d, want: %zd: %s [%d]\n", err, sizeof(buf), strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, "audodiscovery recv: %d, want: %zd: %s [%d]", err, sizeof(buf), strerror(-err), err);
 		}
 
 		if (err != sizeof(buf))
@@ -248,7 +248,7 @@ static int dnet_discovery_recv(struct dnet_node *n)
 		dnet_convert_addr(addr);
 		dnet_convert_auth(auth);
 
-		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery recv: %s - %.*s\n", dnet_server_convert_dnet_addr(addr),
+		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery recv: %s - %.*s", dnet_server_convert_dnet_addr(addr),
 				(int)sizeof(auth->cookie), auth->cookie);
 
 		if (!memcmp(n->cookie, auth->cookie, DNET_AUTH_COOKIE_SIZE)) {

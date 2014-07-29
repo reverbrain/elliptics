@@ -51,6 +51,7 @@ typedef unsigned short u_short;
 #include "backend.h"
 
 #include "elliptics/packet.h"
+#include "elliptics/logger.hpp"
 #include "elliptics/interface.h"
 
 #ifdef __cplusplus
@@ -67,12 +68,42 @@ struct dnet_net_state;
 
 extern __thread uint64_t trace_id;
 
-#define dnet_log(n, level, format, a...)							\
-	do {											\
-		if (n->log && ((n->log->log_level >= level) || (trace_id & DNET_TRACE_BIT)))	\
-			dnet_log_raw(n, level, format, ##a);					\
-		} while (0)
-#define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
+#define DNET_LOG_BEGIN_ONLY_LOG(log, level) \
+	do { \
+		dnet_logger * const local_dnet_log = log; \
+		dnet_logger_record * const local_dnet_record = dnet_log_open_record(local_dnet_log, level); \
+		if (local_dnet_record) {
+#define DNET_LOG_BEGIN(n, level) \
+	DNET_LOG_BEGIN_ONLY_LOG(n->log, level)
+
+#define DNET_LOG_VPRINT(format, args) \
+			dnet_log_vwrite(local_dnet_log, local_dnet_record, format, args);
+
+#define DNET_LOG_PRINT(format, a...) \
+			dnet_log_write(local_dnet_log, local_dnet_record, format, ##a);
+
+#define DNET_LOG_PRINT_ERR(err, format, a...) \
+			dnet_log_write_err(local_dnet_log, local_dnet_record, err, format, ##a);
+
+#define DNET_LOG_END() \
+			dnet_log_close_record(local_dnet_record); \
+		} \
+	} while (0)
+
+#define dnet_log(n, level, format, a...) \
+	DNET_LOG_BEGIN(n, level) \
+	DNET_LOG_PRINT(format, ##a) \
+	DNET_LOG_END()
+
+#define dnet_log_only_log(log, level, format, a...) \
+	DNET_LOG_BEGIN_ONLY_LOG(log, level) \
+	DNET_LOG_PRINT(format, ##a) \
+	DNET_LOG_END()
+
+#define dnet_log_err(n, format, a...) \
+	DNET_LOG_BEGIN(n, DNET_LOG_ERROR) \
+	DNET_LOG_PRINT_ERR(-errno, format, ##a) \
+	DNET_LOG_END()
 
 struct dnet_io_req {
 	struct list_head	req_entry;
@@ -561,7 +592,7 @@ struct dnet_node
 	int			keep_interval;
 	int			keep_idle;
 
-	struct dnet_log		*log;
+	dnet_logger		*log;
 
 	struct dnet_wait	*wait;
 	struct timespec		wait_ts;

@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
 	try {
 		file_logger log(logfile, log_level);
 
-		node n(log, cfg);
+		node n(logger(log, blackhole::log::attributes_t()), cfg);
 		session s(n);
 
 		s.set_cflags(cflags);

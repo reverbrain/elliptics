@@ -20,6 +20,7 @@
 #pragma once
 #include <stddef.h>
 #include "elliptics/packet.h"
+#include "elliptics/logger.hpp"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +33,7 @@ struct module_backend_config_t {
 	char *module_path; ///< path to shared library
 	char *symbol_name; ///< name of module_constructor in shared library
 	char *module_argument; ///< argument to module_constructor
-    struct dnet_log *log; ///< pointer to elliptics logger, pass it to dnet_backend_log
+	dnet_logger *log; ///< pointer to elliptics logger, pass it to dnet_backend_log
 };
 
 void destroy_module_backend_config(struct module_backend_config_t *module_backend_config);
@@ -58,7 +59,7 @@ struct module_backend_api_t {
 	void *private_data; ///< your own data
 };
 
-void report_module_backend_error(struct dnet_log *log, const char *what);
+void report_module_backend_error(dnet_logger *log, const char *what);
 
 struct module_backend_t;
 

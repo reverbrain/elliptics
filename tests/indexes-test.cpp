@@ -482,8 +482,8 @@ int main(int argc, char *argv[])
 	(void) argc;
 	(void) argv;
 
-	file_logger logger("/dev/stderr", DNET_LOG_DATA);
-	node n(logger);
+	file_logger log("/dev/stderr", DNET_LOG_DATA);
+	node n(logger(log, blackhole::log::attributes_t()));
 
 	try {
 		n.add_remote(address("localhost", 1025));

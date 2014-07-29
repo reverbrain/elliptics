@@ -109,12 +109,12 @@ static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool,
 		err = pthread_create(&wio->tid, NULL, process, wio);
 		if (err) {
 			err = -err;
-			dnet_log(n, DNET_LOG_ERROR, "Failed to create IO thread: %d\n", err);
+			dnet_log(n, DNET_LOG_ERROR, "Failed to create IO thread: %d", err);
 			goto err_out_io_threads;
 		}
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Grew %s pool by: %d -> %d IO threads\n",
+	dnet_log(n, DNET_LOG_INFO, "Grew %s pool by: %d -> %d IO threads",
 			dnet_work_io_mode_str(pool->mode), pool->num, pool->num + num);
 
 	pool->num = num;
@@ -225,7 +225,7 @@ static inline void list_stat_log(struct list_stat *st, struct dnet_node *node, c
 	if ((tv.tv_sec - st->time_base.tv_sec) >= 1) {
 		double elapsed_seconds = (double)(tv.tv_sec - st->time_base.tv_sec) * 1000000 + (tv.tv_usec - st->time_base.tv_usec);
 		elapsed_seconds /= 1000000;
-		dnet_log(node, DNET_LOG_INFO, "%s report: elapsed: %.3f s, current size: %ld, min: %ld, max: %ld, volume: %ld, noneblocking: %d\n",
+		dnet_log(node, DNET_LOG_INFO, "%s report: elapsed: %.3f s, current size: %ld, min: %ld, max: %ld, volume: %ld, noneblocking: %d",
 			list_name, elapsed_seconds, st->list_size, st->min_list_size, st->max_list_size, st->volume, nonblocking);
 
 		list_stat_reset(st, &tv);
@@ -262,17 +262,17 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	ssize_t backend_id = -1;
 
 	if (cmd->size > 0) {
-		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d\n",
+		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d",
 			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd),
 			(unsigned long long)cmd->size, nonblocking);
 	} else if ((cmd->size == 0) && !(cmd->flags & DNET_FLAGS_MORE) && (cmd->trans & DNET_TRANS_REPLY)) {
-		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV ACK: %s: nonblocking: %d\n",
+		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV ACK: %s: nonblocking: %d",
 			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd), nonblocking);
 	} else {
 		unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 		int reply = !!(cmd->trans & DNET_TRANS_REPLY);
 
-		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: 0x%llx, trans: %lld, reply: %d\n",
+		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: 0x%llx, trans: %lld, reply: %d",
 			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd), nonblocking,
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
 	}
@@ -348,7 +348,7 @@ void dnet_schedule_command(struct dnet_net_state *st)
 #if 0
 		struct dnet_cmd *c = &st->rcv_cmd;
 		unsigned long long tid = c->trans & ~DNET_TRANS_REPLY;
-		dnet_log(st->n, DNET_LOG_DEBUG, "freed: size: %llu, trans: %llu, reply: %d, ptr: %p.\n",
+		dnet_log(st->n, DNET_LOG_DEBUG, "freed: size: %llu, trans: %llu, reply: %d, ptr: %p.",
 						(unsigned long long)c->size, tid, tid != c->trans, st->rcv_data);
 #endif
 		free(st->rcv_data);
@@ -393,7 +393,7 @@ again:
 		}
 
 		if (err == 0) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: peer has disconnected, socket: %d/%d.\n",
+			dnet_log(n, DNET_LOG_ERROR, "%s: peer has disconnected, socket: %d/%d.",
 				dnet_state_dump_addr(st), st->read_s, st->write_s);
 			err = -ECONNRESET;
 			goto out;
@@ -414,7 +414,7 @@ again:
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
 		dnet_log(n, DNET_LOG_DEBUG, "%s: received trans: %llu / 0x%llx, "
-				"reply: %d, size: %llu, flags: 0x%llx, status: %d.\n",
+				"reply: %d, size: %llu, flags: 0x%llx, status: %d.",
 				dnet_dump_id(&c->id), tid, (unsigned long long)c->trans,
 				!!(c->trans & DNET_TRANS_REPLY),
 				(unsigned long long)c->size, (unsigned long long)c->flags, c->status);
@@ -562,7 +562,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 
 	err = dnet_socket_local_addr(cs, &saddr);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to resolve server addr for connected client: %s [%d]\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to resolve server addr for connected client: %s [%d]",
 				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
 		goto err_out_exit;
 	}
@@ -571,7 +571,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 
 	st = dnet_state_create(n, NULL, 0, &addr, cs, &err, 0, 0, idx, dnet_state_net_process);
 	if (!st) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]",
 				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
 		err = -EAGAIN;
 
@@ -579,7 +579,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 		goto err_out_exit;
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d, server address: %s, idx: %d.\n",
+	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d, server address: %s, idx: %d.",
 			dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), cs,
 			dnet_server_convert_dnet_addr_raw(&saddr, server_addr, sizeof(server_addr)), idx);
 
@@ -633,7 +633,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			if (atomic_read(&st->send_queue_size) > 0)
 				if (atomic_dec(&st->send_queue_size) == DNET_SEND_WATERMARK_LOW) {
 					dnet_log(st->n, DNET_LOG_DEBUG,
-							"State low_watermark reached: %s: %d, waking up\n",
+							"State low_watermark reached: %s: %d, waking up",
 							dnet_server_convert_dnet_addr(&st->addr),
 							atomic_read(&st->send_queue_size));
 					pthread_cond_broadcast(&st->send_wait);
@@ -660,7 +660,7 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 	int err, fd;
 
 	if (st->__need_exit) {
-		dnet_log_err(st->n, "%s: scheduling %s event on reset state: need-exit: %d\n",
+		dnet_log_err(st->n, "%s: scheduling %s event on reset state: need-exit: %d",
 				dnet_state_dump_addr(st), send ? "SEND" : "RECV", st->__need_exit);
 		return st->__need_exit;
 	}
@@ -720,7 +720,7 @@ int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev)
 	}
 
 	if (ev->events & (EPOLLHUP | EPOLLERR)) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask 0x%x\n", dnet_state_dump_addr(st), ev->events);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask 0x%x", dnet_state_dump_addr(st), ev->events);
 		err = -ECONNRESET;
 	}
 err_out_exit:
@@ -847,8 +847,8 @@ static void *dnet_io_process_network(void *data_)
 				if (n->addr_num) {
 					dnet_server_convert_dnet_addr_raw(&n->addrs[0], addr_str, sizeof(addr_str));
 				}
-				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %p\n", addr_str, st);
-				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %s\n", addr_str, dnet_state_dump_addr(st));
+				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %p", addr_str, st);
+				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %s", addr_str, dnet_state_dump_addr(st));
 
 				dnet_state_reset(st, err);
 
@@ -876,7 +876,7 @@ static void *dnet_io_process_network(void *data_)
 			gettimeofday(&curr_tv, NULL);
 			// print log only if previous log was writed more then 1 seconds
 			if ((curr_tv.tv_sec - prev_tv.tv_sec) > 1) {
-				dnet_log(n, DNET_LOG_INFO, "Net pool is suspended bacause io pool queues is full\n");
+				dnet_log(n, DNET_LOG_INFO, "Net pool is suspended bacause io pool queues is full");
 				prev_tv = curr_tv;
 			}
 			// wait condition variable - io queues has a free slot or some socket has something to send
@@ -1118,7 +1118,7 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		if (err) {
 			close(nio->epoll_fd);
 			err = -err;
-			dnet_log(n, DNET_LOG_ERROR, "Failed to create network processing thread: %d\n", err);
+			dnet_log(n, DNET_LOG_ERROR, "Failed to create network processing thread: %d", err);
 			goto err_out_net_destroy;
 		}
 	}

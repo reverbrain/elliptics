@@ -22,7 +22,7 @@ namespace ioremap { namespace elliptics {
 
 class node_data {
 	public:
-		node_data() : node_ptr(NULL), destroy_node(true)
+		node_data(logger &&log) : node_ptr(NULL), log(std::move(log)), destroy_node(true)
 		{
 		}
 		~node_data()
@@ -45,7 +45,7 @@ class session_data
 
 		struct dnet_session	*session_ptr;
 		std::weak_ptr<node_data>node_guard;
-		elliptics::logger logger;
+		elliptics::logger	&logger;
 		result_filter		filter;
 		result_checker		checker;
 		result_error_handler	error_handler;

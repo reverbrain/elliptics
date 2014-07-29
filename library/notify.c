@@ -78,7 +78,7 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd, void *da
 
 		memcpy(&notif.addr, &st->addr, sizeof(struct dnet_addr));
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: sending notification.\n", dnet_dump_id(&cmd->id));
+		dnet_log(n, DNET_LOG_NOTICE, "%s: sending notification.", dnet_dump_id(&cmd->id));
 		dnet_send_reply(nt->state, &nt->cmd, &notif, sizeof(struct dnet_io_notification), 1);
 	}
 	pthread_rwlock_unlock(&b->notify_lock);
@@ -113,7 +113,7 @@ int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	list_add_tail(&e->notify_entry, &b->notify_list);
 	pthread_rwlock_unlock(&b->notify_lock);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: added notification, hash: 0x%x.\n", dnet_dump_id(&cmd->id), hash);
+	dnet_log(n, DNET_LOG_INFO, "%s: added notification, hash: 0x%x.", dnet_dump_id(&cmd->id), hash);
 
 	react_stop_action(ACTION_DNET_NOTIFY_ADD);
 	return 0;
@@ -138,7 +138,7 @@ int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd)
 		list_del(&e->notify_entry);
 		dnet_notify_entry_destroy(e);
 		
-		dnet_log(n, DNET_LOG_INFO, "%s: removed notification.\n", dnet_dump_id(&cmd->id));
+		dnet_log(n, DNET_LOG_INFO, "%s: removed notification.", dnet_dump_id(&cmd->id));
 		break;
 	}
 	pthread_rwlock_unlock(&b->notify_lock);
@@ -172,7 +172,7 @@ int dnet_notify_init(struct dnet_node *n)
 		}
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Successfully initialized notify hash table (%u entries).\n",
+	dnet_log(n, DNET_LOG_INFO, "Successfully initialized notify hash table (%u entries).",
 			n->notify_hash_size);
 
 	return 0;

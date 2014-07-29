@@ -211,11 +211,11 @@ class default_callback
 				try {
 					entry_converter::convert(entry, data);
 				} catch (...) {
-					m_logger.print(DNET_LOG_ERROR, "%s: received invalid data from server, tid: %llu, cmd: %s, status: %d, size: %llu\n",
+					BH_LOG(m_logger, DNET_LOG_ERROR, "%s: received invalid data from server, tid: %llu, cmd: %s, status: %d, size: %llu",
 						       dnet_dump_id(&cmd->id),
 						       static_cast<unsigned long long>(cmd->trans),
 						       dnet_cmd_string(cmd->cmd),
-						       cmd->status,
+						       int(cmd->status),
 						       static_cast<unsigned long long>(cmd->size));
 
 					dnet_cmd *cmd_copy = default_entry.command();
@@ -297,7 +297,7 @@ class default_callback
 		}
 
 	protected:
-		logger m_logger;
+		logger &m_logger;
 		size_t m_count;
 		size_t m_complete;
 		std::vector<int> m_statuses;
@@ -449,7 +449,7 @@ class multigroup_callback
 		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
 		{
 			dnet_log_raw(sess.get_native_node(),
-				DNET_LOG_DEBUG, "%s: multigroup_callback::handle: cmd: %s, trans: %llx, status: %d, flags: %llx, group: %d: %zd/%zd, priv: %p\n",
+				DNET_LOG_DEBUG, "%s: multigroup_callback::handle: cmd: %s, trans: %llx, status: %d, flags: %llx, group: %d: %zd/%zd, priv: %p",
 					dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), static_cast<long long unsigned>(cmd->trans),
 					cmd->status, static_cast<long long unsigned>(cmd->flags),
 					m_group_index < groups.size() ? groups[m_group_index] : -1, m_group_index, groups.size(), priv);
@@ -476,7 +476,7 @@ class multigroup_callback
 			std::lock_guard<std::mutex> lock(m_mutex);
 
 			dnet_log_raw(sess.get_native_node(),
-				DNET_LOG_DEBUG, "multigroup_callback::iterate_groups: group: %d: %zd/%zd, error: %d, priv: %p\n",
+				DNET_LOG_DEBUG, "multigroup_callback::iterate_groups: group: %d: %zd/%zd, error: %d, priv: %p",
 					m_group_index < groups.size() ? groups[m_group_index] : -1, m_group_index, groups.size(), error->code(), priv);
 			// try next group
 			while (m_group_index < groups.size()) {
@@ -490,7 +490,7 @@ class multigroup_callback
 						// some exception, log and try next group
 						dnet_log_raw(sess.get_native_node(),
 							DNET_LOG_NOTICE,
-							"%s: iterate-groups exception: %s\n",
+							"%s: iterate-groups exception: %s",
 							dnet_dump_id(&id), error->message().c_str());
 						*error = error_info();
 						continue;
@@ -566,7 +566,7 @@ class lookup_callback : public multigroup_callback<lookup_result_entry>
 			cb.clear();
 			cb.set_count(unlimited);
 
-			dnet_log_raw(sess.get_native_node(), DNET_LOG_DEBUG, "lookup_callback::next_group: %s: error: %d, priv: %p\n",
+			dnet_log_raw(sess.get_native_node(), DNET_LOG_DEBUG, "lookup_callback::next_group: %s: error: %d, priv: %p",
 					dnet_dump_id(&id), error->code(), priv);
 
 			int err = dnet_lookup_object(sess.get_native(), &id, func, priv);
@@ -607,7 +607,7 @@ class read_callback : public multigroup_callback<read_result_entry>
 
 			int err = dnet_read_object(sess.get_native(), &ctl);
 
-			dnet_log_raw(sess.get_native_node(), DNET_LOG_DEBUG, "read_callback::next_group: %s: error: %d, priv: %p, err: %d\n",
+			dnet_log_raw(sess.get_native_node(), DNET_LOG_DEBUG, "read_callback::next_group: %s: error: %d, priv: %p, err: %d",
 					dnet_dump_id(&id), error->code(), priv, err);
 
 			if (err) {
@@ -659,7 +659,7 @@ class read_callback : public multigroup_callback<read_result_entry>
 				}
 
 				dnet_log_raw(sess.get_node().get_native(), DNET_LOG_INFO,
-						"read_callback::read-recovery: %s: %llu bytes -> %s groups\n",
+						"read_callback::read-recovery: %s: %llu bytes -> %s groups",
 					dnet_dump_id_str(io->id), (unsigned long long)io->size, ss.str().c_str());
 
 				new_sess.write_data(write_ctl);
@@ -731,9 +731,8 @@ struct dnet_net_state_deleter
 
 typedef std::unique_ptr<dnet_net_state, dnet_net_state_deleter> net_state_ptr;
 
-#define elliptics_log(LEVEL, a...) do { if (log.get_log_level() >= LEVEL) log.print(LEVEL, ##a); } while (0)
-#define debug(a...) elliptics_log(DNET_LOG_DEBUG, ##a)
-#define notice(a...) elliptics_log(DNET_LOG_NOTICE, ##a)
+#define debug(...) BH_LOG(log, DNET_LOG_DEBUG, __VA_ARGS__)
+#define notice(...) BH_LOG(log, DNET_LOG_NOTICE, __VA_ARGS__)
 
 class read_bulk_callback : public read_callback
 {
@@ -750,7 +749,7 @@ class read_bulk_callback : public read_callback
 		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
 		{
 			debug("BULK_READ, callback: %p, id: %s, err: %d, size: %llu",
-				this, dnet_dump_id(&cmd->id), cmd->status, (unsigned long long)cmd->size);
+				this, dnet_dump_id(&cmd->id), (int)cmd->status, (unsigned long long)cmd->size);
 			// Remove from ios_set entries for which result is ready
 			if (cmd->status == 0 && cmd->size >= sizeof(dnet_io_attr)) {
 				std::lock_guard<std::mutex> lock(ios_set_mutex);
@@ -821,7 +820,7 @@ class read_bulk_callback : public read_callback
 				ctl.complete = func;
 				ctl.priv = priv;
 
-				notice("BULK_READ, callback: %p, start: %s: end: %s, count: %llu, addr: %s\n",
+				notice("BULK_READ, callback: %p, start: %s: end: %s, count: %llu, addr: %s",
 					this,
 					dnet_dump_id(&id),
 					dnet_dump_id(&next_id),
@@ -865,7 +864,7 @@ class read_bulk_callback : public read_callback
 			return create_error(-ENXIO, "bulk_read: can't read data");
 		}
 
-		logger log;
+		logger &log;
 		std::mutex ios_set_mutex;
 		io_attr_set ios_set;
 		std::vector<dnet_io_attr> ios_cache;
@@ -946,7 +945,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
 		{
 			debug("INDEXES_FIND, callback: %p, id: %s, err: %d, size: %llu",
-				this, dnet_dump_id(&cmd->id), cmd->status, (unsigned long long)cmd->size);
+				this, dnet_dump_id(&cmd->id), int(cmd->status), (unsigned long long)cmd->size);
 			// Remove from ios_set entries for which result is ready
 			if (cmd->status == 0 && cmd->size > 0) {
 				std::lock_guard<std::mutex> lock(index_requests_mutex);
@@ -1075,7 +1074,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 				control.complete = func;
 				control.priv = priv;
 
-				notice("INDEXES_FIND: callback: %p, count: %llu, state: %s\n",
+				notice("INDEXES_FIND: callback: %p, count: %llu, state: %s",
 					this,
 					index_requests_count,
 					dnet_state_dump_addr(cur.get()));
@@ -1123,7 +1122,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 			return create_error(-ENXIO, "indexes_find: can't read data");
 		}
 
-		logger log;
+		logger &log;
 		const bool intersect;
 		const int shard_count;
 		std::mutex index_requests_mutex;

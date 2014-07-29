@@ -41,8 +41,6 @@ using namespace ioremap::elliptics;
 #define __unused	__attribute__ ((unused))
 #endif
 
-static struct dnet_log notify_logger;
-
 static int notify_complete(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv)
@@ -102,16 +100,16 @@ int main(int argc, char *argv[])
 	const char *logfile = "/dev/stderr", *notify_file = "/dev/stdout";
 	FILE *notify;
 	std::vector<int> groups;
+	int log_level = DNET_LOG_INFO;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
 	cfg.wait_timeout = 60*60;
-	notify_logger.log_level = DNET_LOG_INFO;
 
 	while ((ch = getopt(argc, argv, "g:m:w:l:I:a:r:h")) != -1) {
 		switch (ch) {
 			case 'm':
-				notify_logger.log_level = strtoul(optarg, NULL, 0);
+				log_level = strtoul(optarg, NULL, 0);
 				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);
@@ -163,9 +161,9 @@ int main(int argc, char *argv[])
 	}
 
 	try {
-		file_logger log(logfile, DNET_LOG_INFO);
+		file_logger log(logfile, log_level);
 
-		node n(log, cfg);
+		node n(logger(log, blackhole::log::attributes_t()), cfg);
 		n.add_remote(address(remote_addr, remote_port, remote_family));
 
 		session s(n);

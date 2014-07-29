@@ -234,7 +234,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 	result.connect(std::bind(on_update_index_entry, handler, std::placeholders::_1),
 		std::bind(on_update_index_finished, handler, std::placeholders::_1));
 
-	dnet_log(orig_sess.get_native_node(), DNET_LOG_INFO, "%s: key: %s, indexes: %zd\n",
+	dnet_log(orig_sess.get_native_node(), DNET_LOG_INFO, "%s: key: %s, indexes: %zd",
 			dnet_dump_id(&request_id.id()), request_id.to_string().c_str(), indexes.size());
 
 	return final_result;
@@ -334,14 +334,13 @@ struct on_remove_index : std::enable_shared_from_this<on_remove_index>
 			std::bind(&on_remove_index::on_remove_index_entry, shared_from_this(), _1),
 			std::bind(&on_remove_index::on_request_finished, shared_from_this(), _1));
 
-		logger log = sess.get_logger();
-		if (log.get_log_level() >= DNET_LOG_DEBUG) {
+		{
+			logger &log = sess.get_logger();
 			char index_name[2 * DNET_ID_SIZE + 1];
 			char object_name[2 * DNET_ID_SIZE + 1];
-			dnet_dump_id_len_raw(index_id.id, DNET_DUMP_NUM, index_name);
-			dnet_dump_id_len_raw(entry.id.id, DNET_DUMP_NUM, object_name);
-
-			sess.get_logger().print(DNET_LOG_DEBUG, "on_remove_index: Removed index %s from object %s", index_name, object_name);
+			BH_LOG(log, DNET_LOG_DEBUG, "on_remove_index: Removed index %s from object %s",
+				dnet_dump_id_len_raw(index_id.id, DNET_DUMP_NUM, index_name),
+				dnet_dump_id_len_raw(entry.id.id, DNET_DUMP_NUM, object_name));
 		}
 
 		if (remove_data) {
@@ -569,7 +568,7 @@ static void on_find_indexes_process(session sess, std::shared_ptr<find_indexes_c
 
 			auto converted = convert_map->find(id);
 			if (converted == convert_map->end()) {
-				sess.get_logger().print(DNET_LOG_ERROR, "%s: on_find_indexes_process, unknown id", dnet_dump_id_str(id.id));
+				BH_LOG(sess.get_logger(), DNET_LOG_ERROR, "%s: on_find_indexes_process, unknown id", dnet_dump_id_str(id.id));
 				continue;
 			}
 
@@ -772,7 +771,7 @@ struct get_index_metadata_callback
 		metadata.index_size = get_index_size(content, err);
 		if (err) {
 			metadata.is_valid = false;
-			sess.get_logger().print(DNET_LOG_ERROR, "get_index_metadata: Incorrect msgpack format: err: %d", err);
+			BH_LOG(sess.get_logger(), DNET_LOG_ERROR, "get_index_metadata: Incorrect msgpack format: err: %d", err);
 		} else {
 			metadata.is_valid = true;
 		}
@@ -955,12 +954,10 @@ struct merge_indexes_callback
 
 	void operator() (const sync_read_result &raw_indexes, const error_info &error)
 	{
-		logger log = write_session.get_logger();
+		logger &log = write_session.get_logger();
 
 		if (error) {
-			if (log.get_log_level() >= DNET_LOG_ERROR) {
-				log.print(DNET_LOG_ERROR, "%s: failed to read indexes: %s", dnet_dump_id(&id.id()), error.message().c_str());
-			}
+			BH_LOG(log, DNET_LOG_ERROR, "%s: failed to read indexes: %s", dnet_dump_id(&id.id()), error.message());
 
 			handler.complete(error);
 			return;
@@ -972,10 +969,8 @@ struct merge_indexes_callback
 		// Unpack all retrieved results if possible
 		for (auto it = raw_indexes.begin(); it != raw_indexes.end(); ++it) {
 			try {
-				if (log.get_log_level() >= DNET_LOG_DEBUG) {
-					log.print(DNET_LOG_DEBUG, "%s: unpacking indexes, size: %llu",
-						dnet_dump_id(&id.id()), static_cast<unsigned long long>(it->file().size()));
-				}
+				BH_LOG(log, DNET_LOG_DEBUG, "%s: unpacking indexes, size: %llu",
+					dnet_dump_id(&id.id()), static_cast<unsigned long long>(it->file().size()));
 
 				dnet_indexes tmp;
 				indexes_unpack_raw(it->file(), &tmp);
@@ -986,9 +981,7 @@ struct merge_indexes_callback
 				handler.complete(error_info(-ENOMEM, std::string()));
 				return;
 			} catch (std::exception &e) {
-				if (log.get_log_level() >= DNET_LOG_ERROR) {
-					log.print(DNET_LOG_ERROR, "%s: failed to unpack indexes: %s", dnet_dump_id(&id.id()), e.what());
-				}
+				BH_LOG(log, DNET_LOG_ERROR, "%s: failed to unpack indexes: %s", dnet_dump_id(&id.id()), e.what());
 			}
 		}
 
@@ -1017,10 +1010,8 @@ struct merge_indexes_callback
 				continue;
 			}
 			if (it->shard_id != shard_id || it->shard_count != shard_count) {
-				if (log.get_log_level() >= DNET_LOG_ERROR) {
-					log.print(DNET_LOG_ERROR, "%s: mismatched indexes metadata: (%d, %d) vs (%d, %d)",
-						dnet_dump_id(&id.id()), shard_id, shard_count, it->shard_id, it->shard_count);
-				}
+				BH_LOG(log, DNET_LOG_ERROR, "%s: mismatched indexes metadata: (%d, %d) vs (%d, %d)",
+					dnet_dump_id(&id.id()), shard_id, shard_count, it->shard_id, it->shard_count);
 				handler.complete(create_error(-EINVAL, id, "mismatched indexes metadata"));
 				return;
 			}
@@ -1110,7 +1101,7 @@ struct recover_index_callback : public std::enable_shared_from_this<recover_inde
 {
 	key index;
 	session sess;
-	logger log;
+	logger &log;
 	async_result_handler<callback_result_entry> handler;
 	std::atomic_size_t counter;
 	std::mutex error_mutex;
@@ -1138,12 +1129,9 @@ struct recover_index_callback : public std::enable_shared_from_this<recover_inde
 
 	void on_find_indexes_process(const find_indexes_result_entry &entry)
 	{
-		if (log.get_log_level() >= DNET_LOG_DEBUG) {
-			for (auto it = entry.indexes.begin(); it != entry.indexes.end(); ++it) {
-				log.print(DNET_LOG_DEBUG, "recovery, index: %s, object: %s, data: %s",
-					index.to_string().c_str(), dnet_dump_id_str(entry.id.id), it->data.to_string().c_str());
-
-			}
+		for (auto it = entry.indexes.begin(); it != entry.indexes.end(); ++it) {
+			BH_LOG(log, DNET_LOG_DEBUG, "recovery, index: %s, object: %s, data: %s",
+				index.to_string().c_str(), dnet_dump_id_str(entry.id.id), it->data.to_string().c_str());
 		}
 
 		if (!entry.indexes.empty()) {

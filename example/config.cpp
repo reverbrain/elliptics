@@ -43,6 +43,7 @@
 #include "elliptics/interface.h"
 #include "elliptics/backends.h"
 #include "elliptics/error.hpp"
+#include "elliptics/session.hpp"
 
 #include "../library/elliptics.h"
 #include "../monitor/monitor.h"
@@ -54,9 +55,11 @@
 #include <rapidjson/document.h>
 #include <rapidjson/filestream.h>
 
-#include <blackhole/log.hpp>
+#define BLACKHOLE_HEADER_ONLY
 #include <blackhole/repository.hpp>
 #include <blackhole/repository/config/parser/rapidjson.hpp>
+#include <blackhole/frontend/syslog.hpp>
+#include <blackhole/frontend/files.hpp>
 
 #include "common.h"
 
@@ -65,6 +68,33 @@
 #endif
 
 extern __thread trace_id_t trace_id;
+
+// To be able to properly map user-defined severity enumeration to the syslog's one
+// we should implement special mapping trait that is called by library each time when
+// mapping is required.
+namespace blackhole {
+
+namespace sink {
+
+template<>
+struct priority_traits<dnet_log_level> {
+	static priority_t map(dnet_log_level lvl) {
+		switch (lvl) {
+		case DNET_LOG_ERROR:
+			return priority_t::err;
+		case DNET_LOG_INFO:
+			return priority_t::info;
+		default:
+			break;
+		}
+
+		return priority_t::debug;
+	}
+};
+
+} // namespace sink
+
+} // namespace blackhole
 
 namespace ioremap { namespace elliptics { namespace config {
 
@@ -124,9 +154,14 @@ private:
 
 struct config_data : public dnet_config_data
 {
+	config_data() : logger(logger_base, blackhole::log::attributes_t())
+	{
+	}
+
 	dnet_backend_info_list backends_guard;
 	std::string logger_value;
-	dnet_log logger_impl;
+	ioremap::elliptics::logger_base logger_base;
+	ioremap::elliptics::logger logger;
 };
 
 extern "C" dnet_config_data *dnet_config_data_create()
@@ -134,14 +169,9 @@ extern "C" dnet_config_data *dnet_config_data_create()
 	config_data *data = new config_data;
 
 	memset(static_cast<dnet_config_data *>(data), 0, sizeof(dnet_config_data));
-	memset(&data->logger_impl, 0, sizeof(data->logger_impl));
 
 	data->backends = &data->backends_guard;
 	data->destroy_config_data = dnet_config_data_destroy;
-
-	data->logger_impl.log_level = DNET_LOG_DEBUG;
-	data->logger_impl.log = dnet_common_log;
-	data->cfg_state.log = &data->logger_impl;
 
 	data->cfg_state.caches_number = DNET_DEFAULT_CACHES_NUMBER;
 	data->cfg_state.cache_pages_number = DNET_DEFAULT_CACHE_PAGES_NUMBER;
@@ -432,6 +462,11 @@ public:
 			throw config_error() << m_path << " must be an object";
 	}
 
+	const rapidjson::Value *raw() const
+	{
+		return m_value;
+	}
+
 protected:
 	std::string m_path;
 	const rapidjson::Value *m_value;
@@ -515,76 +550,47 @@ private:
 	rapidjson::Document m_doc;
 };
 
-static int dnet_node_set_log_impl(config_data *data)
+extern "C" int dnet_node_reset_log(struct dnet_node *n __unused)
 {
-	if (data->logger_value == "syslog") {
-		openlog("elliptics", 0, LOG_USER);
-
-		data->logger_impl.log_private = NULL;
-		data->logger_impl.log = dnet_syslog;
-	} else {
-		FILE *old = reinterpret_cast<FILE *>(data->logger_impl.log_private);
-
-		FILE *log = fopen(data->logger_value.c_str(), "a");
-		if (!log) {
-			throw config_error("failed to open log file '" + data->logger_value + "': " + strerror(errno));
-			return 1;
-		}
-
-		data->logger_impl.log_private = log;
-		data->logger_impl.log = dnet_common_log;
-
-		dnet_common_log(log, -1, "Reopened log file\n");
-
-		if (old) {
-			dnet_common_log(old, -1, "Reopened log file\n");
-			fclose(old);
-		}
-	}
-
 	return 0;
 }
 
-extern "C" int dnet_node_reset_log(struct dnet_node *n)
-{
-	try {
-		return dnet_node_set_log_impl(static_cast<config_data *>(n->config_data));
-	} catch (std::exception &exc) {
-		dnet_log(n, DNET_LOG_ERROR, "%s", exc.what());
-		return 1;
-	}
-}
-
-enum class level {
-	debug,
-	notice,
-	info,
-	warning,
-	error
-};
-
 static void parse_logger(config_data *data, const config &logger)
 {
-	data->logger_value = logger.at<std::string>("type");
-	data->logger_impl.log_level = logger.at<int>("level");
-
-	dnet_node_set_log_impl(data);
-
-	data->cfg_state.log = &data->logger_impl;
-}
-
-#if 0
-void parse_logger(config_data *data, const rapidjson::Value &logger)
-{
 	using namespace blackhole;
-	const std::vector<log_config_t> &configs = repository::config::parser_t<std::vector<log_config_t>>::parse(logger);
 
-	repository_t<level> &repository = repository_t<level>::instance();
-	for (auto it = configs.begin(); it != configs.end(); ++it) {
-		repository.add_config(*it);
-	}
+	repository_t::instance().configure<
+		sink::syslog_t<dnet_log_level>,
+		formatter::string_t
+	>();
+	repository_t::instance().configure<
+		sink::files_t<
+			sink::files::boost_backend_t,
+			sink::rotator_t<
+				sink::files::boost_backend_t,
+				sink::rotation::watcher::size_t
+			>
+		>,
+		formatter::string_t
+	>();
+	repository_t::instance().configure<
+		sink::files_t<>,
+		formatter::string_t
+	>();
+
+	config frontends = logger.at("frontends");
+	frontends.assert_array();
+
+	const dynamic_t &dynamic = repository::config::transformer_t<rapidjson::Value>::transform(*frontends.raw());
+	const log_config_t &log_config = repository::config::parser_t<log_config_t>::parse("root", dynamic);
+	repository_t::instance().add_config(log_config);
+
+	data->logger_base = repository_t::instance().root<dnet_log_level>();
+	data->logger_base.verbosity(dnet_log_level(logger.at<int>("level")));
+	data->logger_base.add_attribute(blackhole::keyword::request_id() = 0);
+
+	data->cfg_state.log = &data->logger;
 }
-#endif
 
 struct dnet_addr_wrap {
 	struct dnet_addr	addr;
@@ -698,11 +704,11 @@ static int dnet_set_malloc_options(config_data *data, unsigned long long value)
 
 	err = mallopt(M_MMAP_THRESHOLD, thr);
 	if (err < 0) {
-		dnet_backend_log(data->cfg_state.log, DNET_LOG_ERROR, "Failed to set mmap threshold to %d: %s\n", thr, strerror(errno));
+		dnet_backend_log(data->cfg_state.log, DNET_LOG_ERROR, "Failed to set mmap threshold to %d: %s", thr, strerror(errno));
 		return err;
 	}
 
-	dnet_backend_log(data->cfg_state.log, DNET_LOG_INFO, "Set mmap threshold to %d.\n", thr);
+	dnet_backend_log(data->cfg_state.log, DNET_LOG_INFO, "Set mmap threshold to %d.", thr);
 	return 0;
 }
 
@@ -841,11 +847,11 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		parser.open(file);
 
 		const config root = parser.root();
-		const config loggers = root.at("loggers");
+		const config logger = root.at("logger");
 		const config options = root.at("options");
 		const config backends = root.at("backends");
 
-		parse_logger(data, loggers);
+		parse_logger(data, logger);
 		parse_options(data, options);
 		parse_backends(data, backends);
 
@@ -863,13 +869,10 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		if (err)
 			throw config_error("failed to connect to remotes");
 
-//		err = dnet_backend_init_all(node);
-//		if (err)
-//			throw config_error("failed to initialize backend");
 	} catch (std::exception &exc) {
 		if (data && data->cfg_state.log) {
 			dnet_backend_log(data->cfg_state.log, DNET_LOG_ERROR,
-				"cnf: failed to read config file '%s': %s\n", file, exc.what());
+				"cnf: failed to read config file '%s': %s", file, exc.what());
 		} else {
 			fprintf(stderr, "cnf: %s\n", exc.what());
 			fflush(stderr);
@@ -886,24 +889,19 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 	return node;
 }
 
-extern "C" int dnet_backend_check_log_level(dnet_log *l, int level)
+extern "C" int dnet_backend_check_log_level(dnet_logger *l, int level)
 {
-	return (l->log && ((l->log_level >= level) || (trace_id & DNET_TRACE_BIT)));
+	return dnet_log_enabled(l, dnet_log_level(level));
 }
 
-extern "C" void dnet_backend_log_raw(dnet_log *l, int level, const char *format, ...)
+extern "C" void dnet_backend_log_raw(dnet_logger *l, int level, const char *format, ...)
 {
 	va_list args;
-	char buf[1024];
-	int buflen = sizeof(buf);
-
-	if (!dnet_backend_check_log_level(l, level))
-		return;
 
 	va_start(args, format);
-	vsnprintf(buf, buflen, format, args);
-	buf[buflen-1] = '\0';
-	l->log(l->log_private, level, buf);
+	DNET_LOG_BEGIN_ONLY_LOG(l, dnet_log_level(level));
+	DNET_LOG_VPRINT(format, args);
+	DNET_LOG_END();
 	va_end(args);
 }
 

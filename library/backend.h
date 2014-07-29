@@ -26,7 +26,7 @@ struct dnet_backend_info
 	}
 
 	dnet_config_backend config_template;
-	dnet_log *log;
+	dnet_logger *log;
 	std::vector<dnet_backend_config_entry> options;
 	int group;
 	void *cache;

@@ -464,22 +464,17 @@ void none(const error_info &, const std::vector<dnet_cmd> &)
 }
 
 void remove_on_fail_impl(session &sess, const error_info &error, const std::vector<dnet_cmd> &statuses) {
-	logger log = sess.get_logger();
+	logger &log = sess.get_logger();
 
 	if (statuses.size() == 0) {
-		log.log(DNET_LOG_ERROR, "Unexpected empty statuses list at remove_on_fail_impl");
+		BH_LOG(log, DNET_LOG_ERROR, "Unexpected empty statuses list at remove_on_fail_impl");
 		return;
 	}
 
-	if (log.get_log_level() >= DNET_LOG_DEBUG) {
-		// TODO: Add printf-like stile to elliptics::logger interface
-		char buffer[1024];
-		DNET_DUMP_ID(id, &statuses.front().id);
-		snprintf(buffer, sizeof(buffer), "%s: failed to exec %s: %s, going to remove data",
-			id, dnet_cmd_string(statuses.front().cmd), error.message().c_str());
-		buffer[sizeof(buffer) - 1] = '\0';
-		log.log(DNET_LOG_DEBUG, buffer);
-	}
+	BH_LOG(log, DNET_LOG_DEBUG, "%s: failed to exec %s: %s, going to remove_data",
+		dnet_dump_id(&statuses.front().id),
+		dnet_cmd_string(statuses.front().cmd),
+		error.message());
 
 	std::vector<int> rm_groups;
 	for (auto it = statuses.begin(); it != statuses.end(); ++it) {
@@ -1761,21 +1756,21 @@ class read_data_range_callback
 				d->need_exit = true;
 			}
 
-			logger log = d->sess.get_logger();
-
-			if (log.get_log_level() > DNET_LOG_NOTICE) {
+			{
+				logger &log = d->sess.get_logger();
 				int len = 6;
 				char start_id[2*len + 1];
 				char next_id[2*len + 1];
 				char end_id[2*len + 1];
 				char id_str[2*len + 1];
 
-				dnet_log_raw(node, DNET_LOG_NOTICE, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d\n",
-						dnet_dump_id_len_raw(d->id.id, len, id_str),
-						dnet_dump_id_len_raw(d->start.id, len, start_id),
-						dnet_dump_id_len_raw(d->next.id, len, next_id),
-						dnet_dump_id_len_raw(d->end.id, len, end_id),
-						(unsigned long long)d->size, dnet_id_cmp_str(d->next.id, d->end.id));
+				BH_LOG(log, DNET_LOG_NOTICE, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d",
+					dnet_dump_id_len_raw(d->id.id, len, id_str),
+					dnet_dump_id_len_raw(d->start.id, len, start_id),
+					dnet_dump_id_len_raw(d->next.id, len, next_id),
+					dnet_dump_id_len_raw(d->end.id, len, end_id),
+					d->size,
+					dnet_id_cmp_str(d->next.id, d->end.id));
 			}
 
 			memcpy(d->io.id, d->id.id, DNET_ID_SIZE);
@@ -1815,7 +1810,7 @@ class read_data_range_callback
 				dnet_io_attr *rep = &d->rep;
 
 				dnet_log_raw(d->sess.get_native_node(),
-					DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
+					DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu",
 					dnet_dump_id(&d->id), (unsigned long long)rep->num, (unsigned long long)d->io.start,
 					(unsigned long long)d->io.num, (unsigned long long)d->io.size);
 
@@ -1878,7 +1873,7 @@ class remove_data_range_callback : public read_data_range_callback
 			} else {
 				if (d->has_any) {
 					dnet_log_raw(d->sess.get_native_node(), DNET_LOG_NOTICE,
-							"%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
+							"%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu",
 							dnet_dump_id(&d->id), (unsigned long long)d->rep.num, (unsigned long long)d->io.start,
 							(unsigned long long)d->io.num, (unsigned long long)d->io.size);
 				} else {
@@ -2257,7 +2252,7 @@ async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, con
 	return bulk_write(ios, pointer_data);
 }
 
-logger session::get_logger() const
+logger &session::get_logger() const
 {
 	return m_data->logger;
 }

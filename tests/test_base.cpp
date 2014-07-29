@@ -1,3 +1,5 @@
+#define TEST_DO_NOT_INCLUDE_PLACEHOLDERS
+
 #include "test_base.hpp"
 #include "../example/common.h"
 
@@ -270,17 +272,38 @@ struct json_value_visitor : public boost::static_visitor<>
 
 void server_config::write(const std::string &path)
 {
+	const std::string format = file_logger::format();
+
 	rapidjson::MemoryPoolAllocator<> allocator;
-	rapidjson::Value server;
-	server.SetObject();
+
+	rapidjson::Value formatter;
+	formatter.SetObject();
+	formatter.AddMember("type", "string", allocator);
+	formatter.AddMember("pattern", format.c_str(), allocator);
+
+	rapidjson::Value sink;
+	sink.SetObject();
+	sink.AddMember("type", "files", allocator);
+	sink.AddMember("path", log_path.c_str(), allocator);
+	sink.AddMember("autoflush", true, allocator);
+
+	rapidjson::Value frontend;
+	frontend.SetObject();
+	frontend.AddMember("formatter", formatter, allocator);
+	frontend.AddMember("sink", sink, allocator);
+
+	rapidjson::Value frontends;
+	frontends.SetArray();
+	frontends.PushBack(frontend, allocator);
 
 	rapidjson::Value logger;
 	logger.SetObject();
-
-	logger.AddMember("type", log_path.c_str(), allocator);
 	logger.AddMember("level", DNET_LOG_DEBUG, allocator);
+	logger.AddMember("frontends", frontends, allocator);
 
-	server.AddMember("loggers", logger, allocator);
+	rapidjson::Value server;
+	server.SetObject();
+	server.AddMember("logger", logger, allocator);
 
 	rapidjson::Value options_json;
 	options_json.SetObject();
@@ -875,13 +898,13 @@ static void start_client_nodes(const nodes_data::ptr &data, std::ostream &debug_
 	dnet_config config;
 	memset(&config, 0, sizeof(config));
 
-	logger log;
+	data->logger.reset(new logger_base);
 	if (!data->directory.path().empty()) {
 		const std::string path = data->directory.path() + "/client.log";
-		log = file_logger(path.c_str(), DNET_LOG_DEBUG);
+		data->logger.reset(new file_logger(path.c_str(), DNET_LOG_DEBUG));
 	}
 
-	data->node.reset(new node(log));
+	data->node.reset(new node(logger(*data->logger, blackhole::log::attributes_t())));
 	for (size_t i = 0; i < remotes.size(); ++i) {
 		data->node->add_remote(remotes[i].c_str());
 	}

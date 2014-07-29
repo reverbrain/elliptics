@@ -106,7 +106,7 @@ int meta_remove_handler(void *priv, struct dnet_raw_id *id, int real_remove)
        return ::dnet_module_db_remove(priv, id, real_remove);
 }
 
-module_backend_api_t * setup_handler_throw(struct dnet_log *log,
+module_backend_api_t * setup_handler_throw(dnet_logger *log,
 	std::unique_ptr<ell::uncomplicated_handler> &uncomplicated_handler)
 {
 	std::unique_ptr<ell::honest_command_handler> honest_command_handler(new ell::honest_command_handler_adaptee(std::move(uncomplicated_handler)));
@@ -115,7 +115,7 @@ module_backend_api_t * setup_handler_throw(struct dnet_log *log,
 
 }
 
-module_backend_api_t* ell::setup_handler(struct dnet_log *log,
+module_backend_api_t* ell::setup_handler(dnet_logger *log,
 	std::unique_ptr<honest_command_handler> honest_command_handler)
 {
 	(void) log;
@@ -128,7 +128,7 @@ module_backend_api_t* ell::setup_handler(struct dnet_log *log,
 	return module_backend_api.release();
 }
 
-module_backend_api_t* ell::setup_handler(struct dnet_log *log,
+module_backend_api_t* ell::setup_handler(dnet_logger *log,
 	std::unique_ptr<uncomplicated_handler> uncomplicated_handler
 )
 {

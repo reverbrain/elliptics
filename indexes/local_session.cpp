@@ -112,11 +112,11 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 	struct dnet_io_req *r, *tmp;
 
 	list_for_each_entry_safe(r, tmp, &m_state->send_list, req_entry) {
-		dnet_log(m_state->n, DNET_LOG_DEBUG, "hsize: %zu, dsize: %zu\n", r->hsize, r->dsize);
+		dnet_log(m_state->n, DNET_LOG_DEBUG, "hsize: %zu, dsize: %zu", r->hsize, r->dsize);
 
 		dnet_cmd *req_cmd = reinterpret_cast<dnet_cmd *>(r->header ? r->header : r->data);
 
-		dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, status: %d\n", req_cmd->status);
+		dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, status: %d", req_cmd->status);
 
 		if (req_cmd->status) {
 			*errp = req_cmd->status;
@@ -130,7 +130,7 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 			if (timestamp)
 				*timestamp = req_io->timestamp;
 
-			dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, size: %llu\n",
+			dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, size: %llu",
 				static_cast<unsigned long long>(req_io->size));
 
 			data_pointer result;
@@ -190,7 +190,7 @@ int local_session::write(const dnet_id &id, const char *data, size_t size, uint6
 	buffer.write(io);
 	buffer.write(data, size);
 
-	dnet_log(m_state->n, DNET_LOG_DEBUG, "going to write size: %zu\n", size);
+	dnet_log(m_state->n, DNET_LOG_DEBUG, "going to write size: %zu", size);
 
 	data_pointer datap = std::move(buffer);
 
@@ -307,13 +307,13 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 	gettimeofday(&end, NULL);
 	long diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
 
-	if (m_state->n->log->log_level >= DNET_LOG_INFO) {
+	if (dnet_log_enabled(m_state->n->log, DNET_LOG_INFO)) {
 		char index_str[2*DNET_ID_SIZE+1];
 
 		dnet_dump_id_len_raw(index.id, 8, index_str);
 
 		dnet_log(m_state->n, DNET_LOG_INFO, "%s: updating internal index: %s, data-size: %zd, action: %s, "
-				"time: %ld usecs\n",
+				"time: %ld usecs",
 				dnet_dump_id(&id), index_str, data.size(), update_index_action_strings[action], diff);
 	}
 

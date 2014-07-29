@@ -66,7 +66,7 @@ int dnet_remove_local(struct dnet_backend_io *backend, struct dnet_node *n, stru
 	dnet_convert_io_attr(io);
 
 	err = backend->cb->command_handler(n->st, backend->cb->command_private, cmd, io);
-	dnet_log(n, DNET_LOG_NOTICE, "%s: local remove: err: %d.\n", dnet_dump_id(&cmd->id), err);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: local remove: err: %d.", dnet_dump_id(&cmd->id), err);
 
 	return err;
 
@@ -122,7 +122,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 		dnet_server_convert_dnet_addr_raw(&st->addr, addr_str, dump_size);
 
 		dnet_log(n, DNET_LOG_NOTICE, "route-list: request-from: %s, route-table-node: %s, "
-				"addr_num: %d, first-addr: %s, skip: %d\n",
+				"addr_num: %d, first-addr: %s, skip: %d",
 				orig_addr_str, addr_str,
 				n->addr_num,
 				first_addr_str, skip);
@@ -132,7 +132,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 
 		assert(st->addr_num == n->addr_num);
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: addr_num: %d\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: addr_num: %d",
 				dnet_server_convert_dnet_addr(&st->addrs[0]),
 				n->addr_num);
 
@@ -174,7 +174,7 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 	if (e->event_size + e->data_size + sizeof(struct sph) != cmd->size) {
 		err = -E2BIG;
-		dnet_log(n, DNET_LOG_ERROR, "%s: invalid size: event-size %d, data-size %llu must be: %llu\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid size: event-size %d, data-size %llu must be: %llu",
 				dnet_dump_id(&cmd->id),
 				e->event_size,
 				(unsigned long long)e->data_size,
@@ -303,8 +303,8 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 	dnet_convert_node_status(st);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: status-change: nflags: 0x%x->0x%x, log_level: %d->%d, "
-			"status_flags: EXIT: %d, RO: %d\n",
-			dnet_dump_id(&cmd->id), n->flags, st->nflags, n->log->log_level, st->log_level,
+			"status_flags: EXIT: %d, RO: %d",
+			dnet_dump_id(&cmd->id), n->flags, st->nflags, (int)dnet_log_get_verbosity(n->log), st->log_level,
 			!!(st->status_flags & DNET_STATUS_EXIT), !!(st->status_flags & DNET_STATUS_RO));
 
 	if (st->status_flags != -1) {
@@ -323,10 +323,10 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 		n->flags = st->nflags;
 
 	if (st->log_level != ~0U)
-		n->log->log_level = st->log_level;
+		dnet_log_set_verbosity(n->log, (enum dnet_log_level)st->log_level);
 
 	st->nflags = n->flags;
-	st->log_level = n->log->log_level;
+	st->log_level = dnet_log_get_verbosity(n->log);
 	st->status_flags = 0;
 
 	if (n->need_exit)
@@ -356,9 +356,9 @@ static int dnet_cmd_auth(struct dnet_net_state *orig, struct dnet_cmd *cmd __unu
 	dnet_convert_auth(a);
 	if (memcmp(n->cookie, a->cookie, DNET_AUTH_COOKIE_SIZE)) {
 		err = -EPERM;
-		dnet_log(n, DNET_LOG_ERROR, "%s: auth cookies do not match\n", dnet_state_dump_addr(orig));
+		dnet_log(n, DNET_LOG_ERROR, "%s: auth cookies do not match", dnet_state_dump_addr(orig));
 	} else {
-		dnet_log(n, DNET_LOG_INFO, "%s: authentication succeeded\n", dnet_state_dump_addr(orig));
+		dnet_log(n, DNET_LOG_INFO, "%s: authentication succeeded", dnet_state_dump_addr(orig));
 	}
 
 err_out_exit:
@@ -384,7 +384,7 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int 
 			ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 		ack.status = err;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: 0x%llx, status: %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: 0x%llx, status: %d.",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 				tid, (unsigned long long)ack.flags, err);
 
@@ -424,7 +424,7 @@ static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize)
 	 */
 	if (send->st->__need_exit) {
 		dnet_log(send->st->n, DNET_LOG_ERROR,
-				"%s: Interrupting iterator because peer has been disconnected\n",
+				"%s: Interrupting iterator because peer has been disconnected",
 				dnet_dump_id(&send->cmd->id));
 		return -EINTR;
 	}
@@ -594,7 +594,7 @@ static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_
 		}
 
 		if (i == ireq->range_num) {
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: all keys in all ranges are 0\n",
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: all keys in all ranges are 0",
 				dnet_dump_id(&cmd->id));
 			ireq->flags &= ~DNET_IFLAGS_KEY_RANGE;
 			return 0;
@@ -605,7 +605,7 @@ static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_
 			struct dnet_iterator_range *range = &irange[i];
 
 			if (dnet_id_cmp_str(range->key_begin.id, range->key_end.id) > 0) {
-				dnet_log(st->n, DNET_LOG_ERROR, "%s: %u: key_begin (%s) > key_end (%s)\n",
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: %u: key_begin (%s) > key_end (%s)",
 					dnet_dump_id(&cmd->id), i,
 					dnet_dump_id_len_raw(range->key_begin.id, DNET_ID_SIZE, k1),
 					dnet_dump_id_len_raw(range->key_end.id, DNET_ID_SIZE, k2));
@@ -616,7 +616,7 @@ static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_
 		for (i = 0; i < ireq->range_num; ++i) {
 			struct dnet_iterator_range *range = &irange[i];
 
-			dnet_log(st->n, DNET_LOG_NOTICE, "%s: using key range: %s...%s\n",
+			dnet_log(st->n, DNET_LOG_NOTICE, "%s: using key range: %s...%s",
 					dnet_dump_id(&cmd->id),
 					dnet_dump_id_len_raw(range->key_begin.id, DNET_ID_SIZE, k1),
 					dnet_dump_id_len_raw(range->key_end.id, DNET_ID_SIZE, k2));
@@ -633,20 +633,20 @@ static int dnet_iterator_check_ts_range(struct dnet_net_state *st, struct dnet_c
 		/* Unset DNET_IFLAGS_KEY_RANGE if both times are empty */
 		if (memcmp(&empty_time, &ireq->time_begin, sizeof(struct dnet_time)) == 0
 				&& memcmp(&empty_time, &ireq->time_end, sizeof(struct dnet_time) == 0)) {
-			dnet_log(st->n, DNET_LOG_NOTICE, "%s: both times are zero: cmd: %u\n",
+			dnet_log(st->n, DNET_LOG_NOTICE, "%s: both times are zero: cmd: %u",
 				dnet_dump_id(&cmd->id), cmd->cmd);
 			ireq->flags &= ~DNET_IFLAGS_TS_RANGE;
 		}
 		/* Check that range is valid */
 		if (dnet_time_cmp(&ireq->time_begin, &ireq->time_end) > 0) {
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: time_begin > time_begin: cmd: %u\n",
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: time_begin > time_begin: cmd: %u",
 				dnet_dump_id(&cmd->id), cmd->cmd);
 			return -ERANGE;
 		}
 	}
 	if (ireq->flags & DNET_IFLAGS_TS_RANGE)
 		dnet_log(st->n, DNET_LOG_NOTICE, "%s: using ts range: "
-				"%" PRIu64 ":%" PRIu64 "...%" PRIu64 ":%" PRIu64 "\n",
+				"%" PRIu64 ":%" PRIu64 "...%" PRIu64 ":%" PRIu64 "",
 				dnet_dump_id(&cmd->id),
 				ireq->time_begin.tsec, ireq->time_begin.tnsec,
 				ireq->time_end.tsec, ireq->time_end.tnsec);
@@ -727,7 +727,7 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	dnet_iterator_destroy(st->n, cpriv.it);
 
 err_out_exit:
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: iteration finished: err: %d\n",
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: iteration finished: err: %d",
 			__func__, dnet_dump_id(&cmd->id), err);
 	return err;
 }
@@ -751,7 +751,7 @@ static int dnet_cmd_iterator(struct dnet_backend_io *backend, struct dnet_net_st
 	dnet_convert_iterator_request(ireq);
 
 	dnet_log(st->n, DNET_LOG_NOTICE,
-			"%s: started: %s: id: %" PRIu64 ", action: %d\n",
+			"%s: started: %s: id: %" PRIu64 ", action: %d",
 			__func__, dnet_dump_id(&cmd->id), ireq->id, ireq->action);
 
 	/*
@@ -776,7 +776,7 @@ static int dnet_cmd_iterator(struct dnet_backend_io *backend, struct dnet_net_st
 
 err_out_exit:
 	dnet_log(st->n, DNET_LOG_NOTICE,
-			"%s: finished: %s: id: %" PRIu64 ", action: %d, err: %d\n",
+			"%s: finished: %s: id: %" PRIu64 ", action: %d, err: %d",
 			__func__, dnet_dump_id(&cmd->id), ireq->id, ireq->action, err);
 	react_stop_action(ACTION_DNET_CMD_ITERATOR);
 	return err;
@@ -810,12 +810,12 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 		dnet_opunlock(st->n, &cmd->id);
 	}
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: starting BULK_READ for %d commands\n",
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: starting BULK_READ for %d commands",
 		dnet_dump_id(&cmd->id), (int) count);
 
 	for (i = 0; i < count; i++) {
 		ret = dnet_process_cmd_raw(backend, st, &read_cmd, &ios[i], 1);
-		dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing BULK_READ.READ for %d/%d command, err: %d\n",
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing BULK_READ.READ for %d/%d command, err: %d",
 			dnet_dump_id(&cmd->id), (int) i, (int) count, ret);
 
 		if (i + 1 == count)
@@ -840,14 +840,14 @@ int dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct 
 	int err = 0;
 
 	if (!backend->cb->checksum) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation is not supported in backend\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation is not supported in backend",
 				dnet_dump_id(id));
 		return -ENOTSUP;
 	}
 
 	err = backend->cb->checksum(n, backend->cb->command_private, id, csum, &csize);
 	if (err != 0 && err != -ENOENT) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed\n", dnet_dump_id(id));
+		dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed", dnet_dump_id(id));
 		return err;
 	}
 
@@ -865,14 +865,14 @@ int dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct 
 
 			dnet_dump_id_len_raw((const unsigned char *)csum, DNET_ID_SIZE, disk_csum);
 			dnet_dump_id_len_raw(remote_csum, DNET_ID_SIZE, recv_csum);
-			dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch: disk-csum: %s, recv-csum: %s\n",
+			dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch: disk-csum: %s, recv-csum: %s",
 					dnet_dump_id(id), disk_csum, recv_csum);
 			return -EBADFD;
-		} else if (n->log->log_level >= DNET_LOG_NOTICE) {
+		} else if (dnet_log_enabled(n->log, DNET_LOG_NOTICE)) {
 			char recv_csum[DNET_ID_SIZE * 2 + 1];
 
 			dnet_dump_id_len_raw(remote_csum, DNET_ID_SIZE, recv_csum);
-			dnet_log(n, DNET_LOG_NOTICE, "%s: cas: checksum; %s\n",
+			dnet_log(n, DNET_LOG_NOTICE, "%s: cas: checksum; %s",
 					dnet_dump_id(id), recv_csum);
 		}
 	}
@@ -976,7 +976,7 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 
 			io = NULL;
 			if (size < sizeof(struct dnet_io_attr)) {
-				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd: %u, rest_size: %llu\n",
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd: %u, rest_size: %llu",
 					dnet_dump_id(&cmd->id), cmd->cmd, size);
 				err = -EINVAL;
 				break;
@@ -1061,7 +1061,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 			err = react_activate(st->n->react_aggregator);
 
 			if (err) {
-				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init react\n");
+				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init react");
 			} else {
 				react_was_activated = 1;
 			}
@@ -1107,7 +1107,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 
 		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: 0x%llx, "
 				"ioflags: 0x%llx, io-offset: %llu, io-size: %llu/%llu, io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', "
-				"time: %ld usecs, err: %d.\n",
+				"time: %ld usecs, err: %d.",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_state_dump_addr(st),
 				tid, (unsigned long long)cmd->flags,
 				(unsigned long long)io->flags,
@@ -1116,7 +1116,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec,
 				diff, err);
 	} else {
-		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.\n",
+		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_state_dump_addr(st),
 				tid, (unsigned long long)cmd->flags, diff, err);
 	}
@@ -1314,7 +1314,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	send_time = DIFF(csum_tv, send_tv);
 	total_time = DIFF(start_tv, send_tv);
 
-	dnet_log_raw(n, DNET_LOG_INFO, "%s: %s: reply: cflags: 0x%llx, ioflags: 0x%llx, offset: %llu, size: %llu, csum-time: %ld, send-time: %ld, total-time: %ld usecs.\n",
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: %s: reply: cflags: 0x%llx, ioflags: 0x%llx, offset: %llu, size: %llu, csum-time: %ld, send-time: %ld, total-time: %ld usecs.",
 			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
 			(unsigned long long)cmd->flags, (unsigned long long)io->flags,
 			(unsigned long long)io->offset,	(unsigned long long)io->size,
@@ -1392,7 +1392,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 	err = fstat(fd, &st);
 	if (err) {
 		err = -errno;
-		dnet_log(n, DNET_LOG_ERROR, "%s: file-info: %s: info-stat: %d: %s.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: file-info: %s: info-stat: %d: %s.",
 				dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		goto err_out_free;
 	}
@@ -1409,7 +1409,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 	if (cmd->flags & DNET_FLAGS_CHECKSUM) {
 		err = dnet_checksum_fd(n, fd, info->offset, info->size, info->checksum, sizeof(info->checksum));
 		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: file-info: %s: checksum: %d: %s.\n",
+			dnet_log(n, DNET_LOG_ERROR, "%s: file-info: %s: checksum: %d: %s.",
 					dnet_dump_id(&cmd->id), file, err, strerror(-err));
 			goto err_out_free;
 		}
@@ -1417,7 +1417,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 
 	if (info->size == 0) {
 		err = -EINVAL;
-		dnet_log(n, DNET_LOG_NOTICE, "%s: EBLOB: %s: info-stat: ZERO-FILE-SIZE, fd: %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: EBLOB: %s: info-stat: ZERO-FILE-SIZE, fd: %d.",
 				dnet_dump_id(&cmd->id), file, fd);
 		goto err_out_free;
 	}
