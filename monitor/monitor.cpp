@@ -98,21 +98,16 @@ void dnet_monitor_exit(struct dnet_node *n) {
 }
 
 void dnet_monitor_add_provider(struct dnet_node *n, struct stat_provider_raw stat, const char *name) {
-	if (!n->monitor) {
-		stat.stop(stat.stat_private);
-		return;
+	try {
+		auto provider = new ioremap::monitor::raw_provider(stat);
+		ioremap::monitor::add_provider(n, provider, std::string(name));
+	} catch (std::exception &e) {
+		std::cerr << e.what() << std::endl;
 	}
+}
 
-	auto real_monitor = monitor_cast(n->monitor);
-	if (real_monitor) {
-		try {
-			auto provider = new ioremap::monitor::raw_provider(stat);
-			real_monitor->get_statistics().add_provider(provider, std::string(name));
-		} catch (std::exception &e) {
-			std::cerr << e.what() << std::endl;
-		}
-	} else
-		stat.stop(stat.stat_private);
+void dnet_monitor_remove_provider(struct dnet_node *n, const char *name) {
+	ioremap::monitor::remove_provider(n, std::string(name));
 }
 
 void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans,

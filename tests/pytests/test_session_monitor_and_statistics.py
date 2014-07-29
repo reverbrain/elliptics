@@ -29,7 +29,7 @@ class TestSession:
     def test_stat_log_count(self, server, simple_node):
         session = elliptics.Session(simple_node)
         stat_count = session.stat_log_count().get()
-        assert len(stat_count) == len(session.routes.addresses())
+        assert len(stat_count) == len(session.routes.addresses_with_backends())
         for stat in stat_count:
             assert stat.error.code == 0
             assert stat.error.message == ''

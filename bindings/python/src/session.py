@@ -37,6 +37,7 @@ class Session(Session):
         cloned_session = session.clone()
         '''
         session = super(Session, self).clone()
+        session.__class__ = self.__class__
         session._node = self._node
         return session
 

@@ -30,6 +30,10 @@ def pytest_addoption(parser):
 
     parser.addoption('--without-cocaine', action='store_true', default=False,
                      help='Turns off exec tests that are connected with cocaine')
+    parser.addoption('--backends-count', action='store', default=3,
+                     help='Number of backends that will be enabled per group on node')
+    parser.addoption('--nodes-count', action='store', default=3,
+                     help='Number of nodes that should be run')
 
 
 def set_property(obj, prop, value, check_value=None,

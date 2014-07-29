@@ -91,7 +91,8 @@ class TestSession:
     def test_write_to_all_groups(self, server, simple_node,
                                  key, data, exception):
         session = elliptics.Session(simple_node)
-        session.groups = session.routes.groups()
+        groups = session.routes.groups()
+        session.groups = groups
 
         if exception:
             with pytest.raises(exception):
@@ -123,7 +124,8 @@ class TestSession:
         data2 = 'unique data 2'
 
         session = elliptics.Session(simple_node)
-        session.groups = session.routes.groups()
+        groups = session.routes.groups()
+        session.groups = groups
 
         session.set_namespace(ns1)
         checked_write(session, key, data1)
@@ -152,7 +154,8 @@ class TestSession:
         data2 = 'some data 2'
 
         session = elliptics.Session(simple_node)
-        session.groups = session.routes.groups()
+        groups = session.routes.groups()
+        session.groups = groups
 
         session.ioflags = elliptics.io_flags.default
         checked_write(session, key1, data1)
@@ -170,7 +173,8 @@ class TestSession:
 
     def test_bulk_write_read(self, server, simple_node):
         session = elliptics.Session(simple_node)
-        session.groups = session.routes.groups()
+        groups = session.routes.groups()
+        session.groups = groups
 
         data = 'data'
 
@@ -185,7 +189,8 @@ class TestSession:
 
     def test_write_cas(self, server, simple_node):
         session = elliptics.Session(simple_node)
-        session.groups = session.routes.groups()
+        groups = session.routes.groups()
+        session.groups = groups
 
         key = 'cas key'
         data1 = 'data 1'
