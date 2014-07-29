@@ -644,7 +644,24 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, void *),
 	void *priv);
 
+/*
+ * Returns 0 if versions are equal.
+ * negative of positive value if @st->version is smaller or bigger than @version one.
+ */
 int dnet_version_compare(struct dnet_net_state *st, int *version);
+
+/*
+ * Returns 0 if version are compatible.
+ * Currently this means the 2 highest version fields are equal.
+ *
+ * Otherwise negative error code is returned.
+ */
+int dnet_version_check(struct dnet_net_state *st, int *version);
+
+/*
+ * Returns 4-ints version array.
+ */
+int *dnet_version(struct dnet_net_state *state);
 
 /*!
  * Compares two dnet_time structs
