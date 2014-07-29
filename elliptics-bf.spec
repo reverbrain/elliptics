@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.2
+Version:	2.26.0.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,49 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jul 29 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.0
+- backends: Ability not to enable backends at start
+- backends: Added ability to change backend's ids
+- backends: Added API for enable/disable/status backends
+- backends: Added defrag API, added fields to status
+- backends: Added DNET_CMD_CONTROL_BACKEND command to enable and disable backends
+- backends: Added field to know current defrag state, added fields to know about
+- backends: Generate ids from /dev/urandom
+- backends: Only return defrag_state if possible
+- backends: Set direct flag for control and status
+- backends: Store current backends' states
+- client: Added node::from_raw API
+- client: Changed ger_routes signature
+- client: Introduced address structure
+- Core: made update_status used address for addressing to node.
+- Eblob: removed iterate_thread_num specification at eblob_backend.
+- elliptics: Added multi-backend support in route lists
+- ioclient: Moved to new defrag API
+- logger: Moved to Blackhole as logging system
+- logger: changed trace_id output to hex.
+- monitor: added raw function for removing statistics provider by name. Removed duplicated code.
+- monitor: Link with elliptics_client
+- node: Fixed more conflicts
+- pool: Introduce thread-local queue
+- pool: Make io-thread init log more verbose
+- Pytest: Added tesing dnet_recovery with all modes.
+- Pytest: Added parameters for specifying number of nodes and number of backends that should be run in test cluster.
+- Python: Added new interface for supporting multibackends. Used elliptics.Address where it can be used and removed duplicating interfaces. Added new abilities to elliptics.RouteList for working with backend_id.
+- Python: Added support backend_id to route list.
+- Python: Fixed dnet_balancer and for working with new multibackends route list.
+- Python: Removed group_id from elliptics.
+- Recovery: made dnet_recovery works with new multibackends route list. Added ability to specifies backend_id (via '-i') when dnet_recovery runs for one node ('--one-node')
+- routelist: Added support for DNET_CMD_UPDATE_IDS
+- routelist: Don't send ack for route-list request
+- routelist: Send only addresses at route tables
+- run_servers: Added 'backends' option support
+- server: Removed node::id
+- server: Separated backend to external structure
+- statistics: Added ability to remove providers
+- tests: Added sleep in recovery test
+- tests: Added test for backend's control
+- tests: Apps should write logs to different files
+
 * Thu Jul 24 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.2
 - weight: print full weight change, not only first 3 digits
 - Logs: changed trace_id output to hex
