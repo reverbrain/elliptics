@@ -3,12 +3,16 @@
 #include "../../library/elliptics.h"
 #include <stdarg.h>
 
+#include "node_p.hpp"
+
 // For BigBang
 #include <blackhole/repository.hpp>
 
 #include <blackhole/sink/files.hpp>
 #include <blackhole/formatter/string.hpp>
 #include <blackhole/frontend/files.hpp>
+
+__thread trace_id_t backend_trace_id_hook;
 
 namespace ioremap { namespace elliptics {
 
@@ -34,6 +38,40 @@ std::string file_logger::format()
 dnet_logger *dnet_node_get_logger(struct dnet_node *node)
 {
 	return node->log;
+}
+
+static __thread char blackhole_scoped_attributes_buffer[sizeof(blackhole::scoped_attributes_t)];
+static __thread blackhole::scoped_attributes_t *blackhole_attributes = NULL;
+
+void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit)
+{
+	using blackhole::scoped_attributes_t;
+
+	blackhole_attributes = reinterpret_cast<scoped_attributes_t *>(blackhole_scoped_attributes_buffer);
+	if (blackhole_attributes) {
+		dnet_log_only_log(logger, DNET_LOG_ERROR, "logic error: you must not call dnet_node_set_trace_id twice, dnet_node_unset_trace_id call missed");
+		return;
+	}
+
+	try {
+		new (blackhole_attributes) scoped_attributes_t(*logger, {
+			blackhole::keyword::request_id() = trace_id,
+			blackhole::keyword::tracebit() = bool(tracebit)
+		});
+		// Set all bits to ensure that it has tracebit set
+		backend_trace_id_hook = tracebit ? ~0ull : 0;
+	} catch (...) {
+		blackhole_attributes = NULL;
+	}
+}
+
+void dnet_node_unset_trace_id()
+{
+	if (blackhole_attributes) {
+		blackhole_attributes->~scoped_attributes_t();
+		blackhole_attributes = NULL;
+	}
+	backend_trace_id_hook = 0;
 }
 
 static __thread char dnet_logger_record_buffer[sizeof(dnet_logger_record)];

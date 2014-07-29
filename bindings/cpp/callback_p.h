@@ -29,6 +29,8 @@
 #include <sstream>
 #include <thread>
 
+#include <blackhole/scoped_attributes.hpp>
+
 extern "C" {
 #include "foreign/cmp/cmp.h"
 }
@@ -69,6 +71,18 @@ class session_scope
 		uint64_t m_cflags;
 		uint32_t m_ioflags;
 		uint32_t m_policy;
+};
+
+class scoped_trace_id
+{
+public:
+	scoped_trace_id(session &sess) :
+		m_attributes(sess.get_logger(), { blackhole::keyword::request_id() = sess.get_trace_id() })
+	{
+	}
+
+private:
+	blackhole::scoped_attributes_t m_attributes;
 };
 
 typedef int (*complete_func)(struct dnet_net_state *, struct dnet_cmd *, void *);
@@ -1663,6 +1677,8 @@ struct dnet_style_handler
 
 	static void start(std::unique_ptr<T> &callback)
 	{
+		scoped_trace_id guard(callback->sess);
+
 		error_info error;
 		if (callback->start(&error, handler, callback.get())) {
 			if (callback->sess.get_exceptions_policy() & session::throw_at_start)

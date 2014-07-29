@@ -67,8 +67,6 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-extern __thread trace_id_t trace_id;
-
 // To be able to properly map user-defined severity enumeration to the syslog's one
 // we should implement special mapping trait that is called by library each time when
 // mapping is required.

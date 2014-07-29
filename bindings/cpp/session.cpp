@@ -24,8 +24,6 @@
 
 #include "node_p.hpp"
 
-extern __thread trace_id_t trace_id;
-
 namespace ioremap { namespace elliptics {
 
 template <typename T>
@@ -495,7 +493,7 @@ result_error_handler remove_on_fail(const session &sess)
 
 } // namespace error_handlers
 
-session_data::session_data(const node &n) : node_guard(n.m_data), logger(n.get_log())
+session_data::session_data(const node &n) : logger(n.get_log(), blackhole::log::attributes_t())
 {
 	session_ptr = dnet_session_create(n.get_native());
 	if (!session_ptr)
@@ -504,23 +502,18 @@ session_data::session_data(const node &n) : node_guard(n.m_data), logger(n.get_l
 	checker = checkers::at_least_one;
 	error_handler = error_handlers::none;
 	policy = session::default_exceptions;
-	trace_id = 0;
-	::trace_id = 0;
 }
 
-session_data::session_data(const session_data &other)
-	: node_guard(other.node_guard),
-	  logger(other.logger),
+session_data::session_data(session_data &other)
+	: logger(other.logger, blackhole::log::attributes_t()),
 	  filter(other.filter),
 	  checker(other.checker),
 	  error_handler(other.error_handler),
-	  policy(other.policy),
-	  trace_id(other.trace_id)
+	  policy(other.policy)
 {
 	session_ptr = dnet_session_copy(other.session_ptr);
 	if (!session_ptr)
 		throw std::bad_alloc();
-	::trace_id = other.trace_id;
 }
 
 session_data::~session_data()
@@ -723,13 +716,23 @@ long session::get_timeout(void) const
 
 void session::set_trace_id(trace_id_t trace_id)
 {
-	m_data->trace_id = trace_id;
-	::trace_id = trace_id;
+	dnet_session_set_trace_id(m_data->session_ptr, trace_id);
+	m_data->logger = logger(m_data->logger, { blackhole::keyword::request_id() = trace_id });
 }
 
-trace_id_t session::get_trace_id()
+trace_id_t session::get_trace_id() const
 {
-	return m_data->trace_id;
+	return dnet_session_get_trace_id(m_data->session_ptr);
+}
+
+void session::set_trace_bit(bool trace)
+{
+	dnet_session_set_trace_bit(m_data->session_ptr, trace);
+}
+
+bool session::get_trace_bit() const
+{
+	return dnet_session_get_trace_bit(m_data->session_ptr);
 }
 
 void session::read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size)
@@ -1453,8 +1456,6 @@ std::string session::lookup_address(const key &id, int group_id)
 void session::transform(const std::string &data, dnet_id &id) const
 {
 	dnet_transform(m_data->session_ptr, (void *)data.data(), data.size(), &id);
-	id.trace_id = m_data->trace_id;
-	trace_id = m_data->trace_id;
 }
 
 void session::transform(const std::string &data, dnet_raw_id &id) const
@@ -1465,8 +1466,6 @@ void session::transform(const std::string &data, dnet_raw_id &id) const
 void session::transform(const data_pointer &data, dnet_id &id) const
 {
 	dnet_transform(m_data->session_ptr, data.data(), data.size(), &id);
-	id.trace_id = m_data->trace_id;
-	trace_id = m_data->trace_id;
 }
 
 void session::transform(const key &id) const
@@ -2257,14 +2256,7 @@ logger &session::get_logger() const
 	return m_data->logger;
 }
 
-ioremap::elliptics::node session::get_node() const
-{
-	if (auto node_guard = m_data->node_guard.lock())
-		return node(node_guard);
-	return node();
-}
-
-dnet_node *ioremap::elliptics::session::get_native_node() const
+dnet_node *session::get_native_node() const
 {
 	return dnet_session_get_node(m_data->session_ptr);
 }

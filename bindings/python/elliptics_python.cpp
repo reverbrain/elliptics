@@ -279,8 +279,6 @@ BOOST_PYTHON_MODULE(core)
 	elliptics_error_translator error_translator;
 	error_translator.initialize();
 
-	bp::scope().attr("trace_bit") = uint64_t(DNET_TRACE_BIT);
-
 	bp::register_exception_translator<timeout_error>(error_translator);
 	bp::register_exception_translator<not_found_error>(error_translator);
 	bp::register_exception_translator<error>(error_translator);

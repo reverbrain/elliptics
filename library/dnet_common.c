@@ -78,7 +78,6 @@ void dnet_indexes_transform_object_id(struct dnet_node *node, const struct dnet_
 	char suffix[] = "\0object_table";
 
 	dnet_indexes_transform_id(node, src->id, id->id, suffix, sizeof(suffix));
-	id->trace_id = src->trace_id;
 }
 
 #ifdef WORDS_BIGENDIAN
@@ -836,6 +835,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	cmd->size = sizeof(struct dnet_io_attr) + size;
 	cmd->flags = ctl->cflags;
 	cmd->status = 0;
+	cmd->trace_id = dnet_session_get_trace_id(s);
 
 	cmd->cmd = t->command = ctl->cmd;
 
@@ -1490,6 +1490,7 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 
 	cmd->cmd = t->command = DNET_CMD_LOOKUP;
 	cmd->flags = dnet_session_get_cflags(s) | DNET_FLAGS_NEED_ACK;
+	cmd->trace_id = dnet_session_get_trace_id(s);
 
 	t->st = dnet_state_get_first(n, &cmd->id);
 	if (!t->st) {

@@ -184,13 +184,15 @@ enum dnet_backend_defrag_state {
 /* Do not choose correct backend by route list, but choose already set one */
 #define DNET_FLAGS_DIRECT_BACKEND	(1<<7)
 
+/* Trace ALL logs for this request, don't look at current verbosity */
+#define DNET_FLAGS_TRACE_BIT		(1<<8)
+
 typedef uint64_t trace_id_t;
-#define DNET_TRACE_BIT		(1ll<<63)		/*is used in trace_id for ignoring current log level*/
 
 struct dnet_id {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		group_id;
-	uint64_t		trace_id;
+	uint64_t		reserved;
 } __attribute__ ((packed));
 
 struct dnet_raw_id {
@@ -223,7 +225,6 @@ struct dnet_cmd
 static inline void dnet_convert_id(struct dnet_id *id)
 {
 	id->group_id = dnet_bswap32(id->group_id);
-	id->trace_id = dnet_bswap32(id->trace_id);
 }
 
 static inline void dnet_convert_cmd(struct dnet_cmd *cmd)

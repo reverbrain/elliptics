@@ -2,6 +2,7 @@
 #define LOGGER_HPP
 
 #include <stdarg.h>
+#include <stdint.h>
 
 /*
  * Log level
@@ -61,6 +62,8 @@ typedef struct cpp_blackhole_log_record_t dnet_logger_record;
 struct dnet_node;
 
 dnet_logger *dnet_node_get_logger(struct dnet_node *node);
+void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit);
+void dnet_node_unset_trace_id();
 dnet_logger_record *dnet_log_open_record(dnet_logger *logger, enum dnet_log_level level);
 int dnet_log_enabled(dnet_logger *logger, enum dnet_log_level level);
 enum dnet_log_level dnet_log_get_verbosity(dnet_logger *logger);

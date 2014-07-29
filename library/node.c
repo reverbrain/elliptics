@@ -755,6 +755,7 @@ struct dnet_session *dnet_session_copy(struct dnet_session *s)
 		goto err_out_exit;
 
 	new_s->wait_ts = s->wait_ts;
+	new_s->trace_id = s->trace_id;
 	new_s->cflags = s->cflags;
 	new_s->ioflags = s->ioflags;
 	new_s->ts = s->ts;
@@ -819,6 +820,29 @@ int *dnet_session_get_groups(struct dnet_session *s, int *count)
 {
 	*count = s->group_num;
 	return s->groups;
+}
+
+void dnet_session_set_trace_id(struct dnet_session *s, trace_id_t trace_id)
+{
+	s->trace_id = trace_id;
+}
+
+trace_id_t dnet_session_get_trace_id(struct dnet_session *s)
+{
+	return s->trace_id;
+}
+
+void dnet_session_set_trace_bit(struct dnet_session *s, int trace)
+{
+	if (trace)
+		s->cflags |= DNET_FLAGS_TRACE_BIT;
+	else
+		s->cflags &= ~DNET_FLAGS_TRACE_BIT;
+}
+
+int dnet_session_get_trace_bit(struct dnet_session *s)
+{
+	return !!(s->cflags & DNET_FLAGS_TRACE_BIT);
 }
 
 void dnet_session_set_ioflags(struct dnet_session *s, uint32_t ioflags)

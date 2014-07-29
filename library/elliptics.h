@@ -666,6 +666,7 @@ struct dnet_session {
 
 	uint64_t		cflags;
 	uint64_t		user_flags;
+	trace_id_t		trace_id;
 	uint32_t		ioflags;
 
 	/*

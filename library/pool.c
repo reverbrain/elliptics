@@ -36,8 +36,6 @@ static char *dnet_work_io_mode_string[] = {
 	[DNET_WORK_IO_MODE_CONTROL] = "CONTROL",
 };
 
-__thread trace_id_t trace_id = 0;
-
 static char *dnet_work_io_mode_str(int mode)
 {
 	if (mode < 0 || mode >= (int)ARRAY_SIZE(dnet_work_io_mode_string))
@@ -1020,17 +1018,19 @@ static void *dnet_io_process(void *data_)
 
 		st = r->st;
 		cmd = r->header;
-		trace_id = cmd->id.trace_id;
+
+		dnet_node_set_trace_id(n->log, cmd->trace_id, cmd->flags & DNET_FLAGS_TRACE_BIT);
 
 		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: got IO event: %p: cmd: %s, hsize: %zu, dsize: %zu, mode: %s, backend_id: %zd",
 			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, dnet_cmd_string(cmd->cmd), r->hsize, r->dsize, dnet_work_io_mode_str(pool->mode),
 			wio->pool->io ? (ssize_t)wio->pool->io->backend_id : (ssize_t)-1);
 
 		err = dnet_process_recv(wio->pool->io, st, r);
-		trace_id = 0;
 
 		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: processed IO event: %p, cmd: %s",
 			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, dnet_cmd_string(cmd->cmd));
+
+		dnet_node_unset_trace_id();
 
 		dnet_io_req_free(r);
 		dnet_state_put(st);

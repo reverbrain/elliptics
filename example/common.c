@@ -45,8 +45,6 @@
 #define DNET_CONF_DELIM		'='
 #define DNET_CONF_TIME_DELIM	'.'
 
-extern __thread trace_id_t trace_id;
-
 int dnet_parse_groups(char *value, int **groupsp)
 {
 	int len = strlen(value), i, num = 0, start = 0, pos = 0;
@@ -100,43 +98,6 @@ int dnet_parse_groups(char *value, int **groupsp)
 
 	*groupsp = groups;
 	return pos;
-}
-
-void dnet_common_log(void *priv, int level, const char *msg)
-{
-	char str[64];
-	struct tm tm;
-	struct timeval tv;
-	FILE *stream = priv;
-
-	if (!stream)
-		stream = stdout;
-
-	gettimeofday(&tv, NULL);
-	localtime_r((time_t *)&tv.tv_sec, &tm);
-	strftime(str, sizeof(str), "%F %R:%S", &tm);
-
-	fprintf(stream, "%s.%06lu %llx/%ld/%4d %1x: %s", str, tv.tv_usec, trace_id & ~DNET_TRACE_BIT, dnet_get_id(), getpid(), level, msg);
-	fflush(stream);
-}
-
-void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg)
-{
-	int prio = LOG_DEBUG;
-	char str[64];
-	struct tm tm;
-	struct timeval tv;
-
-	if (level == DNET_LOG_ERROR)
-		prio = LOG_ERR;
-	if (level == DNET_LOG_INFO)
-		prio = LOG_INFO;
-
-	gettimeofday(&tv, NULL);
-	localtime_r((time_t *)&tv.tv_sec, &tm);
-	strftime(str, sizeof(str), "%F %R:%S", &tm);
-
-	syslog(prio, "%s.%06lu %llx/%ld/%4d %1x: %s", str, tv.tv_usec, trace_id & ~DNET_TRACE_BIT, dnet_get_id(), getpid(), level, msg);
 }
 
 int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)

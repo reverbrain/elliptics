@@ -58,11 +58,11 @@
 #error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE"
 #endif
 
-extern __thread trace_id_t trace_id;
+extern __thread trace_id_t backend_trace_id_hook;
 
 trace_id_t get_trace_id()
 {
-	return trace_id;
+	return backend_trace_id_hook;
 }
 
 struct eblob_read_params {

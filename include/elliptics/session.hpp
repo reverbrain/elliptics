@@ -242,15 +242,11 @@ class key
 
 		void transform(const session &sess) const;
 
-		void set_trace_id(trace_id_t trace_id) { m_trace_id = trace_id; }
-		trace_id_t get_trace_id() { return m_trace_id; }
-
 	private:
 		bool m_by_id;
 		std::string m_remote;
 		int m_reserved;
 		mutable dnet_id m_id;
-		trace_id_t m_trace_id;
 };
 
 class session
@@ -409,7 +405,10 @@ class session
 		 * Sets/gets trace_id for all elliptics commands
 		 */
 		void			set_trace_id(trace_id_t trace_id);
-		trace_id_t get_trace_id();
+		trace_id_t		get_trace_id() const;
+
+		void			set_trace_bit(bool trace);
+		bool			get_trace_bit() const;
 
 		/*!
 		 * Read file by key \a id to \a file by \a offset and \a size.
@@ -922,10 +921,6 @@ class session
 		 * Returns logger object.
 		 */
 		logger &get_logger() const;
-		/*!
-		 * Returns reference to parent node.
-		 */
-		node	get_node() const;
 		/*!
 		 * Returns reference to parent node.
 		 */

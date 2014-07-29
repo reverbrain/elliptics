@@ -12,26 +12,28 @@ namespace tests {
 
 using namespace ioremap::elliptics;
 
-#define ELLIPTICS_CHECK_IMPL(R, C, CMD) auto R = (C); \
+#define ELLIPTICS_CHECK_IMPL(R, C, CMD) \
+	auto R = (C); \
 	R.wait(); \
-{ \
-	auto base_message = BOOST_TEST_STRINGIZE(C); \
-	std::string message(base_message.begin(), base_message.end()); \
-	message += ", err: \""; \
-	message += R.error().message(); \
-	message += "\""; \
-	CMD(!R.error(), message); \
-}
+	{ \
+		auto base_message = BOOST_TEST_STRINGIZE(C); \
+		std::string message(base_message.begin(), base_message.end()); \
+		message += ", err: \""; \
+		message += R.error().message(); \
+		message += "\""; \
+		CMD(!R.error(), message); \
+	}
 
-#define ELLIPTICS_CHECK_ERROR_IMPL(R, C, E, CMD) auto R = (C); \
+#define ELLIPTICS_CHECK_ERROR_IMPL(R, C, E, CMD) \
+	auto R = (C); \
 	R.wait(); \
 	if (R.error().code() != (E)) { \
-	auto base_message = BOOST_TEST_STRINGIZE(C); \
-	std::stringstream out; \
-	out << std::string(base_message.begin(), base_message.end()) \
-	<< ", expected error: " << (E) << ", received: \"" << R.error().message() << "\""; \
-	CMD(false, out.str()); \
-}
+		auto base_message = BOOST_TEST_STRINGIZE(C); \
+		std::stringstream out; \
+		out << std::string(base_message.begin(), base_message.end()) \
+		<< ", expected error: " << (E) << ", received: \"" << R.error().message() << "\""; \
+		CMD(false, out.str()); \
+	}
 
 #define ELLIPTICS_COMPARE_REQUIRE(R, C, D) ELLIPTICS_REQUIRE(R, C); \
 	do { \
