@@ -448,10 +448,10 @@ class multigroup_callback
 		 */
 		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
 		{
-			dnet_log_raw(sess.get_native_node(),
-				DNET_LOG_DEBUG, "%s: multigroup_callback::handle: cmd: %s, trans: %llx, status: %d, flags: %llx, group: %d: %zd/%zd, priv: %p",
+			BH_LOG(sess.get_logger(),
+				DNET_LOG_DEBUG, "%s: multigroup_callback::handle: cmd: %s, trans: %llx, status: %d, flags: %llx, group: %d: %lld/%lld, priv: %p",
 					dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), static_cast<long long unsigned>(cmd->trans),
-					cmd->status, static_cast<long long unsigned>(cmd->flags),
+					int(cmd->status), static_cast<long long unsigned>(cmd->flags),
 					m_group_index < groups.size() ? groups[m_group_index] : -1, m_group_index, groups.size(), priv);
 
 			if (cb.handle(state, cmd, func, priv)) {
@@ -475,8 +475,8 @@ class multigroup_callback
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
 
-			dnet_log_raw(sess.get_native_node(),
-				DNET_LOG_DEBUG, "multigroup_callback::iterate_groups: group: %d: %zd/%zd, error: %d, priv: %p",
+			BH_LOG(sess.get_logger(),
+				DNET_LOG_DEBUG, "multigroup_callback::iterate_groups: group: %d: %lld/%lld, error: %d, priv: %p",
 					m_group_index < groups.size() ? groups[m_group_index] : -1, m_group_index, groups.size(), error->code(), priv);
 			// try next group
 			while (m_group_index < groups.size()) {
@@ -488,7 +488,7 @@ class multigroup_callback
 				if (next_group(error, id, func, priv)) {
 					if (error->code()) {
 						// some exception, log and try next group
-						dnet_log_raw(sess.get_native_node(),
+						BH_LOG(sess.get_logger(),
 							DNET_LOG_NOTICE,
 							"%s: iterate-groups exception: %s",
 							dnet_dump_id(&id), error->message().c_str());
@@ -566,7 +566,7 @@ class lookup_callback : public multigroup_callback<lookup_result_entry>
 			cb.clear();
 			cb.set_count(unlimited);
 
-			dnet_log_raw(sess.get_native_node(), DNET_LOG_DEBUG, "lookup_callback::next_group: %s: error: %d, priv: %p",
+			BH_LOG(sess.get_logger(), DNET_LOG_DEBUG, "lookup_callback::next_group: %s: error: %d, priv: %p",
 					dnet_dump_id(&id), error->code(), priv);
 
 			int err = dnet_lookup_object(sess.get_native(), &id, func, priv);
@@ -607,7 +607,7 @@ class read_callback : public multigroup_callback<read_result_entry>
 
 			int err = dnet_read_object(sess.get_native(), &ctl);
 
-			dnet_log_raw(sess.get_native_node(), DNET_LOG_DEBUG, "read_callback::next_group: %s: error: %d, priv: %p, err: %d",
+			BH_LOG(sess.get_logger(), DNET_LOG_DEBUG, "read_callback::next_group: %s: error: %d, priv: %p, err: %d",
 					dnet_dump_id(&id), error->code(), priv, err);
 
 			if (err) {
@@ -658,7 +658,7 @@ class read_callback : public multigroup_callback<read_result_entry>
 						ss << ":";
 				}
 
-				dnet_log_raw(sess.get_node().get_native(), DNET_LOG_INFO,
+				BH_LOG(sess.get_logger(), DNET_LOG_INFO,
 						"read_callback::read-recovery: %s: %llu bytes -> %s groups",
 					dnet_dump_id_str(io->id), (unsigned long long)io->size, ss.str().c_str());
 
@@ -731,6 +731,70 @@ struct dnet_net_state_deleter
 
 typedef std::unique_ptr<dnet_net_state, dnet_net_state_deleter> net_state_ptr;
 
+class net_state_id
+{
+public:
+	net_state_id() : m_backend(-1)
+	{
+	}
+
+	net_state_id(net_state_id &&other) : m_state(std::move(other.m_state)), m_backend(other.m_backend)
+	{
+	}
+
+	net_state_id(dnet_node *node, const dnet_id *id) : m_backend(-1)
+	{
+		reset(node, id);
+	}
+
+	net_state_id &operator =(net_state_id &&other)
+	{
+		m_state = std::move(other.m_state);
+		m_backend = other.m_backend;
+		return *this;
+	}
+
+	void reset(dnet_node *node, const dnet_id *id)
+	{
+		m_state.reset(dnet_state_get_first_with_backend(node, id, &m_backend));
+	}
+
+	void reset()
+	{
+		m_state.reset();
+		m_backend = -1;
+	}
+
+	dnet_net_state *operator ->() const
+	{
+		return m_state.get();
+	}
+
+	bool operator ==(const net_state_id &other)
+	{
+		return m_state == other.m_state && m_backend == other.m_backend;
+	}
+
+	bool operator !() const
+	{
+		return !m_state;
+	}
+
+	dnet_net_state *state() const
+	{
+		return m_state.get();
+	}
+
+	int backend() const
+	{
+		return m_backend;
+	}
+
+private:
+	net_state_ptr m_state;
+	int m_backend;
+};
+
 #define debug(...) BH_LOG(log, DNET_LOG_DEBUG, __VA_ARGS__)
 #define notice(...) BH_LOG(log, DNET_LOG_NOTICE, __VA_ARGS__)
 
@@ -743,7 +807,7 @@ class read_bulk_callback : public read_callback
 			: read_callback(sess, result, ctl), log(sess.get_logger()), ios_set(ios)
 		{
 			cb.set_process_entry(default_callback<read_result_entry>::entry_processor_func());
-			debug("BULK_READ, callback: %p, ios.size: %zu", this, ios.size());
+			debug("BULK_READ, callback: %p, ios.size: %llu", this, ios.size());
 		}
 
 		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
@@ -771,7 +835,7 @@ class read_bulk_callback : public read_callback
 			dnet_io_attr *ios = ios_cache.data();
 
 			dnet_node *node = sess.get_native_node();
-			net_state_ptr cur, next;
+			net_state_id cur, next;
 			dnet_id next_id = id;
 			const int group_id = id.group_id;
 			int start = 0;
@@ -780,21 +844,21 @@ class read_bulk_callback : public read_callback
 
 			debug("BULK_READ, callback: %p, group: %d, next", this, group_id);
 
-			cur.reset(dnet_state_get_first(node, &id));
+			cur.reset(node, &id);
 			if (!cur) {
 				debug("BULK_READ, callback: %p, group: %d, id: %s, state: failed",
 					this, group_id, dnet_dump_id(&id));
 				*error = create_error(-ENOENT, id, "Can't get state for id");
 				return true;
 			}
-			debug("BULK_READ, callback: %p, id: %s, state: %s",
-				this, dnet_dump_id(&id), dnet_state_dump_addr(cur.get()));
+			debug("BULK_READ, callback: %p, id: %s, state: %s, backend: %d",
+				this, dnet_dump_id(&id), dnet_state_dump_addr(cur.state()), cur.backend());
 
 			for (size_t i = 0; i < io_num; ++i) {
 				if ((i + 1) < io_num) {
 					dnet_setup_id(&next_id, group_id, ios[i + 1].id);
 
-					next.reset(dnet_state_get_first(node, &next_id));
+					next.reset(node, &next_id);
 					if (!next) {
 						debug("BULK_READ, callback: %p, group: %d, id: %s, state: failed",
 							this, group_id, dnet_dump_id(&next_id));
@@ -803,8 +867,8 @@ class read_bulk_callback : public read_callback
 							return true;
 						return false;
 					}
-					debug("BULK_READ, callback: %p, id: %s, state: %s",
-						this, dnet_dump_id(&next_id), dnet_state_dump_addr(next.get()));
+					debug("BULK_READ, callback: %p, id: %s, state: %s, backend: %d",
+						this, dnet_dump_id(&next_id), dnet_state_dump_addr(next.state()), next.backend());
 
 					/* Send command only if state changes or it's a last id */
 					if (cur == next) {
@@ -820,12 +884,12 @@ class read_bulk_callback : public read_callback
 				ctl.complete = func;
 				ctl.priv = priv;
 
-				notice("BULK_READ, callback: %p, start: %s: end: %s, count: %llu, addr: %s",
+				notice("BULK_READ, callback: %p, start: %s: end: %s, count: %llu, state: %s, backend: %d",
 					this,
 					dnet_dump_id(&id),
 					dnet_dump_id(&next_id),
 					(unsigned long long)ctl.io.size / sizeof(struct dnet_io_attr),
-					dnet_state_dump_addr(cur.get()));
+					dnet_state_dump_addr(cur.state()), cur.backend());
 
 				++count;
 
@@ -846,7 +910,7 @@ class read_bulk_callback : public read_callback
 		bool check_answer()
 		{
 			elliptics_assert(cb.is_ready());
-			debug("BULK_READ, callback: %p, ios_set.size: %zu, group_index: %zu, group_count: %zu",
+			debug("BULK_READ, callback: %p, ios_set.size: %llu, group_index: %llu, group_count: %llu",
 			      this, ios_set.size(), m_group_index, groups.size());
 
 			// all results are found or all groups are iterated
@@ -930,7 +994,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 				index_requests_set.insert(index_id(id_precalc[shard_id * indexes.size()], shard_id));
 			}
 
-			debug("INDEXES_FIND, callback: %p, shard_count: %d, indexes_count: %zu", this, shard_count, indexes.size());
+			debug("INDEXES_FIND, callback: %p, shard_count: %d, indexes_count: %llu", this, shard_count, indexes.size());
 		}
 
 		/*
@@ -973,8 +1037,8 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 
 			dnet_node *node = sess.get_native_node();
 			dnet_setup_id(&id, group_id, index_requests_set.begin()->id.id);
-			net_state_ptr cur(dnet_state_get_first(node, &id));
-			net_state_ptr next;
+			net_state_id cur(node, &id);
+			net_state_id next;
 			dnet_id next_id = id;
 
 			debug("INDEXES_FIND, callback: %p, group: %d, next", this, group_id);
@@ -985,8 +1049,8 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 				*error = create_error(-ENOENT, id, "Can't get state for id");
 				return true;
 			}
-			debug("INDEXES_FIND, callback: %p, id: %s, state: %s",
-				this, dnet_dump_id(&id), dnet_state_dump_addr(cur.get()));
+			debug("INDEXES_FIND, callback: %p, id: %s, state: %s, backend: %d",
+				this, dnet_dump_id(&id), dnet_state_dump_addr(cur.state()), cur.backend());
 
 			dnet_trans_control control;
 			memset(&control, 0, sizeof(control));
@@ -1010,13 +1074,6 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 			std::vector<index_id> index_requests(index_requests_set.begin(), index_requests_set.end());
 
 			/*
-			 * We have to keep API/ABI compatibility for all 2.24 life but bulk find indexes requests
-			 * is a new functionality which replaces already existen one. So we have to simulate old-style
-			 * separate requests to hosts which don't know anything about bulk find yet.
-			 */
-			int version[] = { 2, 24, 14, 22 };
-
-			/*
 			 * Iterate through all requests uniting to single transaction all for the same host.
 			 */
 			for (auto it = index_requests.begin(); it != index_requests.end(); ++it) {
@@ -1029,7 +1086,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 				if (++jt != index_requests.end()) {
 					dnet_setup_id(&next_id, group_id, jt->id.id);
 
-					next.reset(dnet_state_get_first(node, &next_id));
+					next.reset(node, &next_id);
 					if (!next) {
 						debug("INDEXES_FIND, callback: %p, group: %d, id: %s, state: failed",
 							this, group_id, dnet_dump_id(&next_id));
@@ -1038,12 +1095,11 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 							return true;
 						return false;
 					}
-					debug("INDEXES_FIND, callback: %p, id: %s, state: %s",
-						this, dnet_dump_id(&next_id), dnet_state_dump_addr(next.get()));
+					debug("INDEXES_FIND, callback: %p, id: %s, state: %s, backend: %d",
+						this, dnet_dump_id(&next_id), dnet_state_dump_addr(next.state()), next.backend());
 
 					/* Send command only if state changes or it's a last id */
-					int cmp = dnet_version_compare(cur.get(), version);
-					more = (cmp >= 0) && (cur == next);
+					more = (cur == next);
 				}
 
 				if (more) {
@@ -1074,10 +1130,10 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 				control.complete = func;
 				control.priv = priv;
 
-				notice("INDEXES_FIND: callback: %p, count: %llu, state: %s",
+				notice("INDEXES_FIND: callback: %p, count: %llu, state: %s, backend: %d",
 					this,
 					index_requests_count,
-					dnet_state_dump_addr(cur.get()));
+					dnet_state_dump_addr(cur.state()), cur.backend());
 
 				++count;
 				index_requests_count = 0;
@@ -1105,7 +1161,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 		bool check_answer()
 		{
 			elliptics_assert(cb.is_ready());
-			debug("INDEXES_FIND, callback: %p, index_requests_set.size: %zu, group_index: %zu, group_count: %zu",
+			debug("INDEXES_FIND, callback: %p, index_requests_set.size: %llu, group_index: %llu, group_count: %llu",
 				  this, index_requests_set.size(), m_group_index, groups.size());
 			// all results are found or all groups are iterated
 			return index_requests_set.empty() || (m_group_index == groups.size());
@@ -1244,7 +1300,7 @@ class remove_index_callback
 			state_container &operator =(const state_container &other) = delete;
 			state_container &operator =(state_container &&other) = delete;
 
-			net_state_ptr cur;
+			net_state_id cur;
 			data_buffer buffer;
 			size_t entries_count;
 			bool failed;
@@ -1313,10 +1369,10 @@ class remove_index_callback
 					}
 
 					id.group_id = groups[group_index];
-					net_state_ptr next;
+					net_state_id next;
 
 					if (shard_id == 0) {
-						state.cur.reset(dnet_state_get_first(node, &id));
+						state.cur.reset(node, &id);
 						// Error during state getting, don't touch this group more
 						if (!state.cur) {
 							state.failed = true;
@@ -1325,7 +1381,7 @@ class remove_index_callback
 					}
 
 					if (!after_last_entry) {
-						next.reset(dnet_state_get_first(node, &id));
+						next.reset(node, &id);
 						// Error during state getting, don't touch this group more
 						if (!next) {
 							state.failed = true;

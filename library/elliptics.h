@@ -250,7 +250,7 @@ void dnet_state_remove_nolock(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, const struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, const struct dnet_id *id);
 ssize_t dnet_state_search_backend(struct dnet_node *n, const struct dnet_id *id);
-struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, const struct dnet_id *id);
+struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, const struct dnet_id *id, int *backend_id);
 struct dnet_net_state *dnet_node_state(struct dnet_node *n);
 
 void dnet_node_cleanup_common_resources(struct dnet_node *n);

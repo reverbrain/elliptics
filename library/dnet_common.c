@@ -1378,7 +1378,7 @@ int dnet_send_cmd(struct dnet_session *s,
 		for (i = 0; i < s->group_num; ++i) {
 			id->group_id = s->groups[i];
 
-			st = dnet_state_search_nolock(n, id);
+			st = dnet_state_search_nolock(n, id, NULL);
 			if (st) {
 				if (st != n->st) {
 					err = dnet_send_cmd_single(s, st, id, complete, priv, e, dnet_session_get_cflags(s));

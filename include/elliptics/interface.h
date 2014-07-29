@@ -565,6 +565,7 @@ int dnet_state_num(struct dnet_session *s);
 int dnet_node_state_num(struct dnet_node *n);
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, const struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, const struct dnet_id *id);
+struct dnet_net_state *dnet_state_get_first_with_backend(struct dnet_node *n, const struct dnet_id *id, int *backend_id);
 void dnet_state_put(struct dnet_net_state *st);
 
 #define DNET_DUMP_NUM	6
