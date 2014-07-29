@@ -1,21 +1,20 @@
 {
-	"loggers": {
-		"type": "/dev/stderr",
-		"level": 4,
-		"root": [
-			{
-				"formatter": {
-					"type": "string",
-					"pattern": "[%(timestamp)s]: %(message)s [%(...L)s]"
-				},
-				"sink": {
-					"type": "files",
-					"path": "/dev/stdout",
-					"autoflush": true
-				}
-			}
-		]
-	},
+    "logger": {
+        "level": 4,
+        "frontends": [
+            {
+                "formatter": {
+                    "type": "string",
+                    "pattern": "%(timestamp)s %(request_id)s/%(tid)s/%(pid)s %(severity)s: %(message)s %(...L)s"
+                },
+                "sink": {
+                    "type": "files",
+                    "path": "/dev/stdout",
+                    "autoflush": true
+                }
+            }
+        ]
+    },
 	"options": {
 		"join": true,
 		"flags": 20,
