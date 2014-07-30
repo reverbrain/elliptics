@@ -77,11 +77,18 @@ class scoped_trace_id
 {
 public:
 	scoped_trace_id(session &sess) :
-		m_attributes(sess.get_logger(), { blackhole::keyword::request_id() = sess.get_trace_id() })
+		m_attributes(sess.get_logger(), create_attributes(sess))
 	{
 	}
 
 private:
+	static blackhole::log::attributes_t create_attributes(session &sess)
+	{
+		return {
+			blackhole::keyword::request_id() = sess.get_trace_id()
+		};
+	}
+
 	blackhole::scoped_attributes_t m_attributes;
 };
 
