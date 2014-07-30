@@ -1364,6 +1364,163 @@ async_lookup_result session::lookup(const key &id)
 	return result;
 }
 
+struct quorum_lookup_aggregator_handler
+{
+	static bool dnet_time_less_than(const dnet_time &t1, const dnet_time &t2) {
+		return std::make_tuple(t1.tsec, t1.tnsec) < std::make_tuple(t2.tsec, t2.tnsec);
+	}
+
+	static bool dnet_time_equal(const dnet_time &t1, const dnet_time &t2) {
+		return std::make_tuple(t1.tsec, t1.tnsec) == std::make_tuple(t2.tsec, t2.tnsec);
+	}
+
+	struct dnet_time_less_checker {
+		bool operator() (const dnet_time &t1, const dnet_time &t2) {
+			return dnet_time_less_than(t1, t2);
+		}
+	};
+
+	ELLIPTICS_DISABLE_COPY(quorum_lookup_aggregator_handler)
+
+	quorum_lookup_aggregator_handler(const async_result_handler<lookup_result_entry> &result_handler, size_t count)
+		: handler(result_handler), in_work(count), quorum(count / 2 + 1), max_ts{0, 0}, has_finished(false)
+	{
+	}
+
+	void process(const sync_lookup_result &result, const error_info &reply_error) {
+		std::lock_guard<std::mutex> lock(mutex);
+		(void) lock;
+
+		if (has_finished) {
+			return;
+		}
+
+		in_work -= 1;
+
+		if (check_error(reply_error) == false) {
+			complete_if_no_works();
+			return;
+		}
+
+		assert(result.size() == 1);
+
+		// entry.error() may contains an error, but reply_error doesn't
+		auto &entry = result[0];
+		if (check_error(entry.error()) == false) {
+			complete_if_no_works();
+			return;
+		}
+
+		auto ts = entry.file_info()->mtime;
+
+		if (dnet_time_less_than(max_ts, ts)) {
+			max_ts = ts;
+		}
+
+		entries.push_back(entry);
+
+		if ((timestamps[ts] += 1) == quorum) {
+			complete_with_ts(ts);
+			return;
+		}
+
+		complete_if_no_works();
+	}
+
+	void complete_if_no_works() {
+		if (in_work == 0) {
+			complete_with_ts(max_ts);
+			return;
+		}
+	}
+
+	bool check_error(const error_info &error) {
+		if (error) {
+			if (err_info.code() != -ENOENT) {
+				err_info = error;
+			}
+
+			if (in_work == 0 && entries.empty()) {
+				handler.complete(err_info);
+			}
+
+			return false;
+		}
+		return true;
+	}
+
+	void complete_with_ts(const dnet_time &ts) {
+		has_finished = true;
+
+		for (auto it = entries.begin(), end = entries.end(); it != end; ++it) {
+			if (dnet_time_equal(it->file_info()->mtime, ts)) {
+				handler.process(*it);
+			}
+		}
+
+		handler.complete(error_info());
+	}
+
+	std::mutex mutex;
+	async_result_handler<lookup_result_entry> handler;
+	std::vector<lookup_result_entry> entries;
+	std::map<dnet_time, size_t, dnet_time_less_checker> timestamps;
+	size_t in_work;
+	size_t quorum;
+	dnet_time max_ts;
+	bool has_finished;
+	error_info err_info;
+};
+
+async_lookup_result session::quorum_lookup(const key &id)
+{
+	async_lookup_result result(*this);
+	async_result_handler<lookup_result_entry> result_handler(result);
+
+	auto groups = get_groups();
+
+	if (groups.empty()) {
+		result_handler.complete(error_info());
+		return result;
+	}
+
+	std::vector<async_lookup_result> lookup_results;
+	lookup_results.reserve(groups.size());
+	transform(id);
+
+	{
+		auto sess = clone();
+
+		sess.set_filter(filters::all);
+		sess.set_checker(checkers::no_check);
+		sess.set_exceptions_policy(session::no_exceptions);
+
+		dnet_id raw = id.id();
+
+		for (size_t i = 0; i < groups.size(); ++i) {
+			sess.set_groups(std::vector<int>(1, groups[i]));
+			lookup_results.emplace_back(sess.lookup(raw));
+		}
+
+		if (lookup_results.empty()) {
+			result_handler.complete(error_info());
+			return result;
+		}
+
+		auto handler = std::make_shared<quorum_lookup_aggregator_handler>(result_handler,
+				lookup_results.size());
+		auto process = std::bind(&quorum_lookup_aggregator_handler::process, handler
+				, std::placeholders::_1, std::placeholders::_2);
+
+		for (auto it = lookup_results.begin(), end = lookup_results.end(); it != end; ++it) {
+			it->connect(process);
+		}
+
+	}
+
+	return result;
+}
+
 async_remove_result session::remove(const key &id)
 {
 	transform(id);

@@ -557,6 +557,15 @@ class session
 		async_lookup_result lookup(const key &id);
 
 		/*!
+		 * Lookups information for key \a id, picks lookup_result_enties by following rules:
+		 * 1. If there are quorum lookup_result_enties with the same timestamp, they are the final result
+		 * 2. Otherwise the final result is lookup_result_enties with the greatest timestamp
+		 *
+		 * Returns async_lookup_result.
+		 */
+		async_lookup_result quorum_lookup(const key &id);
+
+		/*!
 		 * Removes all the entries of key \a id at server nodes.
 		 *
 		 * Returns async_remove_result.
