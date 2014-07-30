@@ -1,3 +1,13 @@
+elliptics (2.26.0.1) unstable; urgency=low
+
+  * config: Moved to usage of dynamic_t
+  * logger: Fixed segfault
+  * srw: Really, don't send exec to every backend
+  * protocol: Moved trace_id to dnet_cmd from dnet_id
+  * * Added trace_bit as command flag instead of special trace_id's bit
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Wed, 30 Jul 2014 15:29:48 +0400
+
 elliptics (2.26.0.0) unstable; urgency=low
 
   * backends: Ability not to enable backends at start
