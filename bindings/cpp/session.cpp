@@ -718,7 +718,7 @@ void session::set_trace_id(trace_id_t trace_id)
 {
 	dnet_session_set_trace_id(m_data->session_ptr, trace_id);
 	blackhole::log::attributes_t attributes = {
-		blackhole::keyword::request_id() = sess.get_trace_id()
+		blackhole::keyword::request_id() = trace_id
 	};
 	m_data->logger = logger(m_data->logger, std::move(attributes));
 }
