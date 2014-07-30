@@ -717,7 +717,10 @@ long session::get_timeout(void) const
 void session::set_trace_id(trace_id_t trace_id)
 {
 	dnet_session_set_trace_id(m_data->session_ptr, trace_id);
-	m_data->logger = logger(m_data->logger, { blackhole::keyword::request_id() = trace_id });
+	blackhole::log::attributes_t attributes = {
+		blackhole::keyword::request_id() = sess.get_trace_id()
+	};
+	m_data->logger = logger(m_data->logger, std::move(attributes));
 }
 
 trace_id_t session::get_trace_id() const
