@@ -60,6 +60,8 @@
 #include <blackhole/repository/config/parser/rapidjson.hpp>
 #include <blackhole/frontend/syslog.hpp>
 #include <blackhole/frontend/files.hpp>
+#include <blackhole/sink/socket.hpp>
+//#include <blackhole/formatter/json.hpp>
 
 #include "common.h"
 
@@ -146,33 +148,38 @@ static void parse_logger(config_data *data, const config &logger)
 {
 	using namespace blackhole;
 
-	repository_t::instance().configure<
-		sink::syslog_t<dnet_log_level>,
-		formatter::string_t
-	>();
-	repository_t::instance().configure<
-		sink::files_t<
-			sink::files::boost_backend_t,
-			sink::rotator_t<
-				sink::files::boost_backend_t,
-				sink::rotation::watcher::size_t
-			>
-		>,
-		formatter::string_t
-	>();
-	repository_t::instance().configure<
-		sink::files_t<>,
-		formatter::string_t
-	>();
+	// Available logging sinks.
+	typedef boost::mpl::vector<
+	    blackhole::sink::files_t<>,
+	    blackhole::sink::syslog_t<dnet_log_level>,
+	    blackhole::sink::socket_t<boost::asio::ip::tcp>,
+	    blackhole::sink::socket_t<boost::asio::ip::udp>
+	> sinks_t;
+
+	// Available logging formatters.
+	typedef boost::mpl::vector<
+	    blackhole::formatter::string_t
+//	    blackhole::formatter::json_t
+	> formatters_t;
+
+	auto &repository = blackhole::repository_t::instance();
+	repository.configure<sinks_t, formatters_t>();
 
 	config frontends = logger.at("frontends");
 	frontends.assert_array();
 
 	const dynamic_t &dynamic = frontends.raw();
-	const log_config_t &log_config = repository::config::parser_t<log_config_t>::parse("root", dynamic);
-	repository_t::instance().add_config(log_config);
+	log_config_t log_config = repository::config::parser_t<log_config_t>::parse("root", dynamic);
 
-	data->logger_base = repository_t::instance().root<dnet_log_level>();
+	const auto mapper = file_logger::mapping();
+	for(auto it = log_config.frontends.begin(); it != log_config.frontends.end(); ++it) {
+		it->formatter.mapper = mapper;
+	}
+
+	repository.add_config(log_config);
+
+	data->logger_base = repository.root<dnet_log_level>();
+	data->logger_base.track(false);
 	data->logger_base.verbosity(dnet_log_level(logger.at<int>("level")));
 	data->logger_base.add_attribute(blackhole::keyword::request_id() = 0);
 

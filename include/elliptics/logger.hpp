@@ -29,6 +29,7 @@ enum dnet_log_level {
 
 #include <blackhole/log.hpp>
 #include <blackhole/logger/wrapper.hpp>
+#include <blackhole/formatter/map/value.hpp>
 
 #ifdef BOOST_BIND_NO_PLACEHOLDERS_SET_BY_ELLIPTICS
 # undef BOOST_BIND_NO_PLACEHOLDERS_SET_BY_ELLIPTICS
@@ -46,6 +47,7 @@ public:
 	explicit file_logger(const char *file, int level);
 
 	static std::string format();
+	static blackhole::mapping::value_t mapping();
 };
 
 } }

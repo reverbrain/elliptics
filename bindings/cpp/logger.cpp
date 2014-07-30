@@ -19,6 +19,7 @@ namespace ioremap { namespace elliptics {
 file_logger::file_logger(const char *file, int level)
 {
 	verbosity(static_cast<dnet_log_level>(level));
+	track(false);
 
 	auto formatter = blackhole::utils::make_unique<blackhole::formatter::string_t>(format());
 	auto sink = blackhole::utils::make_unique<blackhole::sink::files_t<>>(blackhole::sink::files_t<>::config_type(file));
@@ -30,7 +31,14 @@ file_logger::file_logger(const char *file, int level)
 
 std::string file_logger::format()
 {
-	return "%(timestamp)s %(request_id)s/%(tid)s/%(pid)s %(severity)s: %(message)s %(...L)s";
+	return "%(timestamp)s %(request_id)s/%(tid)s/%(pid)s %(severity)s: %(message)s, attrs: [%(...L)s]";
+}
+
+blackhole::mapping::value_t file_logger::mapping()
+{
+	blackhole::mapping::value_t mapper;
+	mapper.add<blackhole::keyword::tag::timestamp_t>("%Y-%m-%d %H:%M:%S.%f");
+	return mapper;
 }
 
 }} // namespace ioremap::elliptics
