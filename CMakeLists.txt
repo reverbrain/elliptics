@@ -154,6 +154,7 @@ install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h
         include/elliptics/module_backend.h
         include/elliptics/module_backend.hpp
+        include/elliptics/logger.hpp
         DESTINATION include/elliptics/
         )
 
