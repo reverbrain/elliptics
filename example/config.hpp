@@ -179,7 +179,7 @@ struct config_value_caster_specific_helper<T, vector_type>
 
 		T result;
 		for (size_t i = 0; i < array.size(); ++i)
-			result.emplace_back(caster::cast(path + "[" + std::to_string(i) + "]", array[i]));
+			result.emplace_back(caster::cast(path + "[" + std::to_string(static_cast<long long int>(i)) + "]", array[i]));
 		return result;
 	}
 };
@@ -243,7 +243,7 @@ public:
 
 	config at(size_t index) const
 	{
-		const std::string path = m_path + "[" + std::to_string(index) + "]";
+		const std::string path = m_path + "[" + std::to_string(static_cast<long long int>(index)) + "]";
 
 		if (!has(index))
 			throw config_error() << path << " is missed";

@@ -210,7 +210,7 @@ std::string address::to_string_with_family() const
 	std::string str = to_string();
 	if (!str.empty()) {
 		str += ':';
-		str += std::to_string(m_addr.family);
+		str += std::to_string(static_cast<long long int>(m_addr.family));
 	}
 	return str;
 }
