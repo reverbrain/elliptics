@@ -286,11 +286,11 @@ public:
 		std::string value_str;
 
 		if (m_value.is<dynamic_t::uint_t>())
-			value_str = std::to_string(m_value.to<dynamic_t::uint_t>());
+			value_str = std::to_string(static_cast<unsigned long long>(m_value.to<dynamic_t::uint_t>()));
 		else if (m_value.is<dynamic_t::int_t>())
-			value_str = std::to_string(m_value.to<dynamic_t::int_t>());
+			value_str = std::to_string(static_cast<long long>(m_value.to<dynamic_t::int_t>()));
 		else if (m_value.is<dynamic_t::double_t>())
-			value_str = std::to_string(m_value.to<dynamic_t::double_t>());
+			value_str = std::to_string(static_cast<long double>(m_value.to<dynamic_t::double_t>()));
 		else if (m_value.is<dynamic_t::string_t>())
 			value_str = m_value.to<dynamic_t::string_t>();
 		else

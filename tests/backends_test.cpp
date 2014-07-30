@@ -68,11 +68,11 @@ static void configure_nodes(const std::string &path)
 	global_data = start_nodes(results_reporter::get_stream(), servers, path);
 }
 
-static std::set<std::tuple<std::string, int, int>> get_unique_hosts(session &sess)
+static std::set<std::tuple<std::string, int, uint32_t>> get_unique_hosts(session &sess)
 {
 	std::vector<dnet_route_entry> routes = sess.get_routes();
 
-	std::set<std::tuple<std::string, int, int>> unique_hosts;
+	std::set<std::tuple<std::string, int, uint32_t>> unique_hosts;
 
 	for (auto it = routes.begin(); it != routes.end(); ++it) {
 		dnet_route_entry &entry = *it;
@@ -107,7 +107,7 @@ static void test_enable_at_start(session &sess)
 				auto tuple = std::make_tuple(host, group_id, backends[j]);
 
 				BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) != unique_hosts.end(),
-					"Host must exist: " + host + ", group: " + std::to_string(group_id) + ", backend: " + std::to_string(backends[j]));
+					"Host must exist: " + host + ", group: " + std::to_string(static_cast<long long>(group_id)) + ", backend: " + std::to_string(static_cast<long long>(backends[j])));
 			}
 		}
 	}

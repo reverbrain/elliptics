@@ -360,7 +360,9 @@ void parse_options(config_data *data, const config &options)
 
 void parse_backends(config_data *data, const config &backends)
 {
-	data->backends->backends.resize(backends.size());
+	data->backends->backends.reserve(backends.size());
+	for (size_t index = 0; index < backends.size(); ++index)
+		data->backends->backends.emplace_back();
 
 	for (size_t index = 0; index < backends.size(); ++index) {
 		const config backend = backends.at(index);
