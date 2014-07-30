@@ -210,7 +210,7 @@ std::string address::to_string_with_family() const
 	std::string str = to_string();
 	if (!str.empty()) {
 		str += ':';
-		str += std::to_string(m_addr.family);
+		str += std::to_string(static_cast<long long int>(m_addr.family));
 	}
 	return str;
 }
@@ -717,7 +717,10 @@ long session::get_timeout(void) const
 void session::set_trace_id(trace_id_t trace_id)
 {
 	dnet_session_set_trace_id(m_data->session_ptr, trace_id);
-	m_data->logger = logger(m_data->logger, { blackhole::keyword::request_id() = trace_id });
+	blackhole::log::attributes_t attributes = {
+		blackhole::keyword::request_id() = trace_id
+	};
+	m_data->logger = logger(m_data->logger, std::move(attributes));
 }
 
 trace_id_t session::get_trace_id() const

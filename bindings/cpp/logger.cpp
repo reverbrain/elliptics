@@ -55,10 +55,11 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 	blackhole_attributes = reinterpret_cast<scoped_attributes_t *>(blackhole_scoped_attributes_buffer);
 
 	try {
-		new (blackhole_attributes) scoped_attributes_t(*logger, {
+		blackhole::log::attributes_t attributes = {
 			blackhole::keyword::request_id() = trace_id,
 			blackhole::keyword::tracebit() = bool(tracebit)
-		});
+		};
+		new (blackhole_attributes) scoped_attributes_t(*logger, std::move(attributes));
 		// Set all bits to ensure that it has tracebit set
 		backend_trace_id_hook = tracebit ? ~0ull : 0;
 	} catch (...) {

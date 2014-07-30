@@ -71,11 +71,11 @@ cache_manager::cache_manager(dnet_backend_io *backend, struct dnet_node *n) : m_
 		m_caches.emplace_back(std::make_shared<slru_cache_t>(backend, n, pages_max_sizes));
 	}
 
-	ioremap::monitor::add_provider(m_node, new cache_stat_provider(*this), "cache_" + std::to_string(m_backend_id));
+	ioremap::monitor::add_provider(m_node, new cache_stat_provider(*this), "cache_" + std::to_string(static_cast<long long int>(m_backend_id)));
 }
 
 cache_manager::~cache_manager() {
-	ioremap::monitor::remove_provider(m_node, "cache_" + std::to_string(m_backend_id));
+	ioremap::monitor::remove_provider(m_node, "cache_" + std::to_string(static_cast<long long int>(m_backend_id)));
 }
 
 int cache_manager::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {

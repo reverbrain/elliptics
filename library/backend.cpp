@@ -135,7 +135,7 @@ public:
 
 	static std::string name(uint64_t backend_id)
 	{
-		return "backend_" + std::to_string(backend_id);
+		return "backend_" + std::to_string(static_cast<unsigned long long>(backend_id));
 	}
 
 	virtual std::string json() const {

@@ -10,6 +10,8 @@
 #include <memory>
 #include <mutex>
 
+#include <elliptics/error.hpp>
+
 struct dnet_backend_config_entry
 {
 	dnet_config_entry *entry;
@@ -23,6 +25,45 @@ struct dnet_backend_info
 	{
 		dnet_empty_time(&last_start);
 		last_start_err = 0;
+	}
+
+	dnet_backend_info(const dnet_backend_info &other) = delete;
+	dnet_backend_info &operator =(const dnet_backend_info &other) = delete;
+
+	dnet_backend_info(dnet_backend_info &&other) ELLIPTICS_NOEXCEPT :
+		config_template(other.config_template),
+		log(other.log),
+		options(std::move(other.options)),
+		group(other.group),
+		cache(other.cache),
+		history(other.history),
+		enable_at_start(other.enable_at_start),
+		state_mutex(std::move(other.state_mutex)),
+		state(other.state),
+		last_start(other.last_start),
+		last_start_err(other.last_start_err),
+		config(other.config),
+		data(std::move(other.data))
+	{
+	}
+	
+	dnet_backend_info &operator =(dnet_backend_info &&other) ELLIPTICS_NOEXCEPT
+	{
+		config_template = other.config_template;
+		log = other.log;
+		options = std::move(other.options);
+		group = other.group;
+		cache = other.cache;
+		history = other.history;
+		enable_at_start = other.enable_at_start;
+		state_mutex = std::move(other.state_mutex);
+		state = other.state;
+		last_start = other.last_start;
+		last_start_err = other.last_start_err;
+		config = other.config;
+		data = std::move(other.data);
+
+		return *this;
 	}
 
 	dnet_config_backend config_template;

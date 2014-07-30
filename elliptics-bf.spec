@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.0.0
+Version:	2.26.0.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jul 30 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.1
+- config: Moved to usage of dynamic_t
+- logger: Fixed segfault
+- srw: Really, don't send exec to every backend
+- protocol: Moved trace_id to dnet_cmd from dnet_id
+- * Added trace_bit as command flag instead of special trace_id's bit
+
 * Tue Jul 29 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.0
 - backends: Ability not to enable backends at start
 - backends: Added ability to change backend's ids
