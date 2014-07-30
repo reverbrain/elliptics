@@ -827,14 +827,9 @@ void init_elliptics_session() {
 		              &elliptics_session::set_trace_id,
 		    "Sets debug trace_id which will be printed in all logs\n"
 		    "connected with operations executed by the sesssion.\n"
-		    "session.trace_id = 123456")
-
-		.add_property("trace_bit",
-			      &elliptics_session::get_trace_bit,
-			      &elliptics_session::set_trace_bit,
-		    "If trace_bit is set\n"
 		    "All logs connected with operations executed by the session\n"
-		    "will be printed with ignoring current log level\n\n")
+		    "will be printed with ignoring current log level\n\n"
+		    "session.trace_id = 123456")
 
 		.add_property("cflags",
 		              &elliptics_session::get_cflags,

@@ -15,7 +15,7 @@
 
 from __future__ import absolute_import
 
-from elliptics.core import ErrorInfo, trace_bit, Logger, iterator_flags, monitor_stat_categories
+from elliptics.core import ErrorInfo, Logger, iterator_flags, monitor_stat_categories
 from elliptics.core import iterator_types, command_flags, io_flags, log_level
 from elliptics.core import exceptions_policy, config_flags, IteratorResultContainer
 from elliptics.core import Time, IoAttr, status_flags, Range, IteratorRange

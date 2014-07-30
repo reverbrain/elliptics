@@ -104,8 +104,6 @@ class TestSession:
         ('trace_id', None, None, (
          0,
          32423946,
-         0 | elliptics.trace_bit,
-         123121435 | elliptics.trace_bit,
          2 ** 32 - 1)),
         ('user_flags', 'set_user_flags', 'get_user_flags', (
          0,
@@ -119,9 +117,6 @@ class TestSession:
             set_property(session, prop, value,
                          setter=setter,
                          getter=getter)
-
-    def test_trace_bit(self, server, simple_node):
-        assert elliptics.trace_bit == 2 ** 63
 
     def test_resetting_timeout(self, server, simple_node):
         session = elliptics.Session(simple_node)
