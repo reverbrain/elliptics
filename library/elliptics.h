@@ -539,6 +539,26 @@ struct dnet_node
 	struct list_head	reconnect_list;
 	int			reconnect_num;
 
+	/*
+	 * When user (client or server) adds new nodes via dnet_add_state()
+	 * and helper functions, we put those addresses into this array.
+	 *
+	 * Periodic route request thread asks for route table random X groups
+	 * plus all this addresses.
+	 *
+	 * It is needed to speed up large (severl thousands of nodes) cluster
+	 * convergence - usually in such big clusters 'remote' server config option
+	 * contains the same nodes for simplicity. Thus the same nodes will always
+	 * be the first who receive information about new nodes and thus the first
+	 * to update route table, which in turn will be requested by newly connected
+	 * clients/servers.
+	 *
+	 * @route_addrs are protected by @reconnect_lock. This array can not be shrunk,
+	 * it will only grow.
+	 */
+	struct dnet_addr	*route_addr;
+	int			route_addr_num;
+
 	struct dnet_lock	counters_lock;
 	struct dnet_stat_count	counters[__DNET_CNTR_MAX];
 
