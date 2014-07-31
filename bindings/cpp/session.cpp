@@ -1364,8 +1364,54 @@ async_lookup_result session::lookup(const key &id)
 	return result;
 }
 
+async_lookup_result session::parallel_lookup(const key &id)
+{
+	async_lookup_result result(*this);
+	async_result_handler<lookup_result_entry> result_handler(result);
+
+	auto groups = get_groups();
+
+	// Lookup to empty list of groups produces empty result
+	if (groups.empty()) {
+		result_handler.complete(error_info());
+		return result;
+	}
+
+	std::vector<async_lookup_result> lookup_results;
+	lookup_results.reserve(groups.size());
+
+	// Each request to session transforms a key if it is a string
+	// To avoid this act one transforms the key once and pass it as dnet_id
+	transform(id);
+
+	// One clones the session in order not to affect the user settings
+	auto sess = clone();
+
+	sess.set_filter(filters::all);
+	sess.set_checker(checkers::no_check);
+	sess.set_exceptions_policy(session::no_exceptions);
+
+	dnet_id raw = id.id();
+
+	// Parallel lookup is just a series of general lookups
+	for (size_t i = 0; i < groups.size(); ++i) {
+		sess.set_groups(std::vector<int>(1, groups[i]));
+		lookup_results.emplace_back(sess.lookup(raw));
+	}
+
+	// This case means no one transaction to server was created
+	if (lookup_results.empty()) {
+		result_handler.complete(error_info());
+		return result;
+	}
+
+	// Result of parallel lookup is a aggregation of results of general lookups
+	return aggregated(*this, lookup_results.begin(), lookup_results.end());
+}
+
 struct quorum_lookup_aggregator_handler
 {
+	// Helper methods for comparison dnet_times
 	static bool dnet_time_less_than(const dnet_time &t1, const dnet_time &t2) {
 		return std::make_tuple(t1.tsec, t1.tnsec) < std::make_tuple(t2.tsec, t2.tnsec);
 	}
@@ -1383,11 +1429,27 @@ struct quorum_lookup_aggregator_handler
 	ELLIPTICS_DISABLE_COPY(quorum_lookup_aggregator_handler)
 
 	quorum_lookup_aggregator_handler(const async_result_handler<lookup_result_entry> &result_handler, size_t count)
-		: handler(result_handler), in_work(count), quorum(count / 2 + 1), max_ts{0, 0}, has_finished(false)
+		: handler(result_handler), quorum(count / 2 + 1), max_ts{0, 0}, has_finished(false)
 	{
 	}
 
-	void process(const sync_lookup_result &result, const error_info &reply_error) {
+	// Scheme of processing each lookup_result_entry:
+	// 1. Ignore entry in case of handler.complete was called
+	// (it means we already found the desired entries)
+	// 2. Store entry for future needs
+	// 3. That is all process for lookup_result_entries with error_info
+	// 4. Update maximum timestamp
+	// 5. Check if there are quorum lookup_result_entries with the same timestamp
+	// If check is passed:
+	// 6. Pass into async_result these lookup_result_entries and entries with error_info
+	// 7. Mark that processing is finished (for first step)
+	//
+	// The method can be called from several threads and it needs to use shared data
+	// That is the reason for lock mutex at start of method
+	//
+	// Note: the method call handler.complete only in case of check (from 5.) is passed
+	// Other cases handles in complete()
+	void process(const lookup_result_entry &entry) {
 		std::lock_guard<std::mutex> lock(mutex);
 		(void) lock;
 
@@ -1395,19 +1457,9 @@ struct quorum_lookup_aggregator_handler
 			return;
 		}
 
-		in_work -= 1;
+		entries.push_back(entry);
 
-		if (check_error(reply_error) == false) {
-			complete_if_no_works();
-			return;
-		}
-
-		assert(result.size() == 1);
-
-		// entry.error() may contains an error, but reply_error doesn't
-		auto &entry = result[0];
-		if (check_error(entry.error()) == false) {
-			complete_if_no_works();
+		if (entry.error()) {
 			return;
 		}
 
@@ -1417,106 +1469,76 @@ struct quorum_lookup_aggregator_handler
 			max_ts = ts;
 		}
 
-		entries.push_back(entry);
-
 		if ((timestamps[ts] += 1) == quorum) {
-			complete_with_ts(ts);
+			complete_with_ts(ts, error_info());
+		}
+	}
+
+	// The method make usefull work in case of there are not enough
+	// lookup_result_entries with the same timestamp
+	// It this case entries with the greatest timestamp are passed into async_result
+	// Entries with error_info are also passed
+	//
+	// Note: it is possible that only entries with error info would be passed
+	// (in case of there are not other entries)
+	void complete(const error_info &reply_error) {
+		std::lock_guard<std::mutex> lock(mutex);
+		(void) lock;
+
+		if (has_finished) {
 			return;
 		}
 
-		complete_if_no_works();
+		complete_with_ts(max_ts, reply_error);
 	}
 
-	void complete_if_no_works() {
-		if (in_work == 0) {
-			complete_with_ts(max_ts);
-			return;
-		}
-	}
-
-	bool check_error(const error_info &error) {
-		if (error) {
-			if (err_info.code() != -ENOENT) {
-				err_info = error;
-			}
-
-			if (in_work == 0 && entries.empty()) {
-				handler.complete(err_info);
-			}
-
-			return false;
-		}
-		return true;
-	}
-
-	void complete_with_ts(const dnet_time &ts) {
+	// The method passes lookup_result_entries with timestamp equals to ts into async_result
+	// Also lookup_result_entries with error_info are passed
+	void complete_with_ts(const dnet_time &ts, const error_info &reply_error) {
 		has_finished = true;
 
 		for (auto it = entries.begin(), end = entries.end(); it != end; ++it) {
-			if (dnet_time_equal(it->file_info()->mtime, ts)) {
+			if (it->error() || dnet_time_equal(it->file_info()->mtime, ts)) {
 				handler.process(*it);
 			}
 		}
 
-		handler.complete(error_info());
+		handler.complete(reply_error);
 	}
 
 	std::mutex mutex;
 	async_result_handler<lookup_result_entry> handler;
 	std::vector<lookup_result_entry> entries;
 	std::map<dnet_time, size_t, dnet_time_less_checker> timestamps;
-	size_t in_work;
 	size_t quorum;
 	dnet_time max_ts;
 	bool has_finished;
-	error_info err_info;
 };
 
+// quorum_lookup is a wrapper over parallel_lookup
+// It aggregates lookup_result_entries by timestamp by using helper class quorum_lookup_aggregator_handler
+// Handler will complete if there are quorum (groups_count / 2 + 1) lookup_result_entries with the same timestamp
+// These lookup_result_entries are the result
+// Otherwise handler will complete when every lookup is finished
+// In this case result is lookup_result_entries with the greatest timestamp
+// In both cases result also contains lookup_result_entries with error info
 async_lookup_result session::quorum_lookup(const key &id)
 {
+	// The only thing doing here: connecting helper class to async_result
+
 	async_lookup_result result(*this);
 	async_result_handler<lookup_result_entry> result_handler(result);
 
-	auto groups = get_groups();
+	auto temp_result = parallel_lookup(id);
 
-	if (groups.empty()) {
-		result_handler.complete(error_info());
-		return result;
-	}
+	auto handler = std::make_shared<quorum_lookup_aggregator_handler>(result_handler,
+			get_groups().size());
+	auto process = std::bind(&quorum_lookup_aggregator_handler::process, handler
+			, std::placeholders::_1);
+	auto complete = std::bind(&quorum_lookup_aggregator_handler::complete, handler
+			, std::placeholders::_1);
 
-	std::vector<async_lookup_result> lookup_results;
-	lookup_results.reserve(groups.size());
-	transform(id);
-
-	{
-		auto sess = clone();
-
-		sess.set_filter(filters::all);
-		sess.set_checker(checkers::no_check);
-		sess.set_exceptions_policy(session::no_exceptions);
-
-		dnet_id raw = id.id();
-
-		for (size_t i = 0; i < groups.size(); ++i) {
-			sess.set_groups(std::vector<int>(1, groups[i]));
-			lookup_results.emplace_back(sess.lookup(raw));
-		}
-
-		if (lookup_results.empty()) {
-			result_handler.complete(error_info());
-			return result;
-		}
-
-		auto handler = std::make_shared<quorum_lookup_aggregator_handler>(result_handler,
-				lookup_results.size());
-		auto process = std::bind(&quorum_lookup_aggregator_handler::process, handler
-				, std::placeholders::_1, std::placeholders::_2);
-
-		for (auto it = lookup_results.begin(), end = lookup_results.end(); it != end; ++it) {
-			it->connect(process);
-		}
-
-	}
+	temp_result.connect(process, complete);
 
 	return result;
 }
