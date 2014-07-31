@@ -22,6 +22,8 @@
 
 #include <string>
 
+#include <boost/lexical_cast.hpp>
+
 namespace ioremap { namespace monitor {
 
 namespace status_strings {
@@ -52,6 +54,8 @@ const std::string list = "<html>"
 	"</body>"
 	"</html>";
 }
+
+const std::string categories_url = "/?categories=";
 
 const std::map<std::string, uint64_t> handlers = {{"/all", DNET_MONITOR_ALL},
 	{"/cache", DNET_MONITOR_CACHE},
@@ -104,6 +108,15 @@ uint64_t parse(const char* packet, size_t size) {
 	auto it = handlers.find(std::string(url_begin, url_end));
 	if (it != handlers.end())
 		return it->second;
+	else if (categories_url.size() < (url_end - url_begin) &&
+	         strncmp(url_begin, categories_url.c_str(), categories_url.size()) == 0) {
+		const char *categories = url_begin + categories_url.size();
+		try {
+			return boost::lexical_cast<uint64_t>(std::string(categories, url_end));
+		} catch(...) {
+			printf("Couldn't parse categories: %s\n", categories);
+		}
+	}
 
 	return 0;
 }
