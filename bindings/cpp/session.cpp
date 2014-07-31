@@ -1533,10 +1533,10 @@ async_lookup_result session::quorum_lookup(const key &id)
 
 	auto handler = std::make_shared<quorum_lookup_aggregator_handler>(result_handler,
 			get_groups().size());
-	auto process = std::bind(&quorum_lookup_aggregator_handler::process, handler
-			, std::placeholders::_1);
-	auto complete = std::bind(&quorum_lookup_aggregator_handler::complete, handler
-			, std::placeholders::_1);
+	auto process = std::bind(&quorum_lookup_aggregator_handler::process, handler,
+			std::placeholders::_1);
+	auto complete = std::bind(&quorum_lookup_aggregator_handler::complete, handler,
+			std::placeholders::_1);
 
 	temp_result.connect(process, complete);
 
