@@ -1,3 +1,9 @@
+elliptics (2.25.6.4) unstable; urgency=low
+
+  * reconnect: reconnect to addresses which were timed out during connection
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 31 Jul 2014 16:31:12 +0400
+
 elliptics (2.25.6.3) unstable; urgency=low
 
   * recv: do not dereference data stored in state, since to that moment it can be overwritten by the next command from the same client(socket)

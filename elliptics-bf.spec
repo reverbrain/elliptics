@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.3
+Version:	2.25.6.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jul 31 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.4
+- reconnect: reconnect to addresses which were timed out during connection
+
 * Thu Jul 31 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.3
 - recv: do not dereference data stored in state, since to that moment it can be overwritten by the next command from the same client(socket)
 - route: let regular route table update also get route table from nodes explicitly added via dnet_add_state() and helpers
