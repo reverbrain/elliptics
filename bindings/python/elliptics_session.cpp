@@ -55,13 +55,18 @@ enum elliptics_checkers {
 };
 
 enum elliptics_monitor_categories {
-	elliptics_monitor_categories_all = DNET_MONITOR_ALL,
 	elliptics_monitor_categories_cache = DNET_MONITOR_CACHE,
 	elliptics_monitor_categories_io = DNET_MONITOR_IO,
 	elliptics_monitor_categories_commands = DNET_MONITOR_COMMANDS,
 	elliptics_monitor_categories_io_histograms = DNET_MONITOR_IO_HISTOGRAMS,
 	elliptics_monitor_categories_backend = DNET_MONITOR_BACKEND,
-	elliptics_monitor_categories_call_tree = DNET_MONITOR_CALL_TREE
+	elliptics_monitor_categories_call_tree = DNET_MONITOR_CALL_TREE,
+	elliptics_monitor_categories_all = DNET_MONITOR_CACHE |
+	                                   DNET_MONITOR_IO |
+	                                   DNET_MONITOR_COMMANDS |
+	                                   DNET_MONITOR_IO_HISTOGRAMS |
+	                                   DNET_MONITOR_BACKEND |
+	                                   DNET_MONITOR_CALL_TREE
 };
 
 struct write_cas_converter {
@@ -680,11 +685,11 @@ public:
 		return create_result(std::move(session::stat_log(transform(id).id())));
 	}
 
-	python_monitor_stat_result monitor_stat(const bp::api::object &id, int category) {
+	python_monitor_stat_result monitor_stat(const bp::api::object &id, uint64_t categories) {
 		if (id.ptr() == Py_None)
-			return create_result(std::move(session::monitor_stat(category)));
+			return create_result(std::move(session::monitor_stat(categories)));
 
-		return create_result(std::move(session::monitor_stat(transform(id).id(), category)));
+		return create_result(std::move(session::monitor_stat(transform(id).id(), categories)));
 	}
 
 	python_stat_count_result stat_log_count() {
@@ -1786,9 +1791,9 @@ void init_elliptics_session() {
 		    "        print 'node_files_removed:', stat.statistics.node_files_removed\n")
 
 		.def("monitor_stat", &elliptics_session::monitor_stat,
-		     (bp::arg("key"), bp::arg("category")=0),
-		    "monitor_stat(key=None, category=elliptics.monitor_stat_categories.all)\n"
-		    "    Gather monitor statistics of specified category.\n"
+		     (bp::arg("key"), bp::arg("categories")=elliptics_monitor_categories_all),
+		    "monitor_stat(key=None, categories=elliptics.monitor_stat_categories.all)\n"
+		    "    Gather monitor statistics of specified categories.\n"
 		    "    -- key - elliptics.Id which specifies node\n\n"
 		    "    id = session.routes.get_address_id(elliptics.Address.from_host_port('host.com:1025'))\n"
 		    "    result = session.monitor_stat(id)\n"

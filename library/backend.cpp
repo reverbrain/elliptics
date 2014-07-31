@@ -146,8 +146,8 @@ public:
 		return std::string(json_stat, size);
 	}
 
-	virtual bool check_category(int category) const {
-		return category == DNET_MONITOR_BACKEND || category == DNET_MONITOR_ALL;
+	virtual bool check_category(uint64_t category) const {
+		return category & DNET_MONITOR_BACKEND;
 	}
 
 private:

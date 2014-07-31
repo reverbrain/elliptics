@@ -28,8 +28,9 @@
 
 namespace ioremap { namespace monitor {
 
-monitor::monitor(struct dnet_config *cfg)
-: m_server(*this, cfg->monitor_port)
+monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
+: m_node(n)
+, m_server(*this, cfg->monitor_port)
 , m_statistics(*this)
 {}
 
@@ -63,17 +64,17 @@ void remove_provider(dnet_node *n, const std::string &name)
 
 }} /* namespace ioremap::monitor */
 
-int dnet_monitor_init(void **monitor, struct dnet_config *cfg) {
-	if (!cfg->monitor_port) {
-		*monitor = NULL;
-		dnet_log_raw_log_only(cfg->log, DNET_LOG_DATA, "Monitor hasn't been initialized because monitor port is zero.");
+int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
+	if (!cfg->monitor_port || !cfg->family) {
+		n->monitor = NULL;
+		dnet_log_raw_log_only(cfg->log, DNET_LOG_DATA, "monitor: monitor hasn't been initialized because monitor port is zero.");
 		return 0;
 	}
 
 	try {
-		*monitor = static_cast<void*>(new ioremap::monitor::monitor(cfg));
+		n->monitor = static_cast<void*>(new ioremap::monitor::monitor(n, cfg));
 	} catch (const std::exception &e) {
-		dnet_log_raw_log_only(cfg->log, DNET_LOG_ERROR, "Failed to initialize monitor on port: %d: %s.", cfg->monitor_port, e.what());
+		dnet_log_raw_log_only(cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize monitor on port: %d: %s.", cfg->monitor_port, e.what());
 		return -ENOMEM;
 	}
 
@@ -157,7 +158,7 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	react::action_guard monitor_process_cmd_guard(ACTION_DNET_MONITOR_PROCESS_CMD);
 
 	if (cmd->size != sizeof(dnet_monitor_stat_request)) {
-		dnet_log(orig->n, DNET_LOG_DEBUG, "%s: %s: process MONITOR_STAT, invalid size: %llu",
+		dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, invalid size: %llu",
 			dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), static_cast<unsigned long long>(cmd->size));
 		return -EINVAL;
 	}
@@ -167,13 +168,8 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	dnet_convert_monitor_stat_request(req);
 	static const std::string disabled_reply = "{\"monitor_status\":\"disabled\"}";
 
-	dnet_log(orig->n, DNET_LOG_DEBUG, "%s: %s: process MONITOR_STAT, category: %d, monitor: %p",
-		dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), req->category, n->monitor);
-
-	if ((req->category >= __DNET_MONITOR_MAX) || (req->category < 0)) {
-		static const std::string rep = "{\"monitor_status\":\"invalid category\"}";
-		return dnet_send_reply(orig, cmd, rep.c_str(), rep.size(), 0);
-	}
+	dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, categories: %lx, monitor: %p",
+		dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), req->categories, n->monitor);
 
 	if (!n->monitor)
 		return dnet_send_reply(orig, cmd, disabled_reply.c_str(), disabled_reply.size(), 0);
@@ -182,6 +178,6 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	if (!real_monitor)
 		return dnet_send_reply(orig, cmd, disabled_reply.c_str(), disabled_reply.size(), 0);
 
-	auto json = real_monitor->get_statistics().report(req->category);
+	auto json = real_monitor->get_statistics().report(req->categories);
 	return dnet_send_reply(orig, cmd, &*json.begin(), json.size(), 0);
 }

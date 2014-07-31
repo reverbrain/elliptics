@@ -66,7 +66,7 @@ public:
 	 * If the real provider doesn't support \a category
 	 * then \a json() method wouldn't be called
 	 */
-	virtual bool check_category(int category) const = 0;
+	virtual bool check_category(uint64_t category) const = 0;
 
 	/*!
 	 * \internal
@@ -118,7 +118,7 @@ public:
 	 * If the provider doesn't support \a category
 	 * then \a json() method wouldn't be called
 	 */
-	virtual bool check_category(int category) const {
+	virtual bool check_category(uint64_t category) const {
 		return m_stat.check_category(m_stat.stat_private, category);
 	}
 
@@ -341,9 +341,9 @@ public:
 	 *
 	 * Generates and returns json statistics for specified \a category
 	 * For that statistics will interview all external statistics provider
-	 * which supports \a category
+	 * which supports \a categories
 	 */
-	std::string report(int category);
+	std::string report(uint64_t categories);
 
 	/*!
 	 * \internal

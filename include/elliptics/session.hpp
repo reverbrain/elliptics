@@ -613,12 +613,12 @@ class session
 		/*!
 		 * Queries monitor statistics information from server nodes.
 		 */
-		async_monitor_stat_result monitor_stat(int category);
+		async_monitor_stat_result monitor_stat(uint64_t categories);
 
 		/*!
 		 * Queries monitor statistics information from the server node specified by \a id
 		 */
-		async_monitor_stat_result monitor_stat(const key &id, int category);
+		async_monitor_stat_result monitor_stat(const key &id, uint64_t categories);
 
 		/*!
 		 * Returns the number of session states.

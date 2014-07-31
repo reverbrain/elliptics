@@ -1582,7 +1582,7 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 }
 
 int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
-	int category,
+	uint64_t categories,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
@@ -1593,7 +1593,7 @@ int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 	memset(&request, 0, sizeof(struct dnet_monitor_stat_request));
-	request.category = category;
+	request.categories = categories;
 	dnet_convert_monitor_stat_request(&request);
 
 	ctl.cmd = DNET_CMD_MONITOR_STAT;

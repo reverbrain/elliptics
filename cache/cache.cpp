@@ -41,8 +41,8 @@ public:
 		return m_manager.stat_json();
 	}
 
-	virtual bool check_category(int category) const {
-		return category == DNET_MONITOR_CACHE || category == DNET_MONITOR_ALL;
+	virtual bool check_category(uint64_t category) const {
+		return category & DNET_MONITOR_CACHE;
 	}
 
 private:

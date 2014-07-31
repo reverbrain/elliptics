@@ -27,26 +27,6 @@
 extern "C" {
 #endif
 
-// Reserved monitor categories for bad and list requests
-/*!
- * \internal
- *
- * Reserved category for bad request (400)
- */
-#define DNET_MONITOR_BAD			-3
-/*!
- * \internal
- *
- * Reserved category for statistics which was not found (404)
- */
-#define DNET_MONITOR_NOT_FOUND		-2
-/*!
- * \internal
- *
- * Reserved category for list of acceptable statistics
- */
-#define DNET_MONITOR_LIST			-1
-
 struct dnet_node;
 struct dnet_config;
 
@@ -91,7 +71,7 @@ struct stat_provider_raw {
 	 * and if it returns 0 then \a json wouldn't be called
 	 * \a priv - user-defined private data for provider
 	 */
-	int		(* check_category) (void *priv, int category);
+	int		(* check_category) (void *priv, uint64_t category);
 };
 
 /*!
@@ -102,7 +82,7 @@ struct stat_provider_raw {
  * then n->monitor will contain pointer to it and
  * should be used in c functions
  */
-int dnet_monitor_init(void **monitor, struct dnet_config *cfg);
+int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 
 /*!
  * \internal

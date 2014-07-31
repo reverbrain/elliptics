@@ -32,7 +32,7 @@ public:
 	react_stat_provider();
 
 	virtual std::string json() const;
-	virtual bool check_category(int category) const;
+	virtual bool check_category(uint64_t category) const;
 
 	react::elliptics_react_aggregator_t &get_react_aggregator();
 

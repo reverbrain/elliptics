@@ -80,8 +80,8 @@ std::string io_stat_provider::json() const {
 	return buffer.GetString();
 }
 
-bool io_stat_provider::check_category(int category) const {
-	return category == DNET_MONITOR_IO || category == DNET_MONITOR_ALL;
+bool io_stat_provider::check_category(uint64_t category) const {
+	return category & DNET_MONITOR_IO;
 }
 
 }} /* namespace ioremap::monitor */

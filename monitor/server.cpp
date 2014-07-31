@@ -30,9 +30,12 @@ public:
 	handler(monitor &mon, boost::asio::io_service &io_service)
 	: m_monitor(mon)
 	, m_socket(io_service)
+	, m_remote("")
 	{}
 
 	void start() {
+		m_remote = m_socket.remote_endpoint().address().to_string();
+		dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: server: accepted client: %s:%d\n", m_remote.c_str(), m_socket.remote_endpoint().port());
 		async_read();
 	}
 
@@ -47,10 +50,11 @@ private:
 	void handle_write();
 	void close();
 
-	int parse_request(size_t size);
+	uint64_t parse_request(size_t size);
 
 	monitor							&m_monitor;
 	boost::asio::ip::tcp::socket	m_socket;
+	std::string						m_remote;
 	boost::array<char, 1024>		m_buffer;
 	std::string						m_report;
 };
@@ -67,10 +71,16 @@ server::~server() {
 }
 
 void server::listen() {
-	try {
-		async_accept();
-		m_io_service.run();
-	} catch (const std::exception &e) {}
+	while (!m_monitor.node()->need_exit) {
+		try {
+			async_accept();
+			m_io_service.run();
+		} catch (const std::exception &e) {
+			dnet_log(m_monitor.node(), DNET_LOG_ERROR, "monitor: server: got exception: %s, restarting it\n", e.what());
+		} catch (...) {
+			dnet_log(m_monitor.node(), DNET_LOG_ERROR, "monitor: server: got unknown exception, restarting\n");
+		}
+	}
 }
 
 void server::async_accept() {
@@ -111,8 +121,10 @@ void handler::handle_read(const boost::system::error_code &err, size_t size) {
 	auto req = parse_request(size);
 	std::string content = "";
 
-	if (req >= DNET_MONITOR_ALL)
+	if (req > 0) {
+		dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: server: got statistics request for categories: %lx from: %s:%d\n", req, m_remote.c_str(), m_socket.remote_endpoint().port());
 		content = m_monitor.get_statistics().report(req);
+	}
 
 	std::string reply = make_reply(req, content);
 	async_write(reply);
@@ -121,11 +133,13 @@ void handler::handle_read(const boost::system::error_code &err, size_t size) {
 void handler::async_write(std::string data) {
 	auto self(shared_from_this());
 	m_report = std::move(data);
+	dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: server: send requested statistics: started: %s:%d, size: %lu\n", m_remote.c_str(), m_socket.remote_endpoint().port(), m_report.size());
 	boost::asio::async_write(m_socket, boost::asio::buffer(m_report),
 	                         std::bind(&handler::handle_write, self));
 }
 
 void handler::handle_write() {
+	dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: server: send requested statistics: finished: %s:%d\n", m_remote.c_str(), m_socket.remote_endpoint().port());
 	close();
 }
 
@@ -134,7 +148,7 @@ void handler::close() {
 	m_socket.shutdown(boost::asio::socket_base::shutdown_both, ec);
 }
 
-int handler::parse_request(size_t size) {
+uint64_t handler::parse_request(size_t size) {
 	return parse(m_buffer.data(), size);
 }
 

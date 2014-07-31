@@ -147,8 +147,9 @@ inline std::string convert_report(const rapidjson::Document &report) {
 	return buffer.GetString();
 }
 
-std::string statistics::report(int category) {
+std::string statistics::report(uint64_t categories) {
 	rapidjson::Document report;
+	dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: collecting statistics for categories: %lx\n", categories);
 	report.SetObject();
 	auto &allocator = report.GetAllocator();
 
@@ -161,24 +162,22 @@ std::string statistics::report(int category) {
 	report.AddMember("timestamp", timestamp, allocator);
 	report.AddMember("monitor_status", "enabled", allocator);
 
-	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_COMMANDS) {
+	if (categories & DNET_MONITOR_COMMANDS) {
 		rapidjson::Value commands_value(rapidjson::kObjectType);
 		report.AddMember("commands_stat", commands_report(commands_value, allocator), allocator);
-	}
 
-	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_COMMANDS) {
 		rapidjson::Value history_value(rapidjson::kArrayType);
 		report.AddMember("history_stat", history_report(history_value, allocator), allocator);
 	}
 
-	if (category == DNET_MONITOR_ALL || category == DNET_MONITOR_IO_HISTOGRAMS) {
+	if (categories & DNET_MONITOR_IO_HISTOGRAMS) {
 		rapidjson::Value histogram_value(rapidjson::kObjectType);
 		report.AddMember("histogram", histogram_report(histogram_value, allocator), allocator);
 	}
 
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
 	for (auto it = m_stat_providers.cbegin(), end = m_stat_providers.cend(); it != end; ++it) {
-		if (!it->first->check_category(category))
+		if (!it->first->check_category(categories))
 			continue;
 		rapidjson::Document value_doc(&allocator);
 		value_doc.Parse<0>(it->first->json().c_str());
@@ -188,6 +187,7 @@ std::string statistics::report(int category) {
 		                 allocator);
 	}
 
+	dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: finished generating json statistics for categories: %lx\n", categories);
 	return convert_report(report);
 }
 

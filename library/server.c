@@ -104,7 +104,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 	if (err)
 		goto err_out_node_destroy;
 
-	err = dnet_monitor_init(&n->monitor, cfg);
+	err = dnet_monitor_init(n, cfg);
 	if (err)
 		goto err_out_node_destroy;
 

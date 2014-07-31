@@ -769,7 +769,7 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
  * still be called.
  */
 int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
-	int category,
+	uint64_t categories,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),

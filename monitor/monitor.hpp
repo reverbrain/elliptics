@@ -40,7 +40,7 @@ public:
 	/*!
 	 * Constructor: initializes monitor by \a cfg configuration
 	 */
-	monitor(struct dnet_config *cfg);
+	monitor(struct dnet_node *n, struct dnet_config *cfg);
 
 	/*!
 	 * Stops monitor: stops listening incoming port, frees all providers etc.
@@ -52,7 +52,10 @@ public:
 	 */
 	statistics& get_statistics() { return m_statistics; }
 
+	struct dnet_node *node() { return m_node; }
+
 private:
+	struct dnet_node	*m_node;
 	server		m_server;
 	statistics	m_statistics;
 };

@@ -51,8 +51,8 @@ std::string react_stat_provider::json() const {
 	return buffer.GetString();
 }
 
-bool react_stat_provider::check_category(int category) const {
-	return category == DNET_MONITOR_CALL_TREE || category == DNET_MONITOR_ALL;
+bool react_stat_provider::check_category(uint64_t category) const {
+	return category & DNET_MONITOR_CALL_TREE;
 }
 
 react::elliptics_react_aggregator_t &react_stat_provider::get_react_aggregator() {

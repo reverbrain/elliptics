@@ -403,8 +403,8 @@ class stat_count_callback : public base_stat_callback<stat_count_result_entry, D
 class monitor_stat_callback
 {
 	public:
-		monitor_stat_callback(const session &sess, const async_result<monitor_stat_result_entry> &result, int category)
-			: sess(sess), cb(sess, result), m_category(category), has_id(false)
+		monitor_stat_callback(const session &sess, const async_result<monitor_stat_result_entry> &result, uint64_t categories)
+			: sess(sess), cb(sess, result), m_categories(categories), has_id(false)
 		{
 		}
 
@@ -418,7 +418,7 @@ class monitor_stat_callback
 
 			uint64_t cflags_pop = sess.get_cflags();
 			sess.set_cflags(cflags_pop | DNET_ATTR_CNTR_GLOBAL);
-			int err = dnet_request_monitor_stat(sess.get_native(), has_id ? &id : NULL, m_category, func, priv);
+			int err = dnet_request_monitor_stat(sess.get_native(), has_id ? &id : NULL, m_categories, func, priv);
 			sess.set_cflags(cflags_pop);
 
 			if (err < 0) {
@@ -443,7 +443,7 @@ class monitor_stat_callback
 		dnet_commands command;
 		session sess;
 		default_callback<monitor_stat_result_entry> cb;
-		int m_category;
+		uint64_t m_categories;
 		dnet_id id;
 		bool has_id;
 };

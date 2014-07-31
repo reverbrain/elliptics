@@ -31,7 +31,7 @@ public:
 	io_stat_provider(dnet_node *n): m_node(n) {}
 
 	virtual std::string json() const;
-	virtual bool check_category(int category) const;
+	virtual bool check_category(uint64_t category) const;
 
 private:
 	dnet_node *m_node;
