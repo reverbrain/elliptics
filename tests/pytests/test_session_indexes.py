@@ -109,7 +109,8 @@ class TestSession:
                    'dict_index_3': 'key_data_3',
                    'dict_index_4': 'key_data_4',
                    'dict_index_5': 'key_data_5'}
-        session.set_indexes(key, indexes).wait()
+        result = session.set_indexes(key, indexes)
+        assert len(result.get()) == len(session.groups)
 
         self.check_indexes(session, key, indexes.keys(), indexes.values())
 

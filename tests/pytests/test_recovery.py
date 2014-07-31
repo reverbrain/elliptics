@@ -85,7 +85,7 @@ def check_data(scope, session, keys, datas):
     res = map(lambda x: x.get()[0].data, res)
     assert res == datas
 
-def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log_file):
+def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log_file, tmp_dir):
     '''
     Imports dnet_recovery tools and executes merge recovery. Checks result of merge.
     '''
@@ -93,6 +93,7 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
     from elliptics_recovery.route import RouteList
     from elliptics_recovery.monitor import Monitor
     from elliptics_recovery.etime import Time
+    import os
 
     if rtype == RECOVERY.MERGE:
         from elliptics_recovery.types.merge import main
@@ -100,6 +101,14 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
         from elliptics_recovery.types.dc import main
     else:
         assert 0
+
+    ctx = Ctx()
+    cur_dir = os.getcwd()
+    ctx.tmp_dir = os.path.join(cur_dir, tmp_dir)
+    try:
+        os.makedirs(ctx.tmp_dir, 0755)
+    except: pass
+    ctx.log_file = os.path.join(ctx.tmp_dir, 'recovery.log')
 
     import logging
     import logging.handlers
@@ -109,20 +118,17 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
     formatter = logging.Formatter(fmt='%(asctime)-15s %(processName)s %(levelname)s %(message)s',
                                   datefmt='%d %b %y %H:%M:%S')
 
-    ch = logging.FileHandler(log_file)
+    ch = logging.FileHandler(ctx.log_file)
     ch.setFormatter(formatter)
     ch.setLevel(logging.DEBUG)
     log.addHandler(ch)
 
-    ctx = Ctx()
     ctx.dry_run = False
     ctx.safe = False
     ctx.one_node = one_node
     ctx.custom_recover = ''
     ctx.dump_file = None
     ctx.chunk_size = 1024
-    ctx.tmp_dir = '.'
-    ctx.log_file = 'recovery.log'
     ctx.log_level = 4
     ctx.remotes = remotes
     ctx.backend_id = backend_id
@@ -138,7 +144,10 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
     ctx.monitor = Monitor(ctx, None)
     ctx.timestamp = Time.from_epoch(0)
 
-    assert main(ctx)
+    recovery_res = main(ctx)
+    assert recovery_res
+
+    ctx.monitor.shutdown()
 
 
 @pytest.fixture(scope="module")
@@ -222,6 +231,7 @@ class TestRecovery:
         Writes self.keys to chosen group and checks their availability.
         '''
         session = elliptics.Session(simple_node)
+        session.set_namespace = self.namespace
         session.groups = [scope.test_group]
 
         write_data(scope, session, self.keys, self.datas)
@@ -251,8 +261,10 @@ class TestRecovery:
                  groups=(scope.test_group,),
                  session=session.clone(),
                  rtype=RECOVERY.MERGE,
-                 log_file='merge_2_backends.log')
+                 log_file='merge_2_backends.log',
+                 tmp_dir='merge_2_backends')
 
+        session.set_namespace = self.namespace
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas)
 
@@ -278,8 +290,10 @@ class TestRecovery:
                  groups=(scope.test_group,),
                  session=session.clone(),
                  rtype=RECOVERY.MERGE,
-                 log_file='merge_all_group.log')
+                 log_file='merge_one_group.log',
+                 tmp_dir='merge_one_group')
 
+        session.set_namespace = self.namespace
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas)
 
@@ -308,8 +322,10 @@ class TestRecovery:
                  groups=(scope.test_group, scope.test_group2,),
                  session=session.clone(),
                  rtype=RECOVERY.DC,
-                 log_file='dc_1_backend.log')
+                 log_file='dc_one_backend.log',
+                 tmp_dir='dc_one_backend')
 
+        session.set_namespace = self.namespace
         session.groups = (scope.test_group2,)
         check_data(scope, session, self.keys, self.datas)
 
@@ -334,7 +350,10 @@ class TestRecovery:
                  groups=(scope.test_group, scope.test_group2,),
                  session=session.clone(),
                  rtype=RECOVERY.DC,
-                 log_file='dc_2_groups.log')
+                 log_file='dc_two_groups.log',
+                 tmp_dir='dc_two_groups')
+
+        session.set_namespace = self.namespace
 
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas)
@@ -354,7 +373,9 @@ class TestRecovery:
         Writes different data by self.key in third group
         '''
         session = elliptics.Session(simple_node)
+        session.set_namespace = self.namespace
         session.groups = [scope.test_group3]
+
 
         write_data(scope, session, self.keys, self.datas2)
         check_data(scope, session, self.keys, self.datas2)
@@ -373,7 +394,10 @@ class TestRecovery:
                  groups=(scope.test_group, scope.test_group2, scope.test_group3),
                  session=session.clone(),
                  rtype=RECOVERY.DC,
-                 log_file='dc_3_groups.log')
+                 log_file='dc_three_groups.log',
+                 tmp_dir='dc_three_groups')
+
+        session.set_namespace = self.namespace
 
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas2)
@@ -416,6 +440,17 @@ class TestRecovery:
                     assert r.last_start_err == 0
                     cnt += r.defrag_state
             print "In defragmentation:", cnt
+
+        session.set_namespace = self.namespace
+
+        session.groups = (scope.test_group,)
+        check_data(scope, session, self.keys, self.datas2)
+
+        session.groups = (scope.test_group2,)
+        check_data(scope, session, self.keys, self.datas2)
+
+        session.groups = (scope.test_group3,)
+        check_data(scope, session, self.keys, self.datas2)
 
     def test_enable_rest_backends(self, scope, server, simple_node):
         '''

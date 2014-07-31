@@ -954,7 +954,7 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 #if 1
 	forward_state = dnet_state_get_first(n, &cmd->id);
 	if (!forward_state || forward_state == st || forward_state == n->st ||
-			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
+			(cmd->flags & DNET_FLAGS_DIRECT)) {
 		dnet_state_put(forward_state);
 
 		err = dnet_process_cmd_raw(backend, st, cmd, r->data, 0);

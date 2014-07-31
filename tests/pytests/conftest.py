@@ -34,6 +34,8 @@ def pytest_addoption(parser):
                      help='Number of backends that will be enabled per group on node')
     parser.addoption('--nodes-count', action='store', default=3,
                      help='Number of nodes that should be run')
+    parser.addoption('--recovery-keys', action='store', default=10,
+                     help='Number of keys that would be used at test_recovery')
 
 
 def set_property(obj, prop, value, check_value=None,

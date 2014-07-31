@@ -21,6 +21,16 @@ from elliptics.log import logged_class
 
 @logged_class
 class Node(Node):
+    def __init__(self, logger, config=None):
+        '''Initializes node by the logger and custom configuration\n
+        node = elliptics.Node(logger, config)"))
+        node = elliptics.Node(logger)
+        '''
+        if config:
+            super(Node, self).__init__(logger, config)
+        else:
+            super(Node, self).__init__(logger)
+        self._logger = logger
     """
     Node represents a connection with Elliptics.
     """

@@ -38,7 +38,7 @@ class Session(Session):
         '''
         session = super(Session, self).clone()
         session.__class__ = self.__class__
-        session._node = self._node
+        session.__node = self._node
         return session
 
     @property
