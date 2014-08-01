@@ -547,7 +547,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 		}
 
 		/* Others are too bad to live with */
-		dnet_log_err(n, "FATAL: Can't recover from this error, exiting...");
+		dnet_log_err(n, "FATAL: Can't recover from this error: %d, exiting...", err);
 		exit(err);
 	}
 

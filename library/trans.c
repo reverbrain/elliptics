@@ -524,7 +524,7 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%u, weight: %f",
 				dnet_state_dump_addr(st), trans_timeout, st->stall, DNET_DEFAULT_STALL_TRANSACTIONS, st->weight);
 
-		if (st->stall >= st->n->stall_count)
+		if (st->stall >= st->n->stall_count && st != st->n->st)
 			dnet_state_reset_nolock_noclean(st, -ETIMEDOUT, head);
 	}
 }
