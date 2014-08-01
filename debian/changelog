@@ -1,3 +1,20 @@
+elliptics (0.6.0.2) unstable; urgency=low
+
+  * client: Added is_final field to result_entry
+  * client: Added new filters for entry::is_final
+  * client: Fixed bulk operations
+  * client: Fixed time formatting in file_logger
+  * dnet_client: Long live, dnet_client
+  * indexes: Fixed set_indexes in multibackend systems
+  * linking: Fixed linking errors at Fedora 20 and Ubuntu Lucid
+  * logger: Updated for blackhole-0.2.0-0rc2
+  * Monitor: made monitor section in config for dnet_ioserv and added new history_length and call_tree_timeout to the section.
+  * pytests: Fixed test for existen filters
+  * python: Fixed signature of Logger.log
+  * server: Do not kill own state because of timeout
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 01 Aug 2014 19:06:59 +0400
+
 elliptics (2.26.0.1) unstable; urgency=low
 
   * config: Moved to usage of dynamic_t

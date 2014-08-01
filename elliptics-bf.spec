@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.0.1
+Version:	0.6.0.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -145,6 +145,20 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Aug 01 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 0.6.0.2
+- client: Added is_final field to result_entry
+- client: Added new filters for entry::is_final
+- client: Fixed bulk operations
+- client: Fixed time formatting in file_logger
+- dnet_client: Long live, dnet_client
+- indexes: Fixed set_indexes in multibackend systems
+- linking: Fixed linking errors at Fedora 20 and Ubuntu Lucid
+- logger: Updated for blackhole-0.2.0-0rc2
+- Monitor: made monitor section in config for dnet_ioserv and added new history_length and call_tree_timeout to the section.
+- pytests: Fixed test for existen filters
+- python: Fixed signature of Logger.log
+- server: Do not kill own state because of timeout
+
 * Wed Jul 30 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.1
 - config: Moved to usage of dynamic_t
 - logger: Fixed segfault
