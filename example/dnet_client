@@ -1,0 +1,172 @@
+#!/usr/bin/python
+import elliptics
+import sys
+import json
+
+
+def print_result(data):
+    print(json.dumps(data, indent=4))
+
+def add_node_options(parser):
+    from optparse import OptionGroup
+
+    group = OptionGroup(parser, "Connection options",
+                        "Options for Elliptics client node. It is used to connect to server cluster")
+    group.add_option("-g", "--groups", action="store_true", help="Group option.")
+    group.add_option("-l", "--log", dest="log", default='/dev/stderr', metavar="FILE",
+                     help="Output log messages from library to file [default: %default]")
+    group.add_option("-L", "--log-level", action="store", type="int", dest="log_level", default=1,
+                     help="Elliptics client verbosity [default: %default]")
+    group.add_option("-r", "--remote", action="append", dest="remote",
+                     help="Elliptics node address in format host:port:family [default: %default]")
+    group.add_option("--wait-timeout", action="store", type="int", dest="wait_timeout", default=5,
+                     help="Timeout for performing operations [default: %default]")
+    group.add_option("--check-timeout", action="store", type="int", dest="check_timeout", default=30,
+                     help="Timeout for route list requests [default: %default]")
+
+    parser.add_option_group(group)
+
+
+def create_session(parser, options, single_remote=False):
+    if single_remote and len(options.remote) != 1:
+        parser.error("Please specify exactly one remote address")
+    elif not options.remote:
+        parser.error("Please specify at least one remote address")
+
+    groups = []
+
+    try:
+        if options.groups:
+            groups = map(int, options.groups.split(','))
+        else:
+            groups = []
+    except Exception as e:
+        parser.error("Can't parse groups list: '{0}': {1}".format(options.groups, repr(e)))
+
+    remotes = []
+
+    try:
+        for r in options.remote:
+            remotes.append(elliptics.Address.from_host_port_family(r))
+    except Exception as e:
+        parser.error("Can't parse host:port:family: '{0}': {1}".format(options.remote, repr(e)))
+
+    cfg = elliptics.Config()
+    cfg.wait_timeout = options.wait_timeout
+    cfg.check_timeout = options.check_timeout
+
+    if single_remote:
+        cfg.flags |= elliptics.config_flags.no_route_list
+
+    node = elliptics.create_node(remotes=options.remote, log_level=options.log_level, log_file=options.log, cfg=cfg)
+
+    session = elliptics.Session(node)
+
+    if len(groups) == 0:
+        groups = session.get_routes().groups()
+
+    session.groups = groups
+
+    return session
+
+
+def print_backend_result(result):
+    print_result({
+        'backends': [
+            {
+                'backend_id': backend.backend_id,
+                'state': backend.state,
+                'defrag_state': backend.defrag_state,
+                'last_start': str(backend.last_start),
+                'last_start_err': backend.last_start_err,
+            } for backend in result.get()[0].backends
+        ]
+    })
+
+
+def process_backend_control(options, session, address, method):
+    assert isinstance(session, elliptics.Session)
+
+    result = method(session, address, options.backend_id)
+    print_backend_result(result)
+
+
+def process_backend_status(options, session, address):
+    assert isinstance(session, elliptics.Session)
+
+    result = session.request_backends_status(address)
+    print_backend_result(result)
+
+
+def process_backend():
+    from optparse import OptionParser
+
+    actions = {
+        'enable': lambda x, y, z: process_backend_control(x, y, z, elliptics.Session.enable_backend),
+        'disable': lambda x, y, z: process_backend_control(x, y, z, elliptics.Session.disable_backend),
+        'defrag': lambda x, y, z: process_backend_control(x, y, z, elliptics.Session.start_defrag),
+        'status': process_backend_status,
+    }
+
+    parser = OptionParser()
+    parser.usage = '%prog backend action [options]'
+    parser.add_option("--backend", dest="backend_id", type="int",
+                      help="Id of the backend where the command should be executed")
+
+    add_node_options(parser)
+
+    (options, args) = parser.parse_args()
+
+    if len(args) > 2:
+        parser.error("Too many arguments passed: {0}, expected: 2".format(len(args)))
+    elif len(args) == 1 or args[1] not in actions:
+        parser.error("Please specify one of following modes: {0}".format(', '.join(actions.keys())))
+
+    action = args[1]
+
+    if action != 'status' and not options.backend_id:
+        parser.error("Please specify id of the backend")
+
+    session = create_session(parser, options, single_remote=True)
+
+    actions[action](options, session, elliptics.Address.from_host_port_family(options.remote[0]))
+
+
+def main():
+    from optparse import OptionParser
+
+    commands = {
+        'backend': process_backend,
+    }
+
+    parser = OptionParser()
+    parser.usage = '%prog command [options]'
+    parser.description = 'dnet_client is client for Elliptics distributed key-value storage'
+    parser.epilog = 'Supported commands are: {0}'.format(', '.join(commands.keys()))
+
+    (options, args) = parser.parse_args(args=sys.argv[1:2])
+
+    if len(args) > 1:
+        parser.error("Too many arguments passed: {0}, expected: 1".format(len(args)))
+    elif len(args) == 0 or args[0] not in commands:
+        parser.error("Please specify one of following modes: {0}".format(', '.join(commands.keys())))
+
+    commands[args[0]]()
+
+if __name__ == '__main__':
+    try:
+        main()
+    except elliptics.Error as e:
+        print_result({
+            'error': {
+                'code': e.message.code,
+                'message': str(e)
+            }
+        })
+    #except Exception as e:
+    #    print_result({
+    #        'error': {
+    #            'code': -12,
+    #            'message': str(e)
+    #        }
+    #    })
