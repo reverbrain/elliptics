@@ -102,7 +102,36 @@ special_log_struct_next &operator <<(const special_log_struct &, const T &value)
 
 static void stop_servers(int sig, siginfo_t *info, void *)
 {
-	test::log << "Caught signal: " << sig << ", err: " << info->si_errno << ", pid: " << info->si_pid << ", status: " << info->si_status << test::endl;
+	if (sig == SIGCHLD) {
+		auto &out = (test::log << "Caught signal: " << sig << ", pid: " << info->si_pid
+			<< ", status: " << info->si_status << ", code: " << info->si_code << ", description: \"");
+		switch (info->si_code) {
+			case CLD_EXITED:
+				out << "Child has exited";
+				break;
+			case CLD_KILLED:
+				out << "Child has terminated abnormally and did not create a core file";
+				break;
+			case CLD_DUMPED:
+				out << "Child has terminated abnormally and created a core file";
+				break;
+			case CLD_TRAPPED:
+				out << "Traced child has trapped";
+				break;
+			case CLD_STOPPED:
+				out << "Child has stopped";
+				break;
+			case CLD_CONTINUED:
+				out << "Stopped child has continued";
+				break;
+			default:
+				out << "Unknown happened";
+				break;
+		}
+		out << "\"" << test::endl;
+	} else {
+		test::log << "Caught signal: " << sig << ", err: " << info->si_errno << ", pid: " << info->si_pid << ", status: " << info->si_status << test::endl;
+	}
 
 	std::shared_ptr<tests::nodes_data> data;
 	std::swap(global_data, data);
