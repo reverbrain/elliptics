@@ -105,7 +105,7 @@ if(WITH_DOXYGEN)
 endif()
 
 # GoLD does no overlinking
-find_package(Boost REQUIRED COMPONENTS thread system)
+find_package(Boost REQUIRED COMPONENTS iostreams thread regex program_options system filesystem)
 message(STATUS "Boost information:")
 message(STATUS "  Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
 message(STATUS "  Boost_LIBRARY_DIRS: ${Boost_LIBRARY_DIRS}")
