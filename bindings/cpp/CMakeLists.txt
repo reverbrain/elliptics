@@ -8,7 +8,6 @@ find_package(Msgpack REQUIRED)
 
 set(ELLIPTICS_CPP_SRCS
     async_result.cpp
-    logger.cpp
     node.cpp
     callback_p.h
     callback.cpp

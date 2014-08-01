@@ -12,6 +12,7 @@ set(ELLIPTICS_CLIENT_SRCS
     rbtree.c
     trans.c
     common.cpp
+    ../bindings/cpp/logger.cpp
     )
 set(ELLIPTICS_SRCS
     dnet.c
@@ -27,6 +28,13 @@ if(UNIX OR MINGW)
     set_target_properties(elliptics_ids PROPERTIES COMPILE_FLAGS "-fPIC")
 endif()
 
+add_library(elliptics_client SHARED ${ELLIPTICS_CLIENT_SRCS})
+set_target_properties(elliptics_client PROPERTIES
+    VERSION ${ELLIPTICS_VERSION}
+    SOVERSION ${ELLIPTICS_VERSION_ABI}
+    LINKER_LANGUAGE CXX
+    )
+target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES})
 
 add_library(elliptics SHARED ${ELLIPTICS_SRCS})
 set_target_properties(elliptics PROPERTIES
@@ -34,17 +42,7 @@ set_target_properties(elliptics PROPERTIES
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     LINKER_LANGUAGE CXX
     )
-target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids elliptics_monitor)
-
-
-add_library(elliptics_client SHARED ${ELLIPTICS_CLIENT_SRCS})
-set_target_properties(elliptics_client PROPERTIES
-    VERSION ${ELLIPTICS_VERSION}
-    SOVERSION ${ELLIPTICS_VERSION_ABI}
-    LINKER_LANGUAGE CXX
-    )
-#target_link_libraries(elliptics_client ${ELLIPTICS_LIBRARIES})
-target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES})
+target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids elliptics_monitor elliptics_client elliptics_cpp)
 
 install(TARGETS elliptics
     LIBRARY DESTINATION lib${LIB_SUFFIX}
