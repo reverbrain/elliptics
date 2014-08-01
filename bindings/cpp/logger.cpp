@@ -21,7 +21,6 @@ namespace ioremap { namespace elliptics {
 file_logger::file_logger(const char *file, int level)
 {
 	verbosity(static_cast<dnet_log_level>(level));
-	track(false);
 
 	auto formatter = blackhole::utils::make_unique<blackhole::formatter::string_t>(format());
 	formatter->set_mapper(file_logger::mapping());

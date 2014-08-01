@@ -179,7 +179,6 @@ static void parse_logger(config_data *data, const config &logger)
 	repository.add_config(log_config);
 
 	data->logger_base = repository.root<dnet_log_level>();
-	data->logger_base.track(false);
 	data->logger_base.verbosity(dnet_log_level(logger.at<int>("level")));
 	data->logger_base.add_attribute(blackhole::keyword::request_id() = 0);
 
