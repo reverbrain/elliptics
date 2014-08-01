@@ -199,7 +199,7 @@ void ios_base_failure_translator(const std::ios_base::failure &exc)
 	PyErr_SetString(PyExc_IOError, exc.what());
 }
 
-void logger_log(logger &log, const char *msg, int level)
+void logger_log(logger_base &log, int level, const char *msg)
 {
 	BH_LOG(log, dnet_log_level(level), "%s", msg);
 }
