@@ -110,7 +110,7 @@ def process_backend():
 
     parser = OptionParser()
     parser.usage = '%prog backend action [options]'
-    parser.add_option("--backend", dest="backend_id", type="int",
+    parser.add_option("--backend", dest="backend_id", type="int", default=-1,
                       help="Id of the backend where the command should be executed")
 
     add_node_options(parser)
@@ -124,7 +124,7 @@ def process_backend():
 
     action = args[1]
 
-    if action != 'status' and not options.backend_id:
+    if action != 'status' and options.backend_id < 0:
         parser.error("Please specify id of the backend")
 
     session = create_session(parser, options, single_remote=True)
