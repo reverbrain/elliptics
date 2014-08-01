@@ -29,25 +29,18 @@ except:
     pass
 
 print vstr
+
 setup(name='elliptics',
       version=vstr,
-      description='Elliptics - client library for distributed storage system',
+      description='Client library, CLI and recovery tools for Elliptics',
       url='http://reverbrain.com/elliptics',
-      package_dir={'elliptics': 'bindings/python/src'},
-      packages=['elliptics'],
-      license='GPLv2',
-      data_files=[('bin', ['bindings/python/dnet_balancer'])])
-
-setup(name='elliptics_recovery',
-      version=vstr,
-      description='Elliptics - data center and merge recovery module',
-      url='http://reverbrain.com/elliptics',
-      package_dir={
-          'elliptics_recovery': 'recovery/elliptics_recovery',
-          'elliptics_recovery/types': 'recovery/elliptics_recovery/types',
-          'elliptics_recovery/utils': 'recovery/elliptics_recovery/utils'},
+      package_dir={'elliptics': 'bindings/python/src'
+                   'elliptics_recovery': 'recovery/elliptics_recovery',
+                   'elliptics_recovery/types': 'recovery/elliptics_recovery/types',
+                   'elliptics_recovery/utils': 'recovery/elliptics_recovery/utils'},
       packages=['elliptics_recovery',
                 'elliptics_recovery/types',
                 'elliptics_recovery/utils'],
-      data_files=[('bin', ['recovery/dnet_recovery'])],
+      data_files=[('bin', ['recovery/dnet_recovery',
+                           'bindings/python/dnet_client'])],
       license='GPLv2')
