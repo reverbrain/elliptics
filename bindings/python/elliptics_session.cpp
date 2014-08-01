@@ -42,9 +42,14 @@ namespace ioremap { namespace elliptics { namespace python {
 
 enum elliptics_filters {
 	elliptics_filters_positive = 0,
+	elliptics_filters_positive_with_ack,
+	elliptics_filters_positive_final,
 	elliptics_filters_negative,
+	elliptics_filters_negative_with_ack,
+	elliptics_filters_negative_final,
 	elliptics_filters_all,
 	elliptics_filters_all_with_ack,
+	elliptics_filters_all_final,
 };
 
 enum elliptics_checkers {
@@ -239,17 +244,34 @@ public:
 	void set_filter(elliptics_filters filter) {
 		auto res = filters::positive;
 		switch (filter) {
-			case elliptics_filters_negative:
-				res = filters::negative;
-				break;
-			case elliptics_filters_all:
-				res = filters::all;
-				break;
-			case elliptics_filters_all_with_ack:
-				res = filters::all_with_ack;
-				break;
 			default:
-				break;
+			case elliptics_filters_positive:
+					res = filters::positive;
+					break;
+			case elliptics_filters_positive_with_ack:
+					res = filters::positive_with_ack;
+					break;
+			case elliptics_filters_positive_final:
+					res = filters::positive_final;
+					break;
+			case elliptics_filters_negative:
+					res = filters::negative;
+					break;
+			case elliptics_filters_negative_with_ack:
+					res = filters::negative_with_ack;
+					break;
+			case elliptics_filters_negative_final:
+					res = filters::negative_final;
+					break;
+			case elliptics_filters_all:
+					res = filters::all;
+					break;
+			case elliptics_filters_all_with_ack:
+					res = filters::all_with_ack;
+					break;
+			case elliptics_filters_all_final:
+					res = filters::all_final;
+					break;
 		}
 
 		session::set_filter(res);
@@ -728,9 +750,14 @@ void init_elliptics_session() {
 	    "all\n    Doesn't apply any filter on replies\n"
 	    "all_with_ack\n    Filters replies with ack")
 		.value("positive", elliptics_filters_positive)
+		.value("positive_with_ack", elliptics_filters_positive_with_ack)
+		.value("positive_final", elliptics_filters_positive_final)
 		.value("negative", elliptics_filters_negative)
+		.value("negative_with_ack", elliptics_filters_negative_with_ack)
+		.value("negative_final", elliptics_filters_negative_final)
 		.value("all", elliptics_filters_all)
 		.value("all_with_ack", elliptics_filters_all_with_ack)
+		.value("all_final", elliptics_filters_all_final)
 	;
 
 	bp::enum_<elliptics_checkers>("checkers",

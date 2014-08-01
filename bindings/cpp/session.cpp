@@ -411,6 +411,22 @@ bool all_with_ack(const callback_result_entry &entry)
 	(void) entry;
 	return true;
 }
+
+bool positive_final(const callback_result_entry &entry)
+{
+	return entry.is_final() && entry.status() == 0;
+}
+
+bool negative_final(const callback_result_entry &entry)
+{
+	return entry.is_final() && entry.status() != 0;
+}
+
+bool all_final(const callback_result_entry &entry)
+{
+	return entry.is_final();
+}
+
 } // namespace filters
 
 namespace checkers
