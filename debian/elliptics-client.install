@@ -9,5 +9,6 @@ usr/bin/dnet_notify
 usr/bin/dnet_ids
 usr/bin/dnet_balancer
 usr/bin/dnet_recovery
+usr/bin/dnet_client
 usr/lib/python*/dist-packages/*
 usr/share/man/man1/*

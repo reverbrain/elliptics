@@ -124,6 +124,7 @@ rm -rf %{buildroot}
 %{_bindir}/dnet_ids
 %{_bindir}/dnet_balancer
 %{_bindir}/dnet_recovery
+%{_bindir}/dnet_client
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
 %{_libdir}/libelliptics_monitor.so.*
