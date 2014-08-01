@@ -366,15 +366,57 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_send_reply_raw(struct dnet_net_state *st, struct dnet_cmd *cmd)
+{
+	struct dnet_node *node = st->n;
+
+	if (node->st == st) {
+		uint64_t trans_id = cmd->trans & ~DNET_TRANS_REPLY;
+		struct dnet_trans *trans = dnet_trans_search(st, trans_id);
+		struct dnet_io_req req;
+		int backend_id;
+
+		if (!trans) {
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: cross-backends: reply, trans: %llu, not found",
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), (unsigned long long) trans_id);
+			return -ENXIO;
+		}
+
+		if (trans->source_backend_id < 0) {
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: %s, cross-backends: reply, trans: %llu, dest_backend: %d, source_backend: %d, not found",
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
+				(unsigned long long)trans_id, trans->destination_backend_id, trans->source_backend_id);
+			dnet_trans_put(trans);
+			return -ENXIO;
+		}
+
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s, cross-backends: reply, trans: %llu, dest_backend: %d, source_backend: %d",
+			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
+			(unsigned long long)trans_id, trans->destination_backend_id, trans->source_backend_id);
+
+		memset(&req, 0, sizeof(req));
+		req.st = st;
+		req.header = cmd;
+		req.hsize = sizeof(struct dnet_cmd) + cmd->size;
+		req.fd = -1;
+
+		backend_id = trans->source_backend_id;
+
+		dnet_trans_put(trans);
+
+		return dnet_send_to_backend(st, &req, backend_id);
+	}
+
+	return dnet_send(st, cmd, sizeof(struct dnet_cmd) + cmd->size);
+}
+
 int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int recursive)
 {
 	if (st && cmd && (cmd->flags & DNET_FLAGS_NEED_ACK)) {
 		struct dnet_node *n = st->n;
 		unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
-		struct dnet_cmd ack;
+		struct dnet_cmd ack = *cmd;
 
-		memcpy(&ack.id, &cmd->id, sizeof(struct dnet_id));
-		ack.cmd = cmd->cmd;
 		ack.trans = cmd->trans | DNET_TRANS_REPLY;
 		ack.size = 0;
 		// In recursive mode keep DNET_FLAGS_MORE flag
@@ -389,8 +431,91 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int 
 				tid, (unsigned long long)ack.flags, err);
 
 		dnet_convert_cmd(&ack);
-		err = dnet_send(st, &ack, sizeof(struct dnet_cmd));
+		err = dnet_send_reply_raw(st, &ack);
 	}
+
+	return err;
+}
+
+int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more)
+{
+	struct dnet_net_state *st = state;
+	struct dnet_cmd *c;
+	void *data;
+	int err;
+
+	if (st == st->n->st)
+		return 0;
+
+	c = malloc(sizeof(struct dnet_cmd) + size);
+	if (!c)
+		return -ENOMEM;
+
+	memset(c, 0, sizeof(struct dnet_cmd) + size);
+
+	data = c + 1;
+	*c = *cmd;
+
+	if ((cmd->flags & DNET_FLAGS_NEED_ACK) || more)
+		c->flags |= DNET_FLAGS_MORE;
+
+	c->size = size;
+	c->trans |= DNET_TRANS_REPLY;
+
+	if (size)
+		memcpy(data, odata, size);
+
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: 0x%llx.",
+		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
+		(unsigned long long)(c->trans &~ DNET_TRANS_REPLY),
+		size, (unsigned long long)c->flags);
+
+	dnet_convert_cmd(c);
+
+	err = dnet_send_reply_raw(st, c);
+	free(c);
+
+	return err;
+}
+
+/*
+ * Queue replies to send queue wrt high and low watermark limits.
+ * This is usefull to avoid memory bloat (and hence OOM) when data gets queued
+ * into send queue faster than it could be send over wire.
+ */
+int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
+		const void *odata, unsigned int size, int more)
+{
+	struct dnet_net_state *st = state;
+	int err;
+
+	if (st == st->n->st)
+		return 0;
+
+	/* Send reply */
+	err = dnet_send_reply(state, cmd, odata, size, more);
+	if (err == 0)
+		/* If send succeeded then we should increase queue size */
+		if (atomic_inc(&st->send_queue_size) > DNET_SEND_WATERMARK_HIGH) {
+			/* If high watermark is reached we should sleep */
+			dnet_log(st->n, DNET_LOG_DEBUG,
+					"State high_watermark reached: %s: %d, sleeping",
+					dnet_server_convert_dnet_addr(&st->addr),
+					atomic_read(&st->send_queue_size));
+
+			pthread_mutex_lock(&st->send_lock);
+			// after successful dnet_send_reply the state can be removed from another thread
+			// do not wait send_wait of removed state because no one broadcast it
+			if (!st->__need_exit)
+				pthread_cond_wait(&st->send_wait, &st->send_lock);
+			else
+				err = st->__need_exit;
+			pthread_mutex_unlock(&st->send_lock);
+
+			dnet_log(st->n, DNET_LOG_DEBUG, "State woken up: %s: %d",
+					dnet_server_convert_dnet_addr(&st->addr),
+					atomic_read(&st->send_queue_size));
+		}
 
 	return err;
 }

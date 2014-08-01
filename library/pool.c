@@ -249,7 +249,7 @@ static int dnet_cmd_needs_backend(int command)
 }
 
 static void *dnet_io_process(void *data_);
-static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
+void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 {
 	struct dnet_work_pool_place *place = NULL;
 	struct dnet_work_pool_place *backend_place = NULL;

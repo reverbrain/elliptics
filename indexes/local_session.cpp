@@ -78,6 +78,11 @@ void local_session::set_cflags(uint64_t flags)
 	m_cflags = flags;
 }
 
+int local_session::backend_id() const
+{
+	return m_backend->backend_id;
+}
+
 data_pointer local_session::read(const dnet_id &id, int *errp)
 {
 	return read(id, NULL, NULL, errp);

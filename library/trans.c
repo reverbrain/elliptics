@@ -222,6 +222,8 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
 	memset(t, 0, sizeof(struct dnet_trans) + size);
 
 	t->alloc_size = size;
+	t->source_backend_id = -1;
+	t->destination_backend_id = -1;
 
 	atomic_init(&t->refcnt, 1);
 	INIT_LIST_HEAD(&t->trans_list_entry);
@@ -328,13 +330,18 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	free(t);
 }
 
+int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl)
+{
+	return dnet_trans_alloc_send_state_to_backend(s, st, ctl, -1, -1);
+}
+
 /*
  * Allocates and sends transaction into given @st network state/connection.
  * Uses @s session only to get wait timeout for transaction, if it is NULL, global node timeout (@dnet_node::wait_ts) is used.
  *
  * If something fails, completion handler from @ctl will be invoked with (NULL, NULL, @ctl->priv) arguments
  */
-int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl)
+int dnet_trans_alloc_send_state_to_backend(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int backend_id, int source_backend_id)
 {
 	struct dnet_io_req req;
 	struct dnet_node *n = st->n;
@@ -352,6 +359,8 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 
 	t->complete = ctl->complete;
 	t->priv = ctl->priv;
+	t->destination_backend_id = backend_id;
+	t->source_backend_id = source_backend_id;
 	if (s) {
 		t->wait_ts = *dnet_session_get_timeout(s);
 	} else {
@@ -381,6 +390,7 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	req.st = st;
 	req.header = cmd;
 	req.hsize = sizeof(struct dnet_cmd) + ctl->size;
+	req.fd = -1;
 
 	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send %s trans: %llu -> %s, weight: %f.\n",
 			dnet_dump_id(&cmd->id),

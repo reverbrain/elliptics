@@ -36,6 +36,8 @@ class local_session
 		void set_ioflags(uint32_t flags);
 		void set_cflags(uint64_t flags);
 
+		int backend_id() const;
+
 		ioremap::elliptics::data_pointer read(const dnet_id &id, int *errp);
 		ioremap::elliptics::data_pointer read(const dnet_id &id, uint64_t *user_flags, dnet_time *timestamp, int *errp);
 		int write(const dnet_id &id, const ioremap::elliptics::data_pointer &data);

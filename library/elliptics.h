@@ -733,7 +733,20 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t 
 
 int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r);
 
+
+/*
+ * Send given number of bytes as reply command.
+ * It will fill transaction, command and ID from the original command and copy given data.
+ * It will set DNET_FLAGS_MORE if original command requested acknowledge or @more is set.
+ *
+ * If cmd->cmd is DNET_CMD_SYNC then plain data will be sent back, otherwise transaction
+ * reply will be generated. So effectively difference is in DNET_TRANS_REPLY bit presence.
+ */
 int __attribute__((weak)) dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int recursive);
+int __attribute__((weak)) dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
+int __attribute__((weak)) dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
+int dnet_send_to_backend(struct dnet_net_state *st, struct dnet_io_req *req, int backend_id);
+void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r);
 
 struct dnet_config;
 
@@ -777,6 +790,8 @@ struct dnet_trans
 	struct dnet_net_state		*st;
 	uint64_t			trans, rcv_trans;
 	struct dnet_cmd			cmd;
+	int				destination_backend_id;
+	int				source_backend_id;
 
 	atomic_t			refcnt;
 
@@ -791,6 +806,7 @@ struct dnet_trans
 void dnet_trans_destroy(struct dnet_trans *t);
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size);
 int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl);
+int dnet_trans_alloc_send_state_to_backend(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int backend_id, int source_backend_id);
 int dnet_trans_timer_setup(struct dnet_trans *t);
 
 static inline struct dnet_trans *dnet_trans_get(struct dnet_trans *t)

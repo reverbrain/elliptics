@@ -424,11 +424,7 @@ void dnet_state_clean(struct dnet_net_state *st)
 	dnet_log(st->n, DNET_LOG_NOTICE, "Cleaned state %s, transactions freed: %d", dnet_state_dump_addr(st), num);
 }
 
-/*
- * Eventually we may end up with proper reference counters here, but for now let's just copy the whole buf.
- * Large data blocks are being sent through sendfile anyway, so it should not be _that_ costly operation.
- */
-static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig)
+static struct dnet_io_req *dnet_io_req_copy(struct dnet_net_state *st, struct dnet_io_req *orig)
 {
 	void *buf;
 	struct dnet_io_req *r;
@@ -437,10 +433,8 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 
 	buf = r = malloc(sizeof(struct dnet_io_req) + orig->dsize + orig->hsize);
 	if (!r) {
-		err = -ENOMEM;
 		dnet_log(st->n, DNET_LOG_ERROR, "Not enough memory for io req queue fd: %d : %s %d", orig->fd, strerror(-err), err);
-
-		goto err_out_exit;
+		return NULL;
 	}
 	memset(r, 0, sizeof(struct dnet_io_req));
 	r->fd = -1;
@@ -466,6 +460,24 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 		r->on_exit = orig->on_exit;
 		r->local_offset = orig->local_offset;
 		r->fsize = orig->fsize;
+	}
+
+	return r;
+}
+
+/*
+ * Eventually we may end up with proper reference counters here, but for now let's just copy the whole buf.
+ * Large data blocks are being sent through sendfile anyway, so it should not be _that_ costly operation.
+ */
+static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig)
+{
+	int err = 0;
+	struct dnet_io_req *r;
+
+	r = dnet_io_req_copy(st, orig);
+	if (!r) {
+		err = -ENOMEM;
+		goto err_out_exit;
 	}
 
 	pthread_mutex_lock(&st->send_lock);
@@ -650,6 +662,32 @@ static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t
 	dnet_trans_insert_timer_nolock(st, t);
 }
 
+int dnet_send_to_backend(struct dnet_net_state *st, struct dnet_io_req *orig, int backend_id)
+{
+	struct dnet_io_req *req;
+	struct dnet_cmd *cmd;
+
+	req = dnet_io_req_copy(st, orig);
+	if (!req) {
+		return -ENOMEM;
+	}
+
+	req->st = dnet_state_get(st);
+
+	cmd = req->header;
+	cmd->backend_id = backend_id;
+	cmd->flags |= DNET_FLAGS_DIRECT_BACKEND;
+
+	req->hsize = sizeof(struct dnet_cmd);
+
+	req->data = cmd->data;
+	req->dsize = cmd->size;
+
+	dnet_schedule_io(st->n, req);
+
+	return 0;
+}
+
 int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 {
 	struct dnet_net_state *st = req->st;
@@ -665,7 +703,14 @@ int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 	if (err)
 		goto err_out_put;
 
-	err = dnet_io_req_queue(st, req);
+	if (t->destination_backend_id >= 0) {
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s, cross-backends: request, trans: %llu, dest_backend: %d, source_backend: %d",
+			dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->cmd.cmd),
+			(unsigned long long)t->trans, t->destination_backend_id, t->source_backend_id);
+		err = dnet_send_to_backend(st, req, t->destination_backend_id);
+	} else {
+		err = dnet_io_req_queue(st, req);
+	}
 	if (err)
 		goto err_out_remove;
 
@@ -1426,89 +1471,6 @@ void dnet_state_destroy(struct dnet_net_state *st)
 
 	memset(st, 0xff, sizeof(struct dnet_net_state));
 	free(st);
-}
-
-/*
- * Queue replies to send queue wrt high and low watermark limits.
- * This is usefull to avoid memory bloat (and hence OOM) when data gets queued
- * into send queue faster than it could be send over wire.
- */
-int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
-		const void *odata, unsigned int size, int more)
-{
-	struct dnet_net_state *st = state;
-	int err;
-
-	if (st == st->n->st)
-		return 0;
-
-	/* Send reply */
-	err = dnet_send_reply(state, cmd, odata, size, more);
-	if (err == 0)
-		/* If send succeeded then we should increase queue size */
-		if (atomic_inc(&st->send_queue_size) > DNET_SEND_WATERMARK_HIGH) {
-			/* If high watermark is reached we should sleep */
-			dnet_log(st->n, DNET_LOG_DEBUG,
-					"State high_watermark reached: %s: %d, sleeping",
-					dnet_server_convert_dnet_addr(&st->addr),
-					atomic_read(&st->send_queue_size));
-
-			pthread_mutex_lock(&st->send_lock);
-			// after successful dnet_send_reply the state can be removed from another thread
-			// do not wait send_wait of removed state because no one broadcast it
-			if (!st->__need_exit)
-				pthread_cond_wait(&st->send_wait, &st->send_lock);
-			else
-				err = st->__need_exit;
-			pthread_mutex_unlock(&st->send_lock);
-
-			dnet_log(st->n, DNET_LOG_DEBUG, "State woken up: %s: %d",
-					dnet_server_convert_dnet_addr(&st->addr),
-					atomic_read(&st->send_queue_size));
-		}
-
-	return err;
-}
-
-int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more)
-{
-	struct dnet_net_state *st = state;
-	struct dnet_cmd *c;
-	void *data;
-	int err;
-
-	if (st == st->n->st)
-		return 0;
-
-	c = malloc(sizeof(struct dnet_cmd) + size);
-	if (!c)
-		return -ENOMEM;
-
-	memset(c, 0, sizeof(struct dnet_cmd) + size);
-
-	data = c + 1;
-	*c = *cmd;
-
-	if ((cmd->flags & DNET_FLAGS_NEED_ACK) || more)
-		c->flags |= DNET_FLAGS_MORE;
-
-	c->size = size;
-	c->trans |= DNET_TRANS_REPLY;
-
-	if (size)
-		memcpy(data, odata, size);
-
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: 0x%llx.",
-		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
-		(unsigned long long)(c->trans &~ DNET_TRANS_REPLY),
-		size, (unsigned long long)c->flags);
-
-	dnet_convert_cmd(c);
-
-	err = dnet_send(st, c, sizeof(struct dnet_cmd) + size);
-	free(c);
-
-	return err;
 }
 
 int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)

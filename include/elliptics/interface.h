@@ -721,17 +721,6 @@ static inline int dnet_id_cmp(const struct dnet_id *id1, const struct dnet_id *i
 	return dnet_id_cmp_str(id1->id, id2->id);
 }
 
-/*
- * Send given number of bytes as reply command.
- * It will fill transaction, command and ID from the original command and copy given data.
- * It will set DNET_FLAGS_MORE if original command requested acknowledge or @more is set.
- *
- * If cmd->cmd is DNET_CMD_SYNC then plain data will be sent back, otherwise transaction
- * reply will be generated. So effectively difference is in DNET_TRANS_REPLY bit presence.
- */
-int __attribute__((weak)) dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
-int __attribute__((weak)) dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
-
 
 /*
  * Request statistics from the node corresponding to given ID.
