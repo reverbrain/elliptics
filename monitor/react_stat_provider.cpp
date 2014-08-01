@@ -26,7 +26,13 @@
 
 namespace ioremap { namespace monitor {
 
-react_stat_provider::react_stat_provider() {
+react_stat_provider::react_stat_provider(uint32_t call_timeout)
+: m_call_timeout(call_timeout) {
+}
+
+int64_t call_tree_time(const react::call_tree_t &tree) {
+	std::chrono::microseconds ts(tree.get_node_stop_time(tree.root) - tree.get_node_start_time(tree.root));
+	return std::chrono::duration_cast<std::chrono::seconds>(ts).count();
 }
 
 std::string react_stat_provider::json() const {
@@ -38,6 +44,8 @@ std::string react_stat_provider::json() const {
 		std::lock_guard<std::mutex> guard(react_aggregator.mutex);
 		rapidjson::Value aggregator_value(rapidjson::kArrayType);
 		for (auto it = react_aggregator.recent_call_trees.begin(); it != react_aggregator.recent_call_trees.end(); ++it) {
+			if (call_tree_time(*it) < m_call_timeout)
+				continue;
 			rapidjson::Value tree_value(rapidjson::kObjectType);
 			(*it).to_json(tree_value, allocator);
 			aggregator_value.PushBack(tree_value, allocator);

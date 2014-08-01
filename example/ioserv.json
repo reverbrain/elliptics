@@ -39,7 +39,11 @@
 			"size": 68719476736
 		},
 		"indexes_shard_count": 2,
-		"monitor_port": 20000
+		"monitor": {
+			"port":20000,
+			"history_length": 50000,
+			"call_tree_timeout": 0
+		}
 	},
 	"backends": [
 		{

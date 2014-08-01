@@ -31,7 +31,7 @@ namespace ioremap { namespace monitor {
 monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 : m_node(n)
 , m_server(*this, cfg->monitor_port)
-, m_statistics(*this)
+, m_statistics(*this, cfg)
 {}
 
 void monitor::stop() {
@@ -144,7 +144,8 @@ void dnet_monitor_init_react_stat_provider(struct dnet_node *n) {
 	auto real_monitor = monitor_cast(n->monitor);
 	if (real_monitor) {
 		try {
-			auto provider = new ioremap::monitor::react_stat_provider();
+			auto call_tree_timeout = n->config_data->cfg_state.monitor_call_tree_timeout;
+			auto provider = new ioremap::monitor::react_stat_provider(call_tree_timeout);
 			real_monitor->get_statistics().add_provider(provider, "call_tree");
 			n->react_aggregator = static_cast<void*> (&provider->get_react_aggregator());
 		} catch (std::exception &e) {

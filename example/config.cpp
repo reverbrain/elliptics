@@ -343,7 +343,6 @@ void parse_options(config_data *data, const config &options)
 	data->cfg_state.server_prio = options.at("server_net_prio", 0);
 	data->cfg_state.client_prio = options.at("client_net_prio", 0);
 	data->cfg_state.indexes_shard_count = options.at("indexes_shard_count", 0);
-	data->cfg_state.monitor_port = options.at("monitor_port", 0);
 	data->daemon_mode = options.at("daemon", false);
 	snprintf(data->cfg_state.cookie, DNET_AUTH_COOKIE_SIZE, "%s", options.at<std::string>("auth_cookie").c_str());
 
@@ -355,6 +354,13 @@ void parse_options(config_data *data, const config &options)
 
 	dnet_set_addr(data, options.at("address", std::vector<std::string>()));
 	dnet_set_remote_addrs(data, options.at("remote", std::vector<std::string>()));
+
+	if (options.has("monitor")) {
+		const config monitor = options.at("monitor");
+		data->cfg_state.monitor_port = monitor.at("port", 0);
+		data->cfg_state.monitor_history_length = monitor.at("history_length", 50000);
+		data->cfg_state.monitor_call_tree_timeout = monitor.at("call_tree_timeout", 0);
+	}
 
 	if (options.has("cache")) {
 		const config cache = options.at("cache");

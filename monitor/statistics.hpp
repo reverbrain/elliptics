@@ -334,7 +334,7 @@ public:
 	 *
 	 * Constructor: initializes statistics by \a mon
 	 */
-	statistics(monitor& mon);
+	statistics(monitor& mon, struct dnet_config *cfg);
 
 	/*!
 	 * \internal
@@ -467,6 +467,13 @@ private:
 	 */
 	mutable std::mutex				m_provider_mutex;
 	std::vector<std::pair<std::unique_ptr<stat_provider>, std::string>>	m_stat_providers;
+
+	/*!
+	 * \internal
+	 *
+	 * Number of last commands that would be presented at history statistics
+	 */
+	uint32_t						m_history_length;
 };
 
 }} /* namespace ioremap::monitor */

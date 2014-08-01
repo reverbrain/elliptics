@@ -27,12 +27,13 @@
 
 namespace ioremap { namespace monitor {
 
-statistics::statistics(monitor& mon)
+statistics::statistics(monitor& mon, struct dnet_config *cfg)
 : m_monitor(mon)
 , m_read_histograms(default_xs(), default_ys())
 , m_write_histograms(default_xs(), default_ys())
 , m_indx_update_histograms(default_xs(), default_ys())
-, m_indx_internal_histograms(default_xs(), default_ys()) {
+, m_indx_internal_histograms(default_xs(), default_ys())
+, m_history_length(cfg->monitor_history_length) {
 	memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
 }
 
@@ -76,12 +77,14 @@ void statistics::command_counter(int cmd, const int trans, const int err, const 
 		}
 	}
 
-	m_cmd_info_current.emplace_back(command_stat_info{cmd, size, time, trans == 0, cache != 0});
+	if (m_history_length > 0) {
+		m_cmd_info_current.emplace_back(command_stat_info{cmd, size, time, trans == 0, cache != 0});
 
-	if (m_cmd_info_current.size() >= 50000) {
-		std::unique_lock<std::mutex> swap_guard(m_cmd_info_previous_mutex);
-		m_cmd_info_current.swap(m_cmd_info_previous);
-		m_cmd_info_current.clear();
+		if (m_cmd_info_current.size() >= m_history_length) {
+			std::unique_lock<std::mutex> swap_guard(m_cmd_info_previous_mutex);
+			m_cmd_info_current.swap(m_cmd_info_previous);
+			m_cmd_info_current.clear();
+		}
 	}
 
 	std::unique_lock<std::mutex> hist_guard(m_histograms_mutex);
