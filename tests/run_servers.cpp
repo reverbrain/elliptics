@@ -57,7 +57,7 @@ struct special_log_struct
 };
 
 namespace test {
-static const special_log_struct log;
+static const special_log_struct log = {};
 
 struct special_endl
 {
