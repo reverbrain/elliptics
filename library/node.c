@@ -171,6 +171,10 @@ static void dnet_idc_remove_nolock(struct dnet_idc *idc)
 		if (g->ids[i].idc != idc) {
 			g->ids[pos] = g->ids[i];
 			pos++;
+		} else {
+			struct dnet_state_id *id = &g->ids[i];
+			dnet_log(idc->st->n, DNET_LOG_DEBUG, "dnet_idc_remove: group: %d, id: %s -> host: %s, backend: %d",
+				g->group_id, dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st), id->idc->backend_id);
 		}
 	}
 

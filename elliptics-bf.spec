@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	0.6.0.2
+Version:	2.26.0.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -145,6 +145,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Aug 01 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.2
+- Fixed version
+
 * Fri Aug 01 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 0.6.0.2
 - client: Added is_final field to result_entry
 - client: Added new filters for entry::is_final

@@ -1,3 +1,9 @@
+elliptics (2.26.0.2) unstable; urgency=low
+
+  * Fixed version
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 01 Aug 2014 20:01:51 +0400
+
 elliptics (0.6.0.2) unstable; urgency=low
 
   * client: Added is_final field to result_entry
