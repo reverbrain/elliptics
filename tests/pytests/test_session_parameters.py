@@ -46,9 +46,15 @@ exceptions_policy = set((elliptics.exceptions_policy.no_exceptions,
                          elliptics.exceptions_policy.default_exceptions))
 
 filters = set((elliptics.filters.positive,
+               elliptics.filters.positive,
+               elliptics.filters.positive_with_ack,
+               elliptics.filters.positive_final,
                elliptics.filters.negative,
+               elliptics.filters.negative_with_ack,
+               elliptics.filters.negative_final,
                elliptics.filters.all,
-               elliptics.filters.all_with_ack))
+               elliptics.filters.all_with_ack,
+               elliptics.filters.all_final))
 
 checkers = set((elliptics.checkers.no_check,
                 elliptics.checkers.at_least_one,
