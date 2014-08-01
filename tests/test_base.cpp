@@ -743,8 +743,8 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 
 		create_directory(server_path);
 
-		for (size_t i = 0; i < config.backends.size(); ++i) {
-			std::string prefix = server_path + "/" + boost::lexical_cast<std::string>(i);
+		for (size_t j = 0; j < config.backends.size(); ++j) {
+			std::string prefix = server_path + "/" + boost::lexical_cast<std::string>(j);
 			create_directory(prefix);
 			create_directory(prefix + "/history");
 			create_directory(prefix + "/blob");
