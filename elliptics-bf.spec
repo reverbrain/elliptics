@@ -17,8 +17,9 @@ BuildRequires:	libcocaine-core2-devel >= 0.11.2.0
 BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
 BuildRequires:	eblob-devel >= 0.22.0
 BuildRequires:	react-devel >= 2.3.1
+BuildRequires:  libblackhole-devel >= 0.2.0
 BuildRequires:	libev-devel libtool-ltdl-devel
-BuildRequires:	cmake msgpack-devel libblackhole-devel python-msgpack
+BuildRequires:	cmake msgpack-devel python-msgpack
 
 %define boost_ver %{nil}
 
@@ -194,10 +195,10 @@ rm -rf %{buildroot}
 - tests: Added test for backend's control
 - tests: Apps should write logs to different files
 
-* Thu Jul 31 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.4
+* Thu Jul 28 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.4
 - reconnect: reconnect to addresses which were timed out during connection
 
-* Thu Jul 31 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.3
+* Thu Jul 28 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.3
 - recv: do not dereference data stored in state, since to that moment it can be overwritten by the next command from the same client(socket)
 - route: let regular route table update also get route table from nodes explicitly added via dnet_add_state() and helpers
 - state: print error if no state has been found for given ID
