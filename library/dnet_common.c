@@ -687,6 +687,31 @@ int dnet_add_state(struct dnet_node *n, const struct dnet_addr *addr, int num, i
 	for (i = 0; i < num; ++i) {
 		struct dnet_addr_socket *rem = &remote[i];
 
+		if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST)) {
+			int j;
+
+			/*
+			 * Check whether @n->route_addr already contains given address,
+			 * otherwise add this addr into route request array.
+			 */
+			pthread_mutex_lock(&n->reconnect_lock);
+			for (j = 0; j < n->route_addr_num; ++j) {
+				if (dnet_addr_equal(&n->route_addr[j], &rem->addr))
+					break;
+			}
+
+			if (j == n->route_addr_num) {
+				n->route_addr = realloc(n->route_addr, (n->route_addr_num + 1) * sizeof(struct dnet_addr));
+				if (!n->route_addr) {
+					n->route_addr_num = 0;
+				} else {
+					n->route_addr[n->route_addr_num] = rem->addr;
+					n->route_addr_num += 1;
+				}
+			}
+			pthread_mutex_unlock(&n->reconnect_lock);
+		}
+
 		dnet_log(n, DNET_LOG_NOTICE, "%s: socket: %d, ok: %d", dnet_server_convert_dnet_addr(&rem->addr), rem->s, rem->ok);
 		if (rem->s < 0)
 			continue;
@@ -724,8 +749,9 @@ err_out_reconnect:
 			if (rem->s == -EEXIST)
 				continue;
 
+			dnet_log(n, DNET_LOG_NOTICE, "%s: could not add state, its error: %d", dnet_server_convert_dnet_addr(&rem->addr), rem->s);
 			if ((rem->s == -EADDRINUSE) || (rem->s == -ECONNREFUSED) || (rem->s == -ECONNRESET) ||
-					(rem->s == -EINPROGRESS) || (rem->s == -EAGAIN)) {
+					(rem->s == -EINPROGRESS) || (rem->s == -EAGAIN) || (rem->s == -ETIMEDOUT)) {
 				dnet_add_reconnect_state(n, &rem->addr, join);
 			}
 		}

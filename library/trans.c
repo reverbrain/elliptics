@@ -592,6 +592,35 @@ static int dnet_check_route_table(struct dnet_node *n)
 		}
 	}
 
+	if (n->route_addr_num) {
+		struct dnet_addr *route_addr;
+		int route_addr_num;
+
+		err = -ENOMEM;
+
+		pthread_mutex_lock(&n->reconnect_lock);
+		route_addr = calloc(n->route_addr_num, sizeof(struct dnet_addr));
+		if (route_addr) {
+			err = 0;
+			route_addr_num = n->route_addr_num;
+			memcpy(route_addr, n->route_addr, n->route_addr_num * sizeof(struct dnet_addr));
+		}
+		pthread_mutex_unlock(&n->reconnect_lock);
+
+		if (!err) {
+			dnet_log(n, DNET_LOG_INFO, "Requesting route address from %d remote addresses", route_addr_num);
+			for (i = 0; i < route_addr_num; ++i) {
+				st = dnet_state_search_by_addr(n, &route_addr[i]);
+				if (st) {
+					dnet_recv_route_list(st);
+					dnet_state_put(st);
+				}
+			}
+
+			free(route_addr);
+		}
+	}
+
 	free(groups);
 
 err_out_exit:
