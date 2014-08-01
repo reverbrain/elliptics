@@ -36,6 +36,18 @@ enum dnet_log_level {
 # undef BOOST_BIND_NO_PLACEHOLDERS
 #endif
 
+
+namespace blackhole {
+template <>
+struct logger_verbosity_traits<dnet_log_level>
+{
+	static bool passed(dnet_log_level logger_verbosity, dnet_log_level record_verbosity)
+	{
+		return logger_verbosity >= record_verbosity;
+	}
+};
+}
+
 namespace ioremap { namespace elliptics {
 
 typedef blackhole::verbose_logger_t<dnet_log_level> logger_base;

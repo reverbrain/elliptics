@@ -12,6 +12,8 @@
 #include <blackhole/formatter/string.hpp>
 #include <blackhole/frontend/files.hpp>
 
+#include <boost/io/ios_state.hpp>
+
 __thread trace_id_t backend_trace_id_hook;
 
 namespace ioremap { namespace elliptics {
@@ -33,13 +35,20 @@ file_logger::file_logger(const char *file, int level)
 
 std::string file_logger::format()
 {
-	return "%(timestamp)s %(request_id)s/%(tid)s/%(pid)s %(severity)s: %(message)s, attrs: [%(...L)s]";
+	return "%(timestamp)s %(request_id)s/%(lwp)s/%(pid)s %(severity)s: %(message)s, attrs: [%(...L)s]";
+}
+
+static void format_request_id(blackhole::aux::attachable_ostringstream &out, uint64_t request_id)
+{
+	boost::io::ios_flags_saver ifs(out);
+	out << std::setw(16) << std::setfill('0') << std::hex << request_id;
 }
 
 blackhole::mapping::value_t file_logger::mapping()
 {
 	blackhole::mapping::value_t mapper;
 	mapper.add<blackhole::keyword::tag::timestamp_t>("%Y-%m-%d %H:%M:%S.%f");
+	mapper.add<blackhole::keyword::tag::request_id_t>(format_request_id);
 	return mapper;
 }
 
