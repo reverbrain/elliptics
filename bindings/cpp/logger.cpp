@@ -22,8 +22,10 @@ file_logger::file_logger(const char *file, int level)
 	track(false);
 
 	auto formatter = blackhole::utils::make_unique<blackhole::formatter::string_t>(format());
+	formatter->set_mapper(file_logger::mapping());
 	auto sink = blackhole::utils::make_unique<blackhole::sink::files_t<>>(blackhole::sink::files_t<>::config_type(file));
 	auto frontend = blackhole::utils::make_unique<blackhole::frontend_t<blackhole::formatter::string_t, blackhole::sink::files_t<>>>(std::move(formatter), std::move(sink));
+
 	add_frontend(std::move(frontend));
 
 	add_attribute(blackhole::keyword::request_id() = 0);
