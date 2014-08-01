@@ -96,6 +96,7 @@ class callback_result_entry
 
 		bool is_valid() const;
 		bool is_ack() const;
+		bool is_final() const;
 		int status() const;
 		error_info error() const;
 		data_pointer		raw_data() const;

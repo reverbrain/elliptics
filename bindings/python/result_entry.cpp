@@ -219,6 +219,11 @@ bool callback_result_is_ack(callback_result_entry &result)
 	return result.is_ack();
 }
 
+bool callback_result_is_final(callback_result_entry &result)
+{
+	return result.is_final();
+}
+
 int callback_result_status(callback_result_entry &result)
 {
 	return result.status();
@@ -492,7 +497,8 @@ void init_result_entry() {
 
 	bp::class_<callback_result_entry>("CallbackResultEntry")
 		.add_property("is_valid", callback_result_is_valid)
-		.add_property("is_ask", callback_result_is_ack)
+		.add_property("is_ack", callback_result_is_ack)
+		.add_property("is_final", callback_result_is_final)
 		.add_property("status", callback_result_status)
 		.add_property("data", callback_result_data)
 		.add_property("size", callback_result_size)

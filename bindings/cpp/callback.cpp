@@ -76,6 +76,11 @@ bool callback_result_entry::is_ack() const
 	return status() == 0 && data().empty();
 }
 
+bool callback_result_entry::is_final() const
+{
+	return !(command()->flags & DNET_FLAGS_MORE);
+}
+
 int callback_result_entry::status() const
 {
 	return command()->status;
