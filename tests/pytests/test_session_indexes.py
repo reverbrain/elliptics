@@ -109,7 +109,10 @@ class TestSession:
                    'dict_index_3': 'key_data_3',
                    'dict_index_4': 'key_data_4',
                    'dict_index_5': 'key_data_5'}
-        result = session.set_indexes(key, indexes)
+        set_session = session.clone()
+        # We want to count only successfully finished transactions
+        set_session.set_filter(elliptics.filters.positive_final)
+        result = set_session.set_indexes(key, indexes)
         assert len(result.get()) == len(session.groups)
 
         self.check_indexes(session, key, indexes.keys(), indexes.values())
