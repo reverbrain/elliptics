@@ -433,12 +433,15 @@ static struct dnet_state_id *__dnet_state_search_id(struct dnet_node *n, const s
 	return sid;
 }
 
-static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, const struct dnet_id *id)
+static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, const struct dnet_id *id, int *backend_id)
 {
 	struct dnet_state_id *sid = __dnet_state_search_id(n, id);
 
 	if (!sid)
 		return NULL;
+
+	if (backend_id)
+		*backend_id = sid->idc->backend_id;
 
 	return dnet_state_get(sid->idc->st);
 }
@@ -464,7 +467,7 @@ struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, const struc
 {
 	struct dnet_net_state *found;
 
-	found = __dnet_state_search(n, id);
+	found = __dnet_state_search(n, id, backend_id);
 	if (!found) {
 		struct dnet_group *g;
 
@@ -511,10 +514,19 @@ ssize_t dnet_state_search_backend(struct dnet_node *n, const struct dnet_id *id)
 struct dnet_net_state *dnet_state_get_first_with_backend(struct dnet_node *n, const struct dnet_id *id, int *backend_id)
 {
 	struct dnet_net_state *found;
+	int original_backend_id;
+	int tmp_backend_id;
+
+	if (backend_id) {
+		original_backend_id = *backend_id;
+	} else {
+		original_backend_id = -1;
+		backend_id = &tmp_backend_id;
+	}
 
 	pthread_mutex_lock(&n->state_lock);
 	found = dnet_state_search_nolock(n, id, backend_id);
-	if (found == n->st) {
+	if (found == n->st && original_backend_id == *backend_id) {
 		dnet_state_put(found);
 		found = NULL;
 	}

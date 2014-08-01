@@ -778,6 +778,7 @@ public:
 
 	void reset(dnet_node *node, const dnet_id *id)
 	{
+		m_backend = -1;
 		m_state.reset(dnet_state_get_first_with_backend(node, id, &m_backend));
 	}
 
@@ -800,6 +801,11 @@ public:
 	bool operator !() const
 	{
 		return !m_state;
+	}
+
+	operator bool() const
+	{
+		return !!m_state;
 	}
 
 	dnet_net_state *state() const
