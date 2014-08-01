@@ -40,6 +40,10 @@ static void configure_nodes(const std::vector<std::string> &remotes, const std::
 
 			server_config::default_value().apply_options(config_data()
 				("group", 2)
+			),
+
+			server_config::default_value().apply_options(config_data()
+				("group", 3)
 			)
 		}), path);
 	} else
@@ -935,6 +939,70 @@ static void test_partial_lookup(session &sess, const std::string &id)
 	BOOST_REQUIRE_EQUAL(sync_lookup_result[1].file_info()->size, data.size());
 }
 
+static void test_parallel_lookup(session &sess, const std::string &id)
+{
+	std::string data = "data";
+
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	dnet_current_time(&io.timestamp);
+
+	key kid(id);
+	kid.transform(sess);
+	memcpy(io.id, kid.raw_id().id, DNET_ID_SIZE);
+
+	sess.set_filter(filters::positive);
+
+	ELLIPTICS_REQUIRE(write_result, sess.write_data(io, data));
+	ELLIPTICS_REQUIRE(read_result, sess.read_data(kid, 0, 0));
+	ELLIPTICS_REQUIRE(lookup_result, sess.parallel_lookup(kid));
+
+	auto results = lookup_result.get();
+	BOOST_REQUIRE_EQUAL(sess.get_groups().size(), results.size());
+
+	for (auto it = results.begin(), end = results.end(); it != end; ++it) {
+		dnet_time new_time = it->file_info()->mtime;
+		BOOST_REQUIRE_EQUAL(new_time.tsec, io.timestamp.tsec);
+		BOOST_REQUIRE_EQUAL(new_time.tnsec, io.timestamp.tnsec);
+	}
+}
+
+static void test_quorum_lookup(session &sess, const std::string &id)
+{
+	const std::string first_data = "first-data";
+	const std::string second_data = "second-data";
+
+	dnet_raw_id raw_id;
+	sess.transform(id, raw_id);
+
+	session first_sess = sess.clone();
+	first_sess.set_groups({1, 2});
+
+	session second_sess = sess.clone();
+	second_sess.set_groups({3});
+
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	dnet_current_time(&io.timestamp);
+	memcpy(io.id, raw_id.id, DNET_ID_SIZE);
+
+	ELLIPTICS_REQUIRE(first_write_result, first_sess.write_data(io, first_data));
+
+	io.timestamp.tsec += 5;
+
+	ELLIPTICS_REQUIRE(second_write_result, second_sess.write_data(io, second_data));
+
+	ELLIPTICS_REQUIRE(prepare_result, sess.quorum_lookup(id));
+
+	auto lookup_result = prepare_result.get();
+
+	BOOST_REQUIRE_EQUAL(lookup_result.size(), 2);
+
+	io.timestamp.tsec -= 5;
+	BOOST_REQUIRE_EQUAL(lookup_result[0].file_info()->mtime.tsec, io.timestamp.tsec);
+	BOOST_REQUIRE_EQUAL(lookup_result[0].file_info()->mtime.tnsec, io.timestamp.tnsec);
+}
+
 static void test_read_latest_non_existing(session &sess, const std::string &id)
 {
 	ELLIPTICS_REQUIRE_ERROR(read_data, sess.read_latest(id, 0, 0), -ENOENT);
@@ -1190,6 +1258,8 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_indexes_update, create_session(n, {2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_prepare_latest, create_session(n, {1, 2}, 0, 0), "prepare-latest-key");
 	ELLIPTICS_TEST_CASE(test_partial_lookup, create_session(n, {1, 2}, 0, 0), "partial-lookup-key");
+	ELLIPTICS_TEST_CASE(test_parallel_lookup, create_session(n, {1, 2, 3}, 0, 0), "parallel-lookup-key");
+	ELLIPTICS_TEST_CASE(test_quorum_lookup, create_session(n, {1, 2, 3}, 0, 0), "quorum-lookup-key");
 	ELLIPTICS_TEST_CASE(test_read_latest_non_existing, create_session(n, {1, 2}, 0, 0), "read-latest-non-existing");
 	ELLIPTICS_TEST_CASE(test_merge_indexes, create_session(n, { 1, 2 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_index_recovery, create_session(n, { 1, 2 }, 0, 0));
