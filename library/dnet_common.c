@@ -1194,45 +1194,6 @@ err_out_exit:
 	return err;
 }
 
-int dnet_try_reconnect(struct dnet_node *n)
-{
-	struct dnet_addr_storage *ast, *tmp;
-	struct dnet_addr *remote;
-	int remote_num = 0, i = 0;
-	int err, flags = 0;
-
-	if (list_empty(&n->reconnect_list))
-		return 0;
-
-	pthread_mutex_lock(&n->reconnect_lock);
-
-	remote_num = n->reconnect_num;
-	remote = calloc(remote_num, sizeof(struct dnet_addr));
-	if (!remote) {
-		pthread_mutex_unlock(&n->reconnect_lock);
-		return -ENOMEM;
-	}
-
-	list_for_each_entry_safe(ast, tmp, &n->reconnect_list, reconnect_entry) {
-		list_del_init(&ast->reconnect_entry);
-		remote[i++] = ast->addr;
-
-		if (ast->__join_state == DNET_JOIN)
-			flags |= DNET_CFG_JOIN_NETWORK;
-
-		free(ast);
-	}
-
-	n->reconnect_num = 0;
-	pthread_mutex_unlock(&n->reconnect_lock);
-
-	err = dnet_add_state(n, remote, remote_num, flags);
-
-	free(remote);
-
-	return err;
-}
-
 int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, void *),
 	void *priv)

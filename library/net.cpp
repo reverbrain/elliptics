@@ -86,6 +86,7 @@ struct dnet_connect_state
 	atomic_t refcnt;
 	atomic_t route_list_count;
 	pthread_mutex_t lock;
+	bool lock_inited;
 	dnet_node *node;
 	int epollfd;
 	int interruptfd;
@@ -261,6 +262,8 @@ dnet_connect_state *dnet_connect_state_get(dnet_connect_state *state)
 void dnet_connect_state_put(dnet_connect_state *state)
 {
 	if (atomic_dec_and_test(&state->refcnt)) {
+		if (state->lock_inited)
+			pthread_mutex_destroy(&state->lock);
 		if (state->epollfd >= 0)
 			close(state->epollfd);
 		if (state->interruptfd >= 0)
@@ -358,6 +361,11 @@ err_out_exit:
 static dnet_addr_socket_list *dnet_socket_create_addresses(dnet_node *node, const dnet_addr *addrs, size_t addrs_count,
 	bool ask_route_list, dnet_join_state join, bool *all_exist)
 {
+	if (addrs_count == 0) {
+		*all_exist = false;
+		return NULL;
+	}
+
 	*all_exist = true;
 	dnet_addr_socket_list *result = reinterpret_cast<dnet_addr_socket_list *>(malloc(
 		sizeof(dnet_addr_socket_list) + sizeof(dnet_addr_socket) * (addrs_count)));
@@ -720,7 +728,9 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 			reinterpret_cast<char *>(socket->buffer) + sizeof(dnet_addr) * cnt->addr_num + sizeof(dnet_addr_container)
 		);
 
-		dnet_backend_ids **backends = reinterpret_cast<dnet_backend_ids **>(malloc(id_container->backends_count * sizeof(dnet_backend_ids *)));
+		std::unique_ptr<dnet_backend_ids *[], free_destroyer> backends(reinterpret_cast<dnet_backend_ids **>(
+			malloc(id_container->backends_count * sizeof(dnet_backend_ids *))
+		));
 		if (!backends) {
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: failed to allocate %llu bytes for dnet_backend_ids array from %s.",
 				dnet_server_convert_dnet_addr(&socket->addr),
@@ -729,7 +739,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 			break;
 		}
 
-		err = dnet_validate_id_container(id_container, size, backends);
+		err = dnet_validate_id_container(id_container, size, backends.get());
 		if (err) {
 			dnet_log(state.node, DNET_LOG_ERROR, "connected-to-addr: %s: failed to validate id container: %d", dnet_server_convert_dnet_addr(&socket->addr), err);
 			dnet_fail_socket(state, socket, err);
@@ -771,7 +781,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 
 		epoll_ctl(state.epollfd, EPOLL_CTL_DEL, socket->s, NULL);
 
-		dnet_net_state *st = dnet_state_create(state.node, backends,
+		dnet_net_state *st = dnet_state_create(state.node, backends.get(),
 			id_container->backends_count, &socket->addr, socket->s,
 			&err, state.join, 1, idx, dnet_state_net_process);
 
@@ -820,6 +830,36 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 	}
 }
 
+struct net_state_list_destroyer
+{
+	net_state_list_destroyer() : count(0)
+	{
+	}
+
+	net_state_list_destroyer(size_t count) : count(count)
+	{
+	}
+
+	void operator ()(dnet_net_state **list)
+	{
+		if (!list) {
+			return;
+		}
+
+		for (size_t i = 0; i < count; ++i) {
+			if (list[i])
+				dnet_state_put(list[i]);
+		}
+
+		free(list);
+	}
+
+	size_t count;
+};
+
+typedef std::unique_ptr<dnet_net_state *[], net_state_list_destroyer> net_state_list_ptr;
+typedef std::unique_ptr<dnet_addr[], free_destroyer> net_addr_list_ptr;
+
 /*!
  * Asynchornously connects to nodes from original_list, asks them route_list, if needed,
  * and continue to connecting to new nodes in addition to originally passed one.
@@ -828,7 +868,8 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
  *
  * \a original_list will be freed by call of this function
  */
-static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_list, dnet_join_state join)
+static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_list, dnet_join_state join,
+	net_state_list_ptr states, size_t states_count)
 {
 	int err;
 	long timeout;
@@ -855,14 +896,15 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_
 	INIT_LIST_HEAD(&state.sockets_list);
 	INIT_LIST_HEAD(&state.sockets_queue);
 
+	dnet_connect_state_get(&state);
+
 	err = pthread_mutex_init(&state.lock, NULL);
 	if (err) {
 		dnet_log(state.node, DNET_LOG_ERROR, "Failed to initialize mutex: %d", err);
-		goto err_out_exit;
+		goto err_out_put;
 	}
 
-	dnet_connect_state_get(&state);
-
+	state.lock_inited = true;
 	state.epollfd = epoll_create1(EPOLL_CLOEXEC);
 	if (state.epollfd < 0) {
 		err = -errno;
@@ -889,7 +931,14 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_
 		goto err_out_put;
 	}
 
+	for (size_t i = 0; i < states_count; ++i) {
+		dnet_request_route_list(state, states[i]);
+	}
+
+	states.reset();
+
 	dnet_socket_connect_new_sockets(state, original_list);
+	original_list = NULL;
 
 	timeout = state.node->wait_ts.tv_sec * 1000 > 2000 ? state.node->wait_ts.tv_sec * 1000 : 2000;
 	while (state.succeed_count + state.failed_count < state.total_count || atomic_read(&state.route_list_count) > 0) {
@@ -947,9 +996,12 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_
 	pthread_mutex_unlock(&state.lock);
 
 err_out_put:
-	dnet_connect_state_put(&state);
-err_out_exit:
 	// Timeout! We need to close every socket where we have not connected yet.
+
+	if (original_list) {
+		list_add_tail(&original_list->entry, &state.sockets_list);
+	}
+
 	err = -ETIMEDOUT;
 	dnet_addr_socket_list *list;
 	dnet_addr_socket_list *tmp;
@@ -978,6 +1030,8 @@ err_out_exit:
 	if (state.succeed_count)
 		err = state.succeed_count;
 
+	dnet_connect_state_put(&state);
+
 	return err;
 }
 
@@ -994,6 +1048,126 @@ int dnet_socket_create_listening(dnet_node *node, const dnet_addr *addr)
 	}
 
 	return result.s;
+}
+
+static net_state_list_ptr dnet_check_route_table_victims(struct dnet_node *node, size_t *states_count)
+{
+	*states_count = 0;
+
+	const size_t groups_count_limit = 4096;
+	const size_t groups_count_random_limit = 5;
+
+	std::unique_ptr<unsigned[], free_destroyer> groups(reinterpret_cast<unsigned *>(calloc(groups_count_limit, sizeof(unsigned))));
+	if (!groups) {
+		return net_state_list_ptr();
+	}
+
+	size_t groups_count = 0;
+	pthread_mutex_lock(&node->state_lock);
+
+	struct dnet_group *g;
+	list_for_each_entry(g, &node->group_list, group_entry) {
+		groups[groups_count++] = g->group_id;
+
+		if (groups_count >= groups_count_limit)
+			break;
+	}
+	pthread_mutex_unlock(&node->state_lock);
+
+	struct dnet_id id;
+	memset(&id, 0, sizeof(id));
+	const size_t route_addr_num = node->route_addr_num;
+	const size_t total_states_count = route_addr_num + groups_count_random_limit;
+
+	net_state_list_ptr route_list_states(
+		reinterpret_cast<dnet_net_state **>(calloc(total_states_count, sizeof(dnet_net_state *))),
+		net_state_list_destroyer(total_states_count)
+	);
+
+	if (!route_list_states) {
+		return net_state_list_ptr();
+	}
+
+	pthread_mutex_lock(&node->reconnect_lock);
+	for (size_t i = 0; i < std::min(groups_count, groups_count_random_limit); ++i) {
+		int rnd = rand();
+		id.group_id = groups[rnd % groups_count];
+
+		memcpy(id.id, &rnd, sizeof(rnd));
+
+		struct dnet_net_state *st = dnet_state_get_first(node, &id);
+		if (st) {
+			route_list_states[(*states_count)++] = st;
+		}
+	}
+
+	dnet_log(node, DNET_LOG_INFO, "Requesting route address from %llu remote addresses", node->route_addr_num);
+
+	for (size_t i = 0; i < node->route_addr_num; ++i) {
+		struct dnet_net_state *st = dnet_state_search_by_addr(node, &node->route_addr[i]);
+		if (st) {
+			route_list_states[(*states_count)++] = st;
+		}
+	}
+	pthread_mutex_unlock(&node->reconnect_lock);
+
+	return route_list_states;
+}
+
+static net_addr_list_ptr dnet_reconnect_victims(struct dnet_node *node, size_t *addrs_count, int *flags)
+{
+	*addrs_count = 0;
+
+	pthread_mutex_lock(&node->reconnect_lock);
+
+	net_addr_list_ptr addrs(reinterpret_cast<dnet_addr *>(calloc(node->reconnect_num, sizeof(dnet_addr))));
+
+	if (!addrs) {
+		pthread_mutex_unlock(&node->reconnect_lock);
+		return addrs;
+	}
+
+	struct dnet_addr_storage *ast, *tmp;
+	list_for_each_entry_safe(ast, tmp, &node->reconnect_list, reconnect_entry) {
+		list_del_init(&ast->reconnect_entry);
+		addrs[(*addrs_count)++] = ast->addr;
+
+		if (ast->__join_state == DNET_JOIN)
+			(*flags) |= DNET_CFG_JOIN_NETWORK;
+
+		free(ast);
+	}
+
+
+	pthread_mutex_unlock(&node->reconnect_lock);
+
+	return addrs;
+}
+
+void dnet_reconnect_and_check_route_table(dnet_node *node)
+{
+	size_t states_count = 0;
+	size_t addrs_count = 0;
+	int flags = 0;
+
+	net_state_list_ptr states = dnet_check_route_table_victims(node, &states_count);
+	net_addr_list_ptr addrs = dnet_reconnect_victims(node, &addrs_count, &flags);
+
+	dnet_join_state join = DNET_WANT_RECONNECT;
+	if (node->flags & DNET_CFG_JOIN_NETWORK)
+		join = DNET_JOIN;
+
+	const bool ask_route_list = !((node->flags | flags) & DNET_CFG_NO_ROUTE_LIST);
+
+	bool all_exist = false;
+	dnet_addr_socket_list *sockets = dnet_socket_create_addresses(node, addrs.get(), addrs_count, ask_route_list, join, &all_exist);
+	if (!sockets) {
+		addrs.reset();
+	}
+
+	if (states_count > 0 || sockets) {
+		dnet_socket_connect(node, sockets, join, std::move(states), states_count);
+	}
 }
 
 /*!
@@ -1027,7 +1201,7 @@ int dnet_add_state(dnet_node *node, const dnet_addr *addrs, int num, int flags)
 	dnet_log(node, DNET_LOG_INFO, "Trying to connect to %llu states of %llu original", sockets->sockets_count, addrs_count);
 
 	// sockets are freed by dnet_socket_connect
-	int err = dnet_socket_connect(node, sockets, join);
+	int err = dnet_socket_connect(node, sockets, join, net_state_list_ptr(), 0);
 
 	if (ask_route_list) {
 		pthread_mutex_lock(&node->reconnect_lock);

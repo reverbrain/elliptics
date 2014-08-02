@@ -543,117 +543,28 @@ static void dnet_check_all_states(struct dnet_node *n)
 	dnet_trans_clean_list(&head);
 }
 
-static int dnet_check_route_table(struct dnet_node *n)
-{
-	int rnd;
-	struct dnet_id id;
-	unsigned int *groups;
-	int group_num = 0, i, err;
-	struct dnet_net_state *st;
-	struct dnet_group *g;
-
-	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		group_num++;
-
-		if (group_num >= 4096)
-			break;
-	}
-	pthread_mutex_unlock(&n->state_lock);
-
-	groups = calloc(group_num, sizeof(unsigned int));
-	if (!groups) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	i = 0;
-	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		groups[i++] = g->group_id;
-
-		if (i >= group_num) {
-			group_num = i;
-			break;
-		}
-	}
-	pthread_mutex_unlock(&n->state_lock);
-
-	for (i = 0; i < (5 < group_num ? 5 : group_num); ++i) {
-		rnd = rand();
-		id.group_id = groups[rnd % group_num];
-
-		memcpy(id.id, &rnd, sizeof(rnd));
-
-		st = dnet_state_get_first(n, &id);
-		if (st) {
-			dnet_recv_route_list(st, NULL, NULL);
-			dnet_state_put(st);
-		}
-	}
-
-	if (n->route_addr_num) {
-		struct dnet_addr *route_addr;
-		int route_addr_num;
-
-		err = -ENOMEM;
-
-		pthread_mutex_lock(&n->reconnect_lock);
-		route_addr = calloc(n->route_addr_num, sizeof(struct dnet_addr));
-		if (route_addr) {
-			err = 0;
-			route_addr_num = n->route_addr_num;
-			memcpy(route_addr, n->route_addr, n->route_addr_num * sizeof(struct dnet_addr));
-		}
-		pthread_mutex_unlock(&n->reconnect_lock);
-
-		if (!err) {
-			dnet_log(n, DNET_LOG_INFO, "Requesting route address from %d remote addresses", route_addr_num);
-			for (i = 0; i < route_addr_num; ++i) {
-				st = dnet_state_search_by_addr(n, &route_addr[i]);
-				if (st) {
-					dnet_recv_route_list(st, NULL, NULL);
-					dnet_state_put(st);
-				}
-			}
-
-			free(route_addr);
-		}
-	}
-
-	free(groups);
-
-err_out_exit:
-	return err;
-}
-
 static void *dnet_reconnect_process(void *data)
 {
 	struct dnet_node *n = data;
 	long i, timeout;
 	struct timeval tv1, tv2;
-	int checks = 0, route_table_checks = 1;
 
 	dnet_set_name("reconnect");
 
 	if (!n->check_timeout)
 		n->check_timeout = 10;
 
-	if (n->check_timeout > 30)
-		route_table_checks = 1;
-
 	dnet_log(n, DNET_LOG_INFO, "Started reconnection thread. Timeout: %lu seconds. Route table update every %lu seconds.",
-			n->check_timeout, n->check_timeout * route_table_checks);
+			n->check_timeout, n->check_timeout);
 
 	dnet_discovery(n);
 
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
-		dnet_try_reconnect(n);
-		if (!(n->flags & DNET_CFG_NO_ROUTE_LIST) && (++checks == route_table_checks)) {
-			checks = 0;
-			dnet_check_route_table(n);
-		}
+
+		dnet_log(n, DNET_LOG_INFO, "Started reconnection process");
+		dnet_reconnect_and_check_route_table(n);
+		dnet_log(n, DNET_LOG_INFO, "Finished reconnection process");
 
 		dnet_discovery(n);
 		gettimeofday(&tv2, NULL);

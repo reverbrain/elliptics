@@ -871,7 +871,7 @@ struct dnet_addr_storage
 
 int dnet_check_thread_start(struct dnet_node *n);
 void dnet_check_thread_stop(struct dnet_node *n);
-int dnet_try_reconnect(struct dnet_node *n);
+void dnet_reconnect_and_check_route_table(struct dnet_node *node);
 
 int dnet_set_name(char *name);
 int dnet_ioprio_set(long pid, int class_id, int prio);

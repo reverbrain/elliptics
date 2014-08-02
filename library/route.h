@@ -40,14 +40,6 @@ private:
 	std::lock_guard<dnet_pthread_mutex> m_lock_guard;
 };
 
-struct free_destroyer
-{
-	void operator() (void *buffer)
-	{
-		free(buffer);
-	}
-};
-
 class dnet_route_list
 {
 public:
@@ -81,6 +73,14 @@ private:
 
 	std::mutex m_mutex;
 	std::vector<backend_info> m_backends;
+};
+
+struct free_destroyer
+{
+	void operator() (void *buffer)
+	{
+		free(buffer);
+	}
 };
 
 extern "C" {
