@@ -345,16 +345,20 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *acmd)
 	dnet_convert_cmd(&acmd->cmd);
 }
 
-static inline int dnet_addr_equal(const struct dnet_addr *a1, const struct dnet_addr *a2)
+static inline int dnet_addr_cmp(const struct dnet_addr *a1, const struct dnet_addr *a2)
 {
 	if (a1->family != a2->family)
-		return 0;
-	if (a1->addr_len != a2->addr_len)
-		return 0;
-	if (memcmp(a1->addr, a2->addr, a1->addr_len))
-		return 0;
+		return (int)a1->family - (int)a2->family;
 
-	return 1;
+	if (a1->addr_len != a2->addr_len)
+		return (int)a1->addr_len - (int)a2->addr_len;
+
+	return memcmp(a1->addr, a2->addr, a1->addr_len);
+}
+
+static inline int dnet_addr_equal(const struct dnet_addr *a1, const struct dnet_addr *a2)
+{
+	return (dnet_addr_cmp(a1, a2) == 0);
 }
 
 struct dnet_list

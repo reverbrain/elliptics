@@ -258,7 +258,8 @@ void dnet_node_cleanup_common_resources(struct dnet_node *n);
 int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
 		struct dnet_raw_id *start, struct dnet_raw_id *next);
 
-int dnet_recv_route_list(struct dnet_net_state *st);
+int dnet_validate_route_list(struct dnet_net_state *st, struct dnet_cmd *cmd);
+int dnet_recv_route_list(struct dnet_net_state *st, int (*complete)(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv), void *priv);
 
 void dnet_state_destroy(struct dnet_net_state *st);
 
@@ -272,7 +273,7 @@ void dnet_unschedule_recv(struct dnet_net_state *st);
 
 int dnet_setup_control_nolock(struct dnet_net_state *st);
 
-int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsigned int join_state);
+int dnet_add_reconnect_state(struct dnet_node *n, const struct dnet_addr *addr, unsigned int join_state);
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 {
@@ -632,7 +633,7 @@ struct dnet_node
 	 * it will only grow.
 	 */
 	struct dnet_addr	*route_addr;
-	int			route_addr_num;
+	size_t			route_addr_num;
 
 	struct dnet_lock	counters_lock;
 	struct dnet_stat_count	counters[__DNET_CNTR_MAX];
@@ -770,18 +771,7 @@ void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r);
 
 struct dnet_config;
 
-/*
- * This is internal structure used to help batch socket creation.
- * Socket @s will be set to negative value in case of error.
- * @ok will be set to 1 if given socket was successfully initialized (connected or made listened)
- */
-struct dnet_addr_socket {
-	struct dnet_addr		addr;
-	int				s;
-	int				ok;
-};
-
-int dnet_socket_create(struct dnet_node *n, const struct dnet_addr *addr, struct dnet_addr_socket **sockets, int num, int listening);
+int dnet_socket_create_listening(struct dnet_node *node, const struct dnet_addr *addr);
 
 void dnet_set_sockopt(struct dnet_node *n, int s);
 void dnet_sock_close(struct dnet_node *n, int s);

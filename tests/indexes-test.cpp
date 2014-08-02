@@ -486,13 +486,41 @@ int main(int argc, char *argv[])
 	node n(logger(log, blackhole::log::attributes_t()));
 
 	try {
-		n.add_remote(address("localhost", 1025));
+		BH_LOG(log, DNET_LOG_DATA, "creating addr remote: %s", argv[1])
+			("source", "dnet_add_state");
+
+		address addr = argv[1];
+
+		BH_LOG(log, DNET_LOG_DATA, "connecting to remote: %s", argv[1])
+			("source", "dnet_add_state");
+
+		n.add_remote(addr);
+
+		BH_LOG(log, DNET_LOG_DATA, "connected to remote: %s", argv[1])
+			("source", "dnet_add_state");
 	} catch (std::exception &exc) {
 		std::cerr << exc.what() << std::endl;
 		return -1;
 	}
 
 	session sess(n);
+
+	for (int i = 0;; ++i) {
+		std::set<std::string> addresses;
+
+		auto routes = sess.get_routes();
+		for (auto it = routes.begin(); it != routes.end(); ++it) {
+			dnet_route_entry &entry = *it;
+			addresses.insert(address(entry.addr).to_string());
+		}
+
+		BH_LOG(log, DNET_LOG_DATA, "%d: route-list-count: %lld", i, addresses.size())
+			("source", "dnet_add_state");
+		sleep(1);
+	}
+
+	return 0;
+
 	std::vector<int> groups = { 1, 2, 3 };
 	sess.set_groups(groups);
 

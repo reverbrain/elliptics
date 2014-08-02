@@ -133,7 +133,6 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		int s;
 		struct dnet_addr la;
-		struct dnet_addr_socket *socket;
 
 		err = dnet_locks_init(n, 1024);
 		if (err) {
@@ -154,12 +153,11 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 			goto err_out_route_list_destroy;
 		}
 
-		err = dnet_socket_create(n, &la, &socket, 1, 1);
+		err = dnet_socket_create_listening(n, &la);
 		if (err < 0)
 			goto err_out_route_list_destroy;
 
-		s = socket->s;
-		free(socket);
+		s = err;
 
 		if (s < 0) {
 			err = s;

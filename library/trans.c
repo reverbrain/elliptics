@@ -587,7 +587,7 @@ static int dnet_check_route_table(struct dnet_node *n)
 
 		st = dnet_state_get_first(n, &id);
 		if (st) {
-			dnet_recv_route_list(st);
+			dnet_recv_route_list(st, NULL, NULL);
 			dnet_state_put(st);
 		}
 	}
@@ -612,7 +612,7 @@ static int dnet_check_route_table(struct dnet_node *n)
 			for (i = 0; i < route_addr_num; ++i) {
 				st = dnet_state_search_by_addr(n, &route_addr[i]);
 				if (st) {
-					dnet_recv_route_list(st);
+					dnet_recv_route_list(st, NULL, NULL);
 					dnet_state_put(st);
 				}
 			}

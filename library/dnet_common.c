@@ -296,29 +296,13 @@ static inline void dnet_route_list_control_put(struct dnet_route_list_control *c
 	}
 }
 
-static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv)
+int dnet_validate_route_list(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
-	struct dnet_route_list_control *control = priv;
-	struct dnet_wait *w = control->w;
 	struct dnet_addr_container *cnt;
 	long size;
-	int err, states_num, i;
+	int err, i;
 	struct dnet_node *n = st->n;
 	char server_addr[128], rem_addr[128];
-	struct dnet_net_state *nst;
-	struct dnet_addr *addr;
-	struct dnet_addr *addrs_tmp;
-
-	if (is_trans_destroyed(st, cmd)) {
-		err = -EINVAL;
-		if (cmd)
-			err = cmd->status;
-
-		w->status = err;
-		dnet_wakeup(w, w->cond = 1);
-		dnet_route_list_control_put(control);
-		goto err_out_exit;
-	}
 
 	dnet_server_convert_dnet_addr_raw(&st->addr, server_addr, sizeof(server_addr));
 
@@ -356,8 +340,6 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 		goto err_out_exit;
 	}
 
-	states_num = cnt->addr_num / cnt->node_addr_num;
-
 	for (i = 0; i < cnt->addr_num; ++i) {
 		if (dnet_empty_addr(&cnt->addrs[i])) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: received zero address route reply, aborting route update",
@@ -371,6 +353,40 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 		DNET_LOG_PRINT("route-list: from: %s, node: %d, addr: %s", server_addr, i / cnt->node_addr_num, rem_addr);
 		DNET_LOG_END();
 	}
+
+err_out_exit:
+	return err;
+}
+
+static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv)
+{
+	struct dnet_route_list_control *control = priv;
+	struct dnet_wait *w = control->w;
+	struct dnet_addr_container *cnt;
+	int err, states_num, i;
+	struct dnet_node *n = st->n;
+	struct dnet_net_state *nst;
+	struct dnet_addr *addr;
+	struct dnet_addr *addrs_tmp;
+
+	if (is_trans_destroyed(st, cmd)) {
+		err = -EINVAL;
+		if (cmd)
+			err = cmd->status;
+
+		w->status = err;
+		dnet_wakeup(w, w->cond = 1);
+		dnet_route_list_control_put(control);
+		goto err_out_exit;
+	}
+
+	err = dnet_validate_route_list(st, cmd);
+	if (err) {
+		goto err_out_exit;
+	}
+
+	cnt = (struct dnet_addr_container *)(cmd + 1);
+	states_num = cnt->addr_num / cnt->node_addr_num;
 
 	addrs_tmp = realloc(control->addrs, control->addrs_num + states_num * sizeof(struct dnet_addr));
 	if (!addrs_tmp) {
@@ -397,31 +413,33 @@ err_out_exit:
 	return err;
 }
 
-int dnet_recv_route_list(struct dnet_net_state *st)
+int dnet_recv_route_list(struct dnet_net_state *st, int (*complete)(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv), void *priv)
 {
 	struct dnet_io_req req;
 	struct dnet_node *n = st->n;
 	struct dnet_trans *t;
 	struct dnet_cmd *cmd;
-	struct dnet_wait *w;
-	struct dnet_route_list_control *control;
+	struct dnet_wait *w = NULL;
+	struct dnet_route_list_control *control = NULL;
 	int err;
 
-	w = dnet_wait_alloc(0);
-	if (!w) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
+	if (!complete) {
+		w = dnet_wait_alloc(0);
+		if (!w) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
 
-	control = malloc(sizeof(struct dnet_route_list_control));
-	if (!control) {
-		err = -ENOMEM;
-		dnet_wait_put(w);
-		goto err_out_exit;
-	}
+		control = malloc(sizeof(struct dnet_route_list_control));
+		if (!control) {
+			err = -ENOMEM;
+			dnet_wait_put(w);
+			goto err_out_exit;
+		}
 
-	memset(control, 0, sizeof(struct dnet_route_list_control));
-	control->w = w;
+		memset(control, 0, sizeof(struct dnet_route_list_control));
+		control->w = w;
+	}
 
 	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd));
 	if (!t) {
@@ -429,8 +447,13 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 		goto err_out_wait_put;
 	}
 
-	t->complete = dnet_recv_route_list_complete;
-	t->priv = control;
+	if (!complete) {
+		t->complete = dnet_recv_route_list_complete;
+		t->priv = control;
+	} else {
+		t->complete = complete;
+		t->priv = priv;
+	}
 
 	cmd = (struct dnet_cmd *)(t + 1);
 
@@ -454,312 +477,32 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 	req.header = cmd;
 	req.hsize = sizeof(struct dnet_cmd);
 
-	dnet_wait_get(w);
+	if (!complete) {
+		dnet_wait_get(w);
+	}
+
 	err = dnet_trans_send(t, &req);
 	if (err)
 		goto err_out_destroy;
 
-	err = dnet_wait_event(w, w->cond != 0, &n->wait_ts);
+	if (!complete) {
+		err = dnet_wait_event(w, w->cond != 0, &n->wait_ts);
 
-	if (control->addrs && control->addrs_num)
-		err = dnet_add_state(n, control->addrs, control->addrs_num, DNET_CFG_NO_ROUTE_LIST);
+		if (control->addrs && control->addrs_num)
+			err = dnet_add_state(n, control->addrs, control->addrs_num, DNET_CFG_NO_ROUTE_LIST);
 
-	dnet_route_list_control_put(control);
+		dnet_route_list_control_put(control);
+	}
 
 	return 0;
 
 err_out_destroy:
 	dnet_trans_put(t);
 err_out_wait_put:
-	dnet_route_list_control_put(control);
+	if (!complete)
+		dnet_route_list_control_put(control);
 err_out_exit:
 	return err;
-}
-
-static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct dnet_addr *addr, int s, int *errp, int join)
-{
-	struct dnet_net_state *st, dummy;
-	char buf[sizeof(struct dnet_cmd)];
-	struct dnet_cmd *cmd;
-	struct dnet_addr_container *cnt;
-	struct dnet_id_container *id_container;
-	int err, i, size, idx;
-	uint32_t j;
-	void *data;
-	int version[4] = {0, 0, 0, 0};
-	int indexes_shard_count = 0;
-	struct dnet_backend_ids **backends;
-	struct dnet_backend_ids *backend;
-
-	memset(buf, 0, sizeof(buf));
-
-	cmd = (struct dnet_cmd *)(buf);
-
-	cmd->flags = DNET_FLAGS_DIRECT | DNET_FLAGS_NOLOCK;
-	cmd->cmd = DNET_CMD_REVERSE_LOOKUP;
-
-	dnet_version_encode(&cmd->id);
-	dnet_indexes_shard_count_encode(&cmd->id, n->indexes_shard_count);
-	dnet_convert_cmd(cmd);
-
-	st = &dummy;
-	memset(st, 0, sizeof(struct dnet_net_state));
-	st->addr = *addr;
-
-	st->write_s = st->read_s = s;
-	st->n = n;
-
-	err = dnet_send_nolock(st, buf, sizeof(struct dnet_cmd));
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send reverse lookup message: %d",
-				dnet_server_convert_dnet_addr(addr), err);
-		goto err_out_exit;
-	}
-
-	err = dnet_recv(st, buf, sizeof(struct dnet_cmd));
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to receive reverse lookup command header: %d",
-				dnet_server_convert_dnet_addr(addr), err);
-		goto err_out_exit;
-	}
-
-	cmd = (struct dnet_cmd *)buf;
-	dnet_convert_cmd(cmd);
-	dnet_version_decode(&cmd->id, version);
-	dnet_indexes_shard_count_decode(&cmd->id, &indexes_shard_count);
-
-	if (cmd->status != 0) {
-		err = cmd->status;
-
-		dnet_log(n, DNET_LOG_ERROR, "%s: reverse lookup command failed: local version: %d.%d.%d.%d, "
-				"remote version: %d.%d.%d.%d, error: %s [%d]",
-				dnet_server_convert_dnet_addr(addr),
-				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
-				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3,
-				version[0], version[1], version[2], version[3],
-				strerror(-err), err);
-		goto err_out_exit;
-	}
-
-	err = dnet_version_check(st, version);
-	if (err)
-		goto err_out_exit;
-
-	dnet_log(n, DNET_LOG_NOTICE, "%s: received indexes shard count: local: %d, remote: %d, using server one",
-				dnet_server_convert_dnet_addr(addr), n->indexes_shard_count, indexes_shard_count);
-
-	if (indexes_shard_count != n->indexes_shard_count && indexes_shard_count != 0) {
-		dnet_log(n, DNET_LOG_INFO, "%s: local and remote indexes shard count are different: "
-				"local: %d, remote: %d, using remote (%d) one",
-				dnet_server_convert_dnet_addr(addr),
-				n->indexes_shard_count, indexes_shard_count, indexes_shard_count);
-
-		n->indexes_shard_count = indexes_shard_count;
-	}
-
-	data = malloc(cmd->size);
-	if (!data) {
-		err = -ENOMEM;
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate %llu bytes for reverse lookup data",
-				dnet_server_convert_dnet_addr(addr), (unsigned long long)cmd->size);
-		goto err_out_exit;
-	}
-
-	err = dnet_recv(st, data, cmd->size);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to receive reverse lookup data: %d",
-				dnet_server_convert_dnet_addr(addr), err);
-		goto err_out_free;
-	}
-
-	cnt = (struct dnet_addr_container *)data;
-
-	if (cmd->size < sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr) + sizeof(struct dnet_id_container)) {
-		err = -EINVAL;
-		dnet_log(n, DNET_LOG_ERROR, "%s: received dnet_addr_container "
-				"is invalid, size: %" PRIu64 ", expected at least: %zu, err: %d",
-				dnet_server_convert_dnet_addr(addr),
-				cmd->size,
-				sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr) + sizeof(struct dnet_id_container),
-				err);
-		goto err_out_free;
-	}
-
-	// This anyway doesn't work - there are issues with BE/LE conversion
-	dnet_convert_addr_container(cnt);
-
-	size = cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container);
-	id_container = data + sizeof(struct dnet_addr) * cnt->addr_num + sizeof(struct dnet_addr_container);
-
-	backends = malloc(id_container->backends_count * sizeof(struct dnet_backend_ids *));
-	if (!backends) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate %llu bytes for dnet_backend_ids array from %s.",
-				(unsigned long long)id_container->backends_count * sizeof(struct dnet_backend_ids *), dnet_server_convert_dnet_addr(addr));
-		goto err_out_free;
-	}
-
-	err = dnet_validate_id_container(id_container, size, backends);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: failed to validate id container: %d", dnet_server_convert_dnet_addr(addr), err);
-		goto err_out_free_backends;
-	}
-
-	idx = -1;
-	for (i = 0; i < cnt->addr_num; ++i) {
-		if (dnet_empty_addr(&cnt->addrs[i])) {
-			dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: received wildcard (like 0.0.0.0) addr: backends: %d, addr-num: %d, idx: %d.",
-					dnet_server_convert_dnet_addr(addr), id_container->backends_count, cnt->addr_num, idx);
-			err = -EPROTO;
-			goto err_out_free_backends;
-		}
-
-		if (dnet_addr_equal(addr, &cnt->addrs[i])) {
-			idx = i;
-			break;
-		}
-	}
-	if (idx == -1) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: there is no connected addr in received reverse lookup data",
-				dnet_server_convert_dnet_addr(addr));
-		goto err_out_free_backends;
-	}
-
-	for (i = 0; i < id_container->backends_count; ++i) {
-		backend = backends[i];
-		for (j = 0; j < backend->ids_count; ++j) {
-			dnet_log(n, DNET_LOG_NOTICE, "connected-to-addr: %s: received backends: %d/%d, ids: %d/%d, addr-num: %d, idx: %d, backend_id: %d, group_id: %d, id: %s.",
-					dnet_server_convert_dnet_addr(addr), i, id_container->backends_count,
-					j, backend->ids_count, cnt->addr_num, idx,
-					backend->backend_id, backend->group_id,
-					dnet_dump_id_str(backend->ids[j].id));
-		}
-	}
-
-	st = dnet_state_create(n, backends, id_container->backends_count, addr, s, &err, join, 1, idx, dnet_state_net_process);
-	if (!st) {
-		/* socket is already closed */
-		s = -1;
-		goto err_out_free_backends;
-	}
-
-	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
-	if (err)
-		goto err_out_put;
-
-	memcpy(st->version, version, sizeof(st->version));
-	dnet_log(n, DNET_LOG_NOTICE, "%s: connected: backends-num: %d, addr-num: %d, idx: %d.",
-			dnet_server_convert_dnet_addr(addr), id_container->backends_count, cnt->addr_num, idx);
-	free(data);
-	free(backends);
-
-	return st;
-
-err_out_put:
-	dnet_state_put(st);
-err_out_free_backends:
-	free(backends);
-err_out_free:
-	free(data);
-err_out_exit:
-	*errp = err;
-	if (s >= 0)
-		dnet_sock_close(n, s);
-	return NULL;
-}
-
-int dnet_add_state(struct dnet_node *n, const struct dnet_addr *addr, int num, int flags)
-{
-	int i, err, join = DNET_WANT_RECONNECT, good_num = 0;
-	struct dnet_net_state *st;
-	struct dnet_addr_socket *remote;
-
-	err = dnet_socket_create(n, addr, &remote, num, 0);
-	if (err) {
-		if (err == -EEXIST) {
-			err = 0;
-		}
-		goto err_out_reconnect;
-	}
-
-	if (n->flags & DNET_CFG_JOIN_NETWORK)
-		join = DNET_JOIN;
-
-	for (i = 0; i < num; ++i) {
-		struct dnet_addr_socket *rem = &remote[i];
-
-		if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST)) {
-			int j;
-
-			/*
-			 * Check whether @n->route_addr already contains given address,
-			 * otherwise add this addr into route request array.
-			 */
-			pthread_mutex_lock(&n->reconnect_lock);
-			for (j = 0; j < n->route_addr_num; ++j) {
-				if (dnet_addr_equal(&n->route_addr[j], &rem->addr))
-					break;
-			}
-
-			if (j == n->route_addr_num) {
-				n->route_addr = realloc(n->route_addr, (n->route_addr_num + 1) * sizeof(struct dnet_addr));
-				if (!n->route_addr) {
-					n->route_addr_num = 0;
-				} else {
-					n->route_addr[n->route_addr_num] = rem->addr;
-					n->route_addr_num += 1;
-				}
-			}
-			pthread_mutex_unlock(&n->reconnect_lock);
-		}
-
-		dnet_log(n, DNET_LOG_NOTICE, "%s: socket: %d, ok: %d", dnet_server_convert_dnet_addr(&rem->addr), rem->s, rem->ok);
-		if (rem->s < 0)
-			continue;
-
-		/* will close socket on error */
-		st = dnet_add_state_socket(n, &rem->addr, rem->s, &err, join);
-		if (!st) {
-			rem->s = err;
-			continue;
-		}
-
-		if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST))
-			dnet_recv_route_list(st);
-
-		dnet_log(n, DNET_LOG_NOTICE, "%s: added new addr: flags: 0x%x, route-request: %d, socket: %d",
-				dnet_state_dump_addr(st),
-				flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST), rem->s);
-	}
-
-err_out_reconnect:
-	/*
-	 * The only case when @remote has not been set is when there is no memory (allocation failed)
-	 * In this case there is virtually nothing we can do about
-	 */
-	if (remote) {
-		for (i = 0; i < num; ++i) {
-			struct dnet_addr_socket *rem = &remote[i];
-
-			if (rem->ok && rem->s >= 0) {
-				good_num++;
-				continue;
-			}
-
-			/* if state is already exist, it should not be an error */
-			if (rem->s == -EEXIST)
-				continue;
-
-			dnet_log(n, DNET_LOG_NOTICE, "%s: could not add state, its error: %d", dnet_server_convert_dnet_addr(&rem->addr), rem->s);
-			if ((rem->s == -EADDRINUSE) || (rem->s == -ECONNREFUSED) || (rem->s == -ECONNRESET) ||
-					(rem->s == -EINPROGRESS) || (rem->s == -EAGAIN) || (rem->s == -ETIMEDOUT)) {
-				dnet_add_reconnect_state(n, &rem->addr, join);
-			}
-		}
-
-		free(remote);
-	}
-
-	return good_num;
 }
 
 struct dnet_write_completion {
@@ -1464,7 +1207,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 	pthread_mutex_lock(&n->reconnect_lock);
 
 	remote_num = n->reconnect_num;
-	remote = calloc(remote_num, sizeof(struct dnet_addr_socket));
+	remote = calloc(remote_num, sizeof(struct dnet_addr));
 	if (!remote) {
 		pthread_mutex_unlock(&n->reconnect_lock);
 		return -ENOMEM;

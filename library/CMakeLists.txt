@@ -6,6 +6,7 @@ set(ELLIPTICS_CLIENT_SRCS
     dnet_common.c
     log.c
     net.c
+    net.cpp
     node.c
     notify_common.c
     pool.c
