@@ -711,7 +711,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		if (cmd->size < sizeof(dnet_addr_container) + cnt->addr_num * sizeof(dnet_addr) + sizeof(dnet_id_container)) {
 			err = -EINVAL;
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: received dnet_addr_container "
-				"is invalid, size: %" PRIu64 ", expected at least: %llu, err: %d",
+				"is invalid, size: %lld, expected at least: %llu, err: %d",
 				dnet_server_convert_dnet_addr(&socket->addr),
 				uint64_t(cmd->size),
 				sizeof(dnet_addr_container) + cnt->addr_num * sizeof(dnet_addr) + sizeof(dnet_id_container),
