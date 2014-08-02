@@ -27,6 +27,7 @@
 #include <sstream>
 #include <algorithm>
 #include <map>
+#include <set>
 #include <iostream>
 
 using namespace ioremap::elliptics;
