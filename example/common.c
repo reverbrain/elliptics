@@ -105,8 +105,6 @@ int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 	char *a;
 	char *addr, *p;
 	int added = 0, err;
-	char auto_str[] = "autodiscovery:";
-	int auto_len = strlen(auto_str);
 	int remote_port, remote_family;
 
 	if (!orig_addr)
@@ -121,17 +119,9 @@ int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 	addr = a;
 
 	while (addr) {
-		int autodescovery = 0;
-
 		p = strchr(addr, ' ');
 		if (p)
 			*p++ = '\0';
-
-		if (!strncmp(addr, auto_str, auto_len)) {
-			addr[auto_len - 1] = '\0';
-			addr += auto_len;
-			autodescovery = 1;
-		}
 
 		err = dnet_parse_addr(addr, &remote_port, &remote_family);
 		if (err) {
@@ -139,24 +129,18 @@ int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 			goto next;
 		}
 
-		if (autodescovery) {
-			err = dnet_discovery_add(n, addr, remote_port, remote_family);
-			if (err)
-				goto next;
-		} else {
-			struct dnet_addr ra;
+		struct dnet_addr ra;
 
-			err = dnet_create_addr(&ra, addr, remote_port, remote_family);
-			if (err) {
-				dnet_log_raw(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.",
-						addr, remote_port, remote_family, err, strerror(-err));
-				goto next;
-			}
-
-			err = dnet_add_state(n, &ra, 1, 0);
-			if (err < 0)
-				goto next;
+		err = dnet_create_addr(&ra, addr, remote_port, remote_family);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.",
+					addr, remote_port, remote_family, err, strerror(-err));
+			goto next;
 		}
+
+		err = dnet_add_state(n, &ra, 1, 0);
+		if (err < 0)
+			goto next;
 
 		added++;
 

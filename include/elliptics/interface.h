@@ -1023,8 +1023,6 @@ void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)
 #define DNET_CONF_ADDR_DELIM	':'
 int dnet_parse_addr(char *addr, int *portp, int *familyp);
 
-int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, int remote_family);
-
 int dnet_parse_numeric_id(const char *value, unsigned char *id);
 
 #ifdef __cplusplus

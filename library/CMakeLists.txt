@@ -2,7 +2,6 @@ set(ELLIPTICS_CLIENT_SRCS
     compat.c
     crypto.c
     crypto/sha512.c
-    discovery.c
     dnet_common.c
     log.c
     net.c

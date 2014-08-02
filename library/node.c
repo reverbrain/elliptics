@@ -80,8 +80,6 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	}
 	pthread_attr_setdetachstate(&n->attr, PTHREAD_CREATE_DETACHED);
 
-	n->autodiscovery_socket = -1;
-
 	INIT_LIST_HEAD(&n->group_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
 	INIT_LIST_HEAD(&n->dht_state_list);
@@ -743,7 +741,6 @@ void dnet_node_cleanup_common_resources(struct dnet_node *n)
 	dnet_wait_put(n->wait);
 
 	free(n->route_addr);
-	close(n->autodiscovery_socket);
 }
 
 void dnet_node_destroy(struct dnet_node *n)

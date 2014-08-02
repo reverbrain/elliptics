@@ -560,9 +560,6 @@ struct dnet_node
 
 	int			need_exit;
 
-	int			autodiscovery_socket;
-	struct dnet_addr	autodiscovery_addr;
-
 	int			flags;
 	int			ro;
 
@@ -910,8 +907,6 @@ int dnet_ids_update(struct dnet_node *n, int update_local, const char *file, str
 
 int __attribute__((weak)) dnet_remove_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id);
 int __attribute__((weak)) dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id, void *csum, int csize);
-
-int dnet_discovery(struct dnet_node *n);
 
 /*
  * Internal iterator state

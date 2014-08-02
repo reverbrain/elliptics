@@ -557,8 +557,6 @@ static void *dnet_reconnect_process(void *data)
 	dnet_log(n, DNET_LOG_INFO, "Started reconnection thread. Timeout: %lu seconds. Route table update every %lu seconds.",
 			n->check_timeout, n->check_timeout);
 
-	dnet_discovery(n);
-
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
 
@@ -566,7 +564,6 @@ static void *dnet_reconnect_process(void *data)
 		dnet_reconnect_and_check_route_table(n);
 		dnet_log(n, DNET_LOG_INFO, "Finished reconnection process");
 
-		dnet_discovery(n);
 		gettimeofday(&tv2, NULL);
 
 		timeout = n->check_timeout - (tv2.tv_sec - tv1.tv_sec);
