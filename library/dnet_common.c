@@ -1897,7 +1897,7 @@ err_out_exit:
 }
 
 struct dnet_weight {
-	int			weight;
+	double			weight;
 	int			group_id;
 };
 
@@ -1906,19 +1906,40 @@ static int dnet_weight_compare(const void *v1, const void *v2)
 	const struct dnet_weight *w1 = v1;
 	const struct dnet_weight *w2 = v2;
 
-	return w2->weight - w1->weight;
+	if (w2->weight > w1->weight)
+		return 1;
+	if (w2->weight < w1->weight)
+		return -1;
+
+	return 0;
 }
 
 static int dnet_weight_get_winner(struct dnet_weight *w, int num)
 {
-	long sum = 0, pos;
-	float r;
+	double r, pos, sum = 0;
 	int i;
 
 	for (i = 0; i < num; ++i)
 		sum += w[i].weight;
 
-	r = (float)rand() / (float)RAND_MAX;
+	/*
+	 * Small state weights will be summed into quite small value,
+	 * random generator will not be able to produce a value
+	 * with enough bits of entropy. In some cases @pos below
+	 * will always be zero ending up always selecting the first node.
+	 *
+	 * This simple algorithm increases all weights until they sum up
+	 * to the large enough range.
+	 */
+	while (sum < 1000) {
+		double mult = 10.0;
+
+		sum *= mult;
+		for (i = 0; i < num; ++i)
+			w[i].weight *= mult;
+	}
+
+	r = (double)rand() / (double)RAND_MAX;
 	pos = r * sum;
 
 	for (i = 0; i < num; ++i) {
@@ -1972,7 +1993,7 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 
 			st = dnet_state_get_first(n, id);
 			if (st) {
-				weights[num].weight = (int)(st->weight * 100);
+				weights[num].weight = st->weight;
 				weights[num].group_id = id->group_id;
 
 				dnet_state_put(st);
