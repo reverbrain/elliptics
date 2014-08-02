@@ -1,3 +1,9 @@
+elliptics (2.25.6.5) unstable; urgency=low
+
+  * weights: increase temporal selection-only (not state) weights (multiply by 10 on each step) until they sum up into large enough number for random selection
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 02 Aug 2014 23:14:18 +0400
+
 elliptics (2.25.6.4) unstable; urgency=low
 
   * reconnect: reconnect to addresses which were timed out during connection

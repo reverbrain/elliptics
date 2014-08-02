@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.4
+Version:	2.25.6.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Aug 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.5
+- weights: increase temporal selection-only (not state) weights (multiply by 10 on each step) until they sum up into large enough number for random selection
+
 * Thu Jul 31 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.4
 - reconnect: reconnect to addresses which were timed out during connection
 
