@@ -937,7 +937,8 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_
 
 	states.reset();
 
-	dnet_socket_connect_new_sockets(state, original_list);
+	if (original_list)
+		dnet_socket_connect_new_sockets(state, original_list);
 	original_list = NULL;
 
 	timeout = state.node->wait_ts.tv_sec * 1000 > 2000 ? state.node->wait_ts.tv_sec * 1000 : 2000;
