@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.0.2
+Version:	2.26.0.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -146,6 +146,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Aug 03 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.3
+- route: Add states after join_request to dht_list
+- library: Added really asynchonous add_remote_state
+- library: Reimplemented reconnection thread
+- * Now it makes reconnection and route list requests simultaneously, which gradually decreasis time of this operations with low-latency network
+- net: Removed autodiscovery support
+- 
+
 * Fri Aug 01 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.2
 - Fixed version
 

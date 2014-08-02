@@ -1,3 +1,14 @@
+elliptics (2.26.0.3) unstable; urgency=low
+
+  * route: Add states after join_request to dht_list
+  * library: Added really asynchonous add_remote_state
+  * library: Reimplemented reconnection thread
+  * * Now it makes reconnection and route list requests simultaneously, which gradually decreasis time of this operations with low-latency network
+  * net: Removed autodiscovery support
+  * 
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Sun, 03 Aug 2014 03:50:01 +0400
+
 elliptics (2.26.0.2) unstable; urgency=low
 
   * Fixed version
