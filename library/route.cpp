@@ -121,18 +121,15 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		}
 	}
 
-	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
+	pthread_mutex_lock(&n->state_lock);
+	err = dnet_state_move_to_dht_nolock(st, &cnt->addrs[idx]);
+	pthread_mutex_unlock(&n->state_lock);
 	if (err)
 		goto err_out_free;
 
-	pthread_mutex_lock(&n->state_lock);
-	list_del_init(&st->node_entry);
-	list_del_init(&st->storage_state_entry);
-	list_add_tail(&st->node_entry, &n->dht_state_list);
-	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
-
-	memcpy(&st->addr, &cnt->addrs[idx], sizeof(struct dnet_addr));
-	pthread_mutex_unlock(&n->state_lock);
+	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
+	if (err)
+		goto err_out_move_back;
 
 	dnet_state_set_server_prio(st);
 
@@ -142,7 +139,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			pthread_mutex_lock(&n->state_lock);
 			dnet_idc_destroy_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);
-			goto err_out_free;
+			goto err_out_move_back;
 		}
 	}
 
@@ -150,6 +147,14 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			"address idx: %d, received addr-num: %d, local addr-num: %d, backends-num: %d, err: %d",
 			dnet_dump_id(&cmd->id), client_addr, server_addr,
 			idx, cnt->addr_num, n->addr_num, id_container->backends_count, err);
+
+	goto err_out_free;
+
+err_out_move_back:
+	pthread_mutex_lock(&n->state_lock);
+	list_move_tail(&st->node_entry, &n->empty_state_list);
+	list_move_tail(&st->storage_state_entry, &n->storage_state_list);
+	pthread_mutex_unlock(&n->state_lock);
 err_out_free:
 	free(backends);
 err_out_exit:

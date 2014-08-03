@@ -238,6 +238,7 @@ int dnet_state_micro_init(struct dnet_net_state *st, struct dnet_node *n, struct
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 int dnet_state_set_server_prio(struct dnet_net_state *st);
 
+int dnet_state_move_to_dht_nolock(struct dnet_net_state *st, struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_backend_ids **backends, int backends_count,
 		struct dnet_addr *addr, int s, int *errp, int join, int server_node, int idx,
