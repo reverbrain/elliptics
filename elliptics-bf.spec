@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.0.3
+Version:	2.26.0.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -146,6 +146,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Aug 03 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.4
+- library: Fixed race of creating dht states
+- 
+
 * Sun Aug 03 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.3
 - route: Add states after join_request to dht_list
 - library: Added really asynchonous add_remote_state

@@ -1,3 +1,10 @@
+elliptics (2.26.0.4) unstable; urgency=low
+
+  * library: Fixed race of creating dht states
+  * 
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Sun, 03 Aug 2014 19:43:51 +0400
+
 elliptics (2.26.0.3) unstable; urgency=low
 
   * route: Add states after join_request to dht_list
