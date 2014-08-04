@@ -1,3 +1,11 @@
+elliptics (2.26.1.1) unstable; urgency=low
+
+  * logger: Use blackhole's level's formatter
+  * server: Connect to remotes asynchronously
+  * net: Fixed race at converting node to server one
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Mon, 04 Aug 2014 22:23:11 +0400
+
 elliptics (2.26.1.0) unstable; urgency=low
 
   * Python: implemented elliptics.Node.add_remotes which has replaced old elliptics.Node.add_remote

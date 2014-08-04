@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.1.0
+Version:	2.26.1.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -146,6 +146,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Aug 04 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.1.1
+- logger: Use blackhole's level's formatter
+- server: Connect to remotes asynchronously
+- net: Fixed race at converting node to server one
+
 * Mon Aug 04 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.1.0
 - Python: implemented elliptics.Node.add_remotes which has replaced old elliptics.Node.add_remote
 - Pytests: added waiting for appearance enabled backends in route list at test_recovery
