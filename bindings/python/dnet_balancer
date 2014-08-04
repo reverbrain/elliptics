@@ -303,7 +303,7 @@ def get_routes(options):
     logger = elliptics.Logger(options.log,
                               int(options.log_level))
     node = elliptics.Node(logger)
-    node.add_remote(elliptics.Address.from_host_port_family(options.remote))
+    node.add_remotes(elliptics.Address.from_host_port_family(options.remote))
 
     session = elliptics.Session(node)
 

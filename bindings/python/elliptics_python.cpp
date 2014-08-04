@@ -342,10 +342,10 @@ BOOST_PYTHON_MODULE(core)
 		     "node = elliptics.Node(logger, config)"))
 		.def("add_remotes", &elliptics_node_python::add_remotes,
 		     (bp::arg("remotes")),
-		     "add_remote(remotes)\n"
+		     "add_remotes(remotes)\n"
 		     "    Adds connections to Elliptics node\n"
 		     "    which located on remotes.\n\n"
-		     "    node.add_remote(['host.com', 1025, 2)")
+		     "    node.add_remotes(('host.com:1025:2'))")
 		.def("set_timeouts", static_cast<void (node::*)(const int, const int)>(&node::set_timeouts),
 		     (bp::arg("wait_timeout"), bp::arg("check_timeout")),
 		     "set_timeouts(wait_timeout, check_timeout)\n"
