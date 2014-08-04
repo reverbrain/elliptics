@@ -227,8 +227,8 @@ static bool dnet_send_nolock(dnet_connect_state &state, dnet_addr_socket *socket
 	if (err < 0) {
 		err = -errno;
 		if (err != -EAGAIN) {
-			dnet_log_err(state.node, "%s: failed to send packet: size: %llu, socket: %d",
-				dnet_server_convert_dnet_addr(&socket->addr), (unsigned long long)socket->io_size, socket->s);
+			dnet_log_err(state.node, "%s: failed to send packet: size: %llu, socket: %d, err: %ld",
+				dnet_server_convert_dnet_addr(&socket->addr), (unsigned long long)socket->io_size, socket->s, err);
 			dnet_fail_socket(state, socket, err);
 			return false;
 		}
@@ -636,6 +636,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		if (!dnet_epoll_ctl(state, socket, EPOLL_CTL_MOD, EPOLLIN))
 			break;
 
+		socket->state = recv_reverse;
 		// Fall through
 	case recv_reverse: {
 		if (!dnet_recv_nolock(state, socket))
@@ -699,6 +700,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 			dnet_fail_socket(state, socket, err);
 			break;
 		}
+		socket->state = recv_reverse_data;
 		// Fall through
 	}
 	case recv_reverse_data: {
