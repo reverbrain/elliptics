@@ -677,8 +677,10 @@ err_out_reconnect:
 			}
 
 			/* if state is already exist, it should not be an error */
-			if (rem->s == -EEXIST)
+			if (rem->s == -EEXIST) {
+				good_num++;
 				continue;
+			}
 
 			dnet_log(n, DNET_LOG_NOTICE, "%s: could not add state, its error: %d", dnet_server_convert_dnet_addr(&rem->addr), rem->s);
 			if ((rem->s == -EADDRINUSE) || (rem->s == -ECONNREFUSED) || (rem->s == -ECONNRESET) ||
