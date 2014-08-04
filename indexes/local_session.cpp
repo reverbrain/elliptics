@@ -293,6 +293,8 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 	entry.id = index;
 	entry.size = data.size();
 	entry.flags |= action;
+	entry.shard_id = shard_id;
+	entry.shard_count = shard_count;
 
 	buffer.write(entry);
 	if (data.size() > 0) {

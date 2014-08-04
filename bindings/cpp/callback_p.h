@@ -1359,6 +1359,7 @@ class remove_index_callback
 			memset(&entry, 0, sizeof(entry));
 
 			entry.flags |= DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL | flags;
+			entry.shard_count = shard_count;
 
 			std::unique_ptr<state_container[]> states(new state_container[groups.size()]);
 
@@ -1378,6 +1379,7 @@ class remove_index_callback
 
 			for (int shard_id = 0; shard_id <= shard_count; ++shard_id) {
 				const bool after_last_entry = (shard_id == shard_count);
+				entry.shard_id = shard_id;
 
 				if (!after_last_entry) {
 					dnet_indexes_transform_index_id(node, &index, &entry.id, shard_id);

@@ -1027,8 +1027,9 @@ struct dnet_indexes_request_entry
 	struct dnet_raw_id		id;		/* Index ID */
 	uint64_t			flags;		/* Index flags */
 	uint32_t			limit;		/* Capped collection limit */
-	uint32_t			reserved1;
-	uint64_t			reserved2;
+	uint32_t			shard_id;
+	uint32_t			shard_count;
+	uint64_t			reserved[4];
 	uint64_t			size;		/* Data size */
 	char				data[0];	/* Index-specific data */
 } __attribute__ ((packed));

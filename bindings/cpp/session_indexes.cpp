@@ -187,10 +187,14 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 		dnet_id id;
 		memset(&id, 0, sizeof(id));
 
-		const int shard_id = dnet_indexes_get_shard_id(node, &key(indexes_id).raw_id());
+		const auto shard_id = dnet_indexes_get_shard_id(node, &key(indexes_id).raw_id());
+		const auto shard_count = dnet_node_get_indexes_shard_count(node);
 
 		request->shard_id = shard_id;
-		request->shard_count = dnet_node_get_indexes_shard_count(node);
+		request->shard_count = shard_count;
+
+		entry->shard_id = shard_id;
+		entry->shard_count = shard_count;
 
 		for (size_t i = 0; i < indexes.size(); ++i) {
 			const index_entry &index = indexes[i];

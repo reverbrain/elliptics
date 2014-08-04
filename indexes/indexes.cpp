@@ -371,6 +371,8 @@ err_out_complete:
 		entry.id = index;
 		entry.size = data.size();
 		entry.flags = action;
+		entry.shard_id = indexes.shard_id;
+		entry.shard_count = indexes.shard_count;
 
 		buffer.write(entry);
 
@@ -483,8 +485,10 @@ static bool entry_time_less_than(const dnet_index_entry &first, const dnet_index
  */
 data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_indexes_request *request,
 	const data_pointer &index_data, const data_pointer &data, uint32_t action,
-	std::vector<dnet_indexes_reply_entry> * &removed, uint32_t limit)
+	std::vector<dnet_indexes_reply_entry> * &removed, const dnet_indexes_request_entry &entry)
 {
+	const uint32_t limit = entry.limit;
+
 	elliptics_timer timer;
 
 	dnet_indexes indexes;
@@ -567,8 +571,8 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_in
 
 	const int64_t timer_update = timer.restart();
 
-	indexes.shard_id = request->shard_id;
-	indexes.shard_count = request->shard_count;
+	indexes.shard_id = entry.shard_id;
+	indexes.shard_count = entry.shard_count;
 
 	msgpack::sbuffer buffer;
 	msgpack::pack(&buffer, indexes);
@@ -652,7 +656,7 @@ int process_internal_indexes_entry(struct dnet_backend_io *backend, dnet_node *n
 	data_pointer data = sess.read(id, &err);
 	const int64_t timer_read = timer.restart();
 
-	data_pointer new_data = convert_index_table(node, &id, &request, entry_data, data, action, removed, entry.limit);
+	data_pointer new_data = convert_index_table(node, &id, &request, entry_data, data, action, removed, entry);
 	const int64_t timer_convert = timer.restart();
 
 	const bool data_equal = data == new_data;
