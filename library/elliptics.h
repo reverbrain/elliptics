@@ -544,7 +544,6 @@ struct dnet_config_data {
 	struct dnet_addr *cfg_addrs;
 
 	struct dnet_config cfg_state;
-	char *cfg_remotes;
 	int daemon_mode;
 
 	dnet_backend_info_list *backends;

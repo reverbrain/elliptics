@@ -108,6 +108,7 @@ struct config_data : public dnet_config_data
 	std::string logger_value;
 	ioremap::elliptics::logger_base logger_base;
 	ioremap::elliptics::logger logger;
+	std::vector<address> remotes;
 };
 
 extern "C" dnet_config_data *dnet_config_data_create()
@@ -134,7 +135,6 @@ extern "C" void dnet_config_data_destroy(dnet_config_data *public_data)
 	config_data *data = static_cast<config_data *>(public_data);
 
 	free(data->cfg_addrs);
-	free(data->cfg_remotes);
 
 	delete data;
 }
@@ -279,25 +279,6 @@ static void dnet_set_addr(config_data *data, const std::vector<std::string> &add
 	}
 }
 
-static void dnet_set_remote_addrs(config_data *data, const std::vector<std::string> &remotes)
-{
-	if (remotes.empty())
-		return;
-
-	std::string tmp;
-	for (size_t i = 0; i < remotes.size(); ++i) {
-		tmp.append(remotes[i]);
-		tmp.append(1, ' ');
-	}
-
-	if (tmp.size() > 0)
-		tmp.resize(tmp.size() - 1);
-
-	data->cfg_remotes = strdup(tmp.c_str());
-	if (!data->cfg_remotes)
-		throw std::bad_alloc();
-}
-
 static int dnet_set_malloc_options(config_data *data, unsigned long long value)
 {
 	int err, thr = value;
@@ -359,7 +340,11 @@ void parse_options(config_data *data, const config &options)
 	}
 
 	dnet_set_addr(data, options.at("address", std::vector<std::string>()));
-	dnet_set_remote_addrs(data, options.at("remote", std::vector<std::string>()));
+
+	const std::vector<std::string> remotes = options.at("remote", std::vector<std::string>());
+	for (auto it = remotes.begin(); it != remotes.end(); ++it) {
+		data->remotes.emplace_back(*it);
+	}
 
 	if (options.has("monitor")) {
 		const config monitor = options.at("monitor");
@@ -470,8 +455,9 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		if (!node)
 			throw config_error("failed to create node");
 
-		int err = dnet_common_add_remote_addr(node, data->cfg_remotes);
-		if (err)
+		static_assert(sizeof(dnet_addr) == sizeof(address), "Size of dnet_addr and size of address must be equal");
+		int err = dnet_add_state(node, reinterpret_cast<const dnet_addr *>(data->remotes.data()), data->remotes.size(), 0);
+		if (err < 0)
 			throw config_error("failed to connect to remotes");
 
 	} catch (std::exception &exc) {
