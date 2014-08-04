@@ -458,7 +458,7 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		static_assert(sizeof(dnet_addr) == sizeof(address), "Size of dnet_addr and size of address must be equal");
 		int err = dnet_add_state(node, reinterpret_cast<const dnet_addr *>(data->remotes.data()), data->remotes.size(), 0);
 		if (err < 0)
-			throw config_error("failed to connect to remotes");
+			BH_LOG(*node->log, DNET_LOG_WARNING, "Failed to connect to remote nodes: %d", err);
 
 	} catch (std::exception &exc) {
 		if (data && data->cfg_state.log) {
