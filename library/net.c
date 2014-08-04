@@ -995,12 +995,19 @@ err_out:
 	return err;
 }
 
-int dnet_state_move_to_dht_nolock(struct dnet_net_state *st, struct dnet_addr *addr)
+int dnet_state_move_to_dht(struct dnet_net_state *st, struct dnet_addr *addr)
 {
 	struct dnet_net_state *other;
+	struct dnet_node *n = st->n;
+
+	pthread_mutex_lock(&n->state_lock);
 
 	list_for_each_entry(other, &st->n->dht_state_list, node_entry) {
 		if (dnet_addr_equal(&other->addr, addr)) {
+			pthread_mutex_unlock(&n->state_lock);
+
+			dnet_state_reset(st, -EEXIST);
+
 			return -EEXIST;
 		}
 	}
@@ -1008,6 +1015,8 @@ int dnet_state_move_to_dht_nolock(struct dnet_net_state *st, struct dnet_addr *a
 	list_move_tail(&st->node_entry, &st->n->dht_state_list);
 	list_move_tail(&st->storage_state_entry, &st->n->storage_state_list);
 	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
+
+	pthread_mutex_unlock(&n->state_lock);
 
 	return 0;
 }
@@ -1077,11 +1086,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	dnet_state_get(st);
 
 	if (server_node) {
-		pthread_mutex_lock(&n->state_lock);
-		err = dnet_state_move_to_dht_nolock(st, addr);
+		err = dnet_state_move_to_dht(st, addr);
 		if (err)
-			goto err_out_unlock;
-		pthread_mutex_unlock(&n->state_lock);
+			goto err_out_send_destroy;
 
 		for (i = 0; i < backends_count; ++i) {
 			err = dnet_idc_update_backend(st, backends[i]);

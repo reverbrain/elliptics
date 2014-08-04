@@ -121,9 +121,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		}
 	}
 
-	pthread_mutex_lock(&n->state_lock);
-	err = dnet_state_move_to_dht_nolock(st, &cnt->addrs[idx]);
-	pthread_mutex_unlock(&n->state_lock);
+	err = dnet_state_move_to_dht(st, &cnt->addrs[idx]);
 	if (err)
 		goto err_out_free;
 
