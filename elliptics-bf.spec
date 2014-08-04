@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.5
+Version:	2.25.6.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Aug 05 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.6
+- node: throw client error even when dnet_add_state() returned 0 - this means we didn't connect to ANY remote node
+- search: when search for the state for given ID only print error if there was not state found
+
 * Sat Aug 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.5
 - weights: increase temporal selection-only (not state) weights (multiply by 10 on each step) until they sum up into large enough number for random selection
 
