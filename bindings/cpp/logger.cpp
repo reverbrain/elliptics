@@ -74,35 +74,12 @@ static void format_request_id(blackhole::aux::attachable_ostringstream &out, uin
 	out << std::setw(16) << std::setfill('0') << std::hex << request_id;
 }
 
-static void format_severity(blackhole::aux::attachable_ostringstream &out, const log_level &level)
-{
-	boost::io::ios_flags_saver ifs(out);
-	// Maximal possible length of severity name
-	out << std::setw(7) << std::setfill(' ');
-
-	static const char *names[] = {
-		"DEBUG",
-		"NOTICE",
-		"INFO",
-		"WARNING",
-		"ERROR"
-	};
-
-	typedef blackhole::aux::underlying_type<log_level>::type level_type;
-	auto value = static_cast<level_type>(level);
-
-	if (value < 0 || value >= static_cast<level_type>(sizeof(names) / sizeof(names[0])))
-		out << value;
-	else
-		out << names[value];
-}
-
 blackhole::mapping::value_t file_logger::mapping()
 {
 	blackhole::mapping::value_t mapper;
 	mapper.add<blackhole::keyword::tag::timestamp_t>("%Y-%m-%d %H:%M:%S.%f");
 	mapper.add<blackhole::keyword::tag::request_id_t>(format_request_id);
-	mapper.add<blackhole::keyword::tag::severity_t<log_level>>(format_severity);
+	mapper.add<blackhole::keyword::tag::severity_t<log_level>>(blackhole::defaults::map_severity);
 	return mapper;
 }
 
