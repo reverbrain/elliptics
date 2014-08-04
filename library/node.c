@@ -459,16 +459,18 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, const struct dn
 	struct dnet_net_state *found;
 
 	pthread_mutex_lock(&n->state_lock);
+
 	found = dnet_state_search_nolock(n, id);
+	if (!found) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: could not find network state for request", dnet_dump_id(id));
+	}
+
 	if (found == n->st) {
 		dnet_state_put(found);
 		found = NULL;
 	}
-	pthread_mutex_unlock(&n->state_lock);
 
-	if (!found) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: could not find network state for request", dnet_dump_id(id));
-	}
+	pthread_mutex_unlock(&n->state_lock);
 
 	return found;
 }
