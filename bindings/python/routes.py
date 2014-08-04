@@ -51,8 +51,7 @@ if __name__ == '__main__':
     s = elliptics.Session(n)
 
     try:
-        for r in args.remotes:
-            n.add_remote(r)
+        n.add_remotes(args.remotes)
     except Exception as e:
         print e
         pass

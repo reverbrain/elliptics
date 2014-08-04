@@ -40,7 +40,7 @@ try:
 
 	for r in remotes:
 		try:
-			n.add_remote(r[0], r[1])
+			n.add_remotes(elliptics.Address(r[0], r[1], 2))
 		except:
 			pass
 	if len(n.get_routes()) == 0:

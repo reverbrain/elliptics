@@ -298,12 +298,8 @@ if __name__ == '__main__':
 
     ctx.elog = elliptics.Logger(ctx.log_file, ctx.log_level)
     ctx.node = elliptics.Node(ctx.elog)
-    for r in ctx.remotes:
-        try:
-            ctx.node.add_remote(r)
-        except Exception as e:
-            print("Couldn't connect to remote: {0} got: {1}"
-                  .format(r, e))
+    ctx.node.add_remotes(ctx.remotes)
+
     ctx.session = elliptics.Session(ctx.node)
     ctx.session.set_timeout(60)
 

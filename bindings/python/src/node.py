@@ -21,6 +21,9 @@ from elliptics.log import logged_class
 
 @logged_class
 class Node(Node):
+    '''
+    Node represents a connection with Elliptics.
+    '''
     def __init__(self, logger, config=None):
         '''Initializes node by the logger and custom configuration\n
         node = elliptics.Node(logger, config)"))
@@ -31,16 +34,29 @@ class Node(Node):
         else:
             super(Node, self).__init__(logger)
         self._logger = logger
-    """
-    Node represents a connection with Elliptics.
-    """
-    def add_remote(self, address):
-        """
-           Adds connection to Elliptics node
-           @address -- elliptics.Address of server node
 
-           node.add_remote(Address.from_host_port("host.com:1025"))
-        """
-        super(Node, self).add_remote(host=address.host,
-                                     port=address.port,
-                                     family=address.family)
+    def add_remotes(self, remotes):
+        '''
+           Adds connections to Elliptics node
+           @remotes -- elliptics.Address's of server node
+
+           node.add_remotes(Address.from_host_port("host.com:1025"))
+           node.add_remotes([Address.from_host_port("host.com:1025"),
+                             Address.from_host_port("host.com:1026"),
+                             "host.com:1027:2"])
+        '''
+        def convert(address, b_raised=True):
+            if type(address) is str:
+                return tuple(Address.from_host_port_family(address))
+            elif type(address) is Address:
+                return tuple(address)
+            elif b_raised:
+                raise ValueError("Couldn't convert {0} to elliptics.Address".format(repr(address)))
+
+        addr = convert(remotes, False)
+        if addr is not None:
+            super(Node, self).add_remotes((addr, ))
+        elif hasattr(remotes, '__iter__'):
+            super(Node, self).add_remotes(map(convert, remotes))
+        else:
+            raise ValueError("Couldn't convert {0} to elliptics.Address".format(repr(address)))

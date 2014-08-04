@@ -30,7 +30,7 @@ try:
 
 	n = elliptics.Node(log, cfg)
 
-	n.add_remote("localhost", 1025)
+	n.add_remotes("localhost:1025:2")
 
 	s = elliptics.Session(n)
 

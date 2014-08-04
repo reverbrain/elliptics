@@ -16,11 +16,7 @@ class merge:
 		self.log = elliptics_log_file(log, mask)
 		self.n = elliptics_node_python(self.log)
 
-		for r in remotes:
-			try:
-				self.n.add_remote(r[0], r[1])
-			except:
-				pass
+		self.n.add_remotes(remotes)
 
 		self.own_group = group
 		self.own = own
@@ -80,7 +76,7 @@ class merge:
 
 if __name__ == '__main__':
 	# list of tuples of remote addresses to connect and grab route table
-	remotes = [('elisto19f.dev', 1025)]
+	remotes = ['elisto19f.dev:1025:2')]
 
 	# when doing merge, only select addresses from this group
 	want_group = 1

@@ -139,8 +139,19 @@ class elliptics_node_python : public node, public bp::wrapper<node> {
 
 		elliptics_node_python(const node &n): node(n) {}
 
-		void add_remote(const char *host, int port, int family) {
-			node::add_remote(address(host, port, family));
+		void add_remotes(const bp::api::object &remotes) {
+			auto remotes_len = bp::len(remotes);
+			std::vector<address> std_remotes;
+			std_remotes.reserve(remotes_len);
+
+			for (bp::stl_input_iterator<bp::tuple> it(remotes), end; it != end; ++it) {
+				bp::extract<std::string> get_host((*it)[0]);
+				bp::extract<int> get_port((*it)[1]);
+				bp::extract<int> get_family((*it)[2]);
+				std_remotes.emplace_back(get_host(), get_port(), get_family());
+			}
+
+			add_remote(std_remotes);
 		}
 };
 
@@ -329,13 +340,12 @@ BOOST_PYTHON_MODULE(core)
 		     "__init__(self, logger, config)\n"
 		     "    Initializes node by the logger and custom configuration\n\n"
 		     "node = elliptics.Node(logger, config)"))
-		.def("add_remote", &elliptics_node_python::add_remote,
-		     (bp::arg("host"), bp::arg("port"), bp::arg("family") = AF_INET),
-		     "add_remote(host, port, family=AF_INET)\n"
-		     "    Adds connection to Elliptics node\n"
-		     "    which located on address, port, family.\n"
-		     "    Throws exception if connection hasn't been established\n\n"
-		     "    node.add_remote(host='host.com', port=1025, family=2)")
+		.def("add_remotes", &elliptics_node_python::add_remotes,
+		     (bp::arg("remotes")),
+		     "add_remote(remotes)\n"
+		     "    Adds connections to Elliptics node\n"
+		     "    which located on remotes.\n\n"
+		     "    node.add_remote(['host.com', 1025, 2)")
 		.def("set_timeouts", static_cast<void (node::*)(const int, const int)>(&node::set_timeouts),
 		     (bp::arg("wait_timeout"), bp::arg("check_timeout")),
 		     "set_timeouts(wait_timeout, check_timeout)\n"

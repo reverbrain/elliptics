@@ -34,7 +34,7 @@ if __name__ == '__main__':
     cfg.config.wait_timeout = 60
 
     n = elliptics.Node(log, cfg)
-    n.add_remote("localhost", 1025)
+    n.add_remotes("localhost:1025:2")
 
     s = elliptics.Session(n)
     s.add_groups([2])

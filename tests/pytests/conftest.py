@@ -59,8 +59,7 @@ def raises(type, message, func, *args, **kwargs):
 @pytest.fixture(scope='class')
 def simple_node(request):
     simple_node = elliptics.Node(elliptics.Logger("client.log", 4))
-    for r in request.config.option.remotes:
-        simple_node.add_remote(elliptics.Address.from_host_port_family(r))
+    simple_node.add_remotes(request.config.option.remotes)
 
     def fin():
         print "Finilizing simple node"
@@ -100,14 +99,7 @@ def connect(endpoints, groups, **kw):
     rename(kw, 'loglevel', 'log_level')
 
     n = elliptics.create_node(**kw)
-
-    for r in remotes:
-        try:
-            n.add_remote(r)
-        except Exception as e:
-            import sys
-            sys.stderr.write("{0}\n".format(repr(e)))
-            pass
+    n.add_remotes(remotes)
 
     s = elliptics.Session(n)
     s.add_groups(groups)
