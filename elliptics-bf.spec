@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.0.4
+Version:	2.26.1.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -146,6 +146,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Aug 04 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.1.0
+- Python: implemented elliptics.Node.add_remotes which has replaced old elliptics.Node.add_remote
+- Pytests: added waiting for appearance enabled backends in route list at test_recovery
+- Tools: fixed dnet_recovery
+- cocaine: Connect to all remotes simultaneously
+- indexes: Fixed shard id & count values in secondary indexes
+- backends: Added more logs about init/cleanup
+- net: Fixed connection to server with big ids files
+
 * Sun Aug 03 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.4
 - library: Fixed race of creating dht states
 - 
