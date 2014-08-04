@@ -75,8 +75,8 @@ class Servers:
             self.p.terminate()
             self.p.wait()
 
-        if os.path.exists(self.path):
-            shutil.rmtree(self.path)
+#        if os.path.exists(self.path):
+#            shutil.rmtree(self.path)
 
 
 @pytest.fixture(scope='session')

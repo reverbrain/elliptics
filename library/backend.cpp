@@ -198,6 +198,8 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 		backend.state = DNET_BACKEND_ACTIVATING;
 	}
 
+	dnet_log(node, DNET_LOG_INFO, "backend_init: backend: %zu, initializing", backend_id);
+
 	backend.config = backend.config_template;
 	backend.data.assign(backend.data.size(), '\0');
 	backend.config.data = backend.data.data();
@@ -297,6 +299,7 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 		std::lock_guard<std::mutex> guard(*backend.state_mutex);
 		*state = backend.state;
 		if (backend.state != DNET_BACKEND_ENABLED) {
+			dnet_log(node, DNET_LOG_ERROR, "backend_cleanup: backend: %zu, trying to destroy not activated backend", backend_id);
 			if (*state == DNET_BACKEND_DISABLED)
 				return -EALREADY;
 			else if (*state == DNET_BACKEND_DEACTIVATING)
@@ -306,6 +309,8 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 		}
 		backend.state = DNET_BACKEND_DEACTIVATING;
 	}
+
+	dnet_log(node, DNET_LOG_INFO, "backend_cleanup: backend: %zu, destroying", backend_id);
 
 	dnet_backend_io *backend_io = node->io ? &node->io->backends[backend_id] : NULL;
 	if (backend_io)
@@ -330,6 +335,9 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 		std::lock_guard<std::mutex> guard(*backend.state_mutex);
 		backend.state = DNET_BACKEND_DISABLED;
 	}
+
+	dnet_log(node, DNET_LOG_INFO, "backend_cleanup: backend: %zu, destroyed", backend_id);
+
 	return 0;
 }
 

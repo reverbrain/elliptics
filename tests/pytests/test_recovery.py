@@ -126,7 +126,7 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
 
     log = logging.getLogger()
     log.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(fmt='%(asctime)-15s %(processName)s %(levelname)s %(message)s',
+    formatter = logging.Formatter(fmt='%(asctime)-15s %(thread)d/%(process)d %(processName)s %(levelname)s %(message)s',
                                   datefmt='%d %b %y %H:%M:%S')
 
     ch = logging.FileHandler(ctx.log_file)
