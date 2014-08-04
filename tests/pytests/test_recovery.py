@@ -58,6 +58,12 @@ def enable_backend(scope, session, group, address, backend_id):
     del scope.disabled_backends[index]
     return session.enable_backend(address, backend_id)
 
+def wait_backends_in_route(session, addresses_with_backends):
+    from time import sleep
+    while set(addresses_with_backends).difference(session.routes.addresses_with_backends()):
+        print set(addresses_with_backends).difference(session.routes.addresses_with_backends()), addresses_with_backends, session.routes.addresses_with_backends()
+        sleep(0.1)
+
 def enable_group(scope, session, group):
     '''
     Enables all backends at all nodes from @group.
@@ -70,6 +76,8 @@ def enable_group(scope, session, group):
 
     for r, b in res:
         check_backend_status(r.get(), b, state=1)
+
+    wait_backends_in_route(session, ((addr, back) for _, addr, back in to_enable))
 
 
 def write_data(scope, session, keys, datas):
@@ -251,9 +259,10 @@ class TestRecovery:
         '''
         assert scope.disabled_backends[-1][0] == scope.test_group
         session = elliptics.Session(simple_node)
-        backend_id = scope.disabled_backends[-1][2]
-        r = enable_backend(scope, session, scope.disabled_backends[-1][0], scope.disabled_backends[-1][1], backend_id)
-        check_backend_status(r.get(), backend_id, state=1)
+        group, address, backend = scope.disabled_backends[-1]
+        r = enable_backend(scope, session, group, address, backend)
+        check_backend_status(r.get(), backend, state=1)
+        wait_backends_in_route(session, ((address, backend),))
 
 
     def test_merge_two_backends(self, scope, server, simple_node):
@@ -318,6 +327,7 @@ class TestRecovery:
 
         r = enable_backend(scope, session, group, address, backend)
         check_backend_status(r.get(), backend, state=1)
+        wait_backends_in_route(session, ((address, backend), ))
 
     def test_dc_one_backend_and_one_group(self, scope, server, simple_node):
         '''
