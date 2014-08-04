@@ -67,14 +67,14 @@ void remove_provider(dnet_node *n, const std::string &name)
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
 	if (!cfg->monitor_port || !cfg->family) {
 		n->monitor = NULL;
-		dnet_log_raw_log_only(cfg->log, DNET_LOG_DATA, "monitor: monitor hasn't been initialized because monitor port is zero.");
+		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: monitor hasn't been initialized because monitor port is zero.");
 		return 0;
 	}
 
 	try {
 		n->monitor = static_cast<void*>(new ioremap::monitor::monitor(n, cfg));
 	} catch (const std::exception &e) {
-		dnet_log_raw_log_only(cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize monitor on port: %d: %s.", cfg->monitor_port, e.what());
+		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize monitor on port: %d: %s.", cfg->monitor_port, e.what());
 		return -ENOMEM;
 	}
 

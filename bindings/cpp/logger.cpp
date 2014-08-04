@@ -18,9 +18,9 @@ __thread trace_id_t backend_trace_id_hook;
 
 namespace ioremap { namespace elliptics {
 
-file_logger::file_logger(const char *file, int level)
+file_logger::file_logger(const char *file, log_level level)
 {
-	verbosity(static_cast<dnet_log_level>(level));
+	verbosity(level);
 
 	auto formatter = blackhole::utils::make_unique<blackhole::formatter::string_t>(format());
 	formatter->set_mapper(file_logger::mapping());
@@ -37,10 +37,64 @@ std::string file_logger::format()
 	return "%(timestamp)s %(request_id)s/%(lwp)s/%(pid)s %(severity)s: %(message)s, attrs: [%(...L)s]";
 }
 
+static const char *severity_names[] = {
+	"debug",
+	"notice",
+	"info",
+	"warning",
+	"error"
+};
+const size_t severity_names_count = sizeof(severity_names) / sizeof(severity_names[0]);
+
+std::string file_logger::generate_level(log_level level)
+{
+	typedef blackhole::aux::underlying_type<log_level>::type level_type;
+	auto value = static_cast<level_type>(level);
+
+	if (value < 0 || value >= static_cast<level_type>(severity_names_count)) {
+		return "unknown";
+	}
+
+	return severity_names[value];
+}
+
+log_level file_logger::parse_level(const std::string &name)
+{
+	auto it = std::find(severity_names, severity_names + severity_names_count, name);
+	if (it == severity_names + severity_names_count) {
+		throw std::logic_error("Unknown log level: " + name);
+	}
+
+	return static_cast<log_level>(it - severity_names);
+}
+
 static void format_request_id(blackhole::aux::attachable_ostringstream &out, uint64_t request_id)
 {
 	boost::io::ios_flags_saver ifs(out);
 	out << std::setw(16) << std::setfill('0') << std::hex << request_id;
+}
+
+static void format_severity(blackhole::aux::attachable_ostringstream &out, const log_level &level)
+{
+	boost::io::ios_flags_saver ifs(out);
+	// Maximal possible length of severity name
+	out << std::setw(7) << std::setfill(' ');
+
+	static const char *names[] = {
+		"DEBUG",
+		"NOTICE",
+		"INFO",
+		"WARNING",
+		"ERROR"
+	};
+
+	typedef blackhole::aux::underlying_type<log_level>::type level_type;
+	auto value = static_cast<level_type>(level);
+
+	if (value < 0 || value >= static_cast<level_type>(sizeof(names) / sizeof(names[0])))
+		out << value;
+	else
+		out << names[value];
 }
 
 blackhole::mapping::value_t file_logger::mapping()
@@ -48,6 +102,7 @@ blackhole::mapping::value_t file_logger::mapping()
 	blackhole::mapping::value_t mapper;
 	mapper.add<blackhole::keyword::tag::timestamp_t>("%Y-%m-%d %H:%M:%S.%f");
 	mapper.add<blackhole::keyword::tag::request_id_t>(format_request_id);
+	mapper.add<blackhole::keyword::tag::severity_t<log_level>>(format_severity);
 	return mapper;
 }
 
@@ -126,12 +181,12 @@ int dnet_log_enabled(dnet_logger *logger, dnet_log_level level)
 	}
 }
 
-enum dnet_log_level dnet_log_get_verbosity(dnet_logger *logger)
+dnet_log_level dnet_log_get_verbosity(dnet_logger *logger)
 {
 	return logger->log().verbosity();
 }
 
-void dnet_log_set_verbosity(dnet_logger *logger, enum dnet_log_level level)
+void dnet_log_set_verbosity(dnet_logger *logger, dnet_log_level level)
 {
 	logger->log().verbosity(level);
 }

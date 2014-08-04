@@ -28,7 +28,7 @@ using namespace cocaine::logging;
 using namespace cocaine::storage;
 namespace ell = ioremap::elliptics;
 
-static cocaine::logging::priorities convert_verbosity(dnet_log_level level)
+static cocaine::logging::priorities convert_verbosity(ioremap::elliptics::log_level level)
 {
 	switch (level) {
 		case DNET_LOG_DEBUG:
@@ -36,6 +36,8 @@ static cocaine::logging::priorities convert_verbosity(dnet_log_level level)
 		case DNET_LOG_NOTICE:
 		case DNET_LOG_INFO:
 			return cocaine::logging::info;
+		case DNET_LOG_WARNING:
+			return cocaine::logging::warning;
 		case DNET_LOG_ERROR:
 			return cocaine::logging::error;
 		default:
@@ -44,16 +46,17 @@ static cocaine::logging::priorities convert_verbosity(dnet_log_level level)
 }
 
 static dnet_log_level convert_verbosity(cocaine::logging::priorities prio) {
-	dnet_log_level level = DNET_LOG_DATA;
-	if (prio == cocaine::logging::debug)
-		level = DNET_LOG_DEBUG;
-	if (prio == cocaine::logging::info)
-		level = DNET_LOG_INFO;
-	if (prio == cocaine::logging::warning)
-		level = DNET_LOG_INFO;
-	if (prio == cocaine::logging::error)
-		level = DNET_LOG_ERROR;
-	return level;
+	switch (prio) {
+		case cocaine::logging::debug:
+			return DNET_LOG_DEBUG;
+		case cocaine::logging::info:
+			return DNET_LOG_INFO;
+		case cocaine::logging::warning:
+			return DNET_LOG_WARNING;
+		case cocaine::logging::error:
+		default:
+			return DNET_LOG_ERROR;
+	}
 }
 
 log_adapter_impl_t::log_adapter_impl_t(const std::shared_ptr<logging::log_t> &log): m_log(log), m_formatter("%(message)s %(...L)s")

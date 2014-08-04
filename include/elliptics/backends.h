@@ -151,8 +151,8 @@ int dnet_backend_check_log_level(dnet_logger *logger, int level);
 void dnet_backend_log_raw(dnet_logger *logger, int level, const char *fmt, ...) __attribute__ ((format(printf, 3, 4)));
 #define dnet_backend_log(logger, level, format, a...)				\
 	do {								\
-		if (dnet_backend_check_log_level((logger), (level)))		\
-			dnet_backend_log_raw((logger), (level), (format), ##a); 	\
+		if (dnet_backend_check_log_level((logger), (int)(level)))		\
+			dnet_backend_log_raw((logger), (int)(level), (format), ##a); 	\
 	} while (0)
 
 #ifdef __cplusplus

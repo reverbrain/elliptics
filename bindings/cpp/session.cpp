@@ -1827,7 +1827,7 @@ class read_data_range_callback
 			} else {
 				dnet_io_attr *rep = &d->rep;
 
-				dnet_log_raw(d->sess.get_native_node(),
+				BH_LOG(d->sess.get_logger(),
 					DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu",
 					dnet_dump_id(&d->id), (unsigned long long)rep->num, (unsigned long long)d->io.start,
 					(unsigned long long)d->io.num, (unsigned long long)d->io.size);
@@ -1890,7 +1890,7 @@ class remove_data_range_callback : public read_data_range_callback
 				d->last_exception = error;
 			} else {
 				if (d->has_any) {
-					dnet_log_raw(d->sess.get_native_node(), DNET_LOG_NOTICE,
+					BH_LOG(d->sess.get_logger(), DNET_LOG_NOTICE,
 							"%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu",
 							dnet_dump_id(&d->id), (unsigned long long)d->rep.num, (unsigned long long)d->io.start,
 							(unsigned long long)d->io.num, (unsigned long long)d->io.size);

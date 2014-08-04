@@ -179,8 +179,15 @@ static void parse_logger(config_data *data, const config &logger)
 	repository.add_config(log_config);
 
 	data->logger_base = repository.root<dnet_log_level>();
-	data->logger_base.verbosity(dnet_log_level(logger.at<int>("level")));
 	data->logger_base.add_attribute(blackhole::keyword::request_id() = 0);
+
+	const config &level_config = logger.at("level");
+	const std::string &level = level_config.as<std::string>();
+	try {
+		data->logger_base.verbosity(file_logger::parse_level(level));
+	} catch (error &exc) {
+		throw config_error() << level_config.path() << " " << exc.what();
+	}
 
 	data->cfg_state.log = &data->logger;
 }

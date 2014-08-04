@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
 	size = offset = 0;
 
 	cfg.wait_timeout = 60;
-	int log_level = DNET_LOG_ERROR;
+	dnet_log_level log_level = DNET_LOG_ERROR;
 
 	while ((ch = getopt(argc, argv, "i:d:C:A:f:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:k:I:r:W:R:D:hHb:")) != -1) {
 		switch (ch) {
@@ -151,7 +151,12 @@ int main(int argc, char *argv[])
 				update_status = 1;
 				break;
 			case 'M':
-				node_status.log_level = atoi(optarg);
+				try {
+					node_status.log_level = static_cast<uint32_t>(file_logger::parse_level(optarg));
+				} catch (std::exception &exc) {
+					std::cerr << "remote log level: " << exc.what() << std::endl;
+					return -1;
+				}
 				update_status = 1;
 				break;
 			case 'N':
@@ -168,7 +173,13 @@ int main(int argc, char *argv[])
 				size = strtoull(optarg, NULL, 0);
 				break;
 			case 'm':
-				log_level = atoi(optarg);
+				try {
+					log_level = file_logger::parse_level(optarg);
+				} catch (std::exception &exc) {
+					std::cerr << exc.what() << std::endl;
+					return -1;
+				}
+
 				break;
 			case 's':
 				io_counter_stat = 1;
@@ -276,7 +287,7 @@ int main(int argc, char *argv[])
 
 		err = dnet_create_addr(&ra, remote_addr, port, family);
 		if (err) {
-			dnet_log_raw(n.get_native(), DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.",
+			BH_LOG(n.get_log(), DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.",
 					remote_addr, port, family, err, strerror(-err));
 			return err;
 		}
@@ -392,19 +403,13 @@ int main(int argc, char *argv[])
 					failed = true;
 				} else {
 					exec_context context = it->context();
-					if (log_level > DNET_LOG_DATA) {
-						if (context.is_null()) {
-							std::cout << dnet_server_convert_dnet_addr(it->address())
-								<< ": acknowledge" << std::endl;
-						} else {
-							std::cout << dnet_server_convert_dnet_addr(context.address())
-								<< ": " << context.event()
-								<< " \"" << context.data().to_string() << "\"" << std::endl;
-						}
+					if (context.is_null()) {
+						std::cout << dnet_server_convert_dnet_addr(it->address())
+							<< ": acknowledge" << std::endl;
 					} else {
-						if (!context.is_null()) {
-							std::cout << context.data().to_string() << std::endl;
-						}
+						std::cout << dnet_server_convert_dnet_addr(context.address())
+							<< ": " << context.event()
+							<< " \"" << context.data().to_string() << "\"" << std::endl;
 					}
 				}
 			}
@@ -439,21 +444,20 @@ int main(int argc, char *argv[])
 				la[1] = (float)st->la[1] / 100.0;
 				la[2] = (float)st->la[2] / 100.0;
 
-				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: la: %.2f %.2f %.2f.",
-						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
-						la[0], la[1], la[2]);
-				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: mem: "
-						"total: %llu kB, free: %llu kB, cache: %llu kB.",
+				printf("%s: %s: la: %.2f %.2f %.2f.\n",
+					dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
+					la[0], la[1], la[2]);
+				printf("%s: %s: mem: total: %llu kB, free: %llu kB, cache: %llu kB.\n",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
 						(unsigned long long)st->vm_total,
 						(unsigned long long)st->vm_free,
 						(unsigned long long)st->vm_cached);
-				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: fs: "
-						"total: %llu mB, avail: %llu mB, files: %llu, fsid: 0x%llx.",
+				printf("%s: %s: fs: total: %llu mB, avail: %llu mB, files: %llu, fsid: 0x%llx.\n",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
 						(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
 						(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),
 						(unsigned long long)st->files, (unsigned long long)st->fsid);
+				fflush(stdout);
 			}
 		}
 
@@ -467,19 +471,20 @@ int main(int argc, char *argv[])
 
 				for (int j = 0; j < (int)((cmd->size - sizeof(struct dnet_addr_stat)) / sizeof(struct dnet_stat_count)); ++j) {
 					if (j == 0)
-						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: storage-to-storage commands",
+						printf("%s: %s: storage-to-storage commands\n",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
 					if (j == as->cmd_num)
-						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: client-to-storage commands",
+						printf("%s: %s: client-to-storage commands\n",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
 					if (j == as->cmd_num * 2)
-						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Global stat counters",
+						printf("%s: %s: Global stat counters\n",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
 
-					dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s:    cmd: %s, count: %llu, err: %llu",
+					printf("%s: %s: cmd: %s, count: %llu, err: %llu",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
 							dnet_counter_string(j, as->cmd_num),
 							(unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
+					fflush(stdout);
 				}
 			}
 		}

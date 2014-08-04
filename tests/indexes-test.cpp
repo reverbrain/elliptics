@@ -483,21 +483,21 @@ int main(int argc, char *argv[])
 	(void) argc;
 	(void) argv;
 
-	file_logger log("/dev/stderr", DNET_LOG_DATA);
+	file_logger log("/dev/stderr", DNET_LOG_DEBUG);
 	node n(logger(log, blackhole::log::attributes_t()));
 
 	try {
-		BH_LOG(log, DNET_LOG_DATA, "creating addr remote: %s", argv[1])
+		BH_LOG(log, DNET_LOG_INFO, "creating addr remote: %s", argv[1])
 			("source", "dnet_add_state");
 
 		address addr = argv[1];
 
-		BH_LOG(log, DNET_LOG_DATA, "connecting to remote: %s", argv[1])
+		BH_LOG(log, DNET_LOG_INFO, "connecting to remote: %s", argv[1])
 			("source", "dnet_add_state");
 
 		n.add_remote(addr);
 
-		BH_LOG(log, DNET_LOG_DATA, "connected to remote: %s", argv[1])
+		BH_LOG(log, DNET_LOG_INFO, "connected to remote: %s", argv[1])
 			("source", "dnet_add_state");
 	} catch (std::exception &exc) {
 		std::cerr << exc.what() << std::endl;
@@ -515,7 +515,7 @@ int main(int argc, char *argv[])
 			addresses.insert(address(entry.addr).to_string());
 		}
 
-		BH_LOG(log, DNET_LOG_DATA, "%d: route-list-count: %lld", i, addresses.size())
+		BH_LOG(log, DNET_LOG_INFO, "%d: route-list-count: %lld", i, addresses.size())
 			("source", "dnet_add_state");
 		sleep(1);
 	}

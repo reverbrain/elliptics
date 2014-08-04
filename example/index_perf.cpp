@@ -13,13 +13,14 @@ int main(int argc, char *argv[])
 
 	bpo::options_description generic("Index performance tool options");
 
-	int data_size, num, log_level;
+	int data_size, num;
+	std::string log_level_name;
 	std::string log, remote, index, groups;
 
 	generic.add_options()
 		("help", "This help message")
 		("log", bpo::value<std::string>(&log)->default_value("/dev/stdout"), "Elliptics log file")
-		("log-level", bpo::value<int>(&log_level)->default_value(DNET_LOG_INFO), "Elliptics log level")
+		("log-level", bpo::value<std::string>(&log_level_name)->default_value("info"), "Elliptics log level")
 		("remote", bpo::value<std::string>(&remote), "Elliptics remote node to connect to")
 		("groups", bpo::value<std::string>(&groups), "Elliptics remote groups to work with")
 		("index", bpo::value<std::string>(&index)->default_value("test-index"), "Elliptics secondary index name")
@@ -31,6 +32,7 @@ int main(int argc, char *argv[])
 	cmdline_options.add(generic);
 
 	bpo::variables_map vm;
+	dnet_log_level log_level;
 
 	try {
 		bpo::store(bpo::command_line_parser(argc, argv).options(cmdline_options).run(), vm);
@@ -41,6 +43,8 @@ int main(int argc, char *argv[])
 		}
 
 		bpo::notify(vm);
+
+		log_level = elliptics::file_logger::parse_level(log_level_name);
 	} catch (const std::exception &e) {
 		std::cerr << "Invalid options: " << e.what() << "\n" << generic << std::endl;
 		return -1;

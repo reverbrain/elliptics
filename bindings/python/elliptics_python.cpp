@@ -69,14 +69,6 @@ enum elliptics_ioflags {
 	ioflags_cache_remove_from_disk = DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK,
 };
 
-enum elliptics_log_level {
-	log_level_data = DNET_LOG_DATA,
-	log_level_error = DNET_LOG_ERROR,
-	log_level_info = DNET_LOG_INFO,
-	log_level_notice = DNET_LOG_NOTICE,
-	log_level_debug = DNET_LOG_DEBUG,
-};
-
 enum elliptics_exceptions_policy {
 	policy_no_exceptions			= ioremap::elliptics::session::no_exceptions,
 	policy_throw_at_start			= ioremap::elliptics::session::throw_at_start,
@@ -153,6 +145,15 @@ class elliptics_node_python : public node, public bp::wrapper<node> {
 
 			add_remote(std_remotes);
 		}
+};
+
+class elliptics_file_logger : public file_logger
+{
+public:
+	elliptics_file_logger(const char *file, int level)
+		: file_logger(file, dnet_log_level(level))
+	{
+	}
 };
 
 
@@ -302,9 +303,9 @@ BOOST_PYTHON_MODULE(core)
 		    "   logger.log(elliptics.log_level.debug, \"We've got a problem\"")
 	;
 
-	bp::class_<file_logger, bp::bases<logger_base>, boost::noncopyable> file_logger_class(
+	bp::class_<elliptics_file_logger, bp::bases<logger_base>, boost::noncopyable> file_logger_class(
 		"Logger", "File logger for using inside Elliptics client library",
-		bp::init<const char *, uint32_t>(bp::args("log_file", "log_level"),
+		bp::init<const char *, int>(bp::args("log_file", "log_level"),
 		    "__init__(self, filename, log_level)\n"
 		    "    Initializes file logger by the specified file and level of verbosity\n\n"
 		    "    logger = elliptics.Logger(\"/dev/stderr\", elliptics.log_level.debug)"));
@@ -419,18 +420,18 @@ BOOST_PYTHON_MODULE(core)
 		.value("cache_remove_from_disk", ioflags_cache_remove_from_disk)
 	;
 
-	bp::enum_<elliptics_log_level>("log_level",
+	bp::enum_<blackhole::defaults::severity>("log_level",
 	    "Different levels of verbosity elliptics logs:\n\n"
-	     "data\n    The level has very important data, practically nothing is written\n"
-	     "error\n    The level contains reports of the previous level and critical errors that materially affect the work\n"
+	     "error\n    The level contains critical errors that materially affect the work\n"
+	     "warning\n    The level contains reports of the previous level and warnings that may not affect the work\n"
 	     "info\n    The level contains reports of the previous level and messages about the time of the various operations\n"
 	     "notice\n    The level is considered to be the first level of debugging\n"
 	     "debug\n    The level includes all sort of information about errors and work")
-		.value("data", log_level_data)
-		.value("error", log_level_error)
-		.value("info", log_level_info)
-		.value("notice", log_level_notice)
-		.value("debug", log_level_debug)
+		.value("error", blackhole::defaults::severity::error)
+		.value("warning", blackhole::defaults::severity::warning)
+		.value("info", blackhole::defaults::severity::info)
+		.value("notice", blackhole::defaults::severity::notice)
+		.value("debug", blackhole::defaults::severity::debug)
 	;
 
 	bp::enum_<elliptics_exceptions_policy>("exceptions_policy",

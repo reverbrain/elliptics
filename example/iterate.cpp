@@ -160,7 +160,7 @@ dnet_addr parse_addr(const std::string& addr) {
 int main(int argc, char *argv[]) {
 	Ctx ctx;
 	std::string log_file;
-	int log_level;
+	dnet_log_level log_level;
 	std::vector<std::string> remotes;
 	boost::program_options::options_description desc("Usage");
 	bool iter_groups = false;
@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
 		if (vm.count("group"))
 			ctx.groups = vm["group"].as<std::vector<int>>();
 		log_file = vm["log-file"].as<std::string>();
-		log_level = vm["log-level"].as<int>();
+		log_level = ioremap::elliptics::file_logger::parse_level(vm["log-level"].as<std::string>());
 		if (vm.count("remote"))
 			remotes = vm["remote"].as<std::vector<std::string>>();
 		if (vm.count("data"))

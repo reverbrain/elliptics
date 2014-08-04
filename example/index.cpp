@@ -95,65 +95,65 @@ int main(int argc, char *argv[])
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
 	cfg.wait_timeout = 60;
-	int log_level = DNET_LOG_ERROR;
-
-	while ((ch = getopt(argc, argv, "-i:C:N:g:m:w:l:I:r:U:Fh")) != -1) {
-		switch (ch) {
-			case 1:
-				indexes.push_back(optarg);
-				break;
-			case 'i':
-				ioflags = strtoull(optarg, NULL, 0);
-				break;
-			case 'C':
-				cflags = strtoull(optarg, NULL, 0);
-				break;
-			case 'N':
-				ns = optarg;
-				nsize = strlen(optarg);
-				break;
-			case 'm':
-				log_level = atoi(optarg);
-				break;
-			case 'w':
-				cfg.check_timeout = cfg.wait_timeout = atoi(optarg);
-				break;
-			case 'l':
-				logfile = optarg;
-				break;
-			case 'I':
-				err = dnet_parse_numeric_id(optarg, trans_id);
-				if (err)
-					return err;
-				id = trans_id;
-				break;
-			case 'g': {
-				groups = parse_groups(optarg);
-				std::cerr << optarg << " -> {";
-				for (auto it = groups.begin(); it != groups.end(); ++it) {
-					std::cerr << *it << ", ";
-				}
-				std::cerr << "}" << std::endl;
-				break;
-			}
-			case 'r':
-				remotes.push_back(optarg);
-				break;
-			case 'U':
-				update = optarg;
-				break;
-			case 'F':
-				find = true;
-				break;
-			case 'h':
-				dnet_usage(argv[0]);
-			default:
-				dnet_usage(argv[0]);
-				return -1;
-		}
-	}
+	dnet_log_level log_level = DNET_LOG_ERROR;
 
 	try {
+		while ((ch = getopt(argc, argv, "-i:C:N:g:m:w:l:I:r:U:Fh")) != -1) {
+			switch (ch) {
+				case 1:
+					indexes.push_back(optarg);
+					break;
+				case 'i':
+					ioflags = strtoull(optarg, NULL, 0);
+					break;
+				case 'C':
+					cflags = strtoull(optarg, NULL, 0);
+					break;
+				case 'N':
+					ns = optarg;
+					nsize = strlen(optarg);
+					break;
+				case 'm':
+					log_level = file_logger::parse_level(optarg);
+					break;
+				case 'w':
+					cfg.check_timeout = cfg.wait_timeout = atoi(optarg);
+					break;
+				case 'l':
+					logfile = optarg;
+					break;
+				case 'I':
+					err = dnet_parse_numeric_id(optarg, trans_id);
+					if (err)
+						return err;
+					id = trans_id;
+					break;
+				case 'g': {
+					groups = parse_groups(optarg);
+					std::cerr << optarg << " -> {";
+					for (auto it = groups.begin(); it != groups.end(); ++it) {
+						std::cerr << *it << ", ";
+					}
+					std::cerr << "}" << std::endl;
+					break;
+				}
+				case 'r':
+					remotes.push_back(optarg);
+					break;
+				case 'U':
+					update = optarg;
+					break;
+				case 'F':
+					find = true;
+					break;
+				case 'h':
+					dnet_usage(argv[0]);
+				default:
+					dnet_usage(argv[0]);
+					return -1;
+			}
+		}
+
 		file_logger log(logfile, log_level);
 
 		node n(logger(log, blackhole::log::attributes_t()), cfg);

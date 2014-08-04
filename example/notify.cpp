@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 	const char *logfile = "/dev/stderr", *notify_file = "/dev/stdout";
 	FILE *notify;
 	std::vector<int> groups;
-	int log_level = DNET_LOG_INFO;
+	dnet_log_level log_level = DNET_LOG_INFO;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -109,7 +109,12 @@ int main(int argc, char *argv[])
 	while ((ch = getopt(argc, argv, "g:m:w:l:I:a:r:h")) != -1) {
 		switch (ch) {
 			case 'm':
-				log_level = strtoul(optarg, NULL, 0);
+				try {
+					log_level = file_logger::parse_level(optarg);
+				} catch (std::exception &exc) {
+					std::cerr << exc.what() << std::endl;
+					return -1;
+				}
 				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);

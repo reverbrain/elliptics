@@ -226,35 +226,35 @@ typedef std::map<std::string, std::shared_ptr<dnet_app_t> > eng_map_t;
 
 namespace {
 
-// INFO level has value 2 in elliptics and value 3 in cocaine,
-// nevertheless we want to support unified sense of INFO across both systems,
-// so we need to play with the mapping a bit.
-//
-// Specifically:
-//  1) cocaine warning and info levels are both mapped into eliptics info level
-//  2) elliptics notice level means cocaine info level
-
-cocaine::logging::priorities dnet_log_level_to_prio(int level) {
-	cocaine::logging::priorities prio = (cocaine::logging::priorities)level;
-	// elliptics info level becomes cocaine warning level,
-	// so we must to level it up
-	if (prio == cocaine::logging::warning) {
-		prio = cocaine::logging::info;
-	}
-	return prio;
+static cocaine::logging::priorities convert_verbosity(ioremap::elliptics::log_level level)
+{
+	switch (level) {
+	case DNET_LOG_DEBUG:
+		return cocaine::logging::debug;
+	case DNET_LOG_NOTICE:
+	case DNET_LOG_INFO:
+		return cocaine::logging::info;
+	case DNET_LOG_WARNING:
+		return cocaine::logging::warning;
+	case DNET_LOG_ERROR:
+		return cocaine::logging::error;
+	default:
+		return cocaine::logging::ignore;
+	};
 }
 
-dnet_log_level prio_to_dnet_log_level(cocaine::logging::priorities prio) {
-	dnet_log_level level = DNET_LOG_DATA;
-	if (prio == cocaine::logging::debug)
-			level = DNET_LOG_DEBUG;
-	if (prio == cocaine::logging::info)
-			level = DNET_LOG_INFO;
-	if (prio == cocaine::logging::warning)
-			level = DNET_LOG_INFO;
-	if (prio == cocaine::logging::error)
-			level = DNET_LOG_ERROR;
-	return level;
+static dnet_log_level convert_verbosity(cocaine::logging::priorities prio) {
+	switch (prio) {
+	case cocaine::logging::debug:
+		return DNET_LOG_DEBUG;
+	case cocaine::logging::info:
+		return DNET_LOG_INFO;
+	case cocaine::logging::warning:
+		return DNET_LOG_WARNING;
+	case cocaine::logging::error:
+	default:
+		return DNET_LOG_ERROR;
+	}
 }
 
 }
@@ -265,11 +265,11 @@ class dnet_sink_t: public cocaine::logging::logger_concept_t {
 		}
 
 		virtual cocaine::logging::priorities verbosity() const {
-			return dnet_log_level_to_prio(m_node->log->log().verbosity());
+			return convert_verbosity(m_node->log->log().verbosity());
 		}
 
 		virtual void emit(cocaine::logging::priorities prio, const std::string &app, const std::string& message) {
-			dnet_log_level level = prio_to_dnet_log_level(prio);
+			dnet_log_level level = convert_verbosity(prio);
 			SRW_LOG(*m_node->log, level, app, "%s", message);
 		}
 

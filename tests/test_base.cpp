@@ -296,9 +296,11 @@ void server_config::write(const std::string &path)
 	frontends.SetArray();
 	frontends.PushBack(frontend, allocator);
 
+	rapidjson::Value log_level(file_logger::generate_level(DNET_LOG_DEBUG).c_str(), allocator);
+
 	rapidjson::Value logger;
 	logger.SetObject();
-	logger.AddMember("level", DNET_LOG_DEBUG, allocator);
+	logger.AddMember("level", log_level, allocator);
 	logger.AddMember("frontends", frontends, allocator);
 
 	rapidjson::Value server;

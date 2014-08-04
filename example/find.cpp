@@ -81,7 +81,7 @@ void finder::parse_lookup(const sync_generic_result &ret)
 			}
 
 			if (!info) {
-				dnet_log_raw(get_native_node(), DNET_LOG_DATA, "%s: FIND object: %s: should live at: %s",
+				printf("%s: FIND object: %s: should live at: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
 			} else {
 				char tstr[64];
@@ -90,17 +90,18 @@ void finder::parse_lookup(const sync_generic_result &ret)
 				localtime_r((time_t *)&info->mtime.tsec, &tm);
 				strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
 
-				dnet_log_raw(get_native_node(), DNET_LOG_DATA, "%s: FIND-OK object: %s: should live at: %s, "
-						"offset: %llu, size: %llu, mtime: %s, path: %s",
+				printf("%s: FIND-OK object: %s: should live at: %s, "
+						"offset: %llu, size: %llu, mtime: %s, path: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
 					(unsigned long long)info->offset, (unsigned long long)info->size,
 					tstr, (char *)(info + 1));
 			}
 		} else {
 			if (cmd->status != 0)
-				dnet_log_raw(get_native_node(), DNET_LOG_DATA, "%s: FIND object: status: %d",
+				printf("%s: FIND object: status: %d\n",
 						dnet_dump_id(&cmd->id), cmd->status);
 		}
+		fflush(stdout);
 	}
 }
 
@@ -120,40 +121,40 @@ int main(int argc, char *argv[])
 {
 	int ch, err;
 	const char *logfile = "/dev/stderr";
-	int log_level = DNET_LOG_ERROR;
+	dnet_log_level log_level = DNET_LOG_ERROR;
 	char *remote = NULL;
 	struct dnet_id raw;
 	memset(&raw, 0, sizeof(struct dnet_id));
 
-	while ((ch = getopt(argc, argv, "r:l:m:I:h")) != -1) {
-		switch (ch) {
-			case 'r':
-				remote = optarg;
-				break;
-			case 'l':
-				logfile = optarg;
-				break;
-			case 'm':
-				log_level = strtoul(optarg, NULL, 0);
-				break;
-			case 'I':
-				err = dnet_parse_numeric_id(optarg, raw.id);
-				if (err < 0)
-					return err;
-				break;
-			case 'h':
-			default:
-				efinder_usage(argv[0]);
-
-		}
-	}
-
-	if (!remote) {
-		fprintf(stderr, "You must specify remote addr and object ID\n");
-		efinder_usage(argv[0]);
-	}
-
 	try {
+		while ((ch = getopt(argc, argv, "r:l:m:I:h")) != -1) {
+			switch (ch) {
+				case 'r':
+					remote = optarg;
+					break;
+				case 'l':
+					logfile = optarg;
+					break;
+				case 'm':
+					log_level = file_logger::parse_level(optarg);
+					break;
+				case 'I':
+					err = dnet_parse_numeric_id(optarg, raw.id);
+					if (err < 0)
+						return err;
+					break;
+				case 'h':
+				default:
+					efinder_usage(argv[0]);
+
+			}
+		}
+
+		if (!remote) {
+			fprintf(stderr, "You must specify remote addr and object ID\n");
+			efinder_usage(argv[0]);
+		}
+
 		file_logger log(logfile, log_level);
 		node n(logger(log, blackhole::log::attributes_t()));
 		finder find(n);
