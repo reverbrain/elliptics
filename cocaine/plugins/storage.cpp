@@ -106,19 +106,19 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 		throw storage_error_t("no nodes has been specified");
 	}
 
-	bool have_remotes = false;
-
+	std::vector<ioremap::elliptics::address> remotes;
 	for (auto it = nodes.begin(); it != nodes.end(); ++it) {
 		try {
-			m_node.add_remote((*it).asCString());
-			have_remotes = true;
-		} catch (...) {
-			// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
+			remotes.emplace_back((*it).asString());
+		} catch (ioremap::elliptics::error &exc) {
+			throw storage_error_t("failed to parse remote: %s", exc.what());
 		}
 	}
 
-	if (!have_remotes) {
-		throw storage_error_t("can not connect to any remote node");
+	try {
+		m_node.add_remote(remotes);
+	} catch (ioremap::elliptics::error &exc) {
+		throw storage_error_t("failed to add remotes: %s", exc.what());
 	}
 
 	{
