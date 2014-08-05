@@ -45,7 +45,7 @@ class Servers:
             backends = []
             for g in groups:
                 for i in xrange(backends_count):
-                    backends.append({'group': g})
+                    backends.append({'group': g, 'records_in_blob': 100})
             servers.append({'backends': backends})
         config['servers'] = servers
         js = json.dumps(config)
@@ -75,8 +75,8 @@ class Servers:
             self.p.terminate()
             self.p.wait()
 
-#        if os.path.exists(self.path):
-#            shutil.rmtree(self.path)
+        if not failed and os.path.exists(self.path):
+            shutil.rmtree(self.path)
 
 
 @pytest.fixture(scope='session')

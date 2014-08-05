@@ -313,6 +313,9 @@ void server_config::write(const std::string &path)
 	rapidjson::Value cache_json;
 	cache_json.SetNull();
 
+	rapidjson::Value monitor_json;
+	monitor_json.SetNull();
+
 	for (auto it = options.m_data.begin(); it != options.m_data.end(); ++it) {
 		rapidjson::Value *object = &options_json;
 		const char *key = it->first.c_str();
@@ -322,6 +325,11 @@ void server_config::write(const std::string &path)
 				cache_json.SetObject();
 			key = it->first.c_str() + 6;
 			object = &cache_json;
+		} else if (it->first.compare(0, 8, "monitor_") == 0) {
+			if (!monitor_json.IsObject())
+				monitor_json.SetObject();
+			key = it->first.c_str() + 8;
+			object = &monitor_json;
 		}
 
 		json_value_visitor visitor(key, object, &allocator);
@@ -329,6 +337,7 @@ void server_config::write(const std::string &path)
 	}
 
 	options_json.AddMember("cache", cache_json, allocator);
+	options_json.AddMember("monitor", monitor_json, allocator);
 	server.AddMember("options", options_json, allocator);
 
 	rapidjson::Value backends_json;

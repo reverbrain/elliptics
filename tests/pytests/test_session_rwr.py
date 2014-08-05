@@ -208,4 +208,37 @@ class TestSession:
         checked_read(session, key, '__' + data2 + '__')
 
     def test_prepare_write_commit(self, server, simple_node):
-        pass
+        session = elliptics.Session(simple_node)
+        session.groups = [session.routes.groups()[0]]
+
+        routes = session.routes.filter_by_groups(session.groups)
+        pos, records, addr, back = (0, 0, None, 0)
+
+        for id, address, backend in routes.get_unique_routes():
+            ranges = routes.get_address_backend_ranges(address, backend)
+            statistics = session.monitor_stat(id, elliptics.monitor_stat_categories.backend).get()[0].statistics
+            records_in_blob = statistics['backend_{0}'.format(backend)]['config']['records_in_blob']
+
+            for i, (begin, end) in enumerate(ranges):
+                if int(str(end), 16) - int(str(begin), 16) > records_in_blob * 2:
+                    pos = int(str(begin), 16)
+                    records = records_in_blob * 2
+                    addr, back = address, backend
+
+        assert pos
+        assert records
+
+        for i in range(pos, pos + records):
+            r = session.write_data(elliptics.Id(format(i, 'x')), 'data').get()
+            assert len(r) == 1
+            assert r[0].address == addr
+
+        pos_id = elliptics.Id(format(i, 'x'))
+        prepare_size = 1<<10
+        data = 'a' + 'b' * (prepare_size - 2) + 'c'
+
+        session.write_prepare(pos_id, data[0], 0, 1<<10).get()
+        session.write_plain(pos_id, data[1:-1], 1).get()
+        session.write_commit(pos_id, data[-1], prepare_size - 1, prepare_size).get()
+
+        assert session.read_data(pos_id).get()[0].data == data
