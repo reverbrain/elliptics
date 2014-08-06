@@ -53,8 +53,7 @@ def raises(type, message, func, *args, **kwargs):
 @pytest.fixture(scope='class')
 def simple_node(request):
     simple_node = elliptics.Node(elliptics.Logger("client.log", 4))
-    for r in request.config.option.remotes:
-        simple_node.add_remote(r)
+    simple_node.add_remote(request.config.option.remotes)
 
     def fin():
         print "Finilizing simple node"
@@ -77,11 +76,6 @@ class PassthroughWrapper(object):
 
 
 def connect(endpoints, groups, **kw):
-    remotes = []
-    for r in endpoints:
-        parts = r.split(":")
-        remotes.append((parts[0], int(parts[1])))
-
     def rename(kw, old, new):
         if old in kw:
             kw[new] = kw.pop(old)
@@ -95,12 +89,7 @@ def connect(endpoints, groups, **kw):
     rename(kw, 'loglevel', 'log_level')
 
     n = elliptics.create_node(**kw)
-
-    for r in remotes:
-        try:
-            n.add_remote(r[0], r[1])
-        except Exception:
-            pass
+    n.add_remote(endpoints)
 
     s = elliptics.Session(n)
     s.add_groups(groups)

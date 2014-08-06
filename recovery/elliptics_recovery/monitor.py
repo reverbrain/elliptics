@@ -118,8 +118,11 @@ class Monitor(object):
         with open(stats_file_tmp, 'w') as f:
             f.write(str(self.__stats))
             f.write('\n')
-        if os.path.exists(stats_file_tmp):
-            os.rename(stats_file_tmp, self.stats_file + '.txt')
+        try:
+            if os.path.exists(stats_file_tmp):
+                os.rename(stats_file_tmp, self.stats_file + '.txt')
+        except Exception as e:
+            self.log.error("Failed to rename {0} to {1}: {2}".format(stats_file_tmp, self.stats_file + '.txt', e))
 
     def data_thread(self):
         """
