@@ -29,7 +29,7 @@ file_logger::file_logger(const char *file, log_level level)
 
 	add_frontend(std::move(frontend));
 
-	add_attribute(blackhole::keyword::request_id() = 0);
+	add_attribute(keyword::request_id() = 0);
 }
 
 std::string file_logger::format()
@@ -78,7 +78,7 @@ blackhole::mapping::value_t file_logger::mapping()
 {
 	blackhole::mapping::value_t mapper;
 	mapper.add<blackhole::keyword::tag::timestamp_t>("%Y-%m-%d %H:%M:%S.%f");
-	mapper.add<blackhole::keyword::tag::request_id_t>(format_request_id);
+	mapper.add<keyword::tag::request_id_t>(format_request_id);
 	mapper.add<blackhole::keyword::tag::severity_t<log_level>>(blackhole::defaults::map_severity);
 	return mapper;
 }
@@ -106,7 +106,7 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 
 	try {
 		blackhole::log::attributes_t attributes = {
-			blackhole::keyword::request_id() = trace_id,
+			ioremap::elliptics::keyword::request_id() = trace_id,
 			blackhole::keyword::tracebit() = bool(tracebit)
 		};
 		new (blackhole_attributes) scoped_attributes_t(*logger, std::move(attributes));
