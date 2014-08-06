@@ -945,7 +945,4 @@ class session
 
 }} /* namespace ioremap::elliptics */
 
-DECLARE_EVENT_KEYWORD(dnet_id, std::string)
-DECLARE_EVENT_KEYWORD(request_id, uint64_t)
-
 #endif // ELLIPTICS_SESSION_HPP

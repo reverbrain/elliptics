@@ -46,6 +46,9 @@ public:
 	static blackhole::mapping::value_t mapping();
 };
 
+DECLARE_EVENT_KEYWORD(dnet_id, std::string)
+DECLARE_EVENT_KEYWORD(request_id, uint64_t)
+
 } }
 
 typedef ioremap::elliptics::logger dnet_logger;
