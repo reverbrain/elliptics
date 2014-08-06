@@ -15,6 +15,7 @@
 
 from elliptics.core import *
 from elliptics.route import Address
+import elliptics
 
 
 @property
@@ -82,11 +83,10 @@ def create_node(elog=None, log_file='/dev/stderr', log_level=1,
         cfg.nonblocking_io_thread_num = nonblocking_io_thread_num
         cfg.net_thread_num = net_thread_num
     n = Node(elog, cfg)
-    for r in remotes:
-        try:
-            n.add_remote(r)
-        except:
-            pass
+    try:
+        n.add_remote(remotes)
+    except Exception as e:
+        elog.log(elliptics.log_level.error, "Coudn't connect to: {0}: {1}".format(remotes, repr(e)))
     return n
 
 

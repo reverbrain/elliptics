@@ -24,26 +24,23 @@ class Node(Node):
     """
     Node represents a connection with Elliptics.
     """
-    def add_remote(self, addr, port=None, family=AF_INET):
-        """
-           Adds connection to Elliptics node
-           Keyword arguments:
-           addr -- can be an Address instance or
-                   string 'host' or 'host:port' or 'host:port:family'
-           port -- destination port (default None, thus should be specified in addr)
-           family -- network family (default AF_INET)\n
-           node.add_remote(addr="host.com", port=1025, family=2)
-           node.add_remote(addr="host.com:1025")
-           node.add_remote(addr="host.com:1025:2")
+    def add_remote(self, remotes):
+        '''
+           Adds connections to Elliptics node
+           @remotes -- elliptics.Address's of server node
+
+           node.add_remote("host.com:1025")
            node.add_remote(Address.from_host_port("host.com:1025"))
-        """
-        if type(addr) is Address:
-            super(Node, self).add_remote(addr=addr.host,
-                                         port=addr.port,
-                                         family=addr.family)
-        elif not port and type(addr) is str:
-            super(Node, self).add_remote(addr=addr)
-        elif port and type(addr) is str:
-            super(Node, self).add_remote(addr=addr,
-                                         port=port,
-                                         family=family)
+           node.add_remote([Address.from_host_port("host.com:1025"),
+                            Address.from_host_port("host.com:1026"),
+                            "host.com:1027:2"])
+        '''
+
+        if type(remotes) is str:
+            super(Node, self).add_remote(tuple(remotes))
+        elif type(remotes) is Address:
+            super(node, self).add_remote(tuple(str(remotes)))
+        elif hasattr(remotes, '__iter__'):
+            super(Node, self).add_remote(map(str, remotes))
+        else:
+            raise ValueError("Couldn't convert {0} to [elliptics.Address]".format(repr(remotes)))
