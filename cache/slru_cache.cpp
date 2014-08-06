@@ -387,7 +387,7 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 		info->mtime = timestamp;
 	}
 
-	cmd->flags &= (DNET_FLAGS_MORE | DNET_FLAGS_NEED_ACK);
+	cmd->flags &= ~(DNET_FLAGS_MORE | DNET_FLAGS_NEED_ACK);
 	return dnet_send_reply(st, cmd, data.data(), data.size(), 0);
 }
 
