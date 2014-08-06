@@ -1149,6 +1149,11 @@ void test_index_recovery(session &sess)
 	}
 }
 
+static void test_lookup_non_existing(session &sess, int error)
+{
+	ELLIPTICS_REQUIRE_ERROR(lookup, sess.lookup(std::string("lookup_non_existing")), error);
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
@@ -1193,6 +1198,9 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_read_latest_non_existing, create_session(n, {1, 2}, 0, 0), "read-latest-non-existing");
 	ELLIPTICS_TEST_CASE(test_merge_indexes, create_session(n, { 1, 2 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_index_recovery, create_session(n, { 1, 2 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 1, 2 }, 0, 0), -ENOENT);
+	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 1 }, 0, 0), -ENOENT);
+	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 3 }, 0, 0), -ENXIO);
 
 	return true;
 }
