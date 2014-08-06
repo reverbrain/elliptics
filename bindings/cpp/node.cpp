@@ -95,14 +95,8 @@ void node::add_remote(const char *addr_str, const int port, const int family)
 	}
 
 	err = dnet_add_state(m_data->node_ptr, &addr, 1, 0);
-	if (err <= 0) {
-		// we didn't connect to any node
-		if (err == 0) {
-			err = -ECONNREFUSED;
-		}
-
+	if (err < 0)
 		throw_error(err, "Failed to add remote addr %s:%d", addr_str, port);
-	}
 }
 
 void node::add_remote(const char *addr)
@@ -169,14 +163,8 @@ void node::add_remote(const std::vector<std::string> &addrs)
 	}
 
 	err = dnet_add_state(m_data->node_ptr, remote.data(), remote.size(), 0);
-	if (err <= 0) {
-		// we didn't connect to any node
-		if (err == 0) {
-			err = -ECONNREFUSED;
-		}
-
+	if (err < 0)
 		throw_error(err, "Failed to add remote %zd addrs", addrs.size());
-	}
 }
 
 void node::set_timeouts(const int wait_timeout, const int check_timeout)

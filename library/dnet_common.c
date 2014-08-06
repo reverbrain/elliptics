@@ -692,7 +692,11 @@ err_out_reconnect:
 		free(remote);
 	}
 
-	return good_num;
+	err = 0;
+	if (good_num == 0)
+		err = -ECONNREFUSED;
+
+	return err;
 }
 
 struct dnet_write_completion {
