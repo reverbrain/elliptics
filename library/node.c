@@ -533,15 +533,15 @@ struct dnet_net_state *dnet_state_get_first_with_backend(struct dnet_node *n, co
 
 	pthread_mutex_lock(&n->state_lock);
 	found = dnet_state_search_nolock(n, id, backend_id);
+	if (!found) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: could not find network state for request", dnet_dump_id(id));
+	}
+
 	if (found == n->st && (original_backend_id == -1 || original_backend_id == *backend_id)) {
 		dnet_state_put(found);
 		found = NULL;
 	}
 	pthread_mutex_unlock(&n->state_lock);
-
-	if (!found) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: could not find network state for request", dnet_dump_id(id));
-	}
 
 	return found;
 }
