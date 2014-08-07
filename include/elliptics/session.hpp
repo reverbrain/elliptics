@@ -561,7 +561,6 @@ class session
 		 * You should use it in case of you need lookup_result_entry from more than one group
 		 * This method allows you to get lookup_result_entries almost simultaneously from all replicas
 		 * In fact time of work almost equals to time of the slowest group
-		 * Opposite time of work of a series of lookups equals to amount of time of work of each lookup
 		 *
 		 * Returns async_lookup_result.
 		 */

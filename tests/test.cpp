@@ -939,6 +939,8 @@ static void test_partial_lookup(session &sess, const std::string &id)
 	BOOST_REQUIRE_EQUAL(sync_lookup_result[1].file_info()->size, data.size());
 }
 
+// The test checks basic case of using the perallel_lookup
+// If a key presents in every group, number of result_entries will equal to number of groups
 static void test_parallel_lookup(session &sess, const std::string &id)
 {
 	std::string data = "data";
@@ -967,6 +969,11 @@ static void test_parallel_lookup(session &sess, const std::string &id)
 	}
 }
 
+// The test checks basic case of using the quorum_lookup
+// If a key present as follows:
+//  - two groups have the key with the same timestamp
+//  - one group has the key with some other timestamp
+// then only result_entries for the key with the same timestamp will be received
 static void test_quorum_lookup(session &sess, const std::string &id)
 {
 	const std::string first_data = "first-data";
@@ -1003,6 +1010,8 @@ static void test_quorum_lookup(session &sess, const std::string &id)
 	BOOST_REQUIRE_EQUAL(lookup_result[0].file_info()->mtime.tnsec, io.timestamp.tnsec);
 }
 
+// The test checks quorum_lookup returns an error in case of
+// there were not result_entries without errors
 static void test_fail_quorum_lookup(session &sess, const std::string &id)
 {
 	sess.set_checker(checkers::no_check);
