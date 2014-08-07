@@ -145,7 +145,7 @@ def remove_fake_routes(routes):
     if routes.routes[0].address == routes.routes[-1].address:
         del routes.routes[0]
     #removes route with key 0xff..f if it is fake
-    if routes.routes[-1].address == routes.routes[-2].address:
+    if len(routes.routes) > 1 and routes.routes[-1].address == routes.routes[-2].address:
         del routes.routes[-1]
 
 
