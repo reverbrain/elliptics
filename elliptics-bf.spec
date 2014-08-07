@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.6
+Version:	2.25.6.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,17 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Aug 08 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.7
+- dnet_add_state: return positive number of added states or negative error value. Added comments about this function.
+- dnet_balancer: fixed error exit when one of real route matches with 00..0 or ff..f
+- Python: combined old and new functionality of elliptics.Node.add_remote
+- tests: Added 3 more tests about lookup results
+- client: Fixed trans number in lookup's trans:cmd
+- cache: Don't send 2 packets as lookup reply
+- Python: added ability to use several remotes at elliptics.Node.add_remote
+- Recovery: wrapped os.rename by try/except for catching os.rename exception
+- dnet_add_state: adding already added address is not an error
+
 * Tue Aug 05 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.6
 - node: throw client error even when dnet_add_state() returned 0 - this means we didn't connect to ANY remote node
 - search: when search for the state for given ID only print error if there was not state found
