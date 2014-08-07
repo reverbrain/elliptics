@@ -598,6 +598,10 @@ err_out_exit:
 	return NULL;
 }
 
+/**
+ * dnet_add_state() returns either negative error value or positive number of nodes it has connected to.
+ * In particular if it failed to connect to ANY node, it returns -ECONNREFUSED
+ */
 int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int flags)
 {
 	int i, err, join = DNET_WANT_RECONNECT, good_num = 0;
@@ -692,7 +696,7 @@ err_out_reconnect:
 		free(remote);
 	}
 
-	err = 0;
+	err = good_num;
 	if (good_num == 0)
 		err = -ECONNREFUSED;
 
