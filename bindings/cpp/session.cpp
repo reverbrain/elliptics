@@ -1277,7 +1277,7 @@ std::vector<async_lookup_result> parallel_lookup_impl(const session &orig_sess, 
 	sess.transform(id);
 
 	sess.set_filter(filters::all_with_ack);
-	sess.set_checker(checkers::no_check);
+	sess.set_checker(checkers::at_least_one);
 	sess.set_exceptions_policy(session::no_exceptions);
 
 	dnet_id raw = id.id();
