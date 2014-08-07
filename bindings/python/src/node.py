@@ -14,7 +14,7 @@
 # =============================================================================
 
 from elliptics.core import Node
-from socket import AF_INET
+from socket import AF_UNSPEC
 from elliptics.route import Address
 from elliptics.log import logged_class
 
@@ -24,26 +24,29 @@ class Node(Node):
     """
     Node represents a connection with Elliptics.
     """
-    def add_remote(self, addr, port=None, family=AF_INET):
-        """
-           Adds connection to Elliptics node
-           Keyword arguments:
-           addr -- can be an Address instance or
-                   string 'host' or 'host:port' or 'host:port:family'
-           port -- destination port (default None, thus should be specified in addr)
-           family -- network family (default AF_INET)\n
-           node.add_remote(addr="host.com", port=1025, family=2)
-           node.add_remote(addr="host.com:1025")
-           node.add_remote(addr="host.com:1025:2")
-           node.add_remote(Address.from_host_port("host.com:1025"))
-        """
-        if type(addr) is Address:
-            super(Node, self).add_remote(addr=addr.host,
-                                         port=addr.port,
-                                         family=addr.family)
-        elif not port and type(addr) is str:
-            super(Node, self).add_remote(addr=addr)
-        elif port and type(addr) is str:
-            super(Node, self).add_remote(addr=addr,
-                                         port=port,
-                                         family=family)
+    def add_remote(self, remotes, port=None, family=AF_UNSPEC):
+        '''
+            Adds connections to Elliptics node
+            @remotes -- elliptics.Address's of server node
+
+            node.add_remote("host.com:1025:2")
+            node.add_remote("host.com", 1025, 2)
+            node.add_remote("host.com", 1025)
+            node.add_remote(Address.from_host_port("host.com:1025"))
+
+            node.add_remote([
+                Address.from_host_port("host.com:1025"),
+                Address.from_host_port_family("host.com:1026:2"),
+                "host.com:1027:2"
+                ])
+        '''
+
+        if port is not None:
+            remotes = Address(remotes, port, family)
+
+        if type(remotes) in [str, Address]:
+            super(Node, self).add_remote((str(remotes), ))
+        elif hasattr(remotes, '__iter__'):
+            super(Node, self).add_remote(map(str, remotes))
+        else:
+            raise ValueError("Couldn't convert {0} to [elliptics.Address]".format(repr(remotes)))

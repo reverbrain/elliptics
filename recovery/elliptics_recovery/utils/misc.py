@@ -57,9 +57,7 @@ def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_time
     cfg.config.nonblocking_io_thread_num = nonblocking_io_thread_num
     cfg.config.net_thread_num = net_thread_num
     node = elliptics.Node(elog, cfg)
-    node.add_remote(addr=address.host, port=address.port, family=address.family)
-    for remote in remotes:
-        node.add_remote(remote)
+    node.add_remote([address] + remotes)
     log.info("Created node: {0}".format(node))
     return node
 

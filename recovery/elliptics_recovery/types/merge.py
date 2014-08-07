@@ -258,7 +258,7 @@ class Recovery(object):
                 log.error("Writing key: {0} to node: {1} failed. "
                           "Skipping it: {2}"
                           .format(repr(self.key),
-                                  self.dest_address, error))
+                                  self.dest_address, repr(error)))
                 self.result = False
                 self.stats.write_failed += 1
                 return

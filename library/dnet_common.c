@@ -1445,10 +1445,11 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 
 	memcpy(&cmd->id, id, sizeof(struct dnet_id));
 
-	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
-
 	cmd->cmd = t->command = DNET_CMD_LOOKUP;
 	cmd->flags = dnet_session_get_cflags(s) | DNET_FLAGS_NEED_ACK;
+	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
+
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
 	t->st = dnet_state_get_first(n, &cmd->id);
 	if (!t->st) {
@@ -1456,7 +1457,6 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 		goto err_out_destroy;
 	}
 
-	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 	dnet_convert_cmd(cmd);
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup to %s.\n", dnet_dump_id(id), dnet_server_convert_dnet_addr(&t->st->addr));

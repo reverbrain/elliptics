@@ -34,6 +34,7 @@
 #include "elliptics_time.h"
 #include "elliptics_io_attr.h"
 #include "elliptics_session.h"
+#include "py_converters.h"
 
 namespace bp = boost::python;
 
@@ -138,6 +139,11 @@ class elliptics_node_python : public node, public bp::wrapper<node> {
 			: node(l, cfg) {}
 
 		elliptics_node_python(const node &n): node(n) {}
+
+		void add_remote(const bp::api::object &remotes) {
+			auto std_remotes = convert_to_vector<std::string>(remotes);
+			node::add_remote(std_remotes);
+		}
 };
 
 
@@ -329,20 +335,12 @@ BOOST_PYTHON_MODULE(core)
 		     "__init__(self, logger, config)\n"
 		     "    Initializes node by the logger and custom configuration\n\n"
 		     "node = elliptics.Node(logger, config)"))
-		.def("add_remote", static_cast<void (node::*)(const char*, int, int)>(&node::add_remote),
-		     (bp::arg("addr"), bp::arg("port"), bp::arg("family") = AF_INET),
-		     "add_remote(addr, port, family=AF_INET)\n"
-		     "    Adds connection to Elliptics node\n"
-		     "    which located on address, port, family.\n"
-		     "    Throws exception if connection hasn't been established\n\n"
-		     "    node.add_remote(addr='host.com', port=1025, family=2)")
-		.def("add_remote", static_cast<void (node::*)(const char*)>(&node::add_remote),
-		     (bp::arg("addr")),
-		     "add_remote(addr)\n"
-		     "    Adds connection to Elliptics node which located on address.\n"
-		     "    addr is string in format 'host:port:family'.\n"
-		     "    Throws exception if connection hasn't been established\n\n"
-		     "    node.add_remote('host.com:1025:2')")
+		.def("add_remote", &elliptics_node_python::add_remote,
+		     (bp::arg("remotes")),
+		     "add_remote(remotes)\n"
+		     "    Adds connections to Elliptics node\n"
+		     "    which located on remotes.\n\n"
+		     "    node.add_remote(['host.com:1025:2'])")
 		.def("set_timeouts", static_cast<void (node::*)(const int, const int)>(&node::set_timeouts),
 		     (bp::arg("wait_timeout"), bp::arg("check_timeout")),
 		     "set_timeouts(wait_timeout, check_timeout)\n"
