@@ -69,33 +69,6 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-// To be able to properly map user-defined severity enumeration to the syslog's one
-// we should implement special mapping trait that is called by library each time when
-// mapping is required.
-namespace blackhole {
-
-namespace sink {
-
-template<>
-struct priority_traits<dnet_log_level> {
-	static priority_t map(dnet_log_level lvl) {
-		switch (lvl) {
-		case DNET_LOG_ERROR:
-			return priority_t::err;
-		case DNET_LOG_INFO:
-			return priority_t::info;
-		default:
-			break;
-		}
-
-		return priority_t::debug;
-	}
-};
-
-} // namespace sink
-
-} // namespace blackhole
-
 namespace ioremap { namespace elliptics { namespace config {
 
 struct config_data : public dnet_config_data
