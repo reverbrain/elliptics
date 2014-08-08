@@ -1405,6 +1405,7 @@ struct quorum_lookup_aggregator_handler
 		: handler(result_handler), in_work(requests_count), quorum(groups_count / 2 + 1),
 		max_ts{0, 0}, has_finished(false)
 	{
+		handler.set_total(requests_count);
 	}
 
 	void complete(const std::vector<lookup_result_entry> &result, const error_info &reply_error) {
@@ -1421,7 +1422,7 @@ struct quorum_lookup_aggregator_handler
 
 		// reply_error means transaction is bad, so result contains entries with error
 		// every error is passed into async_result
-		if (!check_error(reply_error)) {
+		if (reply_error) {
 			for (auto it = result.begin(), end = result.end(); it != end; ++it) {
 				if (filters::negative(*it)) {
 					handler.process(*it);
@@ -1457,26 +1458,6 @@ struct quorum_lookup_aggregator_handler
 		complete_if_no_works();
 	}
 
-	// complete handler takes only a error_info (all error_infos can be found in vector of lookup_result_entries)
-	// the policy to select an error:
-	// if there are -ENOENT, use this error
-	// otherwise use some other (random) error
-	//
-	// the reason is: -ENOENT means a key was not found in storage
-	// possibly it may means storage lost the key
-	// ideologically it is the worst that can happen so we should draw the client's attention to this error
-	bool check_error(const error_info &reply_error) {
-		if (reply_error) {
-			if (err_info.code() != -ENOENT) {
-				err_info = reply_error;
-			}
-
-			return false;
-		}
-
-		return true;
-	}
-
 	const lookup_result_entry &find_positive(const std::vector<lookup_result_entry> &result) {
 		for (auto it = result.begin(), end = result.end(); it != end; ++it) {
 			if (filters::positive(*it)) {
@@ -1505,7 +1486,13 @@ struct quorum_lookup_aggregator_handler
 			handler.process(*it);
 		}
 
-		handler.complete(err_info);
+		// We shouldn't set an error here, the reason is:
+		// - it's possible to get good responses from the quorum of groups and errors from the others
+		// and it's not an error in general for quorum_lookup
+		// - it's possible to get only a good result from a group and errors from others
+		// and it's also not an error for quorum_lookup
+		// If user want to distinguish these cases, he can set a corresponding checker for session
+		handler.complete(error_info());
 	}
 
 	std::mutex mutex;
@@ -1514,7 +1501,6 @@ struct quorum_lookup_aggregator_handler
 	size_t in_work;
 	size_t quorum;
 	dnet_time max_ts;
-	error_info err_info;
 	bool has_finished;
 };
 
