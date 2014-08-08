@@ -1635,7 +1635,17 @@ static async_backend_control_result update_backend_status(session &sess, const a
 		memcpy(tmp.data(), ids.data(), ids.size() * sizeof(dnet_raw_id));
 	}
 
+	// We want to set random dnet_id to ensure that we won't occupy all IO threads
+	// by accident control calls for single backend.
+	dnet_id id;
+	memset(&id, 0, sizeof(id));
+	reinterpret_cast<uint32_t &>(*id.id) = backend_id;
+	for (size_t i = sizeof(uint32_t); i < sizeof(id.id); ++i) {
+		id.id[i] = rand();
+	}
+
 	transport_control control;
+	control.set_key(id);
 	control.set_command(DNET_CMD_BACKEND_CONTROL);
 	control.set_cflags(DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT);
 	control.set_data(data.data(), data.size());
