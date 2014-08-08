@@ -1010,21 +1010,95 @@ static void test_quorum_lookup(session &sess, const std::string &id)
 	BOOST_REQUIRE_EQUAL(lookup_result.size(), 2);
 
 	io.timestamp.tsec -= 5;
+
+	for (size_t i = 0; i != 2; ++i) {
+		BOOST_REQUIRE_EQUAL(lookup_result[i].file_info()->mtime.tsec, io.timestamp.tsec);
+		BOOST_REQUIRE_EQUAL(lookup_result[i].file_info()->mtime.tnsec, io.timestamp.tnsec);
+	}
+}
+
+// Test checks the work of quorum_lookup in case of there are two different keys in two groups
+// and no key in third one.
+static void test_partial_quorum_lookup(session &sess, const std::string &id)
+{
+	const std::string first_data = "first-data";
+	const std::string second_data = "second-data";
+
+	dnet_raw_id raw_id;
+	sess.transform(id, raw_id);
+
+	session first_sess = sess.clone();
+	first_sess.set_groups({1});
+
+	session second_sess = sess.clone();
+	second_sess.set_groups({2});
+
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	dnet_current_time(&io.timestamp);
+	memcpy(io.id, raw_id.id, DNET_ID_SIZE);
+
+	ELLIPTICS_REQUIRE(first_write_result, first_sess.write_data(io, first_data));
+
+	io.timestamp.tsec += 5;
+
+	ELLIPTICS_REQUIRE(second_write_result, second_sess.write_data(io, second_data));
+
+	ELLIPTICS_REQUIRE(prepare_result, sess.quorum_lookup(id));
+
+	auto lookup_result = prepare_result.get();
+
+	BOOST_REQUIRE_EQUAL(lookup_result.size(), 1);
+
 	BOOST_REQUIRE_EQUAL(lookup_result[0].file_info()->mtime.tsec, io.timestamp.tsec);
 	BOOST_REQUIRE_EQUAL(lookup_result[0].file_info()->mtime.tnsec, io.timestamp.tnsec);
 }
 
+// The test checks quorum_lookup returns an error in case of there are two different keys
+// in two groups and no key in third one and checker::quorum is set
+static void test_fail_partial_quorum_lookup(session &sess, const std::string &id)
+{
+	const std::string first_data = "first-data";
+	const std::string second_data = "second-data";
+
+	dnet_raw_id raw_id;
+	sess.transform(id, raw_id);
+
+	session first_sess = sess.clone();
+	first_sess.set_groups({1});
+
+	session second_sess = sess.clone();
+	second_sess.set_groups({2});
+
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	dnet_current_time(&io.timestamp);
+	memcpy(io.id, raw_id.id, DNET_ID_SIZE);
+
+	ELLIPTICS_REQUIRE(first_write_result, first_sess.write_data(io, first_data));
+
+	io.timestamp.tsec += 5;
+
+	ELLIPTICS_REQUIRE(second_write_result, second_sess.write_data(io, second_data));
+
+	sess.set_checker(checkers::quorum);
+	ELLIPTICS_REQUIRE_ERROR(prepare_result, sess.quorum_lookup(id), -ENXIO);
+}
+
+// The test checks parallel_lookup returns an error in case of
+// there were not result_entries without errors
+static void test_fail_parallel_lookup(session &sess, int error)
+{
+	ELLIPTICS_REQUIRE_ERROR(result,
+			sess.parallel_lookup(std::string("test_fail_parallel_lookup_key")), error);
+}
+
 // The test checks quorum_lookup returns an error in case of
 // there were not result_entries without errors
-static void test_fail_quorum_lookup(session &sess, const std::string &id)
+static void test_fail_quorum_lookup(session &sess, int error)
 {
-	sess.set_checker(checkers::no_check);
-	sess.set_exceptions_policy(session::no_exceptions);
-
-	auto prepare_result = sess.quorum_lookup(id);
-	prepare_result.wait();
-
-	BOOST_REQUIRE_EQUAL(prepare_result.error().code(), -ENOENT);
+	ELLIPTICS_REQUIRE_ERROR(result,
+			sess.quorum_lookup(std::string("test_fail_quorum_lookup_key")), error);
 }
 
 static void test_read_latest_non_existing(session &sess, const std::string &id)
@@ -1289,7 +1363,12 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_partial_lookup, create_session(n, {1, 2}, 0, 0), "partial-lookup-key");
 	ELLIPTICS_TEST_CASE(test_parallel_lookup, create_session(n, {1, 2, 3}, 0, 0), "parallel-lookup-key");
 	ELLIPTICS_TEST_CASE(test_quorum_lookup, create_session(n, {1, 2, 3}, 0, 0), "quorum-lookup-key");
-	ELLIPTICS_TEST_CASE(test_fail_quorum_lookup, create_session(n, {1, 2, 3}, 0, 0), "fail-quorum-lookup-key");
+	ELLIPTICS_TEST_CASE(test_partial_quorum_lookup, create_session(n, {1, 2, 3}, 0, 0), "partial-quorum-lookup-key");
+	ELLIPTICS_TEST_CASE(test_fail_partial_quorum_lookup, create_session(n, {1, 2, 3}, 0, 0), "fail-partial-quorum-lookup-key");
+	ELLIPTICS_TEST_CASE(test_fail_parallel_lookup, create_session(n, {1, 2, 3}, 0, 0), -ENOENT);
+	ELLIPTICS_TEST_CASE(test_fail_parallel_lookup, create_session(n, {91, 92, 93}, 0, 0), -ENXIO);
+	ELLIPTICS_TEST_CASE(test_fail_quorum_lookup, create_session(n, {1, 2, 3}, 0, 0), -ENOENT);
+	ELLIPTICS_TEST_CASE(test_fail_quorum_lookup, create_session(n, {91, 92, 93}, 0, 0), -ENXIO);
 	ELLIPTICS_TEST_CASE(test_read_latest_non_existing, create_session(n, {1, 2}, 0, 0), "read-latest-non-existing");
 	ELLIPTICS_TEST_CASE(test_merge_indexes, create_session(n, { 1, 2 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_index_recovery, create_session(n, { 1, 2 }, 0, 0));
