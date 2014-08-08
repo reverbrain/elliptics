@@ -1046,10 +1046,48 @@ err_out_exit:
 	return err;
 }
 
+static enum dnet_log_level convert_to_dnet_log(int level)
+{
+	switch (level) {
+	default:
+	case EBLOB_LOG_DATA:
+	case EBLOB_LOG_ERROR:
+		return DNET_LOG_ERROR;
+	case EBLOB_LOG_INFO:
+		return DNET_LOG_INFO;
+	case EBLOB_LOG_NOTICE:
+		return DNET_LOG_NOTICE;
+	case EBLOB_LOG_DEBUG:
+	case EBLOB_LOG_SPAM:
+		return DNET_LOG_DEBUG;
+	}
+}
+
+static enum eblob_log_levels convert_to_eblob_log(enum dnet_log_level level)
+{
+	switch (level) {
+	case DNET_LOG_DEBUG:
+		return EBLOB_LOG_DEBUG;
+	case DNET_LOG_NOTICE:
+		return EBLOB_LOG_NOTICE;
+	case DNET_LOG_INFO:
+		return EBLOB_LOG_INFO;
+	case DNET_LOG_WARNING:
+		return EBLOB_LOG_ERROR;
+	case DNET_LOG_ERROR:
+		return EBLOB_LOG_ERROR;
+	}
+
+	return EBLOB_LOG_ERROR;
+}
+
 static void dnet_eblob_log_implemenation(void *priv, int level, const char *msg)
 {
 	dnet_logger *log = priv;
-	dnet_backend_log(log, level, "%s", msg);
+
+	enum dnet_log_level dnet_level = convert_to_dnet_log(level);
+
+	dnet_backend_log(log, dnet_level, "%s", msg);
 }
 
 static int dnet_blob_config_init(struct dnet_config_backend *b)
@@ -1067,7 +1105,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b)
 	}
 
 	c->log.log_private = b->log;
-	c->log.log_level = EBLOB_LOG_ERROR;
+	c->log.log_level = convert_to_eblob_log(dnet_log_get_verbosity(b->log));
 	c->log.log = dnet_eblob_log_implemenation;
 
 	c->data.log = &c->log;
