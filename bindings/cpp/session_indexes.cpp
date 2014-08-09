@@ -295,17 +295,152 @@ async_set_indexes_result session::update_indexes_internal(const key &id,
 	return update_indexes_internal(id, raw_indexes);
 }
 
-async_generic_result session::remove_index_internal(const key &id)
+struct state_container
 {
-	transform(id);
+	state_container() : entries_count(0), failed(false)
+	{
+	}
+
+	state_container(const state_container &other) = delete;
+	state_container(state_container &&other) = delete;
+
+	state_container &operator =(const state_container &other) = delete;
+	state_container &operator =(state_container &&other) = delete;
+
+	net_state_id cur;
+	data_buffer buffer;
+	size_t entries_count;
+	bool failed;
+};
+
+async_generic_result session::remove_index_internal(const key &original_id)
+{
+	transform(original_id);
+
+	dnet_id id = original_id.id();
 	DNET_SESSION_GET_GROUPS(async_generic_result);
 
-	async_generic_result result(*this);
-	auto cb = createCallback<remove_index_callback>(*this, result, id.raw_id());
-	cb->groups = std::move(groups);
+	dnet_raw_id index = original_id.raw_id();
 
-	startCallback(cb);
-	return result;
+	std::vector<async_generic_result> results;
+
+	dnet_node *node = get_native_node();
+	const int shard_count = dnet_node_get_indexes_shard_count(node);
+
+	dnet_trans_control control;
+	memset(&control, 0, sizeof(control));
+
+	control.cmd = DNET_CMD_INDEXES_INTERNAL;
+	control.cflags = DNET_FLAGS_NEED_ACK;
+
+	dnet_indexes_request request;
+	memset(&request, 0, sizeof(request));
+
+	dnet_indexes_request_entry entry;
+	memset(&entry, 0, sizeof(entry));
+
+	entry.flags |= DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL;
+	entry.shard_count = shard_count;
+
+	std::unique_ptr<state_container[]> states(new state_container[groups.size()]);
+
+	session sess = clean_clone();
+
+	/*
+	 * To totally remove the index we have to send remove request to every shard and to every group.
+	 * Sending 4k different requests is not optimal, so requests to the single elliptics node
+	 * are joined to the single request.
+	 *
+	 * To do this we have to iterate through all shards. It's needed for every (shard, group) pair
+	 * to compare dnet_net_state with (shard - 1, group) one if it exists.
+	 */
+
+	for (int shard_id = 0; shard_id <= shard_count; ++shard_id) {
+		const bool after_last_entry = (shard_id == shard_count);
+		entry.shard_id = shard_id;
+
+		if (!after_last_entry) {
+			dnet_indexes_transform_index_id(node, &index, &entry.id, shard_id);
+			memcpy(id.id, entry.id.id, DNET_ID_SIZE);
+		}
+
+		/*
+		 * Iterate for all groups, each group stores it's state it states[group_index] field.
+		 * It's needed to decrease number of index transformations above.
+		 */
+		for (size_t group_index = 0; group_index < groups.size(); ++group_index) {
+			state_container &state = states[group_index];
+
+			// We failed to get this group's network state sometime ago so skip it
+			if (state.failed) {
+				continue;
+			}
+
+			id.group_id = groups[group_index];
+			net_state_id next;
+
+			if (shard_id == 0) {
+				state.cur.reset(node, &id);
+				// Error during state getting, don't touch this group more
+				if (!state.cur) {
+					state.failed = true;
+					continue;
+				}
+			}
+
+			if (!after_last_entry) {
+				next.reset(node, &id);
+				// Error during state getting, don't touch this group more
+				if (!next) {
+					state.failed = true;
+					continue;
+				}
+			}
+
+			// This is a first entry, prepend the request to the buffer
+			if (state.entries_count == 0) {
+				if (after_last_entry) {
+					// Oh, this was not the first entry, but we already finished this group
+					continue;
+				}
+				request.id = id;
+				state.buffer.write(request);
+			}
+
+			if (state.cur == next) {
+				// Append entry to the request list as they are to the same node
+				state.buffer.write(entry);
+				state.entries_count++;
+				continue;
+			} else {
+				state.cur = std::move(next);
+			}
+
+			data_pointer data = std::move(state.buffer);
+
+			// Set the actual entries_count value as it is unknown at the beginning
+			dnet_indexes_request *request_ptr = data.data<dnet_indexes_request>();
+			request_ptr->entries_count = state.entries_count;
+			dnet_setup_id(&request_ptr->id, id.group_id, request_ptr->entries[0].id.id);
+			state.entries_count = 0;
+
+			control.id = request_ptr->id;
+			control.data = data.data();
+			control.size = data.size();
+			control.id.group_id = groups[group_index];
+
+			// Send exactly one request to exactly one elliptics node
+			results.emplace_back(send_to_single_state(sess, control));
+
+			if (!after_last_entry) {
+				state.buffer.write(request);
+				state.buffer.write(entry);
+				state.entries_count++;
+			}
+		}
+	}
+
+	return aggregated(*this, results.begin(), results.end());
 }
 
 struct on_remove_index : std::enable_shared_from_this<on_remove_index>

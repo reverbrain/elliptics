@@ -2208,6 +2208,16 @@ async_reply_result session::reply(const exec_context &tmp_context, const argumen
 	return request(&id, context);
 }
 
+struct io_attr_comparator
+{
+	bool operator() (const dnet_io_attr &io1, const dnet_io_attr &io2)
+	{
+		return memcmp(io1.id, io2.id, DNET_ID_SIZE) < 0;
+	}
+};
+
+typedef std::set<dnet_io_attr, io_attr_comparator> io_attr_set;
+
 class bulk_read_handler : public multigroup_handler<bulk_read_handler, read_result_entry>
 {
 public:
