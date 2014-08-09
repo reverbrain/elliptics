@@ -112,13 +112,17 @@ typename iterator::value_type aggregated(session &sess, iterator begin, iterator
 		return result;
 	}
 
+	size_t total = 0;
 	auto handler = std::make_shared<aggregator_type>(result, std::distance(begin, end));
 	auto on_entry = bind_method(handler, &aggregator_type::on_entry);
 	auto on_finished = bind_method(handler, &aggregator_type::on_finished);
 
 	for (auto it = begin; it != end; ++it) {
+		total += it->total();
 		it->connect(on_entry, on_finished);
 	}
+
+	handler->handler.set_total(total);
 
 	return result;
 }
