@@ -1973,20 +1973,27 @@ async_exec_result session::request(dnet_id *id, const exec_context &context)
 
 async_iterator_result session::iterator(const key &id, const data_pointer& request)
 {
-	async_iterator_result result(*this);
-
 	if (get_groups().empty()) {
+		async_iterator_result result(*this);
 		async_result_handler<iterator_result_entry> handler(result);
 		handler.complete(create_error(-ENXIO, "iterator: groups list is empty"));
-	} else {
-		transform(id);
-		auto cb = createCallback<iterator_callback>(*this, result);
-		cb->id = id.id();
-		cb->request = request;
-
-		startCallback(cb);
 	}
-	return result;
+
+	transform(id);
+
+	dnet_trans_control ctl;
+	memset(&ctl, 0, sizeof(ctl));
+	memcpy(&ctl.id, &id.id(), sizeof(dnet_id));
+	ctl.id.group_id = get_groups().front();
+	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
+	ctl.cmd = DNET_CMD_ITERATOR;
+
+	dnet_convert_iterator_request(request.data<dnet_iterator_request>());
+	ctl.data = request.data();
+	ctl.size = request.size();
+
+	session sess = clean_clone();
+	return async_result_cast<iterator_result_entry>(*this, send_to_single_state(sess, ctl));
 }
 
 error_info session::mix_states(const key &id, std::vector<int> &groups)

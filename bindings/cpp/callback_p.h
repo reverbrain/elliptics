@@ -1497,58 +1497,6 @@ class exec_callback
 		default_callback<exec_result_entry> cb;
 };
 
-class iterator_callback
-{
-	public:
-		typedef std::shared_ptr<iterator_callback> ptr;
-
-		iterator_callback(const session &sess, const async_iterator_result &result) : sess(sess), cb(sess, result)
-		{
-		}
-
-		bool start(error_info *error, complete_func func, void *priv)
-		{
-			cb.set_count(unlimited);
-
-			dnet_trans_control ctl;
-			memset(&ctl, 0, sizeof(ctl));
-			memcpy(&ctl.id, &id, sizeof(id));
-			ctl.id.group_id = sess.get_groups().front();
-			ctl.cflags = sess.get_cflags() | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
-			ctl.cmd = DNET_CMD_ITERATOR;
-			ctl.complete = func;
-			ctl.priv = priv;
-
-			dnet_convert_iterator_request(request.data<dnet_iterator_request>());
-			ctl.data = request.data();
-			ctl.size = request.size();
-
-			int err = dnet_trans_alloc_send(sess.get_native(), &ctl);
-			if (err < 0) {
-				*error = create_error(err, "failed to start iterator");
-				return true;
-			}
-
-			return cb.set_count(1);
-		}
-
-		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
-		{
-			(void) error;
-			return cb.handle(state, cmd, func, priv);
-		}
-
-		void finish(const error_info &exc)
-		{
-			cb.complete(exc);
-		}
-
-		session sess;
-		struct dnet_id id; /* This ID is used to find out node which will handle iterator request */
-		data_pointer request;
-		default_callback<iterator_result_entry> cb;
-};
-
 template <typename T>
 struct dnet_style_handler
 {
