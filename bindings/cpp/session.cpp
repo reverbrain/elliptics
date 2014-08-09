@@ -1627,7 +1627,7 @@ static async_backend_control_result update_backend_status(session &orig_sess, co
 	control.set_data(data.data(), data.size());
 
 	session sess = orig_sess.clean_clone();
-	sess.set_direct_id(addr, backend_id);
+	sess.set_direct_id(addr);
 	return async_result_cast<backend_status_result_entry>(orig_sess, send_to_single_state(sess, control));
 }
 
