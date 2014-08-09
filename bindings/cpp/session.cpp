@@ -2208,11 +2208,6 @@ async_reply_result session::reply(const exec_context &tmp_context, const argumen
 	return request(&id, context);
 }
 
-#undef debug
-#undef notice
-#define debug(...) BH_LOG(m_logger, DNET_LOG_DEBUG, __VA_ARGS__)
-#define notice(...) BH_LOG(m_logger, DNET_LOG_NOTICE, __VA_ARGS__)
-
 class bulk_read_handler : public multigroup_handler<bulk_read_handler, read_result_entry>
 {
 public:
@@ -2368,7 +2363,6 @@ async_read_result session::bulk_read(const std::vector<dnet_io_attr> &ios_vector
 
 	async_read_result result(*this);
 	auto handler = std::make_shared<bulk_read_handler>(*this, result, std::move(groups), control, std::move(ios));
-	handler->set_total(1);
 	handler->start();
 
 	return result;

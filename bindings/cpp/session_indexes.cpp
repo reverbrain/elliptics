@@ -543,7 +543,228 @@ async_set_indexes_result session::remove_indexes(const key &id, const std::vecto
 	return remove_indexes(id, session_convert_indexes(*this, indexes));
 }
 
-static void on_find_indexes_process(session sess, std::shared_ptr<find_indexes_callback::id_map> convert_map,
+class find_indexes_handler : public multigroup_handler<find_indexes_handler, callback_result_entry>
+{
+public:
+	typedef std::map<dnet_raw_id, dnet_raw_id, dnet_raw_id_less_than<> > id_map;
+
+	struct index_id
+	{
+		index_id(const dnet_raw_id &id, int shard_id) :
+			id(id), shard_id(shard_id)
+		{
+		}
+
+		bool operator <(const index_id &other) const
+		{
+			return dnet_id_cmp_str(id.id, other.id.id) < 0;
+		}
+
+		dnet_raw_id id;
+		int shard_id;
+	};
+
+	find_indexes_handler(const session &sess, const async_generic_result &result, std::vector<int> &&groups,
+		const std::vector<dnet_raw_id> &indexes, bool intersect) :
+		parent_type(sess, result, std::move(groups)),
+		m_logger(m_sess.get_logger()),
+		m_intersect(intersect),
+		m_shard_count(dnet_node_get_indexes_shard_count(sess.get_native_node())),
+		m_indexes(indexes)
+	{
+		m_sess.set_checker(checkers::no_check);
+
+		dnet_node *node = m_sess.get_native_node();
+
+		m_id_precalc.resize(m_shard_count * m_indexes.size());
+
+		/*
+		 * index_requests_set contains all requests we have to send for this bulk-request.
+		 * All indexes a splitted for shards, so we have to send separate logical request
+		 * to certain shard for all indexes. This logical requests may be joined to one
+		 * transaction if some of shards are situated on one elliptics node.
+		 */
+		dnet_raw_id tmp;
+
+		for (size_t index = 0; index < m_indexes.size(); ++index) {
+			dnet_indexes_transform_index_prepare(node, &m_indexes[index], &tmp);
+
+			for (int shard_id = 0; shard_id < m_shard_count; ++shard_id) {
+				dnet_raw_id &id = m_id_precalc[shard_id * m_indexes.size() + index];
+
+				memcpy(&id, &tmp, sizeof(dnet_raw_id));
+				dnet_indexes_transform_index_id_raw(node, &id, shard_id);
+
+				m_convert_map[id] = m_indexes[index];
+			}
+		}
+
+		for (int shard_id = 0; shard_id < m_shard_count; ++shard_id) {
+			m_index_requests_set.insert(index_id(m_id_precalc[shard_id * m_indexes.size()], shard_id));
+		}
+
+		debug("INDEXES_FIND, callback: %p, shard_count: %d, indexes_count: %llu", this, m_shard_count, m_indexes.size());
+	}
+
+	id_map &&take_convert_map()
+	{
+		return std::move(m_convert_map);
+	}
+
+	async_generic_result send_to_next_group()
+	{
+		size_t count = 0;
+
+		std::vector<async_generic_result> results;
+
+		unsigned long long index_requests_count = 0;
+		const int group_id = current_group();
+
+		dnet_node *node = m_sess.get_native_node();
+
+		dnet_id id;
+		memset(&id, 0, sizeof(id));
+		dnet_setup_id(&id, group_id, m_index_requests_set.begin()->id.id);
+
+		net_state_id cur(node, &id);
+		net_state_id next;
+		dnet_id next_id = id;
+
+		debug("INDEXES_FIND, callback: %p, group: %d, next", this, group_id);
+
+		if (!cur) {
+			debug("INDEXES_FIND, callback: %p, group: %d, id: %s, state: failed",
+				this, group_id, dnet_dump_id(&id));
+			return aggregated(m_sess, results.begin(), results.end());
+		}
+		debug("INDEXES_FIND, callback: %p, id: %s, state: %s, backend: %d",
+			this, dnet_dump_id(&id), dnet_state_dump_addr(cur.state()), cur.backend());
+
+		dnet_trans_control control;
+		memset(&control, 0, sizeof(control));
+		control.cmd = DNET_CMD_INDEXES_FIND;
+		control.cflags = DNET_FLAGS_NEED_ACK;
+
+		data_buffer buffer;
+
+		dnet_indexes_request request;
+		memset(&request, 0, sizeof(request));
+		request.entries_count = m_indexes.size();
+		request.id = id;
+		if (m_intersect)
+			request.flags |= DNET_INDEXES_FLAGS_INTERSECT;
+		else
+			request.flags |= DNET_INDEXES_FLAGS_UNITE;
+
+		dnet_indexes_request_entry entry;
+		memset(&entry, 0, sizeof(entry));
+
+		std::vector<index_id> index_requests(m_index_requests_set.begin(), m_index_requests_set.end());
+
+		/*
+		 * Iterate through all requests uniting to single transaction all for the same host.
+		 */
+		for (auto it = index_requests.begin(); it != index_requests.end(); ++it) {
+			bool more = false;
+			/*
+			 * Check for the state of the next request if current is not the last one.
+			 * If next state is the same we should unite requests to single one.
+			 */
+			auto jt = it;
+			if (++jt != index_requests.end()) {
+				dnet_setup_id(&next_id, group_id, jt->id.id);
+
+				next.reset(node, &next_id);
+				if (!next) {
+					debug("INDEXES_FIND, callback: %p, group: %d, id: %s, state: failed",
+						this, group_id, dnet_dump_id(&next_id));
+					return aggregated(m_sess, results.begin(), results.end());
+				}
+				debug("INDEXES_FIND, callback: %p, id: %s, state: %s, backend: %d",
+					this, dnet_dump_id(&next_id), dnet_state_dump_addr(next.state()), next.backend());
+
+				/* Send command only if state changes or it's a last id */
+				more = (cur == next);
+			}
+
+			if (more) {
+				request.flags |= DNET_INDEXES_FLAGS_MORE;
+			} else {
+				request.flags &= ~DNET_INDEXES_FLAGS_MORE;
+			}
+			dnet_setup_id(&request.id, group_id, m_id_precalc[it->shard_id * m_indexes.size()].id);
+
+			buffer.write(request);
+			++index_requests_count;
+
+			for (size_t i = 0; i < m_indexes.size(); ++i) {
+				entry.id = m_id_precalc[it->shard_id * m_indexes.size() + i];
+				buffer.write(entry);
+			}
+
+			if (more) {
+				continue;
+			}
+
+			data_pointer data = std::move(buffer);
+
+			control.size = data.size();
+			control.data = data.data();
+
+			memcpy(&control.id, &id, sizeof(id));
+
+			notice("INDEXES_FIND: callback: %p, count: %llu, state: %s, backend: %d",
+				this,
+				index_requests_count,
+				dnet_state_dump_addr(cur.state()), cur.backend());
+
+			++count;
+			index_requests_count = 0;
+
+			results.emplace_back(send_to_single_state(m_sess, control));
+
+			debug("INDEXES_FIND, callback: %p, group: %d", this, group_id);
+
+			cur.reset();
+			std::swap(next, cur);
+			memcpy(&id, &next_id, sizeof(struct dnet_id));
+		}
+
+		debug("INDEXES_FIND, callback: %p, group: %d, count: %d", this, group_id, count);
+
+		return aggregated(m_sess, results.begin(), results.end());
+	}
+
+	bool need_next_group(const error_info &error)
+	{
+		(void) error;
+
+		debug("INDEXES_FIND, callback: %p, index_requests_set.size: %llu, group_index: %llu, group_count: %llu",
+			  this, m_index_requests_set.size(), m_group_index, m_groups.size());
+
+		// all results are found or all groups are iterated
+		return !m_index_requests_set.empty();
+	}
+
+	void process_entry(const callback_result_entry &entry)
+	{
+		if (filters::positive(entry)) {
+			const auto &id = reinterpret_cast<dnet_raw_id&>(entry.command()->id);
+			m_index_requests_set.erase(index_id(id, 0));
+		}
+	}
+
+private:
+	const dnet_logger &m_logger;
+	const bool m_intersect;
+	const int m_shard_count;
+	std::set<index_id> m_index_requests_set;
+	id_map m_convert_map;
+	std::vector<dnet_raw_id> m_id_precalc;
+	std::vector<dnet_raw_id> m_indexes;
+};
+
+static void on_find_indexes_process(session sess, std::shared_ptr<find_indexes_handler::id_map> convert_map,
 	async_result_handler<find_indexes_result_entry> handler, const callback_result_entry &entry)
 {
 	dnet_node *node = sess.get_native_node();
@@ -590,17 +811,11 @@ async_find_indexes_result session::find_indexes_internal(const std::vector<dnet_
 
 	DNET_SESSION_GET_GROUPS(async_find_indexes_result);
 
-	session sess = clone();
-	sess.set_filter(filters::positive);
-	sess.set_checker(checkers::no_check);
-	sess.set_exceptions_policy(session::no_exceptions);
-
+	session sess = clean_clone();
 	async_generic_result raw_result(sess);
-
-	auto cb = createCallback<find_indexes_callback>(sess, indexes, intersect, raw_result);
-	auto convert_map = std::make_shared<find_indexes_callback::id_map>(/*std::move(*/cb->convert_map/*)*/);
-	cb->groups = std::move(groups);
-	startCallback(cb);
+	auto raw_handler = std::make_shared<find_indexes_handler>(*this, raw_result, std::move(groups), indexes, intersect);
+	auto convert_map = std::make_shared<find_indexes_handler::id_map>(std::move(raw_handler->take_convert_map()));
+	raw_handler->start();
 
 	using namespace std::placeholders;
 
