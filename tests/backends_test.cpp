@@ -65,7 +65,7 @@ static void configure_nodes(const std::string &path)
 
 	servers.push_back(default_value(groups_count));
 
-	global_data = start_nodes(results_reporter::get_stream(), servers, path);
+	global_data = start_nodes(results_reporter::get_stream(), servers, path, true);
 }
 
 static std::set<std::tuple<std::string, int, uint32_t>> get_unique_hosts(session &sess)
@@ -125,7 +125,8 @@ static void test_enable_backend(session &sess)
 	BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) == unique_hosts.end(),
 		"Host must not exist: " + host + ", group: 0, backend: 1");
 
-	ELLIPTICS_REQUIRE(enable_result, sess.enable_backend(node.get_native()->addrs[0], 1));
+	ELLIPTICS_REQUIRE(enable_result, sess.enable_backend(node.remote(), 1));
+	BOOST_REQUIRE_EQUAL(enable_result.get().size(), 1);
 
 	// Wait 0.1 secs to ensure that route list was changed
 	usleep(100 * 1000);
@@ -140,7 +141,7 @@ static void test_backend_status(session &sess)
 {
 	server_node &node = global_data->nodes[0];
 
-	ELLIPTICS_REQUIRE(async_status_result, sess.request_backends_status(node.get_native()->addrs[0]));
+	ELLIPTICS_REQUIRE(async_status_result, sess.request_backends_status(node.remote()));
 	sync_backend_status_result result = async_status_result;
 
 	BOOST_REQUIRE_EQUAL(result.size(), 1);
@@ -164,7 +165,7 @@ static void test_enable_backend_again(session &sess)
 {
 	server_node &node = global_data->nodes[0];
 
-	ELLIPTICS_REQUIRE_ERROR(enable_result, sess.enable_backend(node.get_native()->addrs[0], 1), -EALREADY);
+	ELLIPTICS_REQUIRE_ERROR(enable_result, sess.enable_backend(node.remote(), 1), -EALREADY);
 }
 
 static void test_disable_backend(session &sess)
@@ -179,7 +180,7 @@ static void test_disable_backend(session &sess)
 	BOOST_REQUIRE_MESSAGE(unique_hosts.find(tuple) != unique_hosts.end(),
 		"Host must exist: " + host + ", group: 0, backend: 1");
 
-	ELLIPTICS_REQUIRE(enable_result, sess.disable_backend(node.get_native()->addrs[0], 1));
+	ELLIPTICS_REQUIRE(enable_result, sess.disable_backend(node.remote(), 1));
 
 	// Wait 0.1 secs to ensure that route list was changed
 	usleep(100 * 1000);
@@ -194,7 +195,7 @@ static void test_disable_backend_again(session &sess)
 {
 	server_node &node = global_data->nodes[0];
 
-	ELLIPTICS_REQUIRE_ERROR(enable_result, sess.disable_backend(node.get_native()->addrs[0], 1), -EALREADY);
+	ELLIPTICS_REQUIRE_ERROR(enable_result, sess.disable_backend(node.remote(), 1), -EALREADY);
 }
 
 static void test_enable_backend_at_empty_node(session &sess)

@@ -49,12 +49,55 @@ using namespace ioremap::elliptics;
 #define ELLIPTICS_CHECK_ERROR(R, C, E) ELLIPTICS_CHECK_ERROR_IMPL(R, (C), (E), BOOST_CHECK_MESSAGE)
 #define ELLIPTICS_REQUIRE_ERROR(R, C, E) ELLIPTICS_CHECK_ERROR_IMPL(R, (C), (E), BOOST_REQUIRE_MESSAGE)
 
+struct test_wrapper
+{
+	std::shared_ptr<ioremap::elliptics::logger> logger;
+	std::string test_name;
+	std::function<void ()> test_body;
+
+	void operator() () const
+	{
+		BH_LOG(*logger, DNET_LOG_INFO, "Start test: %s", test_name);
+		test_body();
+		BH_LOG(*logger, DNET_LOG_INFO, "Finish test: %s", test_name);
+	}
+};
+
+template <typename Method, typename... Args>
+std::function<void ()> make(const char *test_name, Method method, session sess, Args... args)
+{
+	uint64_t trace_id = 0;
+	auto buffer = reinterpret_cast<unsigned char *>(&trace_id);
+	for (size_t i = 0; i < sizeof(trace_id); ++i) {
+		buffer[i] = rand();
+	}
+
+	sess.set_trace_id(trace_id);
+
+	test_wrapper wrapper = {
+		std::make_shared<ioremap::elliptics::logger>(sess.get_logger(), blackhole::log::attributes_t()),
+		test_name,
+		std::bind(method, sess, std::forward<Args>(args)...)
+	};
+
+	return wrapper;
+}
+
+template <typename Method, typename... Args>
+std::function<void ()> make(const char *, Method method, Args... args)
+{
+	return std::bind(method, std::forward<Args>(args)...);
+}
+
+#define ELLIPTICS_MAKE_TEST(...) \
+	boost::unit_test::make_test_case(tests::make(BOOST_STRINGIZE((__VA_ARGS__)), __VA_ARGS__), BOOST_TEST_STRINGIZE((__VA_ARGS__)))
+
 #ifdef USE_MASTER_SUITE
-#  define ELLIPTICS_TEST_CASE(M, C...) do { framework::master_test_suite().add(BOOST_TEST_CASE(std::bind( M, ##C ))); } while (false)
-#  define ELLIPTICS_TEST_CASE_NOARGS(M) do { framework::master_test_suite().add(BOOST_TEST_CASE(std::bind( M ))); } while (false)
+#  define ELLIPTICS_TEST_CASE(M, C...) do { framework::master_test_suite().add(ELLIPTICS_MAKE_TEST(M, ##C )); } while (false)
+#  define ELLIPTICS_TEST_CASE_NOARGS(M) do { framework::master_test_suite().add(ELLIPTICS_MAKE_TEST(M)); } while (false)
 #else
-#  define ELLIPTICS_TEST_CASE(M, C...) do { suite->add(BOOST_TEST_CASE(std::bind( M, ##C ))); } while (false)
-#  define ELLIPTICS_TEST_CASE_NOARGS(M) do { suite->add(BOOST_TEST_CASE(std::bind( M ))); } while (false)
+#  define ELLIPTICS_TEST_CASE(M, C...) do { suite->add(ELLIPTICS_MAKE_TEST(M, ##C )); } while (false)
+#  define ELLIPTICS_TEST_CASE_NOARGS(M) do { suite->add(ELLIPTICS_MAKE_TEST(M)); } while (false)
 #endif
 
 session create_session(node n, std::initializer_list<int> groups, uint64_t cflags, uint32_t ioflags);
