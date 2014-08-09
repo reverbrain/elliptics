@@ -557,20 +557,16 @@ bool async_result_handler<T>::check(error_info *error)
 			dnet_cmd command;
 			command.status = 0;
 			for (auto it = m_data->statuses.begin(); it != m_data->statuses.end(); ++it) {
+				const bool failed_to_send = (it->flags & DNET_FLAGS_CLIENT_ERROR);
+
 				if (it->status == 0) {
 					++success;
-				} else if (command.status == 0) {
+				} else if (command.status == 0 && !failed_to_send) {
 					command = *it;
 				}
 			}
-			if (success == 0) {
-				if (command.status) {
-					*error = create_error(command);
-				} else {
-					*error = create_error(-ENXIO, "insufficient results count due to checker: "
-							"%zu of %zu (%zu)",
-						success, m_data->total, m_data->statuses.size());
-				}
+			if (success == 0 && command.status) {
+				*error = create_error(command);
 			} else {
 				*error = create_error(-ENXIO, "insufficient results count due to checker: "
 						"%zu of %zu (%zu)",

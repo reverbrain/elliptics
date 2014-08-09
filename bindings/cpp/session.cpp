@@ -65,6 +65,14 @@ transport_control::transport_control(const dnet_id &id, unsigned int cmd, uint64
 	m_data.cflags = cflags;
 }
 
+transport_control::transport_control(const dnet_trans_control &control) : m_data(control)
+{
+}
+
+transport_control::~transport_control()
+{
+}
+
 void transport_control::set_key(const dnet_id &id)
 {
 	m_data.id = id;
@@ -990,16 +998,23 @@ async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t 
 
 async_write_result session::write_data(const dnet_io_control &ctl)
 {
-	async_write_result result(*this);
-	auto cb = createCallback<write_callback>(*this, result, ctl);
+	dnet_io_control ctl_copy = ctl;
 
-	cb->ctl.cmd = DNET_CMD_WRITE;
-	cb->ctl.cflags |= DNET_FLAGS_NEED_ACK;
+	ctl_copy.cmd = DNET_CMD_WRITE;
+	ctl_copy.cflags |= DNET_FLAGS_NEED_ACK;
+	ctl_copy.io.user_flags |= get_user_flags();
 
-	memcpy(cb->ctl.io.id, cb->ctl.id.id, DNET_ID_SIZE);
+	memcpy(ctl_copy.io.id, ctl_copy.id.id, DNET_ID_SIZE);
 
-	startCallback(cb);
-	return result;
+	if (dnet_time_is_empty(&ctl_copy.io.timestamp)) {
+		get_timestamp(&ctl_copy.io.timestamp);
+
+		if (dnet_time_is_empty(&ctl_copy.io.timestamp))
+			dnet_current_time(&ctl_copy.io.timestamp);
+	}
+
+	session sess = clean_clone();
+	return async_result_cast<write_result_entry>(*this, send_to_groups(sess, ctl_copy));
 }
 
 async_write_result session::write_data(const dnet_io_attr &io, const argument_data &file)
@@ -1497,11 +1512,21 @@ async_remove_result session::remove(const key &id)
 {
 	transform(id);
 
-	async_remove_result result(*this);
-	auto cb = createCallback<remove_callback>(*this, result, id.id());
+	dnet_io_control ctl;
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
-	startCallback(cb);
-	return result;
+	memcpy(&ctl.id, &id.id(), sizeof(struct dnet_id));
+
+	memcpy(&ctl.io.id, id.id().id, DNET_ID_SIZE);
+	memcpy(&ctl.io.parent, id.id().id, DNET_ID_SIZE);
+	ctl.io.flags = dnet_session_get_ioflags(get_native());
+
+	ctl.fd = -1;
+
+	ctl.cmd = DNET_CMD_DEL;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+
+	return send_to_groups(*this, ctl);
 }
 
 async_stat_result session::stat_log()

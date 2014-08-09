@@ -179,12 +179,14 @@ typedef std::unique_ptr<dnet_net_state, dnet_net_state_deleter> net_state_ptr;
 
 // Send request to specific state
 async_generic_result send_to_single_state(session &sess, const transport_control &control);
+async_generic_result send_to_single_state(session &sess, dnet_io_control &control);
 
 // Send request to each backend
 async_generic_result send_to_all_backends(session &sess, const transport_control &control);
 
-// Send request to one state at each session's groups
+// Send request to one state at each session's group
 async_generic_result send_to_groups(session &sess, const transport_control &control);
+async_generic_result send_to_groups(session &sess, dnet_io_control &control);
 
 // Send request to each state in route table
 async_generic_result send_to_each_node(session &sess, const transport_control &control);
@@ -243,7 +245,7 @@ class default_callback
 						m_statuses.push_back(cmd->status);
 					}
 				}
-				auto data = std::make_shared<callback_result_data>(dnet_state_addr(state), cmd);
+				auto data = std::make_shared<callback_result_data>(state ? dnet_state_addr(state) : NULL, cmd);
 				process(cmd, data, data.get());
 			}
 			return (m_count == m_complete);
@@ -1272,55 +1274,6 @@ class cmd_callback
 		default_callback<callback_result_entry> cb;
 };
 
-template <typename CallbackEntry = callback_result_entry>
-class single_cmd_callback
-{
-	public:
-		typedef std::shared_ptr<single_cmd_callback<CallbackEntry>> ptr;
-
-		single_cmd_callback(const session &sess, const async_result<CallbackEntry> &result, const transport_control &ctl)
-			: sess(sess), ctl(ctl.get_native()), cb(sess, result)
-		{
-		}
-
-		bool start(error_info *error, complete_func func, void *priv)
-		{
-			cb.set_count(unlimited);
-			ctl.complete = func;
-			ctl.priv = priv;
-
-			int err;
-			if (state)
-				err = dnet_trans_alloc_send_state(sess.get_native(), state.get(), &ctl);
-			else
-				err = dnet_trans_alloc_send(sess.get_native(), &ctl);
-			state.reset();
-
-			if (err < 0) {
-				*error = create_error(err, "failed to request cmd: %s", dnet_cmd_string(ctl.cmd));
-				return true;
-			}
-
-			return cb.set_count(1);
-		}
-
-		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
-		{
-			(void) error;
-			return cb.handle(state, cmd, func, priv);
-		}
-
-		void finish(const error_info &exc)
-		{
-			cb.complete(exc);
-		}
-
-		session sess;
-		dnet_trans_control ctl;
-		net_state_ptr state;
-		default_callback<CallbackEntry> cb;
-};
-
 class remove_index_callback
 {
 	public:
@@ -1501,102 +1454,6 @@ class remove_index_callback
 		default_callback<callback_result_entry> cb;
 		dnet_raw_id index;
 		std::vector<int> groups;
-};
-
-class write_callback
-{
-	public:
-		typedef std::shared_ptr<write_callback> ptr;
-
-		write_callback(const session &sess, const async_write_result &result, const dnet_io_control &ctl):
-		sess(sess), cb(sess, result), ctl(ctl)
-		{
-		}
-
-		bool start(error_info *error, complete_func func, void *priv)
-		{
-			ctl.complete = func;
-			ctl.priv = priv;
-
-			cb.set_total(sess.get_groups().size());
-
-			if (dnet_time_is_empty(&ctl.io.timestamp)) {
-				sess.get_timestamp(&ctl.io.timestamp);
-
-				if (dnet_time_is_empty(&ctl.io.timestamp))
-					dnet_current_time(&ctl.io.timestamp);
-			}
-
-			if (ctl.io.user_flags == 0)
-				ctl.io.user_flags = sess.get_user_flags();
-
-			cb.set_count(unlimited);
-
-			int err = dnet_write_object(sess.get_native(), &ctl);
-			if (err < 0) {
-				*error = create_error(err, "Failed to write data");
-				return true;
-			}
-			return cb.set_count(err);
-		}
-
-		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
-		{
-			(void) error;
-			return cb.handle(state, cmd, func, priv);
-		}
-
-		void finish(const error_info &exc)
-		{
-			cb.complete(exc);
-		}
-
-		session sess;
-		default_callback<write_result_entry> cb;
-		dnet_io_control ctl;
-};
-
-class remove_callback
-{
-	public:
-		typedef std::shared_ptr<remove_callback> ptr;
-
-		remove_callback(const session &sess, const async_generic_result &result, const dnet_id &id)
-			: sess(sess), cb(sess, result), id(id)
-		{
-		}
-
-		bool start(error_info *error, complete_func func, void *priv)
-		{
-			cb.set_count(unlimited);
-
-			const auto &sess_groups = sess.get_groups();
-			cb.set_total(sess_groups.size());
-
-			int err = dnet_remove_object(sess.get_native(), &id, func, priv);
-
-			if (err < 0) {
-				*error = create_error(err, id, "REMOVE");
-				return true;
-			} else {
-				return cb.set_count(err);
-			}
-		}
-
-		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
-		{
-			(void) error;
-			return cb.handle(state, cmd, func, priv);
-		}
-
-		void finish(const error_info &error)
-		{
-			cb.complete(error);
-		}
-
-		session sess;
-		default_callback<callback_result_entry> cb;
-		dnet_id id;
 };
 
 class exec_callback

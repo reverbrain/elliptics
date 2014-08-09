@@ -356,6 +356,7 @@ static int dnet_trans_send_fail(struct dnet_session *s, struct dnet_net_state *s
 	dnet_trans_control_fill_cmd(s, ctl, &cmd);
 
 	cmd.status = err;
+	cmd.size = 0;
 
 	if (ctl->complete) {
 		cmd.flags |= DNET_FLAGS_CLIENT_ERROR;

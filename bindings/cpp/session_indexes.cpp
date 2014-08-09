@@ -86,10 +86,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 		return result;
 	}
 
-	session sess = orig_sess.clone();
-	sess.set_filter(filters::all_with_ack);
-	sess.set_checker(checkers::no_check);
-	sess.set_exceptions_policy(session::no_exceptions);
+	session sess = orig_sess.clean_clone();
 
 	size_t data_size = 0;
 	size_t max_data_size = 0;
@@ -157,12 +154,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 
 			control.set_key(indexes_id);
 
-			async_generic_result result(sess);
-			auto cb = createCallback<single_cmd_callback<>>(sess, result, control);
-
-			startCallback(cb);
-
-			results.emplace_back(std::move(result));
+			results.emplace_back(send_to_single_state(sess, control));
 		}
 	}
 
@@ -220,12 +212,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 
 				control.set_key(id);
 
-				async_generic_result result(sess);
-				auto cb = createCallback<single_cmd_callback<>>(sess, result, control);
-
-				startCallback(cb);
-
-				results.emplace_back(std::move(result));
+				results.emplace_back(send_to_single_state(sess, control));
 			}
 		}
 	}

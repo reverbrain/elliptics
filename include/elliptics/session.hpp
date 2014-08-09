@@ -95,6 +95,8 @@ class transport_control
 	public:
 		transport_control();
 		transport_control(const dnet_id &id, unsigned int cmd, uint64_t cflags = 0);
+		transport_control(const dnet_trans_control &control);
+		~transport_control();
 
 		void set_key(const dnet_id &id);
 		void set_command(unsigned int cmd);

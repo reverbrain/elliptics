@@ -44,7 +44,7 @@ public:
 			return increment_completed();
 		}
 
-		auto data = std::make_shared<callback_result_data>(dnet_state_addr(state), cmd);
+		auto data = std::make_shared<callback_result_data>(state ? dnet_state_addr(state) : NULL, cmd);
 
 		if (cmd->status)
 			data->error = create_error(*cmd);
@@ -79,46 +79,84 @@ private:
 
 } // namespace detail
 
-
-// Send request to specificly set state by id
-async_generic_result send_to_single_state(session &sess, const transport_control &control)
+template <typename Method, typename T>
+async_generic_result send_impl(session &sess, T &control, Method method)
 {
 	scoped_trace_id guard(sess);
 	async_generic_result result(sess);
 
 	detail::basic_handler *handler = new detail::basic_handler(result);
-	dnet_trans_control dnet_control = control.get_native();
 
-	dnet_control.complete = detail::basic_handler::handler;
-	dnet_control.priv = handler;
+	control.complete = detail::basic_handler::handler;
+	control.priv = handler;
 
-	dnet_trans_alloc_send(sess.get_native(), &dnet_control);
+	const size_t count = method(sess, control);
 
-	if (handler->set_total(1))
+	if (handler->set_total(count))
 		delete handler;
 
 	return result;
 }
 
+// Send request to specificly set state by id
+async_generic_result send_to_single_state(session &sess, const transport_control &control)
+{
+	dnet_trans_control writable_copy = control.get_native();
+	return send_impl(sess, writable_copy, [] (session &sess, dnet_trans_control &ctl) {
+		dnet_trans_alloc_send(sess.get_native(), &ctl);
+		return 1;
+	});
+}
+
+async_generic_result send_to_single_state(session &sess, dnet_io_control &control)
+{
+	return send_impl(sess, control, [] (session &sess, dnet_io_control &ctl) {
+		dnet_io_trans_alloc_send(sess.get_native(), &ctl);
+		return 1;
+	});
+}
+
 // Send request to each backend
 async_generic_result send_to_all_backends(session &sess, const transport_control &control)
 {
-	scoped_trace_id guard(sess);
-	return async_generic_result();
+	dnet_trans_control writable_copy = control.get_native();
+	return send_impl(sess, writable_copy, [] (session &sess, dnet_trans_control &ctl) {
+		return 0;
+	});
 }
 
-// Send request to one state at each session's groups
+// Send request to one state at each session's group
 async_generic_result send_to_groups(session &sess, const transport_control &control)
 {
-	scoped_trace_id guard(sess);
-	return async_generic_result();
+	dnet_trans_control writable_copy = control.get_native();
+	return send_impl(sess, writable_copy, [] (session &sess, dnet_trans_control &ctl) {
+		dnet_session *native = sess.get_native();
+		size_t counter = 0;
+
+		for (int i = 0; i < native->group_num; ++i) {
+			ctl.id.group_id = native->groups[i];
+			dnet_trans_alloc_send(native, &ctl);
+			++counter;
+		}
+
+		return counter;
+	});
+}
+
+async_generic_result send_to_groups(session &sess, dnet_io_control &control)
+{
+	return send_impl(sess, control, [] (session &sess, dnet_io_control &ctl) {
+		return dnet_trans_create_send_all(sess.get_native(), &ctl);
+	});
 }
 
 // Send request to each state in route table
 async_generic_result send_to_each_node(session &sess, const transport_control &control)
 {
-	scoped_trace_id guard(sess);
-	return async_generic_result();
+	dnet_trans_control writable_copy = control.get_native();
+	return send_impl(sess, writable_copy, [] (session &sess, dnet_trans_control &ctl) {
+		return 0;
+	});
 }
 
 } } // namespace ioremap::elliptics

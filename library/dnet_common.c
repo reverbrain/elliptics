@@ -564,7 +564,42 @@ err_out_exit:
 	return 0;
 }
 
-static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dnet_io_control *ctl, int *errp)
+static void dnet_io_trans_control_fill_cmd(struct dnet_session *s, const struct dnet_io_control *ctl, struct dnet_cmd *cmd)
+{
+	memcpy(&cmd->id, &ctl->id, sizeof(struct dnet_id));
+	cmd->cmd = ctl->cmd;
+	cmd->flags = ctl->cflags | dnet_session_get_cflags(s);
+	cmd->trace_id = dnet_session_get_trace_id(s);
+	cmd->status = 0;
+
+	if (cmd->flags & DNET_FLAGS_DIRECT_BACKEND)
+		cmd->backend_id = dnet_session_get_direct_backend(s);
+}
+
+static int dnet_io_trans_send_fail(struct dnet_session *s, struct dnet_net_state *st, struct dnet_io_control *ctl, int err, int destroy)
+{
+	struct dnet_cmd cmd;
+	memset(&cmd, 0, sizeof(cmd));
+	dnet_io_trans_control_fill_cmd(s, ctl, &cmd);
+
+	cmd.status = err;
+	cmd.size = 0;
+
+	if (ctl->complete) {
+		cmd.flags |= DNET_FLAGS_CLIENT_ERROR;
+
+		ctl->complete(st, &cmd, ctl->priv);
+
+		if (destroy) {
+			cmd.flags |= DNET_FLAGS_DESTROY;
+			ctl->complete(st, &cmd, ctl->priv);
+		}
+	}
+
+	return 0;
+}
+
+void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ctl)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_io_req req;
@@ -578,9 +613,6 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	if (ctl->cmd == DNET_CMD_READ)
 		size = 0;
 
-	if (ctl->fd < 0 && size < DNET_COPY_IO_SIZE)
-		tsize += size;
-
 	t = dnet_trans_alloc(n, tsize);
 	t->wait_ts = *dnet_session_get_timeout(s);
 	if (!t) {
@@ -593,20 +625,10 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	cmd = (struct dnet_cmd *)(t + 1);
 	io = (struct dnet_io_attr *)(cmd + 1);
 
-	if (ctl->fd < 0 && size < DNET_COPY_IO_SIZE) {
-		if (size) {
-			void *data = io + 1;
-			memcpy(data, ctl->data, size);
-		}
-	}
-
-	memcpy(&cmd->id, &ctl->id, sizeof(struct dnet_id));
+	dnet_io_trans_control_fill_cmd(s, ctl, cmd);
 	cmd->size = sizeof(struct dnet_io_attr) + size;
-	cmd->flags = ctl->cflags;
-	cmd->status = 0;
-	cmd->trace_id = dnet_session_get_trace_id(s);
 
-	cmd->cmd = t->command = ctl->cmd;
+	t->command = cmd->cmd;
 
 	memcpy(io, &ctl->io, sizeof(struct dnet_io_attr));
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
@@ -616,10 +638,6 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	} else {
 		/* We're requested to execute request on particular node */
 		t->st = dnet_state_search_by_addr(n, &s->direct_addr);
-	}
-
-	if (s->cflags & DNET_FLAGS_DIRECT_BACKEND) {
-		cmd->backend_id = s->direct_backend;
 	}
 
 	if (!t->st) {
@@ -654,7 +672,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	if (ctl->fd >= 0) {
 		req.local_offset = ctl->local_offset;
 		req.fsize = size;
-	} else if (size >= DNET_COPY_IO_SIZE) {
+	} else {
 		req.data = (void *)ctl->data;
 		req.dsize = size;
 	}
@@ -662,34 +680,29 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	err = dnet_trans_send(t, &req);
 	if (err)
 		goto err_out_destroy;
-
-	return t;
+	return;
 
 err_out_complete:
-	if (ctl->complete)
-		ctl->complete(NULL, NULL, ctl->priv);
-	*errp = err;
-	return NULL;
+	dnet_io_trans_send_fail(s, NULL, ctl, err, 1);
 
 err_out_destroy:
+	dnet_io_trans_send_fail(s, NULL, ctl, err, 0);
 	dnet_trans_put(t);
-	*errp = err;
-	return NULL;
 }
 
 int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *ctl)
 {
-	int num = 0, i, err;
+	int num = 0, i;
 
 	for (i=0; i<s->group_num; ++i) {
 		ctl->id.group_id = s->groups[i];
 
-		dnet_io_trans_create(s, ctl, &err);
+		dnet_io_trans_alloc_send(s, ctl);
 		num++;
 	}
 
 	if (!num) {
-		dnet_io_trans_create(s, ctl, &err);
+		dnet_io_trans_alloc_send(s, ctl);
 		num++;
 	}
 
@@ -913,11 +926,7 @@ err_out_exit_no_log:
 
 int dnet_read_object(struct dnet_session *s, struct dnet_io_control *ctl)
 {
-	int err;
-
-	if (!dnet_io_trans_create(s, ctl, &err))
-		return err;
-
+	dnet_io_trans_alloc_send(s, ctl);
 	return 0;
 }
 

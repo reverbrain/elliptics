@@ -77,7 +77,7 @@ class TestSession:
             result.get()
         except elliptics.Error as e:
             assert e.message.message == 'insufficient results count due to'\
-                ' checker: 0 of 0 (0): No such device or address: -6'
+                ' checker: 0 of 1 (1): No such device or address: -6'
         else:
             pytest.fail('Failed: DID NOT RAISE')
 

@@ -803,8 +803,8 @@ struct dnet_trans_control
 	unsigned int		cmd;
 	uint64_t		cflags;
 
-	unsigned int		size;
 	void			*data;
+	unsigned int		size;
 
 	int			(* complete)(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv);
 	void			*priv;
@@ -814,6 +814,7 @@ struct dnet_trans_control
  * Allocate and send transaction according to above control structure.
  */
 int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl);
+void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ctl);
 int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl);
 int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *ctl);
 
