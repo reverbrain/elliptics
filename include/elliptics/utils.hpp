@@ -47,7 +47,7 @@ class data_buffer_base
 		data_buffer_base(size_t capacity = 0) :
 			m_data(0),
 			m_size(0),
-			m_capacity(capacity)
+			m_capacity(capacity + sizeof(atomic_type))
 		{
 		}
 
