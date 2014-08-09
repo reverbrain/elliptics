@@ -531,6 +531,11 @@ int server_node::monitor_port() const
 	return m_monitor_port;
 }
 
+pid_t server_node::pid() const
+{
+	return m_pid;
+}
+
 dnet_node *server_node::get_native()
 {
 	return m_node;

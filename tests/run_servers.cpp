@@ -335,6 +335,11 @@ static int run_servers(const rapidjson::Value &doc)
 	}
 #endif
 
+	for (size_t i = 0; i < global_data->nodes.size(); ++i) {
+		tests::server_node &node = global_data->nodes.at(i);
+		test::log << "Started node #" << i << ", addr: " << node.remote().to_string() << ", pid: " << node.pid() << test::endl;
+	}
+
 	{
 		rapidjson::Document info;
 		info.SetObject();

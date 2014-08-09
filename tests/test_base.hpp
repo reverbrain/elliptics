@@ -187,6 +187,7 @@ public:
 
 	address remote() const;
 	int monitor_port() const;
+	pid_t pid() const;
 	dnet_node *get_native();
 
 private:
