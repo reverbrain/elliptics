@@ -615,8 +615,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 		t->st = dnet_state_get_first(n, &cmd->id);
 	} else {
 		/* We're requested to execute request on particular node */
-		s->direct_id.group_id = cmd->id.group_id;
-		t->st = dnet_state_get_first(n, &s->direct_id);
+		t->st = dnet_state_search_by_addr(n, &s->direct_addr);
 	}
 
 	if (s->cflags & DNET_FLAGS_DIRECT_BACKEND) {

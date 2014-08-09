@@ -24,6 +24,8 @@
 
 #include "node_p.hpp"
 
+#include "../../include/elliptics/async_result_cast.hpp"
+
 namespace ioremap { namespace elliptics {
 
 template <typename T>
@@ -558,6 +560,15 @@ session session::clone() const
 	return session(std::make_shared<session_data>(*m_data));
 }
 
+session session::clean_clone() const
+{
+	session sess = clone();
+	sess.set_filter(filters::all_with_ack);
+	sess.set_checker(checkers::no_check);
+	sess.set_exceptions_policy(session::no_exceptions);
+	return sess;
+}
+
 session &session::operator =(const session &other)
 {
 	m_data = other.m_data;
@@ -625,40 +636,17 @@ dnet_id session::get_direct_id()
 	return *dnet_session_get_direct_id(get_native());
 }
 
-template <bool CheckBackend>
-static void session_set_direct_id(session &sess, const address &remote_addr, uint32_t backend_id)
-{
-	std::vector<dnet_route_entry> routes = sess.get_routes();
-
-	if (routes.empty())
-		throw_error(-ENXIO, "Route list is empty");
-
-	for (auto it = routes.begin(); it != routes.end(); ++it) {
-		if (remote_addr == it->addr && (!CheckBackend || it->backend_id == backend_id)) {
-			dnet_id id;
-			memset(&id, 0, sizeof(id));
-			dnet_setup_id(&id, it->group_id, it->id.id);
-
-			dnet_session_set_direct_id(sess.get_native(), &id);
-			sess.set_cflags(sess.get_cflags() | DNET_FLAGS_DIRECT);
-			return;
-		}
-	}
-
-	throw_error(-ESRCH, "Route not found");
-}
-
 void session::set_direct_id(const address &remote_addr)
 {
-	session_set_direct_id<false>(*this, remote_addr, 0);
+	set_cflags(get_cflags() | DNET_FLAGS_DIRECT);
+	dnet_session_set_direct_addr(get_native(), &remote_addr.to_raw());
 }
 
 void session::set_direct_id(const address &remote_addr, uint32_t backend_id)
 {
-	session_set_direct_id<true>(*this, remote_addr, backend_id);
-
+	dnet_session_set_direct_addr(get_native(), &remote_addr.to_raw());
 	dnet_session_set_direct_backend(get_native(), backend_id);
-	set_cflags(get_cflags() | DNET_FLAGS_DIRECT_BACKEND);
+	set_cflags(get_cflags() | DNET_FLAGS_DIRECT | DNET_FLAGS_DIRECT_BACKEND);
 }
 
 void session::set_cflags(uint64_t cflags)
@@ -1585,6 +1573,8 @@ async_generic_result session::request_cmd(const transport_control &ctl)
 
 void session::update_status(const address &addr, dnet_node_status *status)
 {
+	scoped_trace_id guard(*this);
+
 	int err = dnet_update_status(m_data->session_ptr, &addr.to_raw(), NULL, status);
 
 	if (err < 0) {
@@ -1605,23 +1595,9 @@ void session::update_status(const key &id, dnet_node_status *status)
 	}
 }
 
-static async_backend_control_result update_backend_status(session &sess, const address &addr, uint32_t backend_id,
+static async_backend_control_result update_backend_status(session &orig_sess, const address &addr, uint32_t backend_id,
 	dnet_backend_command command, const std::vector<dnet_raw_id> &ids = std::vector<dnet_raw_id>())
 {
-	async_backend_control_result result(sess);
-
-	net_state_ptr state = net_state_ptr(dnet_state_search_by_addr(sess.get_native_node(), &addr.to_raw()));
-	if (!state) {
-		error_info error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s", dnet_server_convert_dnet_addr(&addr.to_raw()));
-		if (sess.get_exceptions_policy() & session::throw_at_start) {
-			error.throw_error();
-		} else {
-			async_result_handler<backend_status_result_entry> handler(result);
-			handler.complete(error);
-			return result;
-		}
-	}
-
 	data_pointer data = data_pointer::allocate(sizeof(dnet_backend_control) + ids.size() * sizeof(dnet_raw_id));
 	dnet_backend_control *backend_control = data.data<dnet_backend_control>();
 	memset(backend_control, 0, sizeof(dnet_backend_control));
@@ -1650,11 +1626,9 @@ static async_backend_control_result update_backend_status(session &sess, const a
 	control.set_cflags(DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT);
 	control.set_data(data.data(), data.size());
 
-	auto cb = createCallback<single_cmd_callback<backend_status_result_entry>>(sess, result, control);
-	cb->state = std::move(state);
-
-	startCallback(cb);
-	return result;
+	session sess = orig_sess.clean_clone();
+	sess.set_direct_id(addr, backend_id);
+	return async_result_cast<backend_status_result_entry>(orig_sess, send_to_single_state(sess, control));
 }
 
 async_backend_control_result session::enable_backend(const address &addr, uint32_t backend_id)
@@ -1679,31 +1653,13 @@ async_backend_control_result session::set_backend_ids(const address &addr, uint3
 
 async_backend_status_result session::request_backends_status(const address &addr)
 {
-	async_backend_status_result result(*this);
-
-	net_state_ptr state = net_state_ptr(dnet_state_search_by_addr(get_native_node(), &addr.to_raw()));
-	if (!state) {
-		error_info error = create_error(-ENXIO, "BACKEND_CONTROL: no state for addr: %s", dnet_server_convert_dnet_addr(&addr.to_raw()));
-		if (get_exceptions_policy() & throw_at_start) {
-			error.throw_error();
-		} else {
-			async_backend_status_result result(*this);
-			async_result_handler<backend_status_result_entry> handler(result);
-			handler.complete(error);
-			return result;
-		}
-	}
-
 	transport_control control;
 	control.set_command(DNET_CMD_BACKEND_STATUS);
 	control.set_cflags(DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT);
 
-	auto cb = createCallback<single_cmd_callback<backend_status_result_entry>>(*this, result, control);
-	cb->state = std::move(state);
-
-	startCallback(cb);
-
-	return result;
+	session sess = clean_clone();
+	sess.set_direct_id(addr);
+	return async_result_cast<backend_status_result_entry>(*this, send_to_single_state(sess, control));
 }
 
 class read_data_range_callback
@@ -1968,6 +1924,7 @@ async_read_result session::remove_data_range(const dnet_io_attr &io, int group_i
 
 std::vector<dnet_route_entry> session::get_routes()
 {
+	scoped_trace_id guard(*this);
 	cstyle_scoped_pointer<dnet_route_entry> entries;
 
 	int count = dnet_get_routes(m_data->session_ptr, &entries.data());

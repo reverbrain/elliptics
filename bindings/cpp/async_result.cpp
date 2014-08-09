@@ -17,7 +17,8 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "../../include/elliptics/cppdef.h"
+#include "../../include/elliptics/result_entry.hpp"
+#include "../../include/elliptics/session.hpp"
 
 #include <condition_variable>
 #include <mutex>
@@ -144,6 +145,12 @@ template <typename T>
 bool async_result<T>::ready() const
 {
 	return m_data->finished;
+}
+
+template <typename T>
+size_t async_result<T>::total() const
+{
+	return m_data->total;
 }
 
 template <typename T>

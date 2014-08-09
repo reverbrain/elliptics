@@ -413,6 +413,10 @@ void dnet_session_get_timestamp(struct dnet_session *s, struct dnet_time *ts);
 
 struct dnet_id *dnet_session_get_direct_id(struct dnet_session *s);
 void dnet_session_set_direct_id(struct dnet_session *s, const struct dnet_id *id);
+
+const struct dnet_addr *dnet_session_get_direct_addr(struct dnet_session *s);
+void dnet_session_set_direct_addr(struct dnet_session *s, const struct dnet_addr *addr);
+
 uint32_t dnet_session_get_direct_backend(struct dnet_session *s);
 void dnet_session_set_direct_backend(struct dnet_session *s, uint32_t backend_id);
 
@@ -969,8 +973,9 @@ long __attribute__((weak)) dnet_get_id(void);
 static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
 	int ret = 0;
+	(void) st;
 
-	if (!st || !cmd || (cmd->flags & DNET_FLAGS_DESTROY)) {
+	if (!cmd || (cmd->flags & DNET_FLAGS_DESTROY)) {
 		ret = 1;
 		if (cmd && cmd->status)
 			ret = cmd->status;

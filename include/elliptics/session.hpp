@@ -270,6 +270,7 @@ class session
 		virtual ~session();
 
 		session clone() const;
+		session clean_clone() const;
 
 		session &operator =(const session &other);
 

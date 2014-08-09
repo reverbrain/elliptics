@@ -14,8 +14,8 @@
  * GNU Lesser General Public License for more details.
  */
 
-#ifndef ELLIPTICS_ASYNC_RESULT_HPP
-#define ELLIPTICS_ASYNC_RESULT_HPP
+#ifndef IOREMAP_ELLIPTICS_ASYNC_RESULT_HPP
+#define IOREMAP_ELLIPTICS_ASYNC_RESULT_HPP
 
 #include "error.hpp"
 
@@ -127,6 +127,8 @@ class async_result
 		 * Returns true if complete and false otherwise
 		 */
 		 bool ready() const;
+
+		 size_t total() const;
 
 		/*!
 		 * Returns time elapsed on execution
@@ -284,4 +286,4 @@ class async_result_handler
 
 }} /* namespace ioremap::elliptics */
 
-#endif // ELLIPTICS_ASYNC_RESULT_HPP
+#endif // IOREMAP_ELLIPTICS_ASYNC_RESULT_HPP

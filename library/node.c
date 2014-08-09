@@ -970,6 +970,16 @@ void dnet_session_set_direct_id(struct dnet_session *s, const struct dnet_id *id
 	s->direct_id = *id;
 }
 
+const struct dnet_addr *dnet_session_get_direct_addr(struct dnet_session *s)
+{
+	return &s->direct_addr;
+}
+
+void dnet_session_set_direct_addr(struct dnet_session *s, const struct dnet_addr *addr)
+{
+	s->direct_addr = *addr;
+}
+
 uint32_t dnet_session_get_direct_backend(struct dnet_session *s)
 {
 	return s->direct_backend;

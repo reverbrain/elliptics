@@ -104,10 +104,13 @@ class callback_result_data
 
 		callback_result_data(dnet_addr *addr, dnet_cmd *cmd)
 		{
-			const size_t size = sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
+			const size_t size = sizeof(dnet_addr) + sizeof(dnet_cmd) + cmd->size;
 			data = data_pointer::allocate(size);
-			memcpy(data.data(), addr, sizeof(struct dnet_addr));
-			memcpy(data.data<char>() + sizeof(struct dnet_addr), cmd, sizeof(struct dnet_cmd) + cmd->size);
+			if (addr)
+				memcpy(data.data(), addr, sizeof(dnet_addr));
+			else
+				memset(data.data(), 0, sizeof(dnet_addr));
+			memcpy(data.data<char>() + sizeof(dnet_addr), cmd, sizeof(dnet_cmd) + cmd->size);
 		}
 
 		virtual ~callback_result_data()
@@ -162,6 +165,29 @@ struct entry_converter
 	{
 	}
 };
+
+struct dnet_net_state_deleter
+{
+	void operator () (dnet_net_state *state) const
+	{
+		if (state)
+			dnet_state_put(state);
+	}
+};
+
+typedef std::unique_ptr<dnet_net_state, dnet_net_state_deleter> net_state_ptr;
+
+// Send request to specific state
+async_generic_result send_to_single_state(session &sess, const transport_control &control);
+
+// Send request to each backend
+async_generic_result send_to_all_backends(session &sess, const transport_control &control);
+
+// Send request to one state at each session's groups
+async_generic_result send_to_groups(session &sess, const transport_control &control);
+
+// Send request to each state in route table
+async_generic_result send_to_each_node(session &sess, const transport_control &control);
 
 template <typename T>
 class default_callback
@@ -741,17 +767,6 @@ struct io_attr_comparator
 };
 
 typedef std::set<dnet_io_attr, io_attr_comparator> io_attr_set;
-
-struct dnet_net_state_deleter
-{
-	void operator () (dnet_net_state *state) const
-	{
-		if (state)
-			dnet_state_put(state);
-	}
-};
-
-typedef std::unique_ptr<dnet_net_state, dnet_net_state_deleter> net_state_ptr;
 
 class net_state_id
 {

@@ -185,6 +185,9 @@ enum dnet_backend_defrag_state {
 /* Trace ALL logs for this request, don't look at current verbosity */
 #define DNET_FLAGS_TRACE_BIT		(1<<8)
 
+/* This reply was generated on client, it was NOT received from the server */
+#define DNET_FLAGS_CLIENT_ERROR		(1<<9)
+
 typedef uint64_t trace_id_t;
 
 struct dnet_id {

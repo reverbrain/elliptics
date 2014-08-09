@@ -335,6 +335,42 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	return dnet_trans_alloc_send_state_to_backend(s, st, ctl, -1, -1);
 }
 
+static void dnet_trans_control_fill_cmd(struct dnet_session *s, const struct dnet_trans_control *ctl, struct dnet_cmd *cmd)
+{
+	memcpy(&cmd->id, &ctl->id, sizeof(struct dnet_id));
+	cmd->flags = ctl->cflags;
+	cmd->size = ctl->size;
+	cmd->cmd = ctl->cmd;
+	if (s) {
+		cmd->flags |= dnet_session_get_cflags(s);
+		cmd->trace_id = dnet_session_get_trace_id(s);
+		if (cmd->flags & DNET_FLAGS_DIRECT_BACKEND)
+			cmd->backend_id = dnet_session_get_direct_backend(s);
+	}
+}
+
+static int dnet_trans_send_fail(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int err, int destroy)
+{
+	struct dnet_cmd cmd;
+	memset(&cmd, 0, sizeof(cmd));
+	dnet_trans_control_fill_cmd(s, ctl, &cmd);
+
+	cmd.status = err;
+
+	if (ctl->complete) {
+		cmd.flags |= DNET_FLAGS_CLIENT_ERROR;
+
+		ctl->complete(st, &cmd, ctl->priv);
+
+		if (destroy) {
+			cmd.flags |= DNET_FLAGS_DESTROY;
+			ctl->complete(st, &cmd, ctl->priv);
+		}
+	}
+
+	return 0;
+}
+
 /*
  * Allocates and sends transaction into given @st network state/connection.
  * Uses @s session only to get wait timeout for transaction, if it is NULL, global node timeout (@dnet_node::wait_ts) is used.
@@ -351,9 +387,7 @@ int dnet_trans_alloc_send_state_to_backend(struct dnet_session *s, struct dnet_n
 
 	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) + ctl->size);
 	if (!t) {
-		err = -ENOMEM;
-		if (ctl->complete)
-			ctl->complete(NULL, NULL, ctl->priv);
+		err = dnet_trans_send_fail(s, st, ctl, -ENOMEM, 1);
 		goto err_out_exit;
 	}
 
@@ -369,13 +403,9 @@ int dnet_trans_alloc_send_state_to_backend(struct dnet_session *s, struct dnet_n
 
 	cmd = (struct dnet_cmd *)(t + 1);
 
-	memcpy(&cmd->id, &ctl->id, sizeof(struct dnet_id));
-	cmd->flags = ctl->cflags;
-	cmd->size = ctl->size;
-	cmd->cmd = t->command = ctl->cmd;
+	dnet_trans_control_fill_cmd(s, ctl, cmd);
+	t->command = cmd->cmd;
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
-	if (s)
-		cmd->trace_id = dnet_session_get_trace_id(s);
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
@@ -405,9 +435,10 @@ int dnet_trans_alloc_send_state_to_backend(struct dnet_session *s, struct dnet_n
 	return 0;
 
 err_out_put:
+	dnet_trans_send_fail(s, st, ctl, err, 0);
 	dnet_trans_put(t);
 err_out_exit:
-	return err;
+	return 0;
 }
 
 int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl)
@@ -416,18 +447,19 @@ int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl
 	struct dnet_net_state *st;
 	int err;
 
-	st = dnet_state_get_first(n, &ctl->id);
-	if (!st) {
-		err = -ENXIO;
-		if (ctl->complete)
-			ctl->complete(NULL, NULL, ctl->priv);
-		goto err_out_exit;
+	if (dnet_session_get_cflags(s) & DNET_FLAGS_DIRECT) {
+		st = dnet_state_search_by_addr(n, &s->direct_addr);
+	} else {
+		st = dnet_state_get_first(n, &ctl->id);
 	}
 
-	err = dnet_trans_alloc_send_state(s, st, ctl);
-	dnet_state_put(st);
+	if (!st) {
+		err = dnet_trans_send_fail(s, NULL, ctl, -ENXIO, 1);
+	} else {
+		err = dnet_trans_alloc_send_state(s, st, ctl);
+		dnet_state_put(st);
+	}
 
-err_out_exit:
 	return err;
 }
 
@@ -439,7 +471,7 @@ void dnet_trans_clean_list(struct list_head *head)
 		list_del_init(&t->trans_list_entry);
 
 		t->cmd.size = 0;
-		t->cmd.flags = 0;
+		t->cmd.flags = DNET_FLAGS_CLIENT_ERROR;
 		t->cmd.status = -ETIMEDOUT;
 
 		if (t->complete)

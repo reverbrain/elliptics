@@ -15,6 +15,7 @@ set(ELLIPTICS_CPP_SRCS
     session.cpp
     session_indexes.cpp
     session_indexes.hpp
+    result_entry.cpp
     exception.cpp
     key.cpp
     ../../foreign/cmp/cmp.c
