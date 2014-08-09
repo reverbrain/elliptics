@@ -2208,6 +2208,132 @@ async_reply_result session::reply(const exec_context &tmp_context, const argumen
 	return request(&id, context);
 }
 
+#undef debug
+#undef notice
+#define debug(...) BH_LOG(m_logger, DNET_LOG_DEBUG, __VA_ARGS__)
+#define notice(...) BH_LOG(m_logger, DNET_LOG_NOTICE, __VA_ARGS__)
+
+class bulk_read_handler : public multigroup_handler<bulk_read_handler, read_result_entry>
+{
+public:
+	bulk_read_handler(const session &sess, const async_read_result &result,
+		std::vector<int> &&groups, const dnet_io_control &control, io_attr_set &&ios) :
+		parent_type(sess, result, std::move(groups)),
+		m_control(control), m_original_id(control.id),
+		m_ios_set(std::move(ios)), m_logger(m_sess.get_logger())
+	{
+		m_sess.set_checker(checkers::no_check);
+	}
+
+	async_generic_result send_to_next_group()
+	{
+		size_t count = 0;
+
+		m_ios_cache.assign(m_ios_set.begin(), m_ios_set.end());
+		const size_t io_num = m_ios_cache.size();
+		dnet_io_attr *ios = m_ios_cache.data();
+
+		dnet_node *node = m_sess.get_native_node();
+		net_state_id cur, next;
+		const int group_id = current_group();
+		int start = 0;
+
+		std::vector<async_generic_result> results;
+
+		dnet_id next_id;
+		memset(&next_id, 0, sizeof(next_id));
+
+		dnet_id id;
+		memset(&id, 0, sizeof(id));
+		dnet_setup_id(&id, group_id, ios[0].id);
+
+		debug("BULK_READ, callback: %p, group: %d, next", this, group_id);
+
+		cur.reset(node, &id);
+		if (!cur) {
+			debug("BULK_READ, callback: %p, group: %d, id: %s, state: failed",
+				this, group_id, dnet_dump_id(&id));
+			return aggregated(m_sess, results.begin(), results.end());
+		}
+		debug("BULK_READ, callback: %p, id: %s, state: %s, backend: %d",
+			this, dnet_dump_id(&id), dnet_state_dump_addr(cur.state()), cur.backend());
+
+		for (size_t i = 0; i < io_num; ++i) {
+			if ((i + 1) < io_num) {
+				dnet_setup_id(&next_id, group_id, ios[i + 1].id);
+
+				next.reset(node, &next_id);
+				if (!next) {
+					debug("BULK_READ, callback: %p, group: %d, id: %s, state: failed",
+						this, group_id, dnet_dump_id(&next_id));
+					return aggregated(m_sess, results.begin(), results.end());
+				}
+				debug("BULK_READ, callback: %p, id: %s, state: %s, backend: %d",
+					this, dnet_dump_id(&next_id), dnet_state_dump_addr(next.state()), next.backend());
+
+				/* Send command only if state changes or it's a last id */
+				if (cur == next) {
+					next.reset();
+					continue;
+				}
+			}
+
+			m_control.io.size = (i - start + 1) * sizeof(struct dnet_io_attr);
+			m_control.data = ios + start;
+
+			memcpy(&m_control.id, &id, sizeof(id));
+
+			notice("BULK_READ, callback: %p, start: %s: end: %s, count: %llu, state: %s, backend: %d",
+				this,
+				dnet_dump_id(&id),
+				dnet_dump_id(&next_id),
+				(unsigned long long)m_control.io.size / sizeof(struct dnet_io_attr),
+				dnet_state_dump_addr(cur.state()), cur.backend());
+
+			++count;
+
+			results.emplace_back(send_to_single_state(m_sess, m_control));
+
+			debug("BULK_READ, callback: %p, group: %d", this, group_id);
+
+			start = i + 1;
+			cur.reset();
+			std::swap(cur, next);
+
+			id = next_id;
+		}
+
+		debug("BULK_READ, callback: %p, group: %d, count: %d", this, group_id, count);
+
+		return aggregated(m_sess, results.begin(), results.end());
+	}
+
+	bool need_next_group(const error_info &error)
+	{
+		(void) error;
+
+		debug("BULK_READ, callback: %p, ios_set.size: %llu, group_index: %llu, group_count: %llu",
+		      this, m_ios_set.size(), m_group_index, m_groups.size());
+
+		// all results are found or all groups are iterated
+		return !m_ios_set.empty();
+	}
+
+	void process_entry(const read_result_entry &entry)
+	{
+		if (filters::positive(entry)) {
+			m_ios_set.erase(*entry.io_attribute());
+		}
+	}
+
+private:
+	dnet_io_control m_control;
+	const dnet_id m_original_id;
+	io_attr_set m_ios_set;
+	std::vector<dnet_io_attr> m_ios_cache;
+	const dnet_logger &m_logger;
+};
+
 async_read_result session::bulk_read(const std::vector<dnet_io_attr> &ios_vector)
 {
 	if (ios_vector.empty()) {
@@ -2235,16 +2361,16 @@ async_read_result session::bulk_read(const std::vector<dnet_io_attr> &ios_vector
 	control.fd = -1;
 
 	control.cmd = DNET_CMD_BULK_READ;
-	control.cflags = DNET_FLAGS_NEED_ACK | get_cflags();
+	control.cflags = DNET_FLAGS_NEED_ACK;
 
 	memset(&control.io, 0, sizeof(dnet_io_attr));
 	control.io.flags = get_ioflags();
 
 	async_read_result result(*this);
-	auto cb = createCallback<read_bulk_callback>(*this, result, ios, control);
-	cb->groups = std::move(groups);
+	auto handler = std::make_shared<bulk_read_handler>(*this, result, std::move(groups), control, std::move(ios));
+	handler->set_total(1);
+	handler->start();
 
-	startCallback(cb);
 	return result;
 }
 
