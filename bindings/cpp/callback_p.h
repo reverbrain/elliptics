@@ -31,6 +31,8 @@
 
 #include <blackhole/scoped_attributes.hpp>
 
+#include "elliptics/async_result_cast.hpp"
+
 extern "C" {
 #include "foreign/cmp/cmp.h"
 }
@@ -476,6 +478,98 @@ class monitor_stat_callback
 		bool has_id;
 };
 
+template <typename Handler, typename Entry>
+class multigroup_handler : public std::enable_shared_from_this<multigroup_handler<Handler, Entry>>
+{
+public:
+	typedef multigroup_handler<Handler, Entry> parent_type;
+
+	multigroup_handler(const session &sess, const async_result<Entry> &result, std::vector<int> &&groups) :
+		m_sess(sess.clean_clone()),
+		m_handler(result),
+		m_groups(std::move(groups)),
+		m_group_index(0)
+	{
+		m_sess.set_checker(sess.get_checker());
+	}
+
+	void start()
+	{
+		if (m_groups.empty()) {
+			m_handler.complete(error_info());
+			return;
+		}
+
+		next_group();
+	}
+
+	void process(const Entry &entry)
+	{
+		process_entry(entry);
+
+		m_handler.process(entry);
+	}
+
+	void complete(const error_info &error)
+	{
+		group_finished(error);
+		++m_group_index;
+
+		if (m_group_index < m_groups.size() && need_next_group(error)) {
+			next_group();
+		} else {
+			m_handler.complete(error_info());
+		}
+	}
+
+	void set_total(size_t total)
+	{
+		m_handler.set_total(total);
+	}
+
+protected:
+	int current_group()
+	{
+		return m_groups[m_group_index];
+	}
+
+	void next_group()
+	{
+		using std::placeholders::_1;
+
+		async_result_cast<Entry>(m_sess, send_to_next_group()).connect(
+			std::bind(&multigroup_handler::process, this->shared_from_this(), _1),
+			std::bind(&multigroup_handler::complete, this->shared_from_this(), _1)
+		);
+	}
+
+	// Override this if you want to do something on each received packet
+	virtual void process_entry(const Entry &entry)
+	{
+		(void) entry;
+	}
+
+	// Override this if you want to change the stop condition
+	virtual bool need_next_group(const error_info &error)
+	{
+		return !!error;
+	}
+
+	// Override this if you want to do something before going to next group
+	virtual void group_finished(const error_info &error)
+	{
+		(void) error;
+	}
+
+	// Override this to implement your send logic
+	virtual async_generic_result send_to_next_group() = 0;
+
+	session m_sess;
+	async_result_handler<Entry> m_handler;
+	const std::vector<int> m_groups;
+	size_t m_group_index;
+};
+
 template <typename T>
 class multigroup_callback
 {
@@ -598,41 +692,6 @@ class multigroup_callback
 		bool m_has_finished;
 		std::mutex m_mutex;
 		size_t m_group_index;
-};
-
-class lookup_callback : public multigroup_callback<lookup_result_entry>
-{
-	public:
-		typedef std::shared_ptr<lookup_callback> ptr;
-
-		lookup_callback(const session &sess, const async_lookup_result &result)
-			: multigroup_callback<lookup_result_entry>(sess, result)
-		{
-			cb.set_total(1);
-		}
-
-		bool next_group(error_info *error, dnet_id &id, complete_func func, void *priv)
-		{
-			cb.clear();
-			cb.set_count(unlimited);
-
-			BH_LOG(sess.get_logger(), DNET_LOG_DEBUG, "lookup_callback::next_group: %s: error: %d, priv: %p",
-					dnet_dump_id(&id), error->code(), priv);
-
-			int err = dnet_lookup_object(sess.get_native(), &id, func, priv);
-			if (err) {
-				*error = create_error(err, kid, "Failed to lookup ID");
-				// Try next group
-				return true;
-			}
-
-			return cb.set_count(1);
-		}
-
-		error_info prepare_error()
-		{
-			return create_error(-ENXIO, kid, "Failed to lookup ID");
-		}
 };
 
 class read_callback : public multigroup_callback<read_result_entry>

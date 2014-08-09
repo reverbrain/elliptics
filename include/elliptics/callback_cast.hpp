@@ -12,7 +12,7 @@ namespace detail
 template <typename T>
 struct callback_result_types;
 
-bool has_command(const std::initializer_list<dnet_commands> &container, int value)
+inline bool has_command(const std::initializer_list<dnet_commands> &container, int value)
 {
 	return std::find(container.begin(), container.end(), value) != container.end();
 }
@@ -30,6 +30,7 @@ bool has_command(const std::initializer_list<dnet_commands> &container, int valu
 INIT_CALLBACK_TYPE(read_result_entry,
 	DNET_CMD_READ,
 	DNET_CMD_READ_RANGE,
+	DNET_CMD_DEL_RANGE,
 	DNET_CMD_BULK_READ
 )
 

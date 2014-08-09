@@ -791,31 +791,115 @@ void session::write_file(const key &id, const std::string &file, uint64_t local_
 	}
 }
 
-async_read_result session::read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
+class read_handler : public multigroup_handler<read_handler, read_result_entry>
 {
-	return read_data(id, groups, io, DNET_CMD_READ);
-}
+public:
+	read_handler(const session &sess, const async_read_result &result,
+		std::vector<int> &&groups, const dnet_io_control &control) :
+		parent_type(sess, result, std::move(groups)),
+		m_control(control)
+	{
+	}
+
+	async_generic_result send_to_next_group()
+	{
+		m_control.id.group_id = current_group();
+
+		return send_to_single_state(m_sess, m_control);
+	}
+
+	void process_entry(const read_result_entry &entry)
+	{
+		if (filters::positive(entry)) {
+			m_read_result = entry;
+		}
+
+		if (entry.status() == -ENOENT || entry.status() == -EBADFD)
+			m_failed_groups.push_back(current_group());
+	}
+
+	std::string join_groups(const std::vector<int> &groups)
+	{
+		std::ostringstream ss;
+		for (auto it = groups.begin(); it != groups.end(); ++it) {
+			if (it != groups.begin())
+				ss << ":";
+			ss << *it;
+		}
+		return ss.str();
+	}
+
+	void group_finished(const error_info &error)
+	{
+		dnet_io_attr *io = (m_read_result.is_valid() ? m_read_result.io_attribute() : NULL);
+
+		if (!error && !m_failed_groups.empty()
+				&& io
+				&& (io->size == io->total_size)
+				&& (io->offset == 0)) {
+
+			BH_LOG(m_sess.get_logger(), DNET_LOG_INFO,
+				"read_callback::read-recovery: %s: going to write %llu bytes -> %s groups",
+				dnet_dump_id_str(io->id), static_cast<unsigned long long>(io->size), join_groups(m_failed_groups));
+
+			std::sort(m_failed_groups.begin(), m_failed_groups.end());
+			m_failed_groups.erase(std::unique(m_failed_groups.begin(), m_failed_groups.end()), m_failed_groups.end());
+
+			session new_sess = m_sess.clone();
+			new_sess.set_groups(m_failed_groups);
+
+			dnet_io_control write_ctl;
+			memcpy(&write_ctl, &m_control, sizeof(write_ctl));
+
+			write_ctl.id = m_control.id;
+			write_ctl.io = *io;
+
+			write_ctl.data = m_read_result.file().data();
+			write_ctl.io.size = m_read_result.file().size();
+
+			write_ctl.fd = -1;
+			write_ctl.cmd = DNET_CMD_WRITE;
+			write_ctl.cflags = m_control.cflags;
+
+			BH_LOG(m_sess.get_logger(), DNET_LOG_INFO,
+				"read_callback::read-recovery: %s: write %llu bytes -> %s groups",
+				dnet_dump_id_str(io->id), static_cast<unsigned long long>(io->size), join_groups(m_failed_groups));
+
+			new_sess.write_data(write_ctl);
+		}
+	}
+
+private:
+	dnet_io_control m_control;
+	read_result_entry m_read_result;
+	std::vector<int> m_failed_groups;
+};
 
 async_read_result session::read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd)
 {
 	transform(id);
 
-	async_read_result result(*this);
 	dnet_io_control control;
 	memset(&control, 0, sizeof(control));
 
 	control.fd = -1;
 	control.cmd = cmd;
-	control.cflags = DNET_FLAGS_NEED_ACK | get_cflags();
+	control.cflags = DNET_FLAGS_NEED_ACK;
+	control.id = id.id();
 
 	memcpy(&control.io, &io, sizeof(dnet_io_attr));
 
-	auto cb = createCallback<read_callback>(*this, result, control);
-	cb->kid = id;
-	cb->groups = groups;
+	async_read_result result(*this);
+	auto handler = std::make_shared<read_handler>(*this, result, std::vector<int>(groups), control);
+	handler->set_total(1);
+	handler->start();
 
-	startCallback(cb);
 	return result;
+}
+
+async_read_result session::read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
+{
+	return read_data(id, groups, io, DNET_CMD_READ);
 }
 
 async_read_result session::read_data(const key &id, int group, const dnet_io_attr &io)
@@ -1495,16 +1579,38 @@ void session::transform(const key &id) const
 	id.transform(*this);
 }
 
+class lookup_handler : public multigroup_handler<lookup_handler, lookup_result_entry>
+{
+public:
+	lookup_handler(const session &sess, const async_lookup_result &result,
+		std::vector<int> &&groups, const dnet_trans_control control) :
+		multigroup_handler<lookup_handler, lookup_result_entry>(sess, result, std::move(groups)),
+		m_control(control)
+	{
+	}
+
+	async_generic_result send_to_next_group()
+	{
+		m_control.id.group_id = current_group();
+
+		return send_to_single_state(m_sess, m_control);
+	}
+
+private:
+	dnet_trans_control m_control;
+};
+
 async_lookup_result session::lookup(const key &id)
 {
 	DNET_SESSION_GET_GROUPS(async_lookup_result);
 
-	async_lookup_result result(*this);
-	auto cb = createCallback<lookup_callback>(*this, result);
-	cb->kid = id;
-	cb->groups = std::move(groups);
+	transport_control control(id.id(), DNET_CMD_LOOKUP, DNET_FLAGS_NEED_ACK);
 
-	startCallback(cb);
+	async_lookup_result result(*this);
+	auto handler = std::make_shared<lookup_handler>(*this, result, std::move(groups), control.get_native());
+	handler->set_total(1);
+	handler->start();
+
 	return result;
 }
 
@@ -1789,12 +1895,8 @@ class read_data_range_callback
 
 			std::vector<int> groups(1, d->group_id);
 			{
-				session_scope scope(d->sess);
-				d->sess.set_checker(checkers::no_check);
-				d->sess.set_filter(filters::all_with_ack);
-				d->sess.set_exceptions_policy(session::no_exceptions);
-
-				d->sess.read_data(d->id, groups, d->io, d->cmd).connect(d->me_entry, d->me_final);
+				session sess = d->sess.clean_clone();
+				sess.read_data(d->id, groups, d->io, d->cmd).connect(d->me_entry, d->me_final);
 			}
 		}
 
@@ -1908,31 +2010,6 @@ async_read_result session::read_data_range(const dnet_io_attr &io, int group_id)
 	read_data_range_callback(*this, io, group_id, handler).do_next(&error);
 	if (get_exceptions_policy() & throw_at_start)
 		error.throw_error();
-	return result;
-}
-
-
-std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int group_id)
-{
-	sync_read_result range_result = read_data_range(io, group_id).get();
-	std::vector<std::string> result;
-
-	uint64_t num = 0;
-
-	for (size_t i = 0; i < range_result.size(); ++i) {
-		read_result_entry entry = range_result[i];
-		if (!(io.flags & DNET_IO_FLAGS_NODATA))
-			num += entry.io_attribute()->num;
-		else
-			result.push_back(entry.data().to_string());
-	}
-
-	if (io.flags & DNET_IO_FLAGS_NODATA) {
-		std::ostringstream str;
-		str << num;
-		result.push_back(str.str());
-	}
-
 	return result;
 }
 
@@ -2129,12 +2206,6 @@ async_reply_result session::reply(const exec_context &tmp_context, const argumen
 	dnet_setup_id(&id, 0, s->src.id);
 
 	return request(&id, context);
-}
-
-void session::reply(const sph &sph, const std::string &event, const std::string &data, const std::string &)
-{
-	exec_context context = exec_context_data::copy(sph, event, data);
-	reply(context, data, (sph.flags & DNET_SPH_FLAGS_FINISH) ? exec_context::final : exec_context::progressive).wait();
 }
 
 async_read_result session::bulk_read(const std::vector<dnet_io_attr> &ios_vector)

@@ -661,15 +661,6 @@ class session
 		async_read_result read_data_range(const dnet_io_attr &io, int group_id);
 
 		/*!
-		 * \internal
-		 * \overload read_data_range()
-		 * Synchronous overload.
-		 *
-		 * \note This method is left only for compatibility.
-		 */
-		std::vector<std::string> read_data_range_raw(dnet_io_attr &io, int group_id);
-
-		/*!
 		 * Removes data in range specified in \a io at group \a group_id.
 		 *
 		 * Returns async_read_result.
@@ -738,15 +729,6 @@ class session
 		 * Result contains information if starter received the reply.
 		 */
 		async_reply_result reply(const exec_context &context, const argument_data &data, exec_context::final_state state);
-
-		/*!
-		 * Send reply back to blocked execution client
-		 *
-		 * \note Left only for compatibility reasons.
-		 */
-		void			reply(const sph &sph, const std::string &event,
-						const std::string &data,
-						const std::string &binary);
 
 		/*!
 		 * Reads all data from server nodes by the list \a ios.

@@ -450,6 +450,11 @@ int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl
 
 	if (dnet_session_get_cflags(s) & DNET_FLAGS_DIRECT) {
 		st = dnet_state_search_by_addr(n, &s->direct_addr);
+		if (!st) {
+			err = -ENXIO;
+			dnet_log(n, DNET_LOG_ERROR, "%s: %s: trans_send: could not find network state for address",
+				dnet_dump_id(&ctl->id), dnet_server_convert_dnet_addr(&s->direct_addr));
+		}
 	} else {
 		st = dnet_state_get_first(n, &ctl->id);
 	}

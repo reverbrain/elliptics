@@ -462,11 +462,6 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, const stru
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	if (!found) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: could not find network state for address",
-				dnet_server_convert_dnet_addr(addr));
-	}
-
 	return found;
 }
 
@@ -782,6 +777,8 @@ struct dnet_session *dnet_session_copy(struct dnet_session *s)
 	new_s->ioflags = s->ioflags;
 	new_s->ts = s->ts;
 	new_s->user_flags = s->user_flags;
+	new_s->direct_addr = s->direct_addr;
+	new_s->direct_backend = s->direct_backend;
 
 	if (s->group_num > 0) {
 		err = dnet_session_set_groups(new_s, s->groups, s->group_num);

@@ -638,6 +638,10 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	} else {
 		/* We're requested to execute request on particular node */
 		t->st = dnet_state_search_by_addr(n, &s->direct_addr);
+		if (!t->st) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: %s: io_trans_send: could not find network state for address",
+				dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(&s->direct_addr));
+		}
 	}
 
 	if (!t->st) {
@@ -1393,6 +1397,8 @@ int dnet_request_cmd_addr(struct dnet_session *s, struct dnet_addr *addr, struct
 
 	st = dnet_state_search_by_addr(s->node, addr);
 	if (!st) {
+		dnet_log(s->node, DNET_LOG_ERROR, "%s: %s: request_cmd_addr: could not find network state for address",
+			dnet_dump_id(&ctl->id), dnet_server_convert_dnet_addr(addr));
 		return -ENXIO;
 	}
 
@@ -1469,7 +1475,8 @@ int dnet_update_status(struct dnet_session *s, const struct dnet_addr *addr, str
 		st = dnet_state_search_by_addr(s->node, addr);
 		if (!st) {
 			err = -ENXIO;
-			goto err_out_exit;
+			dnet_log(s->node, DNET_LOG_ERROR, "%s: %s: update_state: could not find network state for address",
+				dnet_dump_id(&ctl.id), dnet_server_convert_dnet_addr(addr));
 		}
 
 		pthread_mutex_lock(&st->n->state_lock);
