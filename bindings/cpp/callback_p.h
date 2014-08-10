@@ -573,47 +573,6 @@ private:
 #define debug(...) BH_LOG(m_logger, DNET_LOG_DEBUG, __VA_ARGS__)
 #define notice(...) BH_LOG(m_logger, DNET_LOG_NOTICE, __VA_ARGS__)
 
-class cmd_callback
-{
-	public:
-		typedef std::shared_ptr<cmd_callback> ptr;
-
-		cmd_callback(const session &sess, const async_generic_result &result, const transport_control &ctl)
-			: sess(sess), ctl(ctl.get_native()), cb(sess, result)
-		{
-		}
-
-		bool start(error_info *error, complete_func func, void *priv)
-		{
-			cb.set_count(unlimited);
-			ctl.complete = func;
-			ctl.priv = priv;
-
-			int err = dnet_request_cmd(sess.get_native(), &ctl);
-			if (err < 0) {
-				*error = create_error(err, "failed to request cmd: %s", dnet_cmd_string(ctl.cmd));
-				return true;
-			}
-
-			return cb.set_count(err);
-		}
-
-		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
-		{
-			(void) error;
-			return cb.handle(state, cmd, func, priv);
-		}
-
-		void finish(const error_info &exc)
-		{
-			cb.complete(exc);
-		}
-
-		session sess;
-		dnet_trans_control ctl;
-		default_callback<callback_result_entry> cb;
-};
-
 class exec_callback
 {
 	public:

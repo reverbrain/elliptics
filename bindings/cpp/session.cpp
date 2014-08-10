@@ -1710,11 +1710,7 @@ int session::state_num(void)
 
 async_generic_result session::request_cmd(const transport_control &ctl)
 {
-	async_generic_result result(*this);
-	auto cb = createCallback<cmd_callback>(*this, result, ctl);
-
-	startCallback(cb);
-	return result;
+	return send_to_each_backend(*this, ctl);
 }
 
 void session::update_status(const address &addr, dnet_node_status *status)
