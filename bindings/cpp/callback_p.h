@@ -359,55 +359,6 @@ class default_callback
 		bool m_proto_error;
 };
 
-template <typename Result, dnet_commands Command>
-class base_stat_callback
-{
-	public:
-		base_stat_callback(const session &sess, const async_result<Result> &result)
-			: sess(sess), cb(sess, result), has_id(false)
-		{
-		}
-
-		virtual ~base_stat_callback()
-		{
-		}
-
-		bool start(error_info *error, complete_func func, void *priv)
-		{
-			cb.set_count(unlimited);
-
-			uint64_t cflags_pop = sess.get_cflags();
-			sess.set_cflags(cflags_pop | DNET_ATTR_CNTR_GLOBAL);
-			int err = dnet_request_stat(sess.get_native(),
-				has_id ? &id : NULL, Command, func, priv);
-			sess.set_cflags(cflags_pop);
-
-			if (err < 0) {
-				*error = create_error(err, "Failed to request statistics");
-				return true;
-			}
-
-			return cb.set_count(err);
-		}
-
-		bool handle(error_info *error, dnet_net_state *state, dnet_cmd *cmd, complete_func func, void *priv)
-		{
-			(void) error;
-			return cb.handle(state, cmd, func, priv);
-		}
-
-		void finish(const error_info &exc)
-		{
-			cb.complete(exc);
-		}
-
-		dnet_commands command;
-		session sess;
-		default_callback<Result> cb;
-		dnet_id id;
-		bool has_id;
-};
-
 template <typename Handler, typename Entry>
 class multigroup_handler : public std::enable_shared_from_this<multigroup_handler<Handler, Entry>>
 {
