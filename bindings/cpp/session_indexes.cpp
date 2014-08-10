@@ -902,6 +902,9 @@ private:
 static void on_find_indexes_process(session sess, std::shared_ptr<find_indexes_handler::id_map> convert_map,
 	async_result_handler<find_indexes_result_entry> handler, const callback_result_entry &entry)
 {
+	if (!filters::positive(entry))
+		return;
+
 	dnet_node *node = sess.get_native_node();
 	data_pointer data = entry.data();
 

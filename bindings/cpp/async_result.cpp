@@ -558,10 +558,11 @@ bool async_result_handler<T>::check(error_info *error)
 			command.status = 0;
 			for (auto it = m_data->statuses.begin(); it != m_data->statuses.end(); ++it) {
 				const bool failed_to_send = (it->flags & DNET_FLAGS_CLIENT_ERROR);
+				const bool ignore_error = failed_to_send && it->status == -ENXIO;
 
 				if (it->status == 0) {
 					++success;
-				} else if (command.status == 0 && !failed_to_send) {
+				} else if (command.status == 0 && !ignore_error) {
 					command = *it;
 				}
 			}

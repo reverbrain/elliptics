@@ -1637,55 +1637,70 @@ async_remove_result session::remove(const key &id)
 
 async_stat_result session::stat_log()
 {
-	async_stat_result result(*this);
-	auto cb = createCallback<stat_callback>(*this, result);
+	transport_control control;
+	control.set_command(DNET_CMD_STAT);
+	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
 
-	startCallback(cb);
-	return result;
+	session sess = clean_clone();
+	return async_result_cast<stat_result_entry>(*this, send_to_each_backend(sess, control));
 }
 
 async_stat_result session::stat_log(const key &id)
 {
-	async_stat_result result(*this);
 	transform(id);
 
-	auto cb = createCallback<stat_callback>(*this, result);
-	cb->id = id.id();
-	cb->has_id = true;
+	transport_control control;
+	control.set_key(id.id());
+	control.set_command(DNET_CMD_STAT);
+	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
 
-	startCallback(cb);
-	return result;
+	session sess = clean_clone();
+	return async_result_cast<stat_result_entry>(*this, send_to_single_state(sess, control));
 }
 
 async_stat_count_result session::stat_log_count()
 {
-	async_stat_count_result result(*this);
-	auto cb = createCallback<stat_count_callback>(*this, result);
+	transport_control control;
+	control.set_command(DNET_CMD_STAT_COUNT);
+	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
 
-	startCallback(cb);
-	return result;
+	session sess = clean_clone();
+	return async_result_cast<stat_count_result_entry>(*this, send_to_each_backend(sess, control));
 }
 
 async_monitor_stat_result session::monitor_stat(uint64_t categories)
 {
-	async_monitor_stat_result result(*this);
-	auto cb = createCallback<monitor_stat_callback>(*this, result, categories);
+	dnet_monitor_stat_request request;
+	memset(&request, 0, sizeof(struct dnet_monitor_stat_request));
+	request.categories = categories;
+	dnet_convert_monitor_stat_request(&request);
 
-	startCallback(cb);
-	return result;
+	transport_control control;
+	control.set_command(DNET_CMD_MONITOR_STAT);
+	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
+	control.set_data(&request, sizeof(request));
+
+	session sess = clean_clone();
+	return async_result_cast<monitor_stat_result_entry>(*this, send_to_each_backend(sess, control));
 }
 
 async_monitor_stat_result session::monitor_stat(const key &id, uint64_t categories)
 {
-	async_monitor_stat_result result(*this);
 	transform(id);
 
-	auto cb = createCallback<monitor_stat_callback>(*this, result, categories);
-	cb->id = id.id();
-	cb->has_id = true;
+	dnet_monitor_stat_request request;
+	memset(&request, 0, sizeof(struct dnet_monitor_stat_request));
+	request.categories = categories;
+	dnet_convert_monitor_stat_request(&request);
 
-	startCallback(cb);
-	return result;
+	transport_control control;
+	control.set_key(id.id());
+	control.set_command(DNET_CMD_MONITOR_STAT);
+	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
+	control.set_data(&request, sizeof(request));
+
+	session sess = clean_clone();
+	return async_result_cast<monitor_stat_result_entry>(*this, send_to_single_state(sess, control));
 }
 
 int session::state_num(void)

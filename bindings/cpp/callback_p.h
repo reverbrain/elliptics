@@ -184,7 +184,7 @@ async_generic_result send_to_single_state(session &sess, const transport_control
 async_generic_result send_to_single_state(session &sess, dnet_io_control &control);
 
 // Send request to each backend
-async_generic_result send_to_all_backends(session &sess, const transport_control &control);
+async_generic_result send_to_each_backend(session &sess, const transport_control &control);
 
 // Send request to one state at each session's group
 async_generic_result send_to_groups(session &sess, const transport_control &control);
@@ -404,76 +404,6 @@ class base_stat_callback
 		dnet_commands command;
 		session sess;
 		default_callback<Result> cb;
-		dnet_id id;
-		bool has_id;
-};
-
-class stat_callback : public base_stat_callback<stat_result_entry, DNET_CMD_STAT>
-{
-	public:
-		typedef std::shared_ptr<stat_callback> ptr;
-
-		stat_callback(const session &sess, const async_stat_result &result)
-			: base_stat_callback<stat_result_entry, DNET_CMD_STAT>(sess, result)
-		{
-		}
-};
-
-class stat_count_callback : public base_stat_callback<stat_count_result_entry, DNET_CMD_STAT_COUNT>
-{
-	public:
-		typedef std::shared_ptr<stat_count_callback> ptr;
-
-		stat_count_callback(const session &sess, const async_stat_count_result &result)
-			: base_stat_callback<stat_count_result_entry, DNET_CMD_STAT_COUNT>(sess, result)
-		{
-		}
-};
-
-class monitor_stat_callback
-{
-	public:
-		monitor_stat_callback(const session &sess, const async_result<monitor_stat_result_entry> &result, uint64_t categories)
-			: sess(sess), cb(sess, result), m_categories(categories), has_id(false)
-		{
-		}
-
-		virtual ~monitor_stat_callback()
-		{
-		}
-
-		bool start(error_info *error, complete_func func, void *priv)
-		{
-			cb.set_count(unlimited);
-
-			uint64_t cflags_pop = sess.get_cflags();
-			sess.set_cflags(cflags_pop | DNET_ATTR_CNTR_GLOBAL);
-			int err = dnet_request_monitor_stat(sess.get_native(), has_id ? &id : NULL, m_categories, func, priv);
-			sess.set_cflags(cflags_pop);
-
-			if (err < 0) {
-				*error = create_error(err, "Failed to request monitor statistics");
-				return true;
-			}
-
-			return cb.set_count(err);
-		}
-
-		bool handle(error_info *error, dnet_net_state *state, dnet_cmd *cmd, complete_func func, void *priv)
-		{
-			(void) error;
-			return cb.handle(state, cmd, func, priv);
-		}
-
-		void finish(const error_info &exc)
-		{
-			cb.complete(exc);
-		}
-
-		dnet_commands command;
-		session sess;
-		default_callback<monitor_stat_result_entry> cb;
-		uint64_t m_categories;
 		dnet_id id;
 		bool has_id;
 };

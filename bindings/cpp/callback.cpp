@@ -117,11 +117,11 @@ async_generic_result send_to_single_state(session &sess, dnet_io_control &contro
 }
 
 // Send request to each backend
-async_generic_result send_to_all_backends(session &sess, const transport_control &control)
+async_generic_result send_to_each_backend(session &sess, const transport_control &control)
 {
 	dnet_trans_control writable_copy = control.get_native();
 	return send_impl(sess, writable_copy, [] (session &sess, dnet_trans_control &ctl) {
-		return 0;
+		return dnet_request_cmd(sess.get_native(), &ctl);
 	});
 }
 
