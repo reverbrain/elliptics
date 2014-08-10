@@ -2050,13 +2050,8 @@ std::vector<dnet_route_entry> session::get_routes()
 
 async_exec_result session::request(dnet_id *id, const exec_context &context)
 {
-	async_exec_result result(*this);
-	auto cb = createCallback<exec_callback>(*this, result);
-	cb->id = id;
-	cb->srw_data = context.m_data->srw_data.data<sph>();
-
-	startCallback(cb);
-	return result;
+	session sess = clean_clone();
+	return async_result_cast<exec_result_entry>(*this, send_srw_command(sess, id, context.m_data->srw_data.data<sph>()));
 }
 
 async_iterator_result session::iterator(const key &id, const data_pointer& request)

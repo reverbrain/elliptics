@@ -1094,36 +1094,6 @@ void dnet_wait_destroy(struct dnet_wait *w)
 	free(w);
 }
 
-static int dnet_send_cmd_single(struct dnet_session *s,
-	struct dnet_net_state *st,
-	struct dnet_id *id,
-	int (* complete)(struct dnet_net_state *state,
-			struct dnet_cmd *cmd,
-			void *priv),
-	void *priv,
-	struct sph *e,
-	uint64_t cflags)
-{
-	struct dnet_trans_control ctl;
-
-	memset(&ctl, 0, sizeof(struct dnet_trans_control));
-
-	ctl.id = *id;
-	ctl.size = sizeof(struct sph) + e->event_size + e->data_size;
-	ctl.cmd = DNET_CMD_EXEC;
-	ctl.complete = complete;
-	ctl.priv = priv;
-	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
-
-	e->addr = *dnet_state_addr(st);
-
-	dnet_convert_sph(e);
-
-	ctl.data = e;
-
-	return dnet_trans_alloc_send_state(s, st, &ctl);
-}
-
 int dnet_send_cmd(struct dnet_session *s,
 	struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
@@ -1135,10 +1105,20 @@ int dnet_send_cmd(struct dnet_session *s,
 	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
 	struct dnet_idc *idc;
-	int err = -ENXIO, num = 0, i, found_group;
+	int num = 0, i, found_group;
 	struct dnet_group *g;
+	struct dnet_trans_control ctl;
 
 	dnet_convert_sph(e);
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+
+	ctl.size = sizeof(struct sph) + e->event_size + e->data_size;
+	ctl.cmd = DNET_CMD_EXEC;
+	ctl.complete = complete;
+	ctl.priv = priv;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.data = e;
 
 	/*
 	 * FIXME
@@ -1148,31 +1128,38 @@ int dnet_send_cmd(struct dnet_session *s,
 	 * This also concerns stat request and other broadcasting operations
 	 */
 	if (id && id->group_id != 0) {
-		st = dnet_state_get_first(n, id);
-		if (!st)
-			goto err_out_exit;
-		err = dnet_send_cmd_single(s, st, id, complete, priv, e, dnet_session_get_cflags(s));
-		dnet_state_put(st);
-		num = 1;
+		ctl.id = *id;
+
+		st = dnet_state_get_first(n, &ctl.id);
+		if (st) {
+			e->addr = *dnet_state_addr(st);
+			dnet_trans_alloc_send_state(s, st, &ctl);
+			dnet_state_put(st);
+			num = 1;
+		} else {
+			dnet_trans_send_fail(s, st, &ctl, -ENXIO, 1);
+			num = 1;
+		}
 	} else if (id && id->group_id == 0) {
+		ctl.id = *id;
+
 		pthread_mutex_lock(&n->state_lock);
 		for (i = 0; i < s->group_num; ++i) {
-			id->group_id = s->groups[i];
+			ctl.id.group_id = s->groups[i];
 
-			st = dnet_state_search_nolock(n, id, NULL);
+			st = dnet_state_search_nolock(n, &ctl.id, NULL);
 			if (st) {
 				if (st != n->st) {
-					err = dnet_send_cmd_single(s, st, id, complete, priv, e, dnet_session_get_cflags(s));
+					e->addr = *dnet_state_addr(st);
+					dnet_trans_alloc_send_state(s, st, &ctl);
 					num++;
 				}
 				dnet_state_put(st);
+			} else {
 			}
 		}
 		pthread_mutex_unlock(&n->state_lock);
 	} else {
-		struct dnet_id tmp_id;
-		memset(&tmp_id, 0, sizeof(struct dnet_id));
-
 		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(st, &n->dht_state_list, node_entry) {
 			if (st == n->st)
@@ -1188,9 +1175,10 @@ int dnet_send_cmd(struct dnet_session *s,
 				if (!found_group)
 					continue;
 
-				dnet_setup_id(&tmp_id, g->group_id, idc->ids[0].raw.id);
+				dnet_setup_id(&ctl.id, g->group_id, idc->ids[0].raw.id);
 				memcpy(e->src.id, idc->ids[0].raw.id, DNET_ID_SIZE);
-				err = dnet_send_cmd_single(s, st, &tmp_id, complete, priv, e, dnet_session_get_cflags(s));
+				e->addr = *dnet_state_addr(st);
+				dnet_trans_alloc_send_state(s, st, &ctl);
 				num++;
 
 				break;
@@ -1199,11 +1187,7 @@ int dnet_send_cmd(struct dnet_session *s,
 		pthread_mutex_unlock(&n->state_lock);
 	}
 
-	if (num > 0)
-		return num;
-
-err_out_exit:
-	return err;
+	return num;
 }
 
 int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,

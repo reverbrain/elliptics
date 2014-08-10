@@ -49,7 +49,13 @@ public:
 		if (cmd->status)
 			data->error = create_error(*cmd);
 
-		m_handler.process(callback_result_entry(data));
+		callback_result_entry entry(data);
+
+		if (cmd->cmd == DNET_CMD_EXEC && cmd->size > 0) {
+			data->context = exec_context::parse(entry.data(), &data->error);
+		}
+
+		m_handler.process(entry);
 
 		return false;
 	}
@@ -150,13 +156,19 @@ async_generic_result send_to_groups(session &sess, dnet_io_control &control)
 	});
 }
 
-// Send request to each state in route table
-async_generic_result send_to_each_node(session &sess, const transport_control &control)
+async_generic_result send_srw_command(session &sess, dnet_id *id, sph *srw_data)
 {
-	dnet_trans_control writable_copy = control.get_native();
-	return send_impl(sess, writable_copy, [] (session &sess, dnet_trans_control &ctl) {
-		return 0;
-	});
+	scoped_trace_id guard(sess);
+	async_generic_result result(sess);
+
+	detail::basic_handler *handler = new detail::basic_handler(result);
+
+	const size_t count = dnet_send_cmd(sess.get_native(), id, detail::basic_handler::handler, handler, srw_data);
+
+	if (handler->set_total(count))
+		delete handler;
+
+	return result;
 }
 
 } } // namespace ioremap::elliptics

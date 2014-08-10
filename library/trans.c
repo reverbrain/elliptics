@@ -349,7 +349,7 @@ static void dnet_trans_control_fill_cmd(struct dnet_session *s, const struct dne
 	}
 }
 
-static int dnet_trans_send_fail(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int err, int destroy)
+int dnet_trans_send_fail(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int err, int destroy)
 {
 	struct dnet_cmd cmd;
 	memset(&cmd, 0, sizeof(cmd));

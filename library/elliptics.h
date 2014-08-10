@@ -812,6 +812,7 @@ struct dnet_trans
 };
 
 void dnet_trans_destroy(struct dnet_trans *t);
+int dnet_trans_send_fail(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int err, int destroy);
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size);
 int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl);
 int dnet_trans_alloc_send_state_to_backend(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int backend_id, int source_backend_id);
