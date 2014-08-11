@@ -34,12 +34,20 @@ public:
 		return 0;
 	}
 
-	basic_handler(async_generic_result &result) : m_handler(result), m_completed(0), m_total(0)
+	basic_handler(const elliptics::logger &logger, async_generic_result &result) :
+		m_logger(logger, blackhole::log::attributes_t()),
+		m_handler(result), m_completed(0), m_total(0)
 	{
 	}
 
 	bool handle(dnet_addr *addr, dnet_cmd *cmd)
 	{
+		BH_LOG(m_logger, cmd->status ? DNET_LOG_ERROR : DNET_LOG_NOTICE,
+			"%s: handled reply from: %s, cmd: %s, flags: %lld, trans: %lld, status: %d, size: %lld, client: %d, destruction: %d",
+			dnet_dump_id(&cmd->id), addr ? dnet_server_convert_dnet_addr(addr) : "<unknown>", dnet_cmd_string(cmd->cmd),
+			uint64_t(cmd->flags), uint64_t(cmd->trans), int(cmd->status), uint64_t(cmd->size),
+			!(cmd->flags & DNET_FLAGS_REPLY), is_trans_destroyed(cmd));
+
 		if (is_trans_destroyed(cmd)) {
 			return increment_completed();
 		}
@@ -78,6 +86,7 @@ private:
 		return false;
 	}
 
+	logger m_logger;
 	async_result_handler<callback_result_entry> m_handler;
 	std::atomic_size_t m_completed;
 	std::atomic_size_t m_total;
@@ -91,7 +100,7 @@ async_generic_result send_impl(session &sess, T &control, Method method)
 	scoped_trace_id guard(sess);
 	async_generic_result result(sess);
 
-	detail::basic_handler *handler = new detail::basic_handler(result);
+	detail::basic_handler *handler = new detail::basic_handler(sess.get_logger(), result);
 
 	control.complete = detail::basic_handler::handler;
 	control.priv = handler;
@@ -161,7 +170,7 @@ async_generic_result send_srw_command(session &sess, dnet_id *id, sph *srw_data)
 	scoped_trace_id guard(sess);
 	async_generic_result result(sess);
 
-	detail::basic_handler *handler = new detail::basic_handler(result);
+	detail::basic_handler *handler = new detail::basic_handler(sess.get_logger(), result);
 
 	const size_t count = dnet_send_cmd(sess.get_native(), id, detail::basic_handler::handler, handler, srw_data);
 
