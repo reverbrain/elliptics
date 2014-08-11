@@ -110,7 +110,7 @@ static void test_data_buffer()
 
 bool register_tests(test_suite *suite, node n)
 {
-	ELLIPTICS_TEST_CASE(test_error_message, create_session(n, {1, 2}, 0, 0), "non-existen-key", -ENOENT);
+	ELLIPTICS_TEST_CASE(test_error_message, create_session(n, {2}, 0, 0), "non-existen-key", -ENOENT);
 	ELLIPTICS_TEST_CASE_NOARGS(test_error_null_message);
 	ELLIPTICS_TEST_CASE_NOARGS(test_data_buffer);
 
