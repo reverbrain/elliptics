@@ -263,7 +263,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 	if (t->complete) {
 		t->cmd.flags |= DNET_FLAGS_DESTROY;
-		t->complete(dnet_state_addr(t->st), &t->cmd, t->priv);
+		t->complete(t->st ? dnet_state_addr(t->st) : NULL, &t->cmd, t->priv);
 	}
 
 	if (st && st->n && t->command != 0) {
