@@ -41,7 +41,7 @@ using namespace ioremap::elliptics;
 #define __unused	__attribute__ ((unused))
 #endif
 
-static int notify_complete(struct dnet_net_state *state,
+static int notify_complete(struct dnet_addr *addr __unused,
 			struct dnet_cmd *cmd,
 			void *priv)
 {
@@ -51,7 +51,7 @@ static int notify_complete(struct dnet_net_state *state,
 	struct timeval tv;
 	FILE *stream = reinterpret_cast<FILE*>(priv);
 
-	if (is_trans_destroyed(state, cmd))
+	if (is_trans_destroyed(cmd))
 		return 0;
 
 	if (cmd->size != sizeof(struct dnet_io_notification))

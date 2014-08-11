@@ -263,7 +263,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 	if (t->complete) {
 		t->cmd.flags |= DNET_FLAGS_DESTROY;
-		t->complete(t->st, &t->cmd, t->priv);
+		t->complete(dnet_state_addr(t->st), &t->cmd, t->priv);
 	}
 
 	if (st && st->n && t->command != 0) {
@@ -349,7 +349,7 @@ static void dnet_trans_control_fill_cmd(struct dnet_session *s, const struct dne
 	}
 }
 
-int dnet_trans_send_fail(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int err, int destroy)
+int dnet_trans_send_fail(struct dnet_session *s, struct dnet_addr *addr, struct dnet_trans_control *ctl, int err, int destroy)
 {
 	struct dnet_cmd cmd;
 	memset(&cmd, 0, sizeof(cmd));
@@ -361,11 +361,11 @@ int dnet_trans_send_fail(struct dnet_session *s, struct dnet_net_state *st, stru
 	if (ctl->complete) {
 		cmd.flags |= DNET_FLAGS_CLIENT_ERROR;
 
-		ctl->complete(st, &cmd, ctl->priv);
+		ctl->complete(addr, &cmd, ctl->priv);
 
 		if (destroy) {
 			cmd.flags |= DNET_FLAGS_DESTROY;
-			ctl->complete(st, &cmd, ctl->priv);
+			ctl->complete(addr, &cmd, ctl->priv);
 		}
 	}
 
@@ -388,7 +388,7 @@ int dnet_trans_alloc_send_state_to_backend(struct dnet_session *s, struct dnet_n
 
 	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) + ctl->size);
 	if (!t) {
-		err = dnet_trans_send_fail(s, st, ctl, -ENOMEM, 1);
+		err = dnet_trans_send_fail(s, dnet_state_addr(st), ctl, -ENOMEM, 1);
 		goto err_out_exit;
 	}
 
@@ -436,7 +436,7 @@ int dnet_trans_alloc_send_state_to_backend(struct dnet_session *s, struct dnet_n
 	return 0;
 
 err_out_put:
-	dnet_trans_send_fail(s, st, ctl, err, 0);
+	dnet_trans_send_fail(s, dnet_state_addr(st), ctl, err, 0);
 	dnet_trans_put(t);
 err_out_exit:
 	return 0;
@@ -446,10 +446,12 @@ int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl
 {
 	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
+	struct dnet_addr *addr = NULL;
 	int err;
 
 	if (dnet_session_get_cflags(s) & DNET_FLAGS_DIRECT) {
 		st = dnet_state_search_by_addr(n, &s->direct_addr);
+		addr = &s->direct_addr;
 		if (!st) {
 			err = -ENXIO;
 			dnet_log(n, DNET_LOG_ERROR, "%s: %s: trans_send: could not find network state for address",
@@ -460,7 +462,7 @@ int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl
 	}
 
 	if (!st) {
-		err = dnet_trans_send_fail(s, NULL, ctl, -ENXIO, 1);
+		err = dnet_trans_send_fail(s, addr, ctl, -ENXIO, 1);
 	} else {
 		err = dnet_trans_alloc_send_state(s, st, ctl);
 		dnet_state_put(st);
@@ -481,7 +483,7 @@ void dnet_trans_clean_list(struct list_head *head)
 		t->cmd.status = -ETIMEDOUT;
 
 		if (t->complete)
-			t->complete(t->st, &t->cmd, t->priv);
+			t->complete(dnet_state_addr(t->st), &t->cmd, t->priv);
 
 		dnet_trans_put(t);
 	}

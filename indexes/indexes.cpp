@@ -409,11 +409,11 @@ err_out_complete:
 		return err;
 	}
 
-	static int on_reply_received(dnet_net_state *st, dnet_cmd *cmd, void *priv)
+	static int on_reply_received(dnet_addr *addr __unused, dnet_cmd *cmd, void *priv)
 	{
 		scope_data *scope = reinterpret_cast<scope_data *>(priv);
 
-		if (is_trans_destroyed(st, cmd)) {
+		if (is_trans_destroyed(cmd)) {
 			{
 				std::lock_guard<std::mutex> lock(scope->functor->requests_order_guard);
 

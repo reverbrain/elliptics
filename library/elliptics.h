@@ -260,7 +260,7 @@ int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
 		struct dnet_raw_id *start, struct dnet_raw_id *next);
 
 int dnet_validate_route_list(struct dnet_net_state *st, struct dnet_cmd *cmd);
-int dnet_recv_route_list(struct dnet_net_state *st, int (*complete)(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv), void *priv);
+int dnet_recv_route_list(struct dnet_net_state *st, int (*complete)(struct dnet_addr *addr, struct dnet_cmd *cmd, void *priv), void *priv);
 
 void dnet_state_destroy(struct dnet_net_state *st);
 
@@ -806,13 +806,13 @@ struct dnet_trans
 	int				command; /* main command this transaction carries */
 
 	void				*priv;
-	int				(* complete)(struct dnet_net_state *st,
+	int				(* complete)(struct dnet_addr *addr,
 						     struct dnet_cmd *cmd,
 						     void *priv);
 };
 
 void dnet_trans_destroy(struct dnet_trans *t);
-int dnet_trans_send_fail(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int err, int destroy);
+int dnet_trans_send_fail(struct dnet_session *s, struct dnet_addr *addr, struct dnet_trans_control *ctl, int err, int destroy);
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size);
 int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl);
 int dnet_trans_alloc_send_state_to_backend(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int backend_id, int source_backend_id);
@@ -855,6 +855,7 @@ ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t size);
 
 struct dnet_io_completion
 {
+	struct dnet_node	*node;
 	struct dnet_wait	*wait;
 	char			*file;
 	uint64_t		offset;

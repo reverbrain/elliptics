@@ -518,13 +518,13 @@ out_exit:
 	return err;
 }
 
-static int dnet_trans_complete_forward(struct dnet_net_state *state __unused, struct dnet_cmd *cmd, void *priv)
+static int dnet_trans_complete_forward(struct dnet_addr *addr __unused, struct dnet_cmd *cmd, void *priv)
 {
 	struct dnet_trans *t = priv;
 	struct dnet_net_state *orig = t->orig;
 	int err = -EINVAL;
 
-	if (!is_trans_destroyed(state, cmd)) {
+	if (!is_trans_destroyed(cmd)) {
 		uint64_t size = cmd->size;
 
 		cmd->trans = t->rcv_trans | DNET_TRANS_REPLY;
@@ -681,7 +681,7 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 					dnet_convert_io_attr(local_io);
 				}
 			}
-			t->complete(t->st, cmd, t->priv);
+			t->complete(dnet_state_addr(t->st), cmd, t->priv);
 		}
 
 		dnet_trans_put(t);
@@ -885,26 +885,28 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_auth_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv __unused)
+static int dnet_auth_complete(struct dnet_addr *addr, struct dnet_cmd *cmd, void *priv)
 {
-	struct dnet_node *n;
+	struct dnet_node *n = priv;
+	struct dnet_net_state *state;
 
-	if (!state || !cmd)
+	if (!addr || !cmd)
 		return -EPERM;
 
 	/* this means this callback at least has state and cmd */
-	if (!is_trans_destroyed(state, cmd)) {
-		n = state->n;
-
+	if (!is_trans_destroyed(cmd)) {
 		if (cmd->status == 0) {
-			dnet_log(n, DNET_LOG_INFO, "%s: authentication request succeeded", dnet_state_dump_addr(state));
+			dnet_log(n, DNET_LOG_INFO, "%s: authentication request succeeded", dnet_server_convert_dnet_addr(addr));
 			return 0;
 		}
 
-		dnet_log(n, DNET_LOG_ERROR, "%s: authentication request failed: %d", dnet_state_dump_addr(state), cmd->status);
+		dnet_log(n, DNET_LOG_ERROR, "%s: authentication request failed: %d", dnet_server_convert_dnet_addr(addr), cmd->status);
 
-		state->__join_state = 0;
-		dnet_state_reset(state, -ECONNRESET);
+		state = dnet_state_search_by_addr(n, addr);
+		if (state) {
+			state->__join_state = 0;
+			dnet_state_reset(state, -ECONNRESET);
+		}
 	}
 
 	return cmd->status;
@@ -929,6 +931,7 @@ static int dnet_auth_send(struct dnet_net_state *st)
 	ctl.data = &a;
 
 	ctl.complete = dnet_auth_complete;
+	ctl.priv = n;
 
 	return dnet_trans_alloc_send_state(NULL, st, &ctl);
 }

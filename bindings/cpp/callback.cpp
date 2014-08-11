@@ -24,10 +24,10 @@ namespace detail {
 class basic_handler
 {
 public:
-	static int handler(dnet_net_state *state, dnet_cmd *cmd, void *priv)
+	static int handler(dnet_addr *addr, dnet_cmd *cmd, void *priv)
 	{
 		basic_handler *that = reinterpret_cast<basic_handler *>(priv);
-		if (that->handle(state, cmd)) {
+		if (that->handle(addr, cmd)) {
 			delete that;
 		}
 
@@ -38,13 +38,13 @@ public:
 	{
 	}
 
-	bool handle(dnet_net_state *state, dnet_cmd *cmd)
+	bool handle(dnet_addr *addr, dnet_cmd *cmd)
 	{
-		if (is_trans_destroyed(state, cmd)) {
+		if (is_trans_destroyed(cmd)) {
 			return increment_completed();
 		}
 
-		auto data = std::make_shared<callback_result_data>(state ? dnet_state_addr(state) : NULL, cmd);
+		auto data = std::make_shared<callback_result_data>(addr, cmd);
 
 		if (cmd->status)
 			data->error = create_error(*cmd);

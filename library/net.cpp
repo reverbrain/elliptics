@@ -416,16 +416,73 @@ static void dnet_interrupt_epoll(dnet_connect_state &state)
 	(void) err;
 }
 
-static int dnet_connect_route_list_complete(dnet_net_state *st, dnet_cmd *cmd, void *priv)
+static int dnet_validate_route_list(const char *server_addr, dnet_node *node, struct dnet_cmd *cmd)
 {
-	dnet_node *node = st->n;
+	dnet_addr_container *cnt;
+	long size;
+	int err, i;
+	char rem_addr[128];
+
+	err = cmd->status;
+	if (!cmd->size || err)
+		goto err_out_exit;
+
+	size = cmd->size + sizeof(dnet_cmd);
+	if (size < (signed)sizeof(dnet_addr_cmd)) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	cnt = (struct dnet_addr_container *)(cmd + 1);
+	dnet_convert_addr_container(cnt);
+
+	if (cmd->size != sizeof(dnet_addr) * cnt->addr_num + sizeof(dnet_addr_container)) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	/* only compare addr-num if we are server, i.e. joined node, clients do not have local addresses at all */
+	if (node->addr_num && (cnt->node_addr_num != node->addr_num)) {
+		dnet_log(node, DNET_LOG_ERROR, "%s: invalid route list reply: recv-addr-num: %d, local-addr-num: %d",
+				server_addr, int(cnt->node_addr_num), node->addr_num);
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	if (cnt->node_addr_num == 0
+		|| cnt->addr_num % cnt->node_addr_num != 0) {
+		dnet_log(node, DNET_LOG_ERROR, "%s: invalid route list reply: recv-addr-num: %d, rec-node-addr-num: %d",
+				server_addr, int(cnt->addr_num), int(cnt->node_addr_num));
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	for (i = 0; i < cnt->addr_num; ++i) {
+		if (dnet_empty_addr(&cnt->addrs[i])) {
+			dnet_log(node, DNET_LOG_ERROR, "%s: received zero address route reply, aborting route update",
+				server_addr);
+			err = -ENOTTY;
+			goto err_out_exit;
+		}
+
+		dnet_log(node, DNET_LOG_DEBUG, "route-list: from: %s, node: %d, addr: %s",
+			dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr)), i / cnt->node_addr_num, rem_addr);
+	}
+
+err_out_exit:
+	return err;
+}
+
+static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void *priv)
+{
 	dnet_connect_state *state = reinterpret_cast<dnet_connect_state *>(priv);
+	dnet_node *node = state->node;
 
 	char server_addr[128];
-	dnet_server_convert_dnet_addr_raw(&st->addr, server_addr, sizeof(server_addr));
+	dnet_server_convert_dnet_addr_raw(addr, server_addr, sizeof(server_addr));
 
 	int err;
-	if (is_trans_destroyed(st, cmd)) {
+	if (is_trans_destroyed(cmd)) {
 		err = -EINVAL;
 		if (cmd)
 			err = cmd->status;
@@ -440,24 +497,28 @@ static int dnet_connect_route_list_complete(dnet_net_state *st, dnet_cmd *cmd, v
 		return err;
 	}
 
-	err = dnet_validate_route_list(st, cmd);
-
 	dnet_addr_container *cnt = reinterpret_cast<dnet_addr_container *>(cmd + 1);
 	const size_t states_num = cnt->addr_num / cnt->node_addr_num;
 
-	dnet_addr *addrs = reinterpret_cast<dnet_addr *>(malloc(states_num * sizeof(dnet_addr)));
+	dnet_addr *addrs;
 	dnet_addr_socket_list *sockets;
 	size_t sockets_count;
 	bool added_to_queue = false;
 	bool all_exist = false;
 
+	err = dnet_validate_route_list(server_addr, node, cmd);
+	if (err) {
+		goto err_out_exit;
+	}
+
+	addrs = reinterpret_cast<dnet_addr *>(malloc(states_num * sizeof(dnet_addr)));
 	if (!addrs) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
 	for (size_t i = 0; i < states_num; i += cnt->node_addr_num) {
-		dnet_addr *addr = &cnt->addrs[i + st->idx];
+		dnet_addr *addr = &cnt->addrs[i + node->st->idx];
 		memcpy(&addrs[i], addr, sizeof(dnet_addr));
 	}
 

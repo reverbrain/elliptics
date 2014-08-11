@@ -104,7 +104,7 @@ struct dnet_io_control {
 	 *
 	 * All parameters are releated to the received transaction reply.
 	 */
-	int 				(* complete)(struct dnet_net_state *st,
+	int 				(* complete)(struct dnet_addr *addr,
 							struct dnet_cmd *cmd,
 							void *priv);
 
@@ -667,7 +667,7 @@ static inline char *dnet_dump_id_str(const unsigned char *id)
  * 	completion function.
  */
 int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
-	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, void *),
+	int (* complete)(struct dnet_addr *, struct dnet_cmd *, void *),
 	void *priv);
 
 /*
@@ -757,7 +757,7 @@ static inline int dnet_id_cmp(const struct dnet_id *id1, const struct dnet_id *i
  */
 int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 	unsigned int cmd,
-	int (* complete)(struct dnet_net_state *state,
+	int (* complete)(struct dnet_addr *addr,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv);
@@ -778,7 +778,7 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
  */
 int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
 	uint64_t categories,
-	int (* complete)(struct dnet_net_state *state,
+	int (* complete)(struct dnet_addr *state,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv);
@@ -791,7 +791,7 @@ int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
  * @complete will be invoked each time object with given @id is modified.
  */
 int dnet_request_notification(struct dnet_session *s, struct dnet_id *id,
-	int (* complete)(struct dnet_net_state *state,
+	int (* complete)(struct dnet_addr *state,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv);
@@ -814,7 +814,7 @@ struct dnet_trans_control
 	void			*data;
 	unsigned int		size;
 
-	int			(* complete)(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv);
+	int			(* complete)(struct dnet_addr *addr, struct dnet_cmd *cmd, void *priv);
 	void			*priv;
 };
 
@@ -844,7 +844,7 @@ int dnet_update_status(struct dnet_session *s, const struct dnet_addr *addr, str
  * to complete function.
  */
 int dnet_remove_object(struct dnet_session *s, struct dnet_id *id,
-	int (* complete)(struct dnet_net_state *state,
+	int (* complete)(struct dnet_addr *addr,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv);
@@ -979,10 +979,9 @@ int dnet_request_check(struct dnet_session *s, struct dnet_check_request *r);
 
 long __attribute__((weak)) dnet_get_id(void);
 
-static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd *cmd)
+static inline int is_trans_destroyed(struct dnet_cmd *cmd)
 {
 	int ret = 0;
-	(void) st;
 
 	if (!cmd || (cmd->flags & DNET_FLAGS_DESTROY)) {
 		ret = 1;
@@ -1025,7 +1024,7 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries);
  */
 int dnet_send_cmd(struct dnet_session *s,
 	struct dnet_id *id,
-	int (* complete)(struct dnet_net_state *state,
+	int (* complete)(struct dnet_addr *addr,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv,
