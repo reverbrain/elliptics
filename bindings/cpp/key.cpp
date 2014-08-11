@@ -22,7 +22,11 @@
 
 namespace ioremap { namespace elliptics {
 
-key::key() : m_by_id(false), m_reserved(0)
+enum key_reserved_flags : int {
+	KEY_INITED = 0x0001
+};
+
+key::key() : m_by_id(false), m_reserved(KEY_INITED)
 {
 	memset(&m_id, 0, sizeof(m_id));
 }
@@ -32,11 +36,11 @@ key::key(const std::string &remote) : m_by_id(false), m_remote(remote), m_reserv
 	memset(&m_id, 0, sizeof(m_id));
 }
 
-key::key(const dnet_id &id) : m_by_id(true), m_reserved(0), m_id(id)
+key::key(const dnet_id &id) : m_by_id(true), m_reserved(KEY_INITED), m_id(id)
 {
 }
 
-key::key(const dnet_raw_id &id) : m_by_id(true), m_reserved(0)
+key::key(const dnet_raw_id &id) : m_by_id(true), m_reserved(KEY_INITED)
 {
 	memset(&m_id, 0, sizeof(m_id));
 	memcpy(m_id.id, id.id, sizeof(id.id));
@@ -118,14 +122,32 @@ void key::transform(const session &sess) const
 	if (m_by_id)
 		return;
 
-	memset(&m_id, 0, sizeof(m_id));
-	sess.transform(m_remote, m_id);
+	if (!inited()) {
+		memset(&m_id, 0, sizeof(m_id));
+		sess.transform(m_remote, m_id);
+		const_cast<key *>(this)->set_inited(true);
+	}
+}
+
+bool key::inited() const
+{
+	return (m_reserved & KEY_INITED);
+}
+
+void key::set_inited(bool inited)
+{
+	if (inited) {
+		m_reserved |= KEY_INITED;
+	} else {
+		m_reserved &= ~KEY_INITED;
+	}
 }
 
 void key::set_id(const dnet_id &id)
 {
 	m_by_id = true;
 	m_id = id;
+	set_inited(true);
 }
 
 void key::set_id(const dnet_raw_id &id)
@@ -133,6 +155,7 @@ void key::set_id(const dnet_raw_id &id)
 	m_by_id = true;
 	memset(&m_id, 0, sizeof(m_id));
 	memcpy(m_id.id, id.id, sizeof(id.id));
+	set_inited(true);
 }
 
 void key::set_group_id(uint32_t group_id)

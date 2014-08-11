@@ -213,6 +213,9 @@ class key
 		void transform(const session &sess) const;
 
 	private:
+		bool inited() const;
+		void set_inited(bool inited);
+
 		bool m_by_id;
 		std::string m_remote;
 		int m_reserved;
