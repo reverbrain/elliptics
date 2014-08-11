@@ -1,3 +1,31 @@
+elliptics (2.26.2.0) unstable; urgency=low
+
+  * API: Changed signature of "complete" methods
+  * backends: Make possible to start several backends per time
+  * cache: Don't send 2 packets as lookup reply
+  * callback: Write to log about each processed packet
+  * client: Added optimization for key's transformation
+  * client: Added parallel_lookup
+  * client: Added quorum_lookup
+  * client: Moved read/write_file logic to c++ binding
+  * client: Refactored implemenation of handling replies from server
+  * client: Removed unused client's methods
+  * client: Returned error from add_state with more sense
+  * cpp: data_buffer should consider size of counter
+  * dnet_balancer: fixed error exit when one of real route matches with 00..0 or ff..f
+  * eblob: Fixed log levels between eblob & elliptics
+  * Monitor: reorganized monitor statistics from different backends
+  * protocol: Changed DNET_TRANS_REPLY to DNET_FLAGS_REPLY
+  * Pytests: added prepare/plain/commit test when it rewrites key from closed blob by bigger data
+  * Recovery: wrapped os.rename by try/except for catching os.rename exception
+  * run_servers: added generating monitor section in ioserv config
+  * run_servers: Write pid of dnet_ioserv's to log
+  * tests: Added 3 more tests about lookup results
+  * tests: Generate random trace_id for each test case
+  * weights: increase temporal selection-only (not state) weights (multiply by 10 on each step) until they sum up into large enough number for random selection
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Mon, 11 Aug 2014 15:04:56 +0400
+
 elliptics (2.26.1.1) unstable; urgency=low
 
   * logger: Use blackhole's level's formatter
