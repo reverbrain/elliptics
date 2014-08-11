@@ -143,8 +143,8 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	memcpy(&acmd->cmd.id, &cmd->id, sizeof(struct dnet_id));
 	acmd->cmd.size = total_size - sizeof(struct dnet_cmd);
 
-	acmd->cmd.flags = DNET_FLAGS_NOLOCK;
-	acmd->cmd.trans = cmd->trans | DNET_TRANS_REPLY;
+	acmd->cmd.flags = DNET_FLAGS_NOLOCK | DNET_FLAGS_REPLY;
+	acmd->cmd.trans = cmd->trans;
 
 	acmd->cmd.cmd = DNET_CMD_ROUTE_LIST;
 
@@ -371,7 +371,7 @@ static int dnet_send_reply_raw(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	struct dnet_node *node = st->n;
 
 	if (node->st == st) {
-		uint64_t trans_id = cmd->trans & ~DNET_TRANS_REPLY;
+		uint64_t trans_id = cmd->trans;
 		struct dnet_trans *trans = dnet_trans_search(st, trans_id);
 		struct dnet_io_req req;
 		int backend_id;
@@ -414,16 +414,17 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int 
 {
 	if (st && cmd && (cmd->flags & DNET_FLAGS_NEED_ACK)) {
 		struct dnet_node *n = st->n;
-		unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
+		unsigned long long tid = cmd->trans;
 		struct dnet_cmd ack = *cmd;
 
-		ack.trans = cmd->trans | DNET_TRANS_REPLY;
+		ack.trans = cmd->trans;
 		ack.size = 0;
 		// In recursive mode keep DNET_FLAGS_MORE flag
 		if (recursive)
 			ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK);
 		else
 			ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
+		ack.flags |= DNET_FLAGS_REPLY;
 		ack.status = err;
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: 0x%llx, status: %d.",
@@ -460,14 +461,14 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsign
 		c->flags |= DNET_FLAGS_MORE;
 
 	c->size = size;
-	c->trans |= DNET_TRANS_REPLY;
+	c->flags |= DNET_FLAGS_REPLY;
 
 	if (size)
 		memcpy(data, odata, size);
 
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: 0x%llx.",
 		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
-		(unsigned long long)(c->trans &~ DNET_TRANS_REPLY),
+		(unsigned long long)c->trans,
 		size, (unsigned long long)c->flags);
 
 	dnet_convert_cmd(c);
@@ -1170,7 +1171,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 {
 	int err = 0;
 	struct dnet_node *n = st->n;
-	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
+	unsigned long long tid = cmd->trans;
 	struct dnet_io_attr *io = NULL;
 	struct timeval start, end;
 
@@ -1402,9 +1403,10 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	c->flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK);
 	if (cmd->flags & DNET_FLAGS_NEED_ACK)
 		c->flags |= DNET_FLAGS_MORE;
+	c->flags |= DNET_FLAGS_REPLY;
 
 	c->size = sizeof(struct dnet_io_attr) + io->size;
-	c->trans = cmd->trans | DNET_TRANS_REPLY;
+	c->trans = cmd->trans;
 	c->cmd = DNET_CMD_READ;
 	c->backend_id = cmd->backend_id;
 

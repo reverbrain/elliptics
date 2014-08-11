@@ -317,7 +317,7 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64
 	if (direct)
 		cmd->flags |= DNET_FLAGS_DIRECT;
 	if (reply)
-		cmd->trans |= DNET_TRANS_REPLY;
+		cmd->flags |= DNET_FLAGS_REPLY;
 	cmd->size = total_size - sizeof(dnet_cmd);
 
 	dnet_addr_container *addr_container = reinterpret_cast<dnet_addr_container *>(cmd + 1);

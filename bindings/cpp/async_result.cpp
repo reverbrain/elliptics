@@ -557,7 +557,7 @@ bool async_result_handler<T>::check(error_info *error)
 			dnet_cmd command;
 			command.status = 0;
 			for (auto it = m_data->statuses.begin(); it != m_data->statuses.end(); ++it) {
-				const bool failed_to_send = (it->flags & DNET_FLAGS_CLIENT_ERROR);
+				const bool failed_to_send = !(it->flags & DNET_FLAGS_REPLY);
 				const bool ignore_error = failed_to_send && it->status == -ENXIO;
 
 				if (it->status == 0) {

@@ -315,8 +315,8 @@ void dnet_trans_destroy(struct dnet_trans *t)
 				"time: %ld, started: %s.%06lu, cached status: %d%s",
 			dnet_dump_id(&t->cmd.id),
 			dnet_cmd_string(t->command),
-			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
-			!!(t->trans & ~DNET_TRANS_REPLY),
+			(unsigned long long)t->trans,
+			!!(t->cmd.flags & DNET_FLAGS_REPLY),
 			dnet_state_dump_addr(t->st), t->st->stall,
 			diff,
 			str, t->start.tv_usec,
@@ -359,7 +359,7 @@ int dnet_trans_send_fail(struct dnet_session *s, struct dnet_addr *addr, struct 
 	cmd.size = 0;
 
 	if (ctl->complete) {
-		cmd.flags |= DNET_FLAGS_CLIENT_ERROR;
+		cmd.flags &= ~DNET_FLAGS_REPLY;
 
 		ctl->complete(addr, &cmd, ctl->priv);
 
@@ -479,7 +479,7 @@ void dnet_trans_clean_list(struct list_head *head)
 		list_del_init(&t->trans_list_entry);
 
 		t->cmd.size = 0;
-		t->cmd.flags = DNET_FLAGS_CLIENT_ERROR;
+		t->cmd.flags &= ~DNET_FLAGS_REPLY;
 		t->cmd.status = -ETIMEDOUT;
 
 		if (t->complete)

@@ -81,6 +81,11 @@ bool callback_result_entry::is_final() const
 	return !(command()->flags & DNET_FLAGS_MORE);
 }
 
+bool callback_result_entry::is_client() const
+{
+	return !(command()->flags & DNET_FLAGS_REPLY);
+}
+
 int callback_result_entry::status() const
 {
 	return command()->status;

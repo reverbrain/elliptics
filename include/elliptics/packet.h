@@ -141,12 +141,6 @@ enum dnet_backend_defrag_state {
 };
 
 /*
- * Transaction ID direction bit.
- * When set, data is a reply for the given transaction.
- */
-#define DNET_TRANS_REPLY		0x8000000000000000ULL
-
-/*
  * Command flags.
  *
  * IT IS ALSO PARTIALLY PROVIDED IN PYTHON BINDING so if you want to add new flag
@@ -185,8 +179,8 @@ enum dnet_backend_defrag_state {
 /* Trace ALL logs for this request, don't look at current verbosity */
 #define DNET_FLAGS_TRACE_BIT		(1<<8)
 
-/* This reply was generated on client, it was NOT received from the server */
-#define DNET_FLAGS_CLIENT_ERROR		(1<<9)
+/* This reply was generated on server, and it IS reply from the server */
+#define DNET_FLAGS_REPLY		(1<<9)
 
 typedef uint64_t trace_id_t;
 

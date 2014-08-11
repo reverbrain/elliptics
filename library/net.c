@@ -527,7 +527,8 @@ static int dnet_trans_complete_forward(struct dnet_addr *addr __unused, struct d
 	if (!is_trans_destroyed(cmd)) {
 		uint64_t size = cmd->size;
 
-		cmd->trans = t->rcv_trans | DNET_TRANS_REPLY;
+		cmd->trans = t->rcv_trans;
+		cmd->flags |= DNET_FLAGS_REPLY;
 
 		dnet_convert_cmd(cmd);
 
@@ -634,8 +635,8 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 	struct dnet_net_state *forward_state;
 	struct dnet_cmd *cmd = r->header;
 
-	if (cmd->trans & DNET_TRANS_REPLY) {
-		uint64_t tid = cmd->trans & ~DNET_TRANS_REPLY;
+	if (cmd->flags & DNET_FLAGS_REPLY) {
+		uint64_t tid = cmd->trans;
 		uint64_t flags = cmd->flags;
 
 		pthread_mutex_lock(&st->trans_lock);
@@ -745,8 +746,8 @@ err_out_put_forward:
 err_out_exit:
 	if (t)
 		dnet_log(n, DNET_LOG_ERROR, "%s: error during received transaction processing: trans %llu, reply: %d, error: %d.",
-			dnet_dump_id(&t->cmd.id), (t->cmd.trans & ~DNET_TRANS_REPLY),
-			!!(t->cmd.trans & DNET_TRANS_REPLY), err);
+			dnet_dump_id(&t->cmd.id), (unsigned long long)t->cmd.trans,
+			!!(t->cmd.flags & DNET_FLAGS_REPLY), err);
 	return err;
 }
 
@@ -1234,7 +1235,7 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 			cmd = r->data;
 		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: 0x%llx, start-sent: %zd/%zd.",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
-			(unsigned long long)(cmd->trans &~ DNET_TRANS_REPLY),
+			(unsigned long long)cmd->trans,
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,
 			st->send_offset, r->dsize + r->hsize + r->fsize);
 	}
@@ -1278,7 +1279,7 @@ err_out_exit:
 			cmd = r->data;
 		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: 0x%llx, finish-sent: %zd/%zd.",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
-			(unsigned long long)(cmd->trans &~ DNET_TRANS_REPLY),
+			(unsigned long long)cmd->trans,
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,
 			st->send_offset, r->dsize + r->hsize + r->fsize);
 	}

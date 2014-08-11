@@ -369,7 +369,7 @@ static int dnet_io_trans_send_fail(struct dnet_session *s, struct dnet_addr *add
 	cmd.size = 0;
 
 	if (ctl->complete) {
-		cmd.flags |= DNET_FLAGS_CLIENT_ERROR;
+		cmd.flags &= ~DNET_FLAGS_REPLY;
 
 		ctl->complete(addr, &cmd, ctl->priv);
 
