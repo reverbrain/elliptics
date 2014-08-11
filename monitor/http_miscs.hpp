@@ -108,7 +108,7 @@ uint64_t parse(const char* packet, size_t size) {
 	auto it = handlers.find(std::string(url_begin, url_end));
 	if (it != handlers.end())
 		return it->second;
-	else if (categories_url.size() < (url_end - url_begin) &&
+	else if (ssize_t(categories_url.size()) < (url_end - url_begin) &&
 	         strncmp(url_begin, categories_url.c_str(), categories_url.size()) == 0) {
 		const char *categories = url_begin + categories_url.size();
 		try {
