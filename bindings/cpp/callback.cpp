@@ -113,56 +113,71 @@ async_generic_result send_impl(session &sess, T &control, Method method)
 	return result;
 }
 
+static size_t send_to_single_state_impl(session &sess, dnet_trans_control &ctl)
+{
+	dnet_trans_alloc_send(sess.get_native(), &ctl);
+	return 1;
+}
+
 // Send request to specificly set state by id
 async_generic_result send_to_single_state(session &sess, const transport_control &control)
 {
 	dnet_trans_control writable_copy = control.get_native();
-	return send_impl(sess, writable_copy, [] (session &sess, dnet_trans_control &ctl) {
-		dnet_trans_alloc_send(sess.get_native(), &ctl);
-		return 1;
-	});
+	return send_impl(sess, writable_copy, send_to_single_state_impl);
+}
+
+static size_t send_to_single_state_io_impl(session &sess, dnet_io_control &ctl)
+{
+	dnet_io_trans_alloc_send(sess.get_native(), &ctl);
+	return 1;
 }
 
 async_generic_result send_to_single_state(session &sess, dnet_io_control &control)
 {
-	return send_impl(sess, control, [] (session &sess, dnet_io_control &ctl) {
-		dnet_io_trans_alloc_send(sess.get_native(), &ctl);
-		return 1;
-	});
+	return send_impl(sess, control, send_to_single_state_io_impl);
+}
+
+static size_t send_to_each_backend_impl(session &sess, dnet_trans_control &ctl)
+{
+	return dnet_request_cmd(sess.get_native(), &ctl);
 }
 
 // Send request to each backend
 async_generic_result send_to_each_backend(session &sess, const transport_control &control)
 {
 	dnet_trans_control writable_copy = control.get_native();
-	return send_impl(sess, writable_copy, [] (session &sess, dnet_trans_control &ctl) {
-		return dnet_request_cmd(sess.get_native(), &ctl);
-	});
+	return send_impl(sess, writable_copy, send_to_each_backend_impl);
+}
+
+static size_t send_to_groups_impl(session &sess, dnet_trans_control &ctl)
+{
+	dnet_session *native = sess.get_native();
+	size_t counter = 0;
+
+	for (int i = 0; i < native->group_num; ++i) {
+		ctl.id.group_id = native->groups[i];
+		dnet_trans_alloc_send(native, &ctl);
+		++counter;
+	}
+
+	return counter;
 }
 
 // Send request to one state at each session's group
 async_generic_result send_to_groups(session &sess, const transport_control &control)
 {
 	dnet_trans_control writable_copy = control.get_native();
-	return send_impl(sess, writable_copy, [] (session &sess, dnet_trans_control &ctl) {
-		dnet_session *native = sess.get_native();
-		size_t counter = 0;
+	return send_impl(sess, writable_copy, send_to_groups_impl);
+}
 
-		for (int i = 0; i < native->group_num; ++i) {
-			ctl.id.group_id = native->groups[i];
-			dnet_trans_alloc_send(native, &ctl);
-			++counter;
-		}
-
-		return counter;
-	});
+static size_t send_to_groups_io_impl(session &sess, dnet_io_control &ctl)
+{
+	return dnet_trans_create_send_all(sess.get_native(), &ctl);
 }
 
 async_generic_result send_to_groups(session &sess, dnet_io_control &control)
 {
-	return send_impl(sess, control, [] (session &sess, dnet_io_control &ctl) {
-		return dnet_trans_create_send_all(sess.get_native(), &ctl);
-	});
+	return send_impl(sess, control, send_to_groups_io_impl);
 }
 
 async_generic_result send_srw_command(session &sess, dnet_id *id, sph *srw_data)
