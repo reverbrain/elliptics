@@ -750,47 +750,6 @@ bool session::get_trace_bit() const
 	return dnet_session_get_trace_bit(m_data->session_ptr);
 }
 
-void session::read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size)
-{
-	int err;
-
-	if (id.by_id()) {
-		dnet_id raw = id.id();
-		err = dnet_read_file_id(m_data->session_ptr, file.c_str(), &raw, offset, size);
-	} else {
-		err = dnet_read_file(m_data->session_ptr, file.c_str(), id.remote().c_str(), id.remote().size(), offset, size);
-	}
-
-	if (err) {
-		transform(id);
-		throw_error(err, id.id(), "READ: %s: offset: %llu, size: %llu",
-			file.c_str(), static_cast<unsigned long long>(offset),
-			static_cast<unsigned long long>(size));
-	}
-}
-
-void session::write_file(const key &id, const std::string &file, uint64_t local_offset,
-				uint64_t offset, uint64_t size)
-{
-	int err;
-
-	if (id.by_id()) {
-		dnet_id raw = id.id();
-		err = dnet_write_file_id(m_data->session_ptr, file.c_str(), &raw, local_offset, offset, size);
-	} else {
-		err = dnet_write_file(m_data->session_ptr, file.c_str(), id.remote().c_str(), id.remote().size(),
-							 local_offset, offset, size);
-	}
-	if (err) {
-		transform(id);
-		throw_error(err, id.id(), "WRITE: %s, local_offset: %llu, "
-			"offset: %llu, size: %llu",
-			file.c_str(), static_cast<unsigned long long>(local_offset),
-			static_cast<unsigned long long>(offset),
-			static_cast<unsigned long long>(size));
-	}
-}
-
 class read_handler : public multigroup_handler<read_handler, read_result_entry>
 {
 public:

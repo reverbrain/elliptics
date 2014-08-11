@@ -145,16 +145,6 @@ struct dnet_io_control {
 	struct timespec			ts;
 };
 
-/*
- * Reads an object identified by the provided ID from the appropriate node.
- * In case of error completion callback may be invoked with all parameters
- * set to null, private pointer will be setto what was provided by the user
- * as private data).
- *
- * Returns negative error value in case of error.
- */
-int dnet_read_object(struct dnet_session *s, struct dnet_io_control *ctl);
-
 int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
 		struct dnet_raw_id *start, struct dnet_raw_id *next);
 
@@ -167,43 +157,6 @@ int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
 
 int __attribute__((weak)) dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
 		void *data, int fd, uint64_t offset, int on_exit);
-
-/*
- * Reads given file from the storage. If there are multiple transformation functions,
- * they will be tried one after another.
- *
- * If @id is set, it is used as a main object ID, otherwise @file transformation
- * is used as object ID.
- *
- * Returns negative error value in case of error.
- *
- * dnet_read_file_direct() works the same way except it sets DNET_FLAGS_DIRECT flag,
- * which means it will ask node for given object, which is the closest in routing
- * table and will not allow to forward this request to other nodes.
- */
-int dnet_read_file_id(struct dnet_session *s, const char *file, struct dnet_id *id,
-		uint64_t offset, uint64_t size);
-int dnet_read_file(struct dnet_session *s, const char *file, const void *remote, int remote_size,
-		uint64_t offset, uint64_t size);
-
-/*
- * dnet_write_object() returns number of transactions sent. If it is equal to 0,
- * then no transactions were sent which indicates an error.
- *
- * ->complete() can be called multiple times, depending on how server sends data
- */
-int dnet_write_object(struct dnet_session *s, struct dnet_io_control *ctl);
-
-/*
- * Sends given file to the remote nodes and waits until all of them ack the write.
- *
- * Returns negative error value in case of error.
- */
-int dnet_write_file_id(struct dnet_session *s, const char *file, struct dnet_id *id, uint64_t local_offset,
-		uint64_t remote_offset, uint64_t size);
-
-int dnet_write_file(struct dnet_session *s, const char *file, const void *remote, int remote_len,
-		uint64_t local_offset, uint64_t remote_offset, uint64_t size);
 
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8

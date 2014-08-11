@@ -853,14 +853,6 @@ ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, 
 ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size);
 ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t size);
 
-struct dnet_io_completion
-{
-	struct dnet_node	*node;
-	struct dnet_wait	*wait;
-	char			*file;
-	uint64_t		offset;
-};
-
 struct dnet_addr_storage
 {
 	int				reconnect_time, reconnect_time_max;
