@@ -1471,40 +1471,14 @@ async_lookup_result session::lookup(const key &id)
 	return result;
 }
 
-std::vector<async_lookup_result> parallel_lookup_impl(const session &orig_sess, const key &id)
-{
-	auto groups = orig_sess.get_groups();
-
-	std::vector<async_lookup_result> lookup_results;
-	lookup_results.reserve(groups.size());
-
-	// One clones the session in order not to affect the user settings
-	auto sess = orig_sess.clone();
-
-	// Each request to session transforms a key if it is a string
-	// To avoid this act one transforms the key once and pass it as dnet_id
-	sess.transform(id);
-
-	sess.set_filter(filters::all_with_ack);
-	sess.set_checker(checkers::at_least_one);
-	sess.set_exceptions_policy(session::no_exceptions);
-
-	dnet_id raw = id.id();
-
-	// Parallel lookup is just a series of general lookups
-	for (size_t i = 0; i < groups.size(); ++i) {
-		sess.set_groups(std::vector<int>(1, groups[i]));
-		lookup_results.emplace_back(sess.lookup(raw));
-	}
-
-	return lookup_results;
-}
-
 async_lookup_result session::parallel_lookup(const key &id)
 {
-	// Result of parallel lookup is a aggregation of results of general lookups
-	auto lookup_results = parallel_lookup_impl(*this, id);
-	return aggregated(*this, lookup_results.begin(), lookup_results.end());
+	transform(id);
+
+	transport_control control(id.id(), DNET_CMD_LOOKUP, DNET_FLAGS_NEED_ACK);
+
+	session sess = clean_clone();
+	return async_result_cast<lookup_result_entry>(*this, send_to_groups(sess, control));
 }
 
 struct prepare_latest_functor
@@ -1579,17 +1553,11 @@ async_lookup_result session::prepare_latest(const key &id, const std::vector<int
 	async_result_handler<lookup_result_entry> result_handler(result);
 
 	// One clones the session in order not to affect the user settings
-	auto sess = clone();
-
-	sess.set_filter(filters::all_with_ack);
-	sess.set_checker(checkers::no_check);
-	sess.set_exceptions_policy(session::no_exceptions);
-
+	auto sess = clean_clone();
 	sess.set_groups(groups);
-	auto temp_result = sess.parallel_lookup(id);
 
 	prepare_latest_functor functor = { result_handler, id.id().group_id };
-	temp_result.connect(functor);
+	sess.parallel_lookup(id).connect(functor);
 
 	return result;
 }
@@ -1610,8 +1578,8 @@ struct quorum_lookup_aggregator_handler
 	ELLIPTICS_DISABLE_COPY(quorum_lookup_aggregator_handler)
 
 	quorum_lookup_aggregator_handler(const async_result_handler<lookup_result_entry> &result_handler,
-			size_t groups_count, size_t requests_count)
-		: handler(result_handler), in_work(requests_count), quorum(groups_count / 2 + 1),
+		size_t requests_count)
+		: handler(result_handler), in_work(requests_count), quorum(requests_count / 2 + 1),
 		max_ts{0, 0}, has_finished(false)
 	{
 		handler.set_total(requests_count);
@@ -1722,19 +1690,29 @@ struct quorum_lookup_aggregator_handler
 async_lookup_result session::quorum_lookup(const key &id)
 {
 	// The only thing doing here: connecting helper class to async_results
+	transform(id);
 
 	async_lookup_result result(*this);
 	async_result_handler<lookup_result_entry> result_handler(result);
 
-	auto temp_result = parallel_lookup_impl(*this, id);
+	const std::vector<int> &groups = get_groups();
 
 	auto handler = std::make_shared<quorum_lookup_aggregator_handler>(result_handler,
-			get_groups().size(), temp_result.size());
+			groups.size());
 	auto complete = std::bind(&quorum_lookup_aggregator_handler::complete, handler,
 			std::placeholders::_1, std::placeholders::_2);
 
-	for (auto it = temp_result.begin(), end = temp_result.end(); it != end; ++it) {
-		it->connect(complete);
+	// Prepare c-style transport control as we need to set valid groups every time
+	dnet_trans_control control = transport_control(id.id(), DNET_CMD_LOOKUP, DNET_FLAGS_NEED_ACK).get_native();
+
+	// We need to set at_least_one checker as we need to determine if request failed
+	session sess = clean_clone();
+	sess.set_checker(checkers::at_least_one);
+
+	// Notify handler about each finished transaction
+	for (size_t i = 0; i < groups.size(); ++i) {
+		control.id.group_id = groups[i];
+		async_result_cast<lookup_result_entry>(sess, send_to_single_state(sess, control)).connect(complete);
 	}
 
 	return result;
