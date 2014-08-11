@@ -35,7 +35,10 @@ int64_t call_tree_time(const react::call_tree_t &tree) {
 	return std::chrono::duration_cast<std::chrono::seconds>(ts).count();
 }
 
-std::string react_stat_provider::json() const {
+std::string react_stat_provider::json(uint64_t categories) const {
+	if (!(categories & DNET_MONITOR_CALL_TREE))
+		return std::string();
+
 	rapidjson::Document doc;
 	doc.SetObject();
 	auto &allocator = doc.GetAllocator();
@@ -57,10 +60,6 @@ std::string react_stat_provider::json() const {
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
 	doc.Accept(writer);
 	return buffer.GetString();
-}
-
-bool react_stat_provider::check_category(uint64_t category) const {
-	return category & DNET_MONITOR_CALL_TREE;
 }
 
 react::elliptics_react_aggregator_t &react_stat_provider::get_react_aggregator() {

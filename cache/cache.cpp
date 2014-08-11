@@ -25,37 +25,17 @@
 #include "monitor/monitor.h"
 #include "monitor/monitor.hpp"
 #include "monitor/statistics.hpp"
-#include "monitor/rapidjson/document.h"
-#include "monitor/rapidjson/writer.h"
-#include "monitor/rapidjson/stringbuffer.h"
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
 
 namespace ioremap { namespace cache {
-
-class cache_stat_provider : public ioremap::monitor::stat_provider {
-public:
-	cache_stat_provider(const cache_manager &manager)
-	: m_manager(manager)
-	{}
-
-	virtual std::string json() const {
-		return m_manager.stat_json();
-	}
-
-	virtual bool check_category(uint64_t category) const {
-		return category & DNET_MONITOR_CACHE;
-	}
-
-private:
-	const cache_manager	&m_manager;
-};
 
 cache_manager::cache_manager(dnet_backend_io *backend, struct dnet_node *n) : m_node(n) {
 	size_t caches_number = n->caches_number;
 	m_cache_pages_number = n->cache_pages_number;
 	m_max_cache_size = n->cache_size;
 	size_t max_size = m_max_cache_size / caches_number;
-
-	m_backend_id = backend->backend_id;
 
 	size_t proportionsSum = 0;
 	for (size_t i = 0; i < m_cache_pages_number; ++i) {
@@ -70,12 +50,9 @@ cache_manager::cache_manager(dnet_backend_io *backend, struct dnet_node *n) : m_
 	for (size_t i = 0; i < caches_number; ++i) {
 		m_caches.emplace_back(std::make_shared<slru_cache_t>(backend, n, pages_max_sizes));
 	}
-
-	ioremap::monitor::add_provider(m_node, new cache_stat_provider(*this), "cache_" + std::to_string(static_cast<long long int>(m_backend_id)));
 }
 
 cache_manager::~cache_manager() {
-	ioremap::monitor::remove_provider(m_node, "cache_" + std::to_string(static_cast<long long int>(m_backend_id)));
 }
 
 int cache_manager::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
@@ -158,16 +135,10 @@ rapidjson::Value &cache_manager::get_total_caches_size_stats_json(rapidjson::Val
 	return stats.to_json(stat_value, allocator);
 }
 
-std::string get_cache_name(int id, size_t number_length) {
-	std::string name = boost::lexical_cast<std::string> (id);
-	std::string prefix(number_length - name.length(), '0');
-	return "Cache_" + prefix + name;
-}
-
 rapidjson::Value &cache_manager::get_caches_size_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		rapidjson::Value cache_time_stats(rapidjson::kObjectType);
-		stat_value.AddMember(get_cache_name(i, 2).c_str(), allocator, m_caches[i]->get_cache_stats().to_json(cache_time_stats, allocator), allocator);
+		stat_value.AddMember(std::to_string(i).c_str(), allocator, m_caches[i]->get_cache_stats().to_json(cache_time_stats, allocator), allocator);
 	}
 	return stat_value;
 }

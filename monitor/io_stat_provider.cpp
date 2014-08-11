@@ -51,7 +51,10 @@ void dump_states_stats(rapidjson::Value &stat, struct dnet_node *n, rapidjson::D
 	pthread_mutex_unlock(&n->state_lock);
 }
 
-std::string io_stat_provider::json() const {
+std::string io_stat_provider::json(uint64_t categories) const {
+	if (!(categories & DNET_MONITOR_IO))
+		return std::string();
+
 	rapidjson::Document doc;
 	doc.SetObject();
 	auto &allocator = doc.GetAllocator();
@@ -78,10 +81,6 @@ std::string io_stat_provider::json() const {
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
 	doc.Accept(writer);
 	return buffer.GetString();
-}
-
-bool io_stat_provider::check_category(uint64_t category) const {
-	return category & DNET_MONITOR_IO;
 }
 
 }} /* namespace ioremap::monitor */

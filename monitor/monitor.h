@@ -50,8 +50,9 @@ struct stat_provider_raw {
 	 * Callback which returns current statistics of provider in json format
 	 * It will be called only when was requested for statistics
 	 * \a priv - user-defined private data for provider
+	 * \a categories - categories which statistics should be included to json
 	 */
-	const char*	(* json) (void *priv);
+	const char*	(* json) (void *priv, uint64_t categories);
 
 	/*!
 	 * \internal
@@ -61,17 +62,6 @@ struct stat_provider_raw {
 	 * \a priv - user-defined private data for provider
 	 */
 	void		(* stop) (void *priv);
-
-	/*!
-	 * \internal
-	 *
-	 * Checks if provider supports passed \a category.
-	 * Returns 1 if it supports category and 0 otherwise
-	 * It will be called befor \a json callback
-	 * and if it returns 0 then \a json wouldn't be called
-	 * \a priv - user-defined private data for provider
-	 */
-	int		(* check_category) (void *priv, uint64_t category);
 };
 
 /*!
@@ -118,6 +108,13 @@ void dnet_monitor_init_io_stat_provider(struct dnet_node *n);
  * Creates stat provider for react call tree stats and adds it to provider list
  */
 void dnet_monitor_init_react_stat_provider(struct dnet_node *n);
+
+/*!
+ * \internal
+ *
+ * Creates stat provider for backends and adds it to provider list
+ */
+void dnet_monitor_init_backends_stat_provider(struct dnet_node *n);
 
 /*!
  * \internal

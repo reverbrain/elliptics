@@ -180,12 +180,13 @@ std::string statistics::report(uint64_t categories) {
 
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
 	for (auto it = m_stat_providers.cbegin(), end = m_stat_providers.cend(); it != end; ++it) {
-		if (!it->first->check_category(categories))
+		auto json = it->first->json(categories);
+		if (json.empty())
 			continue;
 		rapidjson::Document value_doc(&allocator);
-		value_doc.Parse<0>(it->first->json().c_str());
+		value_doc.Parse<0>(json.c_str());
 		report.AddMember(it->second.c_str(),
-						 allocator,
+		                 allocator,
 		                 static_cast<rapidjson::Value&>(value_doc),
 		                 allocator);
 	}

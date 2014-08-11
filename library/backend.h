@@ -46,7 +46,7 @@ struct dnet_backend_info
 		data(std::move(other.data))
 	{
 	}
-	
+
 	dnet_backend_info &operator =(dnet_backend_info &&other) ELLIPTICS_NOEXCEPT
 	{
 		config_template = other.config_template;
@@ -103,6 +103,16 @@ size_t dnet_backend_info_list_count(dnet_backend_info_list *backends);
 
 int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 int dnet_cmd_backend_status(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
+
+/*
+ * Fills \a status of backend with \a backend_id without any locks
+ */
+void backend_fill_status_nolock(struct dnet_node *node, struct dnet_backend_status *status, size_t backend_id);
+
+/*
+ * Locks backend with \a backend_id state mutex and fills \a status
+ */
+void backend_fill_status(struct dnet_node *node, struct dnet_backend_status *status, size_t backend_id);
 
 #ifdef __cplusplus
 }

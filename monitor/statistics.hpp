@@ -56,17 +56,9 @@ public:
 	 * \internal
 	 *
 	 * Returns json string of the real provider statistics
+	 * \a categories - categories which statistics should be included to json
 	 */
-	virtual std::string json() const = 0;
-
-	/*!
-	 * \internal
-	 *
-	 * Checks if the real provider supports passed \a category.
-	 * If the real provider doesn't support \a category
-	 * then \a json() method wouldn't be called
-	 */
-	virtual bool check_category(uint64_t category) const = 0;
+	virtual std::string json(uint64_t categories) const = 0;
 
 	/*!
 	 * \internal
@@ -106,20 +98,11 @@ public:
 	 * \internal
 	 *
 	 * Returns json string of the real provider statistics
+	 * \a categories - categories which statistics should be included to json
 	 */
-	virtual std::string json() const {
-		return m_stat.json(m_stat.stat_private);
-	}
-
-	/*!
-	 * \internal
-	 *
-	 * Checks if the provider supports passed \a category.
-	 * If the provider doesn't support \a category
-	 * then \a json() method wouldn't be called
-	 */
-	virtual bool check_category(uint64_t category) const {
-		return m_stat.check_category(m_stat.stat_private, category);
+	virtual std::string json(uint64_t categories) const {
+		auto json = m_stat.json(m_stat.stat_private, categories);
+		return json ? json : std::string();
 	}
 
 private:

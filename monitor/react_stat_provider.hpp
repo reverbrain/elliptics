@@ -31,8 +31,7 @@ class react_stat_provider : public stat_provider {
 public:
 	react_stat_provider(uint32_t call_timeout);
 
-	virtual std::string json() const;
-	virtual bool check_category(uint64_t category) const;
+	virtual std::string json(uint64_t categories) const;
 
 	react::elliptics_react_aggregator_t &get_react_aggregator();
 

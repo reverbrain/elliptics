@@ -25,6 +25,11 @@
 #include "library/elliptics.h"
 #include "io_stat_provider.hpp"
 #include "react_stat_provider.hpp"
+#include "backends_stat_provider.hpp"
+
+static ioremap::monitor::monitor* get_monitor(struct dnet_node *n) {
+	return n->monitor ? static_cast<ioremap::monitor::monitor*>(n->monitor) : NULL;
+}
 
 namespace ioremap { namespace monitor {
 
@@ -39,12 +44,7 @@ void monitor::stop() {
 }
 
 void add_provider(struct dnet_node *n, stat_provider *provider, const std::string &name) {
-	if (!n->monitor) {
-		delete provider;
-		return;
-	}
-
-	auto real_monitor = static_cast<monitor*>(n->monitor);
+	auto real_monitor = get_monitor(n);
 	if (real_monitor)
 		real_monitor->get_statistics().add_provider(provider, name);
 	else
@@ -53,11 +53,7 @@ void add_provider(struct dnet_node *n, stat_provider *provider, const std::strin
 
 void remove_provider(dnet_node *n, const std::string &name)
 {
-	if (!n->monitor) {
-		return;
-	}
-
-	auto real_monitor = static_cast<monitor*>(n->monitor);
+	auto real_monitor = get_monitor(n);
 	if (real_monitor)
 		real_monitor->get_statistics().remove_provider(name);
 }
@@ -81,19 +77,10 @@ int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
 	return 0;
 }
 
-static ioremap::monitor::monitor* monitor_cast(void* monitor) {
-	return static_cast<ioremap::monitor::monitor*>(monitor);
-}
-
 void dnet_monitor_exit(struct dnet_node *n) {
-	if (!n->monitor)
-		return;
-
-	auto monitor = n->monitor;
-	n->monitor = NULL;
-
-	auto real_monitor = monitor_cast(monitor);
+	auto real_monitor = get_monitor(n);
 	if (real_monitor) {
+		n->monitor = NULL;
 		delete real_monitor;
 	}
 }
@@ -114,43 +101,36 @@ void dnet_monitor_remove_provider(struct dnet_node *n, const char *name) {
 void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans,
                              const int err, const int cache,
                              const uint32_t size, const unsigned long time) {
-	if (!n->monitor)
-		return;
-
-	auto real_monitor = monitor_cast(n->monitor);
+	auto real_monitor = get_monitor(n);
 	if (real_monitor)
 		real_monitor->get_statistics().command_counter(cmd, trans, err,
 		                                               cache, size, time);
 }
 
 void dnet_monitor_init_io_stat_provider(struct dnet_node *n) {
-	if (!n->monitor)
-		return;
-
-	auto real_monitor = monitor_cast(n->monitor);
-	if (real_monitor) {
-		try {
-			real_monitor->get_statistics().add_provider(new ioremap::monitor::io_stat_provider(n), "io");
-		} catch (std::exception &e) {
-			std::cerr << e.what() << std::endl;
-		}
+	try {
+		ioremap::monitor::add_provider(n, new ioremap::monitor::io_stat_provider(n), "io");
+	} catch (std::exception &e) {
+		std::cerr << e.what() << std::endl;
 	}
 }
 
 void dnet_monitor_init_react_stat_provider(struct dnet_node *n) {
-	if (!n->monitor)
-		return;
+	try {
+		auto call_tree_timeout = n->config_data->cfg_state.monitor_call_tree_timeout;
+		auto provider = new ioremap::monitor::react_stat_provider(call_tree_timeout);
+		ioremap::monitor::add_provider(n, provider, "call_tree");
+		n->react_aggregator = static_cast<void*> (&provider->get_react_aggregator());
+	}catch (std::exception &e) {
+		std::cerr << e.what() << std::endl;
+	}
+}
 
-	auto real_monitor = monitor_cast(n->monitor);
-	if (real_monitor) {
-		try {
-			auto call_tree_timeout = n->config_data->cfg_state.monitor_call_tree_timeout;
-			auto provider = new ioremap::monitor::react_stat_provider(call_tree_timeout);
-			real_monitor->get_statistics().add_provider(provider, "call_tree");
-			n->react_aggregator = static_cast<void*> (&provider->get_react_aggregator());
-		} catch (std::exception &e) {
-			std::cerr << e.what() << std::endl;
-		}
+void dnet_monitor_init_backends_stat_provider(struct dnet_node *n) {
+	try {
+		ioremap::monitor::add_provider(n, new ioremap::monitor::backends_stat_provider(n), "backends");
+	} catch (std::exception &e) {
+		std::cerr << e.what() << std::endl;
 	}
 }
 
@@ -172,10 +152,7 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, categories: %lx, monitor: %p",
 		dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), req->categories, n->monitor);
 
-	if (!n->monitor)
-		return dnet_send_reply(orig, cmd, disabled_reply.c_str(), disabled_reply.size(), 0);
-
-	auto real_monitor = monitor_cast(n->monitor);
+	auto real_monitor = get_monitor(n);
 	if (!real_monitor)
 		return dnet_send_reply(orig, cmd, disabled_reply.c_str(), disabled_reply.size(), 0);
 

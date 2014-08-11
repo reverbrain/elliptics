@@ -17,25 +17,28 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DNET_MONITOR_IO_STAT_PROVIDER_HPP
-#define __DNET_MONITOR_IO_STAT_PROVIDER_HPP
+#ifndef __DNET_MONITOR_BACKENDS_STAT_PROVIDER_HPP
+#define __DNET_MONITOR_BACKENDS_STAT_PROVIDER_HPP
 
 #include "statistics.hpp"
 
-struct dnet_node;
+struct dnet_io;
 
 namespace ioremap { namespace monitor {
 
-class io_stat_provider: public stat_provider {
+/*!
+ * Provider for all backends statistics
+ */
+class backends_stat_provider : public stat_provider {
 public:
-	io_stat_provider(dnet_node *n): m_node(n) {}
+	backends_stat_provider(struct dnet_node *node);
 
 	virtual std::string json(uint64_t categories) const;
 
 private:
-	dnet_node *m_node;
+	struct dnet_node *m_node;
 };
 
 }} /* namespace ioremap::monitor */
 
-#endif /* __DNET_MONITOR_IO_STAT_PROVIDER_HPP */
+#endif /* __DNET_MONITOR_BACKENDS_STAT_PROVIDER_HPP */

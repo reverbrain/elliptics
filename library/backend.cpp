@@ -127,48 +127,6 @@ err_out_exit:
 	return NULL;
 }
 
-class backend_stat_provider : public ioremap::monitor::stat_provider {
-public:
-	backend_stat_provider(const dnet_backend_io *backend_io)
-	: m_cb(backend_io->cb)
-	{}
-
-	static std::string name(uint64_t backend_id)
-	{
-		return "backend_" + std::to_string(static_cast<unsigned long long>(backend_id));
-	}
-
-	virtual std::string json() const {
-		char *json_stat = NULL;
-		size_t size = 0;
-		if (m_cb->storage_stat_json)
-			m_cb->storage_stat_json(m_cb->command_private, &json_stat, &size);
-		return std::string(json_stat, size);
-	}
-
-	virtual bool check_category(uint64_t category) const {
-		return category & DNET_MONITOR_BACKEND;
-	}
-
-private:
-	const dnet_backend_callbacks *m_cb;
-};
-
-static int dnet_backend_stat_provider_init(struct dnet_backend_io *backend, struct dnet_node *n)
-{
-	try {
-		ioremap::monitor::add_provider(n, new backend_stat_provider(backend), backend_stat_provider::name(backend->backend_id));
-	} catch (...) {
-		return -ENOMEM;
-	}
-	return 0;
-}
-
-static void dnet_backend_stat_provider_cleanup(size_t backend_id, struct dnet_node *n)
-{
-	ioremap::monitor::remove_provider(n, backend_stat_provider::name(backend_id));
-}
-
 int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state)
 {
 	int ids_num;
@@ -236,12 +194,6 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 		goto err_out_cache_cleanup;
 	}
 
-	err = dnet_backend_stat_provider_init(backend_io, node);
-	if (err) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init stat provider, err: %d", backend_id, err);
-		goto err_out_backend_io_cleanup;
-	}
-
 	ids_num = 0;
 	ids = dnet_ids_init(node, backend.history.c_str(), &ids_num, backend.config.storage_free, node->addrs, backend_id);
 	err = dnet_route_list_enable_backend(node->route, backend_id, backend.group, ids, ids_num);
@@ -249,7 +201,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to add backend to route list, err: %d", backend_id, err);
-		goto err_out_stat_destroy;
+		goto err_out_backend_io_cleanup;
 	}
 
 	dnet_log(node, DNET_LOG_INFO, "backend_init: backend: %zu, initialized", backend_id);
@@ -263,8 +215,6 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 	return 0;
 
 	dnet_route_list_disable_backend(node->route, backend_id);
-err_out_stat_destroy:
-	dnet_backend_stat_provider_cleanup(backend_id, node);
 err_out_backend_io_cleanup:
 	backend_io->need_exit = 1;
 	dnet_backend_io_cleanup(node, backend_io);
@@ -319,8 +269,6 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 	if (node->route)
 		dnet_route_list_disable_backend(node->route, backend_id);
 
-	dnet_backend_stat_provider_cleanup(backend_id, node);
-
 	if (backend_io)
 		dnet_backend_io_cleanup(node, backend_io);
 
@@ -362,8 +310,10 @@ int dnet_backend_init_all(struct dnet_node *node)
 		}
 	}
 
-	if (all_ok)
+	if (all_ok) {
+		dnet_monitor_init_backends_stat_provider(node);
 		return 0;
+	}
 	else if (err == 1)
 		return -EINVAL;
 	else
@@ -438,21 +388,30 @@ static int dnet_backend_set_ids(dnet_node *node, uint32_t backend_id, dnet_raw_i
 	return err;
 }
 
-static void backend_fill_status(dnet_node *node, dnet_backend_status &status, size_t backend_id)
-{
+void backend_fill_status_nolock(struct dnet_node *node, struct dnet_backend_status *status, size_t backend_id) {
+	if (!status)
+		return;
+
 	const auto &backends = node->config_data->backends->backends;
 	const dnet_backend_info &backend = backends[backend_id];
 
-	std::lock_guard<std::mutex> guard(*backend.state_mutex);
-
 	const auto &cb = backend.config.cb;
 
-	status.backend_id = backend_id;
-	status.state = backend.state;
+	status->backend_id = backend_id;
+	status->state = backend.state;
 	if (backend.state == DNET_BACKEND_ENABLED && cb.defrag_status)
-		status.defrag_state = cb.defrag_status(cb.command_private);
-	status.last_start = backend.last_start;
-	status.last_start_err = backend.last_start_err;
+		status->defrag_state = cb.defrag_status(cb.command_private);
+	status->last_start = backend.last_start;
+	status->last_start_err = backend.last_start_err;
+}
+
+void backend_fill_status(dnet_node *node, dnet_backend_status *status, size_t backend_id)
+{
+	const auto &backends = node->config_data->backends->backends;
+	const dnet_backend_info &backend = backends[backend_id];
+	std::lock_guard<std::mutex> guard(*backend.state_mutex);
+
+	backend_fill_status_nolock(node, status, backend_id);
 }
 
 int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
@@ -509,7 +468,7 @@ int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	dnet_backend_status *status = reinterpret_cast<dnet_backend_status *>(list + 1);
 
 	list->backends_count = 1;
-	backend_fill_status(node, *status, control->backend_id);
+	backend_fill_status(node, status, control->backend_id);
 
 	if (err) {
 		dnet_send_reply(st, cmd, list, sizeof(buffer), true);
@@ -543,7 +502,7 @@ int dnet_cmd_backend_status(struct dnet_net_state *st, struct dnet_cmd *cmd, voi
 
 	for (size_t i = 0; i < backends.size(); ++i) {
 		dnet_backend_status &status = list->backends[i];
-		backend_fill_status(st->n, status, i);
+		backend_fill_status(st->n, &status, i);
 	}
 
 	cmd->flags &= ~DNET_FLAGS_NEED_ACK;

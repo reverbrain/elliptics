@@ -26,7 +26,7 @@ def pytest_addoption(parser):
     parser.addoption('--remotes', action='append', default=[],
                      help='Elliptics node address')
     parser.addoption('--groups', action='store', help='elliptics groups', default='1,2,3')
-    parser.addoption('--loglevel', type='choice', choices=xrange(5), default=1)
+    parser.addoption('--loglevel', type='choice', choices=xrange(5), default=elliptics.log_level.debug)
 
     parser.addoption('--without-cocaine', action='store_true', default=False,
                      help='Turns off exec tests that are connected with cocaine')
@@ -58,7 +58,7 @@ def raises(type, message, func, *args, **kwargs):
 
 @pytest.fixture(scope='class')
 def simple_node(request):
-    simple_node = elliptics.Node(elliptics.Logger("client.log", 4))
+    simple_node = elliptics.Node(elliptics.Logger("client.log", elliptics.log_level.debug))
     simple_node.add_remotes(request.config.option.remotes)
 
     def fin():
