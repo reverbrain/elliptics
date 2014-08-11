@@ -43,7 +43,7 @@
 #endif
 
 #if defined HAVE_PROC_STAT
-static int backend_vm_stat(dnet_logger *l, struct dnet_stat *st)
+int backend_vm_stat(dnet_logger *l, struct dnet_stat *st)
 {
 	int err;
 	FILE *f;
@@ -103,7 +103,7 @@ err_out_exit:
 #include <sys/sysctl.h>
 #include <sys/resource.h>
 
-static int backend_vm_stat(dnet_logger *l, struct dnet_stat *st)
+int backend_vm_stat(dnet_logger *l, struct dnet_stat *st)
 {
 	int err;
 	struct loadavg la;
@@ -149,7 +149,7 @@ static int backend_vm_stat(dnet_logger *l, struct dnet_stat *st)
 	return 0;
 }
 #else
-static int backend_vm_stat(dnet_logger *l __unused, struct dnet_stat *st __unused)
+int backend_vm_stat(dnet_logger *l __unused, struct dnet_stat *st __unused)
 {
 	return 0;
 }

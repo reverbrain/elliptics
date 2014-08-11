@@ -51,6 +51,7 @@ const std::string list = "<html>"
 	"GET <a href='/io_histograms'>/io_histograms</a> - Retrieves statistics about io histograms<br/>"
 	"GET <a href='/backend'>/backend</a> - Retrieves statistics about backend<br/>"
 	"GET <a href='/call_tree'>/call_tree</a> - Retrieves statistics about react call trees<br/>"
+	"GET <a href='/vm'>/vm</a> - Retrieves virtual memory statistics<br/>"
 	"</body>"
 	"</html>";
 }
@@ -63,7 +64,8 @@ const std::map<std::string, uint64_t> handlers = {{"/all", DNET_MONITOR_ALL},
 	{"/commands", DNET_MONITOR_COMMANDS},
 	{"/io_histograms", DNET_MONITOR_IO_HISTOGRAMS},
 	{"/backend", DNET_MONITOR_BACKEND},
-	{"/call_tree", DNET_MONITOR_CALL_TREE}};
+	{"/call_tree", DNET_MONITOR_CALL_TREE},
+	{"/vm", DNET_MONITOR_VM}};
 
 /*!
  * Generates HTTP response for @req category with @content

@@ -379,6 +379,14 @@ private:
 
 	/*!
 	 * \internal
+	 * Fills \a stat_value by usefull vm statistics and returns it
+	 * \a allocator - document allocator that is required by rapidjson
+	 */
+	rapidjson::Value& vm_report(rapidjson::Value &stat_value,
+	                            rapidjson::Document::AllocatorType &allocator);
+
+	/*!
+	 * \internal
 	 *
 	 * Lock for controlling access to commands statistics
 	 */

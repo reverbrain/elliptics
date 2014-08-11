@@ -44,11 +44,13 @@ static void fill_backend_backend(rapidjson::Value &stat_value,
 	auto cb = backend.cb;
 	if (cb->storage_stat_json) {
 		cb->storage_stat_json(cb->command_private, &json_stat, &size);
-		rapidjson::Document backend_value(&allocator);
-		backend_value.Parse<0>(json_stat);
-		stat_value.AddMember("backend",
-		                     static_cast<rapidjson::Value&>(backend_value),
-		                     allocator);
+		if (json_stat && size) {
+			rapidjson::Document backend_value(&allocator);
+			backend_value.Parse<0>(json_stat);
+			stat_value.AddMember("backend",
+			                     static_cast<rapidjson::Value&>(backend_value),
+			                     allocator);
+		}
 	}
 }
 
@@ -195,6 +197,11 @@ static void backends_stats_json(uint64_t categories,
  * Generates json statistics from all backends
  */
 std::string backends_stat_provider::json(uint64_t categories) const {
+	if (!(categories & DNET_MONITOR_IO) &&
+	    !(categories & DNET_MONITOR_CACHE) &&
+	    !(categories & DNET_MONITOR_BACKEND))
+	    return std::string();
+
 	rapidjson::Document doc;
 	doc.SetObject();
 	auto &allocator = doc.GetAllocator();
