@@ -42,15 +42,15 @@ public:
 
 	bool handle(dnet_addr *addr, dnet_cmd *cmd)
 	{
-		BH_LOG(m_logger, cmd->status ? DNET_LOG_ERROR : DNET_LOG_NOTICE,
-			"%s: handled reply from: %s, cmd: %s, flags: %lld, trans: %lld, status: %d, size: %lld, client: %d, destruction: %d",
-			dnet_dump_id(&cmd->id), addr ? dnet_server_convert_dnet_addr(addr) : "<unknown>", dnet_cmd_string(cmd->cmd),
-			uint64_t(cmd->flags), uint64_t(cmd->trans), int(cmd->status), uint64_t(cmd->size),
-			!(cmd->flags & DNET_FLAGS_REPLY), is_trans_destroyed(cmd));
-
 		if (is_trans_destroyed(cmd)) {
 			return increment_completed();
 		}
+
+		BH_LOG(m_logger, cmd->status ? DNET_LOG_ERROR : DNET_LOG_NOTICE,
+			"%s: handled reply from: %s, cmd: %s, flags: %lld, trans: %lld, status: %d, size: %lld, client: %d, last: %d",
+			dnet_dump_id(&cmd->id), addr ? dnet_server_convert_dnet_addr(addr) : "<unknown>", dnet_cmd_string(cmd->cmd),
+			uint64_t(cmd->flags), uint64_t(cmd->trans), int(cmd->status), uint64_t(cmd->size),
+			!(cmd->flags & DNET_FLAGS_MORE), is_trans_destroyed(cmd));
 
 		auto data = std::make_shared<callback_result_data>(addr, cmd);
 
