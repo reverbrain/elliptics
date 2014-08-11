@@ -1370,7 +1370,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_index_recovery, create_session(n, { 1, 2 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 1, 2 }, 0, 0), -ENOENT);
 	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 1 }, 0, 0), -ENOENT);
-	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 3 }, 0, 0), -ENXIO);
+	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 99 }, 0, 0), -ENXIO);
 
 	return true;
 }
