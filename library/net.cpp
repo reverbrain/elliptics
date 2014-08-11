@@ -497,6 +497,12 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 		return err;
 	}
 
+	dnet_net_state *st = dnet_state_search_by_addr(node, addr);
+	if (!st) {
+		dnet_log(node, DNET_LOG_NOTICE, "Received route-list reply from unknown (destroyed?) state: %s", server_addr);
+		return -EINVAL;
+	}
+
 	dnet_addr_container *cnt = reinterpret_cast<dnet_addr_container *>(cmd + 1);
 	const size_t states_num = cnt->addr_num / cnt->node_addr_num;
 
@@ -518,7 +524,7 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 	}
 
 	for (size_t i = 0; i < states_num; i += cnt->node_addr_num) {
-		dnet_addr *addr = &cnt->addrs[i + node->st->idx];
+		dnet_addr *addr = &cnt->addrs[i + st->idx];
 		memcpy(&addrs[i], addr, sizeof(dnet_addr));
 	}
 
