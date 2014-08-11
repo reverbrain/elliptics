@@ -656,21 +656,6 @@ static inline char *dnet_dump_id_str(const unsigned char *id)
 }
 
 /*
- * Lookup a node which hosts given ID.
- *
- * dnet_lookup_object() will invoke given callback when lookup reply is received.
- * dnet_lookup() will add received address into local route table.
- * dnet_lookup_complete() is a completion function which adds received address
- * 	into local route table.
- *
- * Effectively dnet_lookup() is a dnet_lookup_object() with dnet_lookup_complete()
- * 	completion function.
- */
-int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
-	int (* complete)(struct dnet_addr *, struct dnet_cmd *, void *),
-	void *priv);
-
-/*
  * Returns 0 if versions are equal.
  * negative of positive value if @st->version is smaller or bigger than @version one.
  */
@@ -740,49 +725,6 @@ static inline int dnet_id_cmp(const struct dnet_id *id1, const struct dnet_id *i
 	return dnet_id_cmp_str(id1->id, id2->id);
 }
 
-
-/*
- * Request statistics from the node corresponding to given ID.
- * If @id is NULL statistics will be requested from all connected nodes.
- * @cmd specified stat command to use (DNET_CMD_STAT or DNET_CMD_STAT_COUNT).
- *
- * Function will sleep and print into DNET_LOG_INFO log level short
- * statistics if no @complete function is provided, otherwise it returns
- * after queueing all transactions and appropriate callback will be
- * invoked asynchronously.
- *
- * Function returns number of nodes statistics request was sent to
- * or negative error code. In case of error callback completion can
- * still be called.
- */
-int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
-	unsigned int cmd,
-	int (* complete)(struct dnet_addr *addr,
-			struct dnet_cmd *cmd,
-			void *priv),
-	void *priv);
-
-/*
- * Request monitor statistics from the node corresponding to given ID.
- * If @id is NULL statistics will be requested from all connected nodes.
- * @category specifies category of requested statistics.
- *
- * Function will sleep and print into DNET_LOG_INFO log level short
- * statistics if no @complete function is provided, otherwise it returns
- * after queueing all transactions and appropriate callback will be
- * invoked asynchronously.
- *
- * Function returns number of nodes statistics request was sent to
- * or negative error code. In case of error callback completion can
- * still be called.
- */
-int dnet_request_monitor_stat(struct dnet_session *s, struct dnet_id *id,
-	uint64_t categories,
-	int (* complete)(struct dnet_addr *state,
-			struct dnet_cmd *cmd,
-			void *priv),
-	void *priv);
-
 /*
  * Request notifications when given ID is modified.
  * Notifications are sent after update was stored in the IO backend.
@@ -827,35 +769,11 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *ctl);
 
 int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl);
-int dnet_request_cmd_id(struct dnet_session *s, struct dnet_id *id, struct dnet_trans_control *ctl);
 
 int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, const int sock_type, const int proto);
 
 /* Change node status on given address or ID */
 int dnet_update_status(struct dnet_session *s, const struct dnet_addr *addr, struct dnet_id *id, struct dnet_node_status *status);
-
-/*
- * Remove object by @id
- * If callback is provided, it will be invoked on completion, otherwise
- * function will block until server returns an acknowledge.
- *
- * Returns negative number on error, zero on success
- * and positive number is count of objects which will be provided
- * to complete function.
- */
-int dnet_remove_object(struct dnet_session *s, struct dnet_id *id,
-	int (* complete)(struct dnet_addr *addr,
-			struct dnet_cmd *cmd,
-			void *priv),
-	void *priv);
-
-/* Remove object with @id from the storage immediately */
-int dnet_remove_object_now(struct dnet_session *s, struct dnet_id *id);
-
-/*
- * Remove given file (identified by name or ID) from the storage.
- */
-int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struct dnet_id *id);
 
 /*
  * Transformation helper, which uses *ppos as an index for transformation function.
