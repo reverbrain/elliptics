@@ -149,41 +149,6 @@ inline bool operator ==(const address &first, const dnet_addr &second)
 	return dnet_addr_equal(&first.to_raw(), &second);
 }
 
-class logger_interface
-{
-	public:
-		virtual ~logger_interface() {}
-
-		virtual void log(const int level, const char *msg) = 0;
-};
-/*
-class logger_data;
-
-class logger
-{
-	public:
-		explicit logger(logger_interface *interface, const int level);
-		logger();
-		logger(const logger &other);
-		~logger();
-
-		logger &operator =(const logger &other);
-
-		void 		log(const int level, const char *msg);
-		void 		print(int level, const char *format, ...) __attribute__ ((format(printf, 3, 4)));
-		int			get_log_level();
-
-	protected:
-		std::shared_ptr<logger_data> m_data;
-};
-
-class file_logger : public logger
-{
-	public:
-		explicit file_logger(const char *file, const int level);
-		~file_logger();
-};
-*/
 class node_data;
 class session_data;
 
