@@ -138,7 +138,7 @@ rapidjson::Value &cache_manager::get_total_caches_size_stats_json(rapidjson::Val
 rapidjson::Value &cache_manager::get_caches_size_stats_json(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) const {
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		rapidjson::Value cache_time_stats(rapidjson::kObjectType);
-		stat_value.AddMember(std::to_string(i).c_str(), allocator, m_caches[i]->get_cache_stats().to_json(cache_time_stats, allocator), allocator);
+		stat_value.AddMember(std::to_string(static_cast<unsigned long long>(i)).c_str(), allocator, m_caches[i]->get_cache_stats().to_json(cache_time_stats, allocator), allocator);
 	}
 	return stat_value;
 }

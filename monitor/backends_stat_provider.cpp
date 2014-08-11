@@ -184,7 +184,7 @@ static void backends_stats_json(uint64_t categories,
 	const auto &backends = node->config_data->backends->backends;
 	for (size_t i = 0; i < backends.size(); ++i) {
 		rapidjson::Value backend_stat(rapidjson::kObjectType);
-		stat_value.AddMember(std::to_string(i).c_str(),
+		stat_value.AddMember(std::to_string(static_cast<unsigned long long>(i)).c_str(),
 		                     allocator,
 		                     backend_stats_json(categories, backend_stat, allocator, node, i),
 		                     allocator);
