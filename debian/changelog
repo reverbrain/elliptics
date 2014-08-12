@@ -1,3 +1,10 @@
+elliptics (2.25.6.8) unstable; urgency=low
+
+  * state: when searching state using address, do not print error if it was not found
+  * c++: added parallel and quorum lookups. Patch by derikon <derikon@yandex-team.ru>
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Aug 2014 02:25:52 +0400
+
 elliptics (2.25.6.7) unstable; urgency=low
 
   * dnet_add_state: return positive number of added states or negative error value. Added comments about this function.

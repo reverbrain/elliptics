@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.7
+Version:	2.25.6.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.8
+- state: when searching state using address, do not print error if it was not found
+- c++: added parallel and quorum lookups. Patch by derikon <derikon@yandex-team.ru>
+
 * Fri Aug 08 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.7
 - dnet_add_state: return positive number of added states or negative error value. Added comments about this function.
 - dnet_balancer: fixed error exit when one of real route matches with 00..0 or ff..f
