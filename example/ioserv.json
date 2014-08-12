@@ -5,7 +5,7 @@
 			{
 				"formatter": {
 					"type": "string",
-					"pattern": "%(timestamp)s %(request_id)s/%(tid)s/%(pid)s %(severity)s: %(message)s %(...L)s"
+					"pattern": "%(timestamp)s %(request_id)s/%(lwp)s/%(pid)s %(severity)s: %(message)s %(...L)s"
 				},
 				"sink": {
 					"type": "files",
