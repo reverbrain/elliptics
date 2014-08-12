@@ -426,11 +426,6 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	if (!found) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: could not find network state for address",
-				dnet_server_convert_dnet_addr(addr));
-	}
-
 	return found;
 }
 
