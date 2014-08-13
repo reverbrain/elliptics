@@ -1238,15 +1238,15 @@ void dnet_io_exit(struct dnet_node *n)
 	n->io = NULL;
 }
 
-int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io)
+int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io, int io_thread_num, int nonblocking_io_thread_num)
 {
 	int err = 0;
 
-	err = dnet_work_pool_alloc(&io->pool.recv_pool, n, io, n->config_data->cfg_state.io_thread_num, DNET_WORK_IO_MODE_BLOCKING, dnet_io_process);
+	err = dnet_work_pool_alloc(&io->pool.recv_pool, n, io, io_thread_num, DNET_WORK_IO_MODE_BLOCKING, dnet_io_process);
 	if (err) {
 		goto err_out_exit;
 	}
-	err = dnet_work_pool_alloc(&io->pool.recv_pool_nb, n, io, n->config_data->cfg_state.nonblocking_io_thread_num, DNET_WORK_IO_MODE_NONBLOCKING, dnet_io_process);
+	err = dnet_work_pool_alloc(&io->pool.recv_pool_nb, n, io, nonblocking_io_thread_num, DNET_WORK_IO_MODE_NONBLOCKING, dnet_io_process);
 	if (err) {
 		err = -ENOMEM;
 		goto err_out_free_recv_pool;

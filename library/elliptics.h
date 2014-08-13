@@ -505,7 +505,7 @@ struct dnet_io {
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
 int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev);
-int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io);
+int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io, int io_thread_num, int nonblocking_io_thread_num);
 void dnet_backend_io_cleanup(struct dnet_node *n, struct dnet_backend_io *io);
 int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg);
 int dnet_server_io_init(struct dnet_node *n);

@@ -39,7 +39,10 @@ struct dnet_backend_config_entry
 
 struct dnet_backend_info
 {
-	dnet_backend_info() : log(NULL), group(0), cache(NULL), enable_at_start(true), state_mutex(new std::mutex), state(DNET_BACKEND_DISABLED)
+	dnet_backend_info() :
+		log(NULL), group(0), cache(NULL), enable_at_start(true),
+		state_mutex(new std::mutex), state(DNET_BACKEND_DISABLED),
+		io_thread_num(0), nonblocking_io_thread_num(0)
 	{
 		dnet_empty_time(&last_start);
 		last_start_err = 0;
@@ -61,7 +64,10 @@ struct dnet_backend_info
 		last_start(other.last_start),
 		last_start_err(other.last_start_err),
 		config(other.config),
-		data(std::move(other.data))
+		data(std::move(other.data)),
+		cache_config(std::move(other.cache_config)),
+		io_thread_num(other.io_thread_num),
+		nonblocking_io_thread_num(other.nonblocking_io_thread_num)
 	{
 	}
 
@@ -80,11 +86,13 @@ struct dnet_backend_info
 		last_start_err = other.last_start_err;
 		config = other.config;
 		data = std::move(other.data);
+		cache_config = std::move(other.cache_config);
+		io_thread_num = other.io_thread_num;
+		nonblocking_io_thread_num = other.nonblocking_io_thread_num;
 
 		return *this;
 	}
 
-	std::unique_ptr<ioremap::cache::cache_config> cache_config;
 	dnet_config_backend config_template;
 	dnet_logger *log;
 	std::vector<dnet_backend_config_entry> options;
@@ -100,6 +108,10 @@ struct dnet_backend_info
 
 	dnet_config_backend config;
 	std::vector<char> data;
+
+	std::unique_ptr<ioremap::cache::cache_config> cache_config;
+	int io_thread_num;
+	int nonblocking_io_thread_num;
 };
 
 struct dnet_backend_info_list

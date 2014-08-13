@@ -188,7 +188,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 
 	backend_io->cb = &backend.config.cb;
 
-	err = dnet_backend_io_init(node, backend_io);
+	err = dnet_backend_io_init(node, backend_io, backend.io_thread_num, backend.nonblocking_io_thread_num);
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init io pool, err: %d", backend_id, err);
 		goto err_out_cache_cleanup;

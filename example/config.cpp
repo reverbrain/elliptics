@@ -358,6 +358,9 @@ void parse_backends(config_data *data, const config &backends)
 			info->cache_config = blackhole::utils::make_unique<ioremap::cache::cache_config>(*data->cache_config);
 		}
 
+		info->io_thread_num = backend.at("io_thread_num", data->cfg_state.io_thread_num);
+		info->nonblocking_io_thread_num = backend.at("nonblocking_io_thread_num", data->cfg_state.nonblocking_io_thread_num);
+
 		for (int i = 0; i < info->config.num; ++i) {
 			dnet_config_entry &entry = info->config.ent[i];
 			if (backend.has(entry.key)) {
