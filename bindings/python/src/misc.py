@@ -15,6 +15,7 @@
 
 from elliptics.core import *
 from elliptics.route import Address
+from elliptics.node import Node
 import elliptics
 
 
