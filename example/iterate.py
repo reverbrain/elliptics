@@ -307,7 +307,7 @@ if __name__ == '__main__':
         ctx.session.groups = ctx.groups
     else:
         ctx.session.groups = ctx.session.routes.groups()
-    print ctx.session.get_routes()
+    print ctx.session.routes
 
     if ctx.iterate_mode == MODE_NODES:
         for r in ctx.remotes:

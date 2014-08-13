@@ -631,10 +631,6 @@ class session
 		 * Changes node \a status on given \a address.
 		 */
 		void			update_status(const address &addr, dnet_node_status *status);
-		/*!
-		 * Changes node \a status on key \a id.
-		 */
-		void			update_status(const key &id, dnet_node_status *status);
 
 		async_backend_control_result enable_backend(const address &addr, uint32_t backend_id);
 		async_backend_control_result disable_backend(const address &addr, uint32_t backend_id);

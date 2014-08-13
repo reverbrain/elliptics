@@ -16,6 +16,7 @@
 from elliptics.core import *
 from elliptics.route import Address
 from elliptics.node import Node
+from elliptics import log_level
 
 
 @property
@@ -63,7 +64,7 @@ wrap_address([IteratorResultEntry,
               ])
 
 
-def create_node(elog=None, log_file='/dev/stderr', log_level=1,
+def create_node(elog=None, log_file='/dev/stderr', log_level=log_level.error,
                 cfg=None, wait_timeout=3600, check_timeout=60,
                 flags=0, io_thread_num=1, net_thread_num=1,
                 nonblocking_io_thread_num=1, remotes=[]):
@@ -78,13 +79,10 @@ def create_node(elog=None, log_file='/dev/stderr', log_level=1,
         cfg.nonblocking_io_thread_num = nonblocking_io_thread_num
         cfg.net_thread_num = net_thread_num
     n = Node(elog, cfg)
-    for r in remotes:
-        try:
-            n.add_remotes(Address.from_host_port_family(r))
-        except Exception as e:
-            from elliptics.core import log_level
-            elog.log(log_level.error, "Coudn't connect to: {0}: {1}".format(repr(r), repr(e)))
-            pass
+    try:
+      n.add_remotes(map(Address.from_host_port_family, remotes))
+    except Exception as e:
+        elog.log(log_level.error, "Coudn't connect to: {0}: {1}".format(repr(remotes), repr(e)))
     return n
 
 

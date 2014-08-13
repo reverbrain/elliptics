@@ -1826,19 +1826,6 @@ void session::update_status(const address &addr, dnet_node_status *status)
 	}
 }
 
-void session::update_status(const key &id, dnet_node_status *status)
-{
-	transform(id);
-	dnet_id raw = id.id();
-
-	int err;
-
-	err = dnet_update_status(m_data->session_ptr, NULL, &raw, status);
-	if (err < 0) {
-		throw_error(err, id.id(), "failed to request set status %p", status);
-	}
-}
-
 static async_backend_control_result update_backend_status(session &orig_sess, const address &addr, uint32_t backend_id,
 	dnet_backend_command command, const std::vector<dnet_raw_id> &ids = std::vector<dnet_raw_id>())
 {

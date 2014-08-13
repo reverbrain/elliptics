@@ -13,7 +13,7 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-from elliptics.core import Session
+from elliptics.core import Session, monitor_stat_categories
 from elliptics.route import RouteList, Address
 from elliptics.log import logged_class
 
@@ -48,13 +48,6 @@ class Session(Session):
         routes = session.routes
         """
         return RouteList.from_routes(super(Session, self).get_routes())
-
-    def get_routes(self):
-        """
-        Returns current routes table\n
-        routes = session.get_routes
-        """
-        return self.routes
 
     def lookup_address(self, key, group_id):
         """
@@ -175,20 +168,16 @@ class Session(Session):
                                                family=address.family,
                                                backend_id=backend_id)
 
-    def update_status(self, id_or_address, status):
+    def update_status(self, address, status):
         """
         Updates status of @id_or_address to @status.
         If id_or_address is elliptics.Id then this id will be used for determining the node.
         If id_or_address is elliptics.Address then status of this node will be updated.
         """
-        if type(id_or_address) is Address:
-            super(Session, self).update_status(host=address.host,
-                                               port=address.port,
-                                               family=address.family,
-                                               status=status)
-        else:
-            super(Session, self).update_status(id=id_or_address,
-                                               status=status)
+        super(Session, self).update_status(host=address.host,
+                                           port=address.port,
+                                           family=address.family,
+                                           status=status)
 
     def enable_backend(self, address, backend_id):
         """
@@ -228,3 +217,10 @@ class Session(Session):
         return super(Session, self).request_backends_status(host=address.host,
                                                             port=address.port,
                                                             family=address.family)
+
+    def monitor_stat(self, address=None, categories=monitor_stat_categories.all):
+        if not address:
+            address = ()
+        else:
+            address = tuple(address)
+        return super(Session, self).monitor_stat(address, categories);

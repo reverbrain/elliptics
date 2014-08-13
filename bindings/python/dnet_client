@@ -63,7 +63,7 @@ def create_session(parser, options, single_remote=False):
     session = elliptics.Session(node)
 
     if len(groups) == 0:
-        groups = session.get_routes().groups()
+        groups = session.routes.groups()
 
     session.groups = groups
 

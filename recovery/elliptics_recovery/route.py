@@ -47,7 +47,7 @@ class RouteList(RouteList):
         It slightly mangles route list by explicitly inserting start and end of
         hash-ring and also merging adj. routes for the same into one.
         """
-        return cls(session.get_routes().routes)
+        return cls(session.routes.routes)
 
     def get_ranges_by_address(self, address):
         ranges = []

@@ -432,13 +432,8 @@ public:
 		return create_result(std::move(session::lookup(transform(id).id())));
 	}
 
-	elliptics_status update_status(const bp::api::object &id, elliptics_status &status) {
-		session::update_status(transform(id).id(), &status);
-		return status;
-	}
-
-	elliptics_status update_status_addr(const std::string &host, const int port,
-	                                    const int family, elliptics_status &status) {
+	elliptics_status update_status(const std::string &host, const int port,
+	                               const int family, elliptics_status &status) {
 		session::update_status(address(host, port, family), &status);
 		return status;
 	}
@@ -709,11 +704,18 @@ public:
 		return create_result(std::move(session::stat_log(transform(id).id())));
 	}
 
-	python_monitor_stat_result monitor_stat(const bp::api::object &id, uint64_t categories) {
-		if (id.ptr() == Py_None)
+	python_monitor_stat_result monitor_stat(const bp::tuple &addr, uint64_t categories) {
+		if (bp::len(addr) == 0)
 			return create_result(std::move(session::monitor_stat(categories)));
 
-		return create_result(std::move(session::monitor_stat(transform(id).id(), categories)));
+		bp::extract<std::string> get_host(addr[0]);
+		bp::extract<int> get_port(addr[1]);
+		bp::extract<int> get_family(addr[2]);
+
+		return create_result(std::move(session::monitor_stat(address(get_host(),
+		                                                             get_port(),
+		                                                             get_family()),
+		                                                     categories)));
 	}
 
 	python_stat_count_result stat_log_count() {
@@ -1354,16 +1356,6 @@ void init_elliptics_session() {
 		    "        print 'filepath:', write_result.filepath\n")
 
 		.def("update_status", &elliptics_session::update_status,
-		     (bp::arg("id"), bp::arg("status")),
-		    "update_status(id, status)\n"
-		    "    Updates status of node specified by id to status.\n\n"
-		    "    id = session.routes.get_address_id(Address.from_host_port('host.com:1025'))\n"
-		    "    new_status = elliptics.SessionStatus()\n"
-		    "    new_status.nflags = elliptics.status_flags.change\n"
-		    "    new_status.log_level = elliptics.log_level.error\n"
-		    "    session.update_status(id, new_status)")
-
-		.def("update_status", &elliptics_session::update_status_addr,
 		     (bp::arg("host"), bp::arg("port"),
 		      bp::arg("family"), bp::arg("status")),
 		    "update_status(addr, port, family, status)\n"

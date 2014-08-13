@@ -216,7 +216,7 @@ class TestSession:
 
         for id, address, backend in routes.get_unique_routes():
             ranges = routes.get_address_backend_ranges(address, backend)
-            statistics = session.monitor_stat(id, elliptics.monitor_stat_categories.backend).get()[0].statistics
+            statistics = session.monitor_stat(address, elliptics.monitor_stat_categories.backend).get()[0].statistics
             records_in_blob = statistics['backends']['{0}'.format(backend)]['backend']['config']['records_in_blob']
 
             for i, (begin, end) in enumerate(ranges):
