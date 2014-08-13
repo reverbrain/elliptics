@@ -50,6 +50,7 @@
 
 #include "../library/elliptics.h"
 #include "../monitor/monitor.h"
+#include "../cache/cache.hpp"
 
 #include <boost/lexical_cast.hpp>
 
@@ -82,6 +83,7 @@ struct config_data : public dnet_config_data
 	ioremap::elliptics::logger_base logger_base;
 	ioremap::elliptics::logger logger;
 	std::vector<address> remotes;
+	std::unique_ptr<cache::cache_config> cache_config;
 };
 
 extern "C" dnet_config_data *dnet_config_data_create()
@@ -92,13 +94,6 @@ extern "C" dnet_config_data *dnet_config_data_create()
 
 	data->backends = &data->backends_guard;
 	data->destroy_config_data = dnet_config_data_destroy;
-
-	data->cfg_state.caches_number = DNET_DEFAULT_CACHES_NUMBER;
-	data->cfg_state.cache_pages_number = DNET_DEFAULT_CACHE_PAGES_NUMBER;
-	data->cfg_state.cache_pages_proportions = reinterpret_cast<unsigned *>(malloc(DNET_DEFAULT_CACHE_PAGES_NUMBER * sizeof(unsigned)));
-
-	for (unsigned i = 0; i < DNET_DEFAULT_CACHE_PAGES_NUMBER; ++i)
-		data->cfg_state.cache_pages_proportions[i] = 1;
 
 	return data;
 }
@@ -266,23 +261,6 @@ static int dnet_set_malloc_options(config_data *data, unsigned long long value)
 	return 0;
 }
 
-static void dnet_set_cache_pages_proportions(config_data *data, const std::vector<unsigned> &values)
-{
-	if (values.empty())
-		return;
-
-	free(data->cfg_state.cache_pages_proportions);
-	data->cfg_state.cache_pages_number = 0;
-
-	data->cfg_state.cache_pages_proportions = reinterpret_cast<unsigned *>(malloc(values.size() * sizeof(unsigned)));
-	if (!data->cfg_state.cache_pages_proportions)
-		throw std::bad_alloc();
-
-	memcpy(data->cfg_state.cache_pages_proportions, values.data(), values.size() * sizeof(unsigned));
-
-	data->cfg_state.cache_pages_number = values.size();
-}
-
 void parse_options(config_data *data, const config &options)
 {
 	if (options.has("mallopt_mmap_threshold")) {
@@ -328,10 +306,7 @@ void parse_options(config_data *data, const config &options)
 
 	if (options.has("cache")) {
 		const config cache = options.at("cache");
-		data->cfg_state.cache_size = cache.at("size", 0ull);
-		data->cfg_state.cache_sync_timeout = cache.at("sync_timeout", 0);
-		data->cfg_state.caches_number = cache.at("shards", data->cfg_state.caches_number);
-		dnet_set_cache_pages_proportions(data, cache.at("pages_proportions", std::vector<unsigned>()));
+		data->cache_config = ioremap::cache::cache_config::parse(cache);
 	}
 }
 
@@ -375,6 +350,13 @@ void parse_backends(config_data *data, const config &backends)
 		info->history = backend.at<std::string>("history");
 		info->enable_at_start = backend.at<bool>("enable", true);
 		info->cache = NULL;
+
+		if (backend.has("cache")) {
+			const config cache = backend.at("cache");
+			info->cache_config = ioremap::cache::cache_config::parse(cache);
+		} else if (data->cache_config) {
+			info->cache_config = blackhole::utils::make_unique<ioremap::cache::cache_config>(*data->cache_config);
+		}
 
 		for (int i = 0; i < info->config.num; ++i) {
 			dnet_config_entry &entry = info->config.ent[i];

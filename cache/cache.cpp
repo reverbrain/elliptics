@@ -29,26 +29,43 @@
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 
+#include "../example/config.hpp"
+
 namespace ioremap { namespace cache {
 
-cache_manager::cache_manager(dnet_backend_io *backend, struct dnet_node *n) : m_node(n) {
-	size_t caches_number = n->caches_number;
-	m_cache_pages_number = n->cache_pages_number;
-	m_max_cache_size = n->cache_size;
+std::unique_ptr<cache_config> cache_config::parse(const elliptics::config::config &cache)
+{
+	auto size = cache.at("size");
+	if (size.as<size_t>() == 0) {
+		throw elliptics::config::config_error(size.path() + " must be non-zero");
+	}
+
+	cache_config config;
+	config.size = size.as<size_t>();
+	config.count = cache.at<size_t>("shards", DNET_DEFAULT_CACHES_NUMBER);
+	config.sync_timeout = cache.at<unsigned>("sync_timeout", DNET_DEFAULT_CACHE_SYNC_TIMEOUT_SEC);
+	config.pages_proportions = cache.at("pages_proportions", std::vector<size_t>(DNET_DEFAULT_CACHE_PAGES_NUMBER, 1));
+	return blackhole::utils::make_unique<cache_config>(config);
+}
+
+cache_manager::cache_manager(dnet_backend_io *backend, dnet_node *n, const cache_config &config) : m_node(n) {
+	size_t caches_number = config.count;
+	m_cache_pages_number = config.pages_proportions.size();
+	m_max_cache_size = config.size;
 	size_t max_size = m_max_cache_size / caches_number;
 
 	size_t proportionsSum = 0;
 	for (size_t i = 0; i < m_cache_pages_number; ++i) {
-		proportionsSum += n->cache_pages_proportions[i];
+		proportionsSum += config.pages_proportions[i];
 	}
 
 	std::vector<size_t> pages_max_sizes(m_cache_pages_number);
 	for (size_t i = 0; i < m_cache_pages_number; ++i) {
-		pages_max_sizes[i] = max_size * (n->cache_pages_proportions[i] * 1.0 / proportionsSum);
+		pages_max_sizes[i] = max_size * (config.pages_proportions[i] * 1.0 / proportionsSum);
 	}
 
 	for (size_t i = 0; i < caches_number; ++i) {
-		m_caches.emplace_back(std::make_shared<slru_cache_t>(backend, n, pages_max_sizes));
+		m_caches.emplace_back(std::make_shared<slru_cache_t>(backend, n, pages_max_sizes, config.sync_timeout));
 	}
 }
 
@@ -278,10 +295,10 @@ int dnet_cmd_cache_lookup(struct dnet_backend_io *backend, struct dnet_net_state
 	return err;
 }
 
-void *dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend)
+void *dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend, const void *config)
 {
 	try {
-		return (void *)(new cache_manager(backend, n));
+		return (void *)(new cache_manager(backend, n, *reinterpret_cast<const cache_config *>(config)));
 	} catch (const std::exception &e) {
 		BH_LOG(*n->log, DNET_LOG_ERROR, "Could not create cache: %s", e.what());
 		return NULL;

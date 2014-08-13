@@ -627,11 +627,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->bg_ionice_prio = cfg->bg_ionice_prio;
 	n->removal_delay = cfg->removal_delay;
 	n->flags = cfg->flags;
-	n->cache_size = cfg->cache_size;
-	n->cache_sync_timeout = cfg->cache_sync_timeout;
-	n->caches_number = cfg->caches_number;
-	n->cache_pages_number = cfg->cache_pages_number;
-	n->cache_pages_proportions = cfg->cache_pages_proportions;
 	n->indexes_shard_count = cfg->indexes_shard_count;
 
 	if (!n->log)
@@ -649,12 +644,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		n->check_timeout = DNET_DEFAULT_CHECK_TIMEOUT_SEC;
 		dnet_log(n, DNET_LOG_NOTICE, "Using default check timeout (%ld seconds).",
 				n->check_timeout);
-	}
-
-	if (!n->cache_sync_timeout) {
-		n->cache_sync_timeout = DNET_DEFAULT_CACHE_SYNC_TIMEOUT_SEC;
-		dnet_log(n, DNET_LOG_NOTICE, "Using default check timeout (%d seconds).",
-				n->cache_sync_timeout);
 	}
 
 	if (!n->stall_count) {

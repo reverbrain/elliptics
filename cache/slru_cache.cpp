@@ -25,14 +25,16 @@ namespace ioremap { namespace cache {
 
 // public:
 
-slru_cache_t::slru_cache_t(struct dnet_backend_io *backend, struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes) :
+slru_cache_t::slru_cache_t(struct dnet_backend_io *backend, struct dnet_node *n,
+	const std::vector<size_t> &cache_pages_max_sizes, unsigned sync_timeout) :
 	m_backend(backend),
 	m_node(n),
 	m_cache_pages_number(cache_pages_max_sizes.size()),
 	m_cache_pages_max_sizes(cache_pages_max_sizes),
 	m_cache_pages_sizes(m_cache_pages_number, 0),
 	m_cache_pages_lru(new lru_list_t[m_cache_pages_number]),
-	m_clear_occured(false) {
+	m_clear_occured(false),
+	m_sync_timeout(sync_timeout) {
 	m_lifecheck = std::thread(std::bind(&slru_cache_t::life_check, this));
 }
 
@@ -77,7 +79,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 				new_page = true;
 				it->set_only_append(true);
 				size_t previous_eventtime = it->eventtime();
-				it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
+				it->set_synctime(time(NULL) + m_sync_timeout);
 
 				if (previous_eventtime != it->eventtime()) {
 					react_start_action(ACTION_CACHE_DECREASE_KEY);
@@ -216,7 +218,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	size_t previous_eventtime = it->eventtime();
 
 	if (!it->synctime() && !(io->flags & DNET_IO_FLAGS_CACHE_ONLY)) {
-		it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
+		it->set_synctime(time(NULL) + m_sync_timeout);
 	}
 
 	if (lifetime) {

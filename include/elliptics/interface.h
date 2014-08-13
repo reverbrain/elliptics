@@ -314,19 +314,8 @@ struct dnet_config
 
 	struct srw_init_ctl	srw;
 
-	/* Total cache size */
-	uint64_t		cache_size;
-
-	int			cache_sync_timeout;
-
-	/* Caches number */
-	unsigned int		caches_number;
-
-	/* Cache pages number */
-	unsigned int	cache_pages_number;
-
-	/* Cache pages proportions */
-	unsigned int*	cache_pages_proportions;
+	int			reserved_for_future_use_2[5];
+	int			*reserved_for_future_use_3[1];
 
 	/*
 	 * Monitor socket port

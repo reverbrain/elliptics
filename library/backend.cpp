@@ -178,8 +178,8 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 		goto err_out_exit;
 	}
 
-	if (node->cache_size) {
-		backend_io->cache = backend.cache = dnet_cache_init(node, backend_io);
+	if (backend.cache_config) {
+		backend_io->cache = backend.cache = dnet_cache_init(node, backend_io, backend.cache_config.get());
 		if (!backend.cache) {
 			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init cache, err: %d", backend_id, err);
 			goto err_out_backend_cleanup;

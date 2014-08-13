@@ -599,7 +599,6 @@ struct dnet_node
 
 	int			check_in_progress;
 	long			check_timeout;
-	int			cache_sync_timeout;
 
 	pthread_t		check_tid;
 	pthread_t		reconnect_tid;
@@ -658,11 +657,6 @@ struct dnet_node
 	 * Lock used for list management
 	 */
 	pthread_mutex_t		iterator_lock;
-
-	size_t			cache_size;
-	size_t			caches_number;
-	size_t			cache_pages_number;
-	unsigned int		*cache_pages_proportions;
 
 	void			*monitor;
 
@@ -889,7 +883,7 @@ int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_srw_cleanup(struct dnet_node *n);
 int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *header, const void *data);
 
-void *dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend);
+void *dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend, const void *config);
 void dnet_cache_cleanup(void *);
 int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);
 int dnet_cmd_cache_lookup(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd);

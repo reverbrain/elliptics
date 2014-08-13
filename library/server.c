@@ -236,9 +236,6 @@ void dnet_server_node_destroy(struct dnet_node *n)
 
 	dnet_srw_cleanup(n);
 
-	if (n->cache_pages_proportions)
-		free(n->cache_pages_proportions);
-
 	dnet_counter_destroy(n);
 	dnet_locks_destroy(n);
 	dnet_local_addr_cleanup(n);

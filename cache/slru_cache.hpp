@@ -26,7 +26,7 @@ using namespace react;
 
 class slru_cache_t {
 public:
-	slru_cache_t(struct dnet_backend_io *backend, struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes);
+	slru_cache_t(struct dnet_backend_io *backend, struct dnet_node *n, const std::vector<size_t> &cache_pages_max_sizes, unsigned sync_timeout);
 
 	~slru_cache_t();
 
@@ -54,6 +54,7 @@ private:
 	treap_t m_treap;
 	mutable cache_stats m_cache_stats;
 	bool m_clear_occured;
+	unsigned m_sync_timeout;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 

@@ -12,6 +12,24 @@
 
 #include <elliptics/error.hpp>
 
+namespace ioremap { namespace elliptics { namespace config {
+class config;
+}}}
+
+namespace ioremap { namespace cache {
+
+struct cache_config
+{
+	size_t			size;
+	size_t			count;
+	unsigned		sync_timeout;
+	std::vector<size_t>	pages_proportions;
+
+	static std::unique_ptr<cache_config> parse(const ioremap::elliptics::config::config &cache);
+};
+
+}}
+
 struct dnet_backend_config_entry
 {
 	dnet_config_entry *entry;
@@ -66,6 +84,7 @@ struct dnet_backend_info
 		return *this;
 	}
 
+	std::unique_ptr<ioremap::cache::cache_config> cache_config;
 	dnet_config_backend config_template;
 	dnet_logger *log;
 	std::vector<dnet_backend_config_entry> options;
