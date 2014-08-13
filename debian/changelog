@@ -1,3 +1,9 @@
+elliptics (2.25.6.10) unstable; urgency=low
+
+  * client: Don't request route-list from every node
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Wed, 13 Aug 2014 15:12:59 +0400
+
 elliptics (2.25.6.9) unstable; urgency=low
 
   * routes: do not add too many route check addresses
