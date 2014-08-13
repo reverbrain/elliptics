@@ -1785,25 +1785,23 @@ async_monitor_stat_result session::monitor_stat(uint64_t categories)
 	control.set_data(&request, sizeof(request));
 
 	session sess = clean_clone();
-	return async_result_cast<monitor_stat_result_entry>(*this, send_to_each_backend(sess, control));
+	return async_result_cast<monitor_stat_result_entry>(*this, send_to_each_node(sess, control));
 }
 
-async_monitor_stat_result session::monitor_stat(const key &id, uint64_t categories)
+async_monitor_stat_result session::monitor_stat(const address &addr, uint64_t categories)
 {
-	transform(id);
-
 	dnet_monitor_stat_request request;
 	memset(&request, 0, sizeof(struct dnet_monitor_stat_request));
 	request.categories = categories;
 	dnet_convert_monitor_stat_request(&request);
 
 	transport_control control;
-	control.set_key(id.id());
 	control.set_command(DNET_CMD_MONITOR_STAT);
 	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
 	control.set_data(&request, sizeof(request));
 
 	session sess = clean_clone();
+	sess.set_direct_id(addr);
 	return async_result_cast<monitor_stat_result_entry>(*this, send_to_single_state(sess, control));
 }
 
