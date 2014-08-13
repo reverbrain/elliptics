@@ -179,11 +179,6 @@ std::string statistics::report(uint64_t categories) {
 		report.AddMember("histogram", histogram_report(histogram_value, allocator), allocator);
 	}
 
-	if (categories & DNET_MONITOR_VM) {
-		rapidjson::Value vm_value(rapidjson::kObjectType);
-		report.AddMember("vm", vm_report(vm_value, allocator), allocator);
-	}
-
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
 	for (auto it = m_stat_providers.cbegin(), end = m_stat_providers.cend(); it != end; ++it) {
 		auto json = it->first->json(categories);
@@ -338,31 +333,6 @@ rapidjson::Value& statistics::histogram_report(rapidjson::Value &stat_value, rap
 	          .AddMember("indx_internal",
 	                     command_histograms_print(indx_internal, allocator, m_indx_internal_histograms),
 	                     allocator);
-	return stat_value;
-}
-
-rapidjson::Value& statistics::vm_report(rapidjson::Value &stat_value,
-                                        rapidjson::Document::AllocatorType &allocator) {
-	int err = 0;
-	dnet_stat st;
-	err = backend_vm_stat(m_monitor.node()->log, &st);
-	if (err) {
-		return stat_value;
-	}
-
-	rapidjson::Value la_value(rapidjson::kArrayType);
-	for (size_t i = 0; i < 3; ++i) {
-		la_value.PushBack(st.la[i], allocator);
-	}
-	stat_value.AddMember("la", la_value, allocator);
-
-	stat_value.AddMember("total", st.vm_total, allocator);
-	stat_value.AddMember("active", st.vm_active, allocator);
-	stat_value.AddMember("inactive", st.vm_inactive, allocator);
-	stat_value.AddMember("free", st.vm_free, allocator);
-	stat_value.AddMember("cached", st.vm_cached, allocator);
-	stat_value.AddMember("buffers", st.vm_buffers, allocator);
-
 	return stat_value;
 }
 

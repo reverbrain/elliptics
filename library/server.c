@@ -108,9 +108,6 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 	if (err)
 		goto err_out_node_destroy;
 
-	dnet_monitor_init_io_stat_provider(n);
-	dnet_monitor_init_react_stat_provider(n);
-
 	err = dnet_node_check_stack(n);
 	if (err)
 		goto err_out_monitor_destroy;

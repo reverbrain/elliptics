@@ -139,8 +139,7 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 		                       allocator);
 	}
 
-	backend_value.AddMember("config", config_value, allocator);
-	stat_value.AddMember("backend", backend_value, allocator);
+	stat_value.AddMember("config", config_value, allocator);
 }
 
 /*
@@ -151,9 +150,11 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
                                             rapidjson::Document::AllocatorType &allocator,
                                             struct dnet_node *node,
                                             size_t backend_id) {
+	dnet_backend_status status;
 	const auto &backends = node->config_data->backends->backends;
 	std::lock_guard<std::mutex> guard(*backends[backend_id].state_mutex);
-	dnet_backend_status status;
+
+	stat_value.AddMember("backend_id", backend_id, allocator);
 	fill_backend_status(stat_value, allocator, node, status, backend_id);
 
 	if (status.state == DNET_BACKEND_ENABLED && node->io) {
@@ -167,10 +168,10 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 		if (categories & DNET_MONITOR_CACHE) {
 			fill_backend_cache(stat_value, allocator, backend);
 		}
-	} else {
-		if (categories & DNET_MONITOR_BACKEND) {
-			fill_disabled_backend_config(stat_value, allocator, node, backend_id);
-		}
+	}
+
+	if (categories & DNET_MONITOR_BACKEND) {
+		fill_disabled_backend_config(stat_value, allocator, node, backend_id);
 	}
 
 	return stat_value;

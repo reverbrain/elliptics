@@ -311,7 +311,6 @@ int dnet_backend_init_all(struct dnet_node *node)
 	}
 
 	if (all_ok) {
-		dnet_monitor_init_backends_stat_provider(node);
 		return 0;
 	}
 	else if (err == 1)

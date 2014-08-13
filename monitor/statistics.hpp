@@ -385,6 +385,12 @@ private:
 	rapidjson::Value& vm_report(rapidjson::Value &stat_value,
 	                            rapidjson::Document::AllocatorType &allocator);
 
+	rapidjson::Value& proc_io_report(rapidjson::Value &stat_value,
+	                                 rapidjson::Document::AllocatorType &allocator);
+
+	rapidjson::Value& proc_stat(rapidjson::Value &stat_value,
+	                            rapidjson::Document::AllocatorType &allocator);
+
 	/*!
 	 * \internal
 	 *

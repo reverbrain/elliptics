@@ -26,6 +26,7 @@
 #include "io_stat_provider.hpp"
 #include "react_stat_provider.hpp"
 #include "backends_stat_provider.hpp"
+#include "procfs_provider.hpp"
 
 static ioremap::monitor::monitor* get_monitor(struct dnet_node *n) {
 	return n->monitor ? static_cast<ioremap::monitor::monitor*>(n->monitor) : NULL;
@@ -58,6 +59,41 @@ void remove_provider(dnet_node *n, const std::string &name)
 		real_monitor->get_statistics().remove_provider(name);
 }
 
+static void init_io_stat_provider(struct dnet_node *n, struct dnet_config *cfg) {
+	try {
+		add_provider(n, new io_stat_provider(n), "io");
+	} catch (std::exception &e) {
+		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize io_stat_provider: %s.", e.what());
+	}
+}
+
+static void init_react_stat_provider(struct dnet_node *n, struct dnet_config *cfg) {
+	try {
+		auto call_tree_timeout = n->config_data->cfg_state.monitor_call_tree_timeout;
+		auto provider = new react_stat_provider(call_tree_timeout);
+		add_provider(n, provider, "call_tree");
+		n->react_aggregator = static_cast<void*> (&provider->get_react_aggregator());
+	}catch (std::exception &e) {
+		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize react_stat_provider: %s.", e.what());
+	}
+}
+
+static void init_backends_stat_provider(struct dnet_node *n, struct dnet_config *cfg) {
+	try {
+		add_provider(n, new backends_stat_provider(n), "backends");
+	} catch (std::exception &e) {
+		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize backends_stat_provider: %s.", e.what());
+	}
+}
+
+static void init_procfs_provider(struct dnet_node *n, struct dnet_config *cfg) {
+	try {
+		add_provider(n, new procfs_provider(n), "procfs");
+	} catch (std::exception &e) {
+		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize backends_stat_provider: %s.", e.what());
+	}
+}
+
 }} /* namespace ioremap::monitor */
 
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
@@ -73,6 +109,11 @@ int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
 		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize monitor on port: %d: %s.", cfg->monitor_port, e.what());
 		return -ENOMEM;
 	}
+
+	ioremap::monitor::init_io_stat_provider(n, cfg);
+	ioremap::monitor::init_react_stat_provider(n, cfg);
+	ioremap::monitor::init_backends_stat_provider(n, cfg);
+	ioremap::monitor::init_procfs_provider(n, cfg);
 
 	return 0;
 }
@@ -105,33 +146,6 @@ void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans
 	if (real_monitor)
 		real_monitor->get_statistics().command_counter(cmd, trans, err,
 		                                               cache, size, time);
-}
-
-void dnet_monitor_init_io_stat_provider(struct dnet_node *n) {
-	try {
-		ioremap::monitor::add_provider(n, new ioremap::monitor::io_stat_provider(n), "io");
-	} catch (std::exception &e) {
-		std::cerr << e.what() << std::endl;
-	}
-}
-
-void dnet_monitor_init_react_stat_provider(struct dnet_node *n) {
-	try {
-		auto call_tree_timeout = n->config_data->cfg_state.monitor_call_tree_timeout;
-		auto provider = new ioremap::monitor::react_stat_provider(call_tree_timeout);
-		ioremap::monitor::add_provider(n, provider, "call_tree");
-		n->react_aggregator = static_cast<void*> (&provider->get_react_aggregator());
-	}catch (std::exception &e) {
-		std::cerr << e.what() << std::endl;
-	}
-}
-
-void dnet_monitor_init_backends_stat_provider(struct dnet_node *n) {
-	try {
-		ioremap::monitor::add_provider(n, new ioremap::monitor::backends_stat_provider(n), "backends");
-	} catch (std::exception &e) {
-		std::cerr << e.what() << std::endl;
-	}
 }
 
 int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)

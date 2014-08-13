@@ -19,6 +19,7 @@ ADD_LIBRARY(elliptics_monitor SHARED
             ${REACT_HEADERS}
             ${REACT_SOURCES}
             backends_stat_provider.cpp
+            procfs_provider.cpp
     )
 
 set_target_properties(elliptics_monitor PROPERTIES

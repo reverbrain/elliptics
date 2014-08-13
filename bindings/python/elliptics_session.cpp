@@ -66,14 +66,14 @@ enum elliptics_monitor_categories {
 	elliptics_monitor_categories_io_histograms = DNET_MONITOR_IO_HISTOGRAMS,
 	elliptics_monitor_categories_backend = DNET_MONITOR_BACKEND,
 	elliptics_monitor_categories_call_tree = DNET_MONITOR_CALL_TREE,
-	elliptics_monitor_categories_vm = DNET_MONITOR_VM,
+	elliptics_monitor_categories_procfs = DNET_MONITOR_PROCFS,
 	elliptics_monitor_categories_all = DNET_MONITOR_CACHE |
 	                                   DNET_MONITOR_IO |
 	                                   DNET_MONITOR_COMMANDS |
 	                                   DNET_MONITOR_IO_HISTOGRAMS |
 	                                   DNET_MONITOR_BACKEND |
 	                                   DNET_MONITOR_CALL_TREE |
-	                                   DNET_MONITOR_VM
+	                                   DNET_MONITOR_PROCFS
 };
 
 struct write_cas_converter {
@@ -792,7 +792,7 @@ void init_elliptics_session() {
 		.value("io_histograms", elliptics_monitor_categories_io_histograms)
 		.value("backend", elliptics_monitor_categories_backend)
 		.value("call_tree", elliptics_monitor_categories_call_tree)
-		.value("vm", elliptics_monitor_categories_vm)
+		.value("procfs", elliptics_monitor_categories_procfs)
 	;
 
 	bp::enum_<exec_context::final_state>("exec_context_final_states",
