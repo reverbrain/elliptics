@@ -272,9 +272,9 @@ void parse_options(config_data *data, const config &options)
 	data->cfg_state.stall_count = options.at("stall_count", 0l);
 	data->cfg_state.flags |= (options.at("join", false) ? DNET_CFG_JOIN_NETWORK : 0);
 	data->cfg_state.flags |= (options.at("flags", 0) & ~DNET_CFG_JOIN_NETWORK);
-	data->cfg_state.io_thread_num = options.at("io_thread_num", 0);
-	data->cfg_state.nonblocking_io_thread_num = options.at("nonblocking_io_thread_num", 0);
-	data->cfg_state.net_thread_num = options.at("net_thread_num", 0);
+	data->cfg_state.io_thread_num = options.at<unsigned>("io_thread_num");
+	data->cfg_state.nonblocking_io_thread_num = options.at<unsigned>("nonblocking_io_thread_num");
+	data->cfg_state.net_thread_num = options.at<unsigned>("net_thread_num");
 	data->cfg_state.bg_ionice_class = options.at("bg_ionice_class", 0);
 	data->cfg_state.bg_ionice_prio = options.at("bg_ionice_prio", 0);
 	data->cfg_state.removal_delay = options.at("removal_delay", 0);
