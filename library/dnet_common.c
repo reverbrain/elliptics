@@ -41,6 +41,8 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
+static int dnet_add_state_no_routes(struct dnet_node *n, struct dnet_addr *addr, int num, int flags);
+
 int dnet_transform_node(struct dnet_node *n, const void *src, uint64_t size, unsigned char *csum, int csize)
 {
 	struct dnet_transform *t = &n->transform;
@@ -325,7 +327,7 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 	if (is_trans_destroyed(st, cmd)) {
 		dnet_log(st->n, DNET_LOG_NOTICE, "%s: status: %d, going to add %d received routes", dnet_state_dump_addr(st), cmd ? cmd->status : -9999999, route->addr_num);
 		if (route->addr_num)
-			err = dnet_add_state(st->n, route->addr, route->addr_num, DNET_CFG_NO_ROUTE_LIST);
+			err = dnet_add_state_no_routes(st->n, route->addr, route->addr_num, DNET_CFG_NO_ROUTE_LIST);
 		dnet_log(st->n, DNET_LOG_NOTICE, "%s: added %d routes: %d", dnet_state_dump_addr(st), route->addr_num, err);
 
 		err = -EINVAL;
@@ -598,11 +600,7 @@ err_out_exit:
 	return NULL;
 }
 
-/**
- * dnet_add_state() returns either negative error value or positive number of nodes it has connected to.
- * In particular if it failed to connect to ANY node, it returns -ECONNREFUSED
- */
-int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int flags)
+static int dnet_add_state_no_routes(struct dnet_node *n, struct dnet_addr *addr, int num, int flags)
 {
 	int i, err, join = DNET_WANT_RECONNECT, good_num = 0;
 	struct dnet_net_state *st;
@@ -699,6 +697,46 @@ err_out_reconnect:
 	err = good_num;
 	if (good_num == 0)
 		err = -ECONNREFUSED;
+
+	return err;
+}
+
+/**
+ * dnet_add_state() returns either negative error value or positive number of nodes it has connected to.
+ * In particular if it failed to connect to ANY node, it returns -ECONNREFUSED
+ */
+int dnet_add_state(struct dnet_node *n, struct dnet_addr *addr, int num, int flags)
+{
+	int err, i;
+
+	err = dnet_add_state_no_routes(n, addr, num, flags);
+
+	for (i = 0; i < num; ++i) {
+		if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST)) {
+			int j;
+
+			/*
+			 * Check whether @n->route_addr already contains given address,
+			 * otherwise add this addr into route request array.
+			 */
+			pthread_mutex_lock(&n->reconnect_lock);
+			for (j = 0; j < n->route_addr_num; ++j) {
+				if (dnet_addr_equal(&n->route_addr[j], &addr[i]))
+					break;
+			}
+
+			if (j == n->route_addr_num) {
+				n->route_addr = realloc(n->route_addr, (n->route_addr_num + 1) * sizeof(struct dnet_addr));
+				if (!n->route_addr) {
+					n->route_addr_num = 0;
+				} else {
+					n->route_addr[n->route_addr_num] = addr[i];
+					n->route_addr_num += 1;
+				}
+			}
+			pthread_mutex_unlock(&n->reconnect_lock);
+		}
+	}
 
 	return err;
 }
@@ -1414,7 +1452,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 	n->reconnect_num = 0;
 	pthread_mutex_unlock(&n->reconnect_lock);
 
-	err = dnet_add_state(n, remote, remote_num, flags);
+	err = dnet_add_state_no_routes(n, remote, remote_num, flags);
 
 	free(remote);
 
