@@ -646,7 +646,7 @@ dnet_id session::get_direct_id()
 
 void session::set_direct_id(const address &remote_addr)
 {
-	set_cflags(get_cflags() | DNET_FLAGS_DIRECT);
+	set_cflags((get_cflags() | DNET_FLAGS_DIRECT) & ~DNET_FLAGS_DIRECT_BACKEND);
 	dnet_session_set_direct_addr(get_native(), &remote_addr.to_raw());
 }
 
