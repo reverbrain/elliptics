@@ -55,12 +55,11 @@ class Session(Session):
         address = session.lookup_address('looking up key')
         print '\'looking up key\' should lives on node:', address
         """
-        return Address.from_host_port(super(Session, self)
-                                      .lookup_address(key, group_id), group_id)
+        return Address.from_host_port(super(Session, self).lookup_address(key, group_id))
 
     def bulk_write(self, datas):
         """
-        WRites several objects at once.
+        Writes several objects at once.
         @datas - can be dict: {key:value} or iterable container of tuples (elliptics.IoAttr, data)
         """
         if type(datas) is dict:
@@ -170,9 +169,8 @@ class Session(Session):
 
     def update_status(self, address, status):
         """
-        Updates status of @id_or_address to @status.
-        If id_or_address is elliptics.Id then this id will be used for determining the node.
-        If id_or_address is elliptics.Address then status of this node will be updated.
+        Updates status of @address to @status.
+        If address is elliptics.Address then status of this node will be updated.
         """
         super(Session, self).update_status(host=address.host,
                                            port=address.port,
@@ -219,6 +217,12 @@ class Session(Session):
                                                             family=address.family)
 
     def monitor_stat(self, address=None, categories=monitor_stat_categories.all):
+        '''
+        Gather monitor statistics of specified categories from @address.
+        If @address is None monitoring statistics will be gathered from all nodes.\n
+        result = session.monitor_stat(elliptics.Address.from_host_port('host.com:1025'))
+        stats = result.get()
+        '''
         if not address:
             address = ()
         else:

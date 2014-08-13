@@ -64,7 +64,7 @@ class Address(object):
         address = elliptics.Address.from_host_port(addr_str='host.com:1025')
         """
         host, port = addr_str.rsplit(':', 1)
-        return cls(host=host, port=int(port), family=0)
+        return cls(host=host, port=int(port), family=AF_UNSPEC)
 
     @classmethod
     def from_host_port_family(cls, addr_str):
@@ -124,7 +124,7 @@ class Address(object):
 class Route(object):
     """
     Simple route container.
-    Route consists of id and address to which this id belongs
+    Route consists of id, address and backend_id to which this id belongs
     """
     __slots__ = ('id', 'address', 'backend_id')
 
@@ -257,15 +257,16 @@ class RouteList(object):
 
     def addresses_with_backends(self):
         """
-        Returns all addresses and backend's ids which are presented in route table\n
+        Returns all addresses and backend_ids which are presented in route table\n
         addresses = routes.addresses_with_backends()
         """
         return tuple(set((route.address, route.backend_id) for route in self.routes))
 
     def get_unique_routes(self):
         """
-        Returns all addresses with elliptics.Id which are presented in routes\n
-        addresses_with_id = routes.addresses_with_id()
+        Returns unique by address, group_id and backend_id which are presented in routes\n
+        This routes can be used for routing request to backend on node from group.\n
+        unique_routes = routes.get_unique_routes()
         """
         tmp = set()
         def seen(route):
@@ -412,9 +413,6 @@ class RouteList(object):
 
         return perc
 
-    def spread(self):
-        return self.percentages()
-
     def __iter__(self):
         """x.__iter__() <==> iter(x)"""
         return iter(self.routes)
@@ -429,6 +427,8 @@ class RouteList(object):
 
     def __getitem__(self, item):
         """x.__getitem__(y) <==> x[y]"""
+        if not len(self.routes):
+            raise IndexError("index out of range")
         return self.routes[item % len(self.routes)]
 
     def __repr__(self):

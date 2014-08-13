@@ -25,9 +25,11 @@ class Node(Node):
     Node represents a connection with Elliptics.
     '''
     def __init__(self, logger, config=None):
-        '''Initializes node by the logger and custom configuration\n
-        node = elliptics.Node(logger, config)"))
+        '''
+        Initializes node by the logger and custom configuration\n
+        node = elliptics.Node(logger, config)
         node = elliptics.Node(logger)
+
         '''
         if config:
             super(Node, self).__init__(logger, config)
@@ -38,7 +40,7 @@ class Node(Node):
     def add_remotes(self, remotes):
         '''
            Adds connections to Elliptics node
-           @remotes -- elliptics.Address's of server node
+           @remotes -- elliptics.Addresses of server node
 
            node.add_remotes(Address.from_host_port("host.com:1025"))
            node.add_remotes([Address.from_host_port("host.com:1025"),

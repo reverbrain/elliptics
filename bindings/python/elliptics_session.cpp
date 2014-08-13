@@ -1813,12 +1813,11 @@ void init_elliptics_session() {
 		    "        print 'node_files_removed:', stat.statistics.node_files_removed\n")
 
 		.def("monitor_stat", &elliptics_session::monitor_stat,
-		     (bp::arg("key"), bp::arg("categories")=elliptics_monitor_categories_all),
+		     (bp::arg("address"), bp::arg("categories")=elliptics_monitor_categories_all),
 		    "monitor_stat(key=None, categories=elliptics.monitor_stat_categories.all)\n"
 		    "    Gather monitor statistics of specified categories.\n"
-		    "    -- key - elliptics.Id which specifies node\n\n"
-		    "    id = session.routes.get_address_id(elliptics.Address.from_host_port('host.com:1025'))\n"
-		    "    result = session.monitor_stat(id)\n"
+		    "    -- address - elliptics.Address of node\n\n"
+		    "    result = session.monitor_stat(elliptics.Address.from_host_port('host.com:1025'))\n"
 		    "    stats = result.get()\n")
 
 		.def("state_num", &session::state_num)
