@@ -186,6 +186,9 @@ async_generic_result send_to_single_state(session &sess, dnet_io_control &contro
 // Send request to each backend
 async_generic_result send_to_each_backend(session &sess, const transport_control &control);
 
+// Send request to each node
+async_generic_result send_to_each_node(session &sess, const transport_control &control);
+
 // Send request to one state at each session's group
 async_generic_result send_to_groups(session &sess, const transport_control &control);
 async_generic_result send_to_groups(session &sess, dnet_io_control &control);

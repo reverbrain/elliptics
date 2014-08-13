@@ -149,6 +149,34 @@ async_generic_result send_to_each_backend(session &sess, const transport_control
 	return send_impl(sess, writable_copy, send_to_each_backend_impl);
 }
 
+static size_t send_to_each_node_impl(session &sess, dnet_trans_control &ctl)
+{
+	dnet_node *node = sess.get_native_node();
+	dnet_session *native_sess = sess.get_native();
+	dnet_net_state *st;
+
+	ctl.cflags |= DNET_FLAGS_DIRECT;
+	size_t count = 0;
+
+	pthread_mutex_lock(&node->state_lock);
+	list_for_each_entry(st, &node->dht_state_list, node_entry) {
+		if (st == node->st)
+			continue;
+
+		dnet_trans_alloc_send_state(native_sess, st, &ctl);
+		++count;
+	}
+	pthread_mutex_unlock(&node->state_lock);
+
+	return count;
+}
+
+async_generic_result send_to_each_node(session &sess, const transport_control &control)
+{
+	dnet_trans_control writable_copy = control.get_native();
+	return send_impl(sess, writable_copy, send_to_each_node_impl);
+}
+
 static size_t send_to_groups_impl(session &sess, dnet_trans_control &ctl)
 {
 	dnet_session *native = sess.get_native();
