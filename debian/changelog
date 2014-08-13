@@ -1,3 +1,9 @@
+elliptics (2.25.6.9) unstable; urgency=low
+
+  * routes: do not add too many route check addresses
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Aug 2014 04:42:52 +0400
+
 elliptics (2.25.6.8) unstable; urgency=low
 
   * state: when searching state using address, do not print error if it was not found

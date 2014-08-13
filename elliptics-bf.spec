@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.8
+Version:	2.25.6.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.9
+- routes: do not add too many route check addresses
+
 * Wed Aug 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.8
 - state: when searching state using address, do not print error if it was not found
 - c++: added parallel and quorum lookups. Patch by derikon <derikon@yandex-team.ru>
