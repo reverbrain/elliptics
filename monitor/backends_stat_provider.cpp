@@ -138,7 +138,7 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 		                       entry.value.data(),
 		                       allocator);
 	}
-
+	config_value.AddMember("group", backend_info.group, allocator);
 	stat_value.AddMember("config", config_value, allocator);
 }
 
