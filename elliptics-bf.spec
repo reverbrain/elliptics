@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.9
+Version:	2.25.6.10
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 13 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.6.10
+- client: Don't request route-list from every node
+
 * Wed Aug 13 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.9
 - routes: do not add too many route check addresses
 
