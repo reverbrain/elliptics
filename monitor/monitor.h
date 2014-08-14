@@ -112,6 +112,7 @@ void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans
 
 int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data);
 
+void backend_fill_status_nolock(struct dnet_node *node, struct dnet_backend_status *status, size_t backend_id);
 #ifdef __cplusplus
 }
 #endif

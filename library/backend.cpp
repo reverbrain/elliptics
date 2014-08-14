@@ -387,7 +387,8 @@ static int dnet_backend_set_ids(dnet_node *node, uint32_t backend_id, dnet_raw_i
 	return err;
 }
 
-void backend_fill_status_nolock(struct dnet_node *node, struct dnet_backend_status *status, size_t backend_id) {
+void backend_fill_status_nolock(struct dnet_node *node, struct dnet_backend_status *status, size_t backend_id)
+{
 	if (!status)
 		return;
 
