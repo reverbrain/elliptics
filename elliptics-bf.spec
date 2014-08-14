@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.2.0
+Version:	2.26.3.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -145,6 +145,22 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 14 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.0
+- cache: Added ability to configure backend's cache
+- client: Added send_to_each_node
+- client: Drop direct_backend flag at set_direct_id
+- client: monitor_stat should accept address, not id
+- config: Make possible to set io thread num per backend
+- config: options.*_thread_num is required field
+- example: Removed out-to-dated ioserv.conf
+- logger: Don't print destruction packets
+- Monitor: Added 'procfs' stats that includes 'vm', 'io' and 'stat'
+- monitor&statistics: moved stat_log and stat_log_count statistics to monitoring statistics
+- Python: fixed lookup_address and doc strings
+- Python: removed session.get_routes()
+- Python: removed session.update_status by elliptics.Id
+- Python: replaced elliptics.Id by elliptics.Address at session.monitor_stat
+
 * Mon Aug 11 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.2.0
 - API: Changed signature of "complete" methods
 - backends: Make possible to start several backends per time
