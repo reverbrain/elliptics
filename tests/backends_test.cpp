@@ -349,6 +349,55 @@ static void test_set_backend_ids_for_enabled(session &sess)
 	BOOST_REQUIRE(compare_ids(ids, route_ids));
 }
 
+static void test_make_backend_readonly(session &sess)
+{
+	server_node &node = global_data->nodes.back();
+	const key id = std::string("read_only_key");
+	const std::string data = "read_only_data";
+
+	ELLIPTICS_REQUIRE(async_readonly_result, sess.make_readonly(node.remote(), 4));
+
+	backend_status_result_entry result = async_readonly_result.get_one();
+	BOOST_REQUIRE(result.is_valid());
+	BOOST_REQUIRE_EQUAL(result.count(), 1);
+
+	dnet_backend_status *status = result.backend(0);
+	BOOST_REQUIRE_EQUAL(status->backend_id, 4);
+	BOOST_REQUIRE_EQUAL(status->read_only, true);
+
+	session new_sess = sess.clone();
+	new_sess.set_direct_id(node.remote(), 4);
+
+	ELLIPTICS_REQUIRE_ERROR(write_result, new_sess.write_data(id, data, 0), -EROFS);
+
+	ELLIPTICS_REQUIRE_ERROR(second_async_readonly_result, sess.make_readonly(node.remote(), 4), -EALREADY);
+}
+
+static void test_make_backend_writeable(session &sess)
+{
+	server_node &node = global_data->nodes.back();
+	const key id = std::string("read_only_key");
+	const std::string data = "read_only_data";
+
+	ELLIPTICS_REQUIRE(async_readonly_result, sess.make_writable(node.remote(), 4));
+
+	backend_status_result_entry result = async_readonly_result.get_one();
+	BOOST_REQUIRE(result.is_valid());
+	BOOST_REQUIRE_EQUAL(result.count(), 1);
+
+	dnet_backend_status *status = result.backend(0);
+	BOOST_REQUIRE_EQUAL(status->backend_id, 4);
+	BOOST_REQUIRE_EQUAL(status->read_only, false);
+
+	session new_sess = sess.clone();
+	new_sess.set_direct_id(node.remote(), 4);
+
+	ELLIPTICS_REQUIRE(write_result, new_sess.write_data(id, data, 0));
+	ELLIPTICS_REQUIRE(read_result, new_sess.read_data(id, 0, 0));
+
+	ELLIPTICS_REQUIRE_ERROR(second_async_readonly_result, sess.make_writable(node.remote(), 4), -EALREADY);
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_enable_at_start, create_session(n, { 1, 2, 3 }, 0, 0));
@@ -361,6 +410,8 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_direct_backend, create_session(n, { 0 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_set_backend_ids_for_disabled, create_session(n, { 0 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_set_backend_ids_for_enabled, create_session(n, { 0 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_make_backend_readonly, create_session(n, { 0 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_make_backend_writeable, create_session(n, { 0 }, 0, 0));
 
 	return true;
 }

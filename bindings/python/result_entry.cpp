@@ -273,6 +273,10 @@ elliptics_time dnet_backend_status_get_last_start(const dnet_backend_status &res
 	return elliptics_time(result.last_start);
 }
 
+bool dnet_backend_status_get_read_only(const dnet_backend_status &result) {
+	return bool(result.read_only);
+}
+
 bp::list dnet_backend_status_result_get_backends(const backend_status_result_entry &result) {
 	bp::list ret;
 
@@ -431,6 +435,7 @@ void init_result_entry() {
 		.add_property("defrag_state", &dnet_backend_status::defrag_state)
 		.add_property("last_start", dnet_backend_status_get_last_start)
 		.add_property("last_start_err", &dnet_backend_status::last_start_err)
+		.add_property("read_only", dnet_backend_status_get_read_only)
 	;
 
 }

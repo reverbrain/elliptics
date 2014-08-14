@@ -1849,6 +1849,16 @@ async_backend_control_result session::set_backend_ids(const address &addr, uint3
 	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_SET_IDS, ids);
 }
 
+async_backend_control_result session::make_readonly(const address &addr, uint32_t backend_id)
+{
+	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_READ_ONLY);
+}
+
+async_backend_control_result session::make_writable(const address &addr, uint32_t backend_id)
+{
+	return update_backend_status(*this, addr, backend_id, DNET_BACKEND_WRITEABLE);
+}
+
 async_backend_status_result session::request_backends_status(const address &addr)
 {
 	transport_control control;

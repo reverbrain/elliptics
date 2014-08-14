@@ -96,6 +96,8 @@ enum dnet_backend_command {
 	DNET_BACKEND_DISABLE,
 	DNET_BACKEND_START_DEFRAG,
 	DNET_BACKEND_SET_IDS,
+	DNET_BACKEND_READ_ONLY,
+	DNET_BACKEND_WRITEABLE,
 };
 
 enum dnet_backend_state {
@@ -580,8 +582,10 @@ struct dnet_backend_status
 	uint32_t state;
 	uint32_t defrag_state;
 	struct dnet_time last_start;
-	int last_start_err;
-	uint64_t reserved[8];
+	int32_t last_start_err;
+	uint8_t read_only;
+	uint8_t reserved_flags[7];
+	uint64_t reserved[7];
 } __attribute__ ((packed));
 
 struct dnet_backend_status_list

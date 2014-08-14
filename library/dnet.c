@@ -988,7 +988,7 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 		case DNET_CMD_READ:
 		case DNET_CMD_WRITE:
 		case DNET_CMD_DEL:
-			if (n->ro && ((cmd->cmd == DNET_CMD_DEL) || (cmd->cmd == DNET_CMD_WRITE))) {
+			if ((n->ro || backend->read_only) && ((cmd->cmd == DNET_CMD_DEL) || (cmd->cmd == DNET_CMD_WRITE))) {
 				err = -EROFS;
 				break;
 			}

@@ -393,6 +393,7 @@ void backend_fill_status_nolock(struct dnet_node *node, struct dnet_backend_stat
 
 	const auto &backends = node->config_data->backends->backends;
 	const dnet_backend_info &backend = backends[backend_id];
+	const dnet_backend_io &io = node->io->backends[backend_id];
 
 	const auto &cb = backend.config.cb;
 
@@ -402,6 +403,7 @@ void backend_fill_status_nolock(struct dnet_node *node, struct dnet_backend_stat
 		status->defrag_state = cb.defrag_status(cb.command_private);
 	status->last_start = backend.last_start;
 	status->last_start_err = backend.last_start_err;
+	status->read_only = io.read_only;
 }
 
 void backend_fill_status(dnet_node *node, dnet_backend_status *status, size_t backend_id)
@@ -435,18 +437,22 @@ int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		return -EINVAL;
 	}
 
+	dnet_log(node, DNET_LOG_INFO, "backend_control: received BACKEND_CONTROL: backend_id: %u, command: %u, state: %s",
+		control->backend_id, control->command, dnet_state_dump_addr(st));
+
 	const dnet_backend_info &backend = backends[control->backend_id];
+	dnet_backend_io &io = node->io->backends[control->backend_id];
 
 	unsigned state = DNET_BACKEND_DISABLED;
 	const dnet_backend_callbacks &cb = backend.config.cb;
 
-	int err = 0;
+	int err = -ENOTSUP;
 	switch (dnet_backend_command(control->command)) {
 	case DNET_BACKEND_ENABLE:
-		err = dnet_backend_init(st->n, control->backend_id, &state);
+		err = dnet_backend_init(node, control->backend_id, &state);
 		break;
 	case DNET_BACKEND_DISABLE:
-		err = dnet_backend_cleanup(st->n, control->backend_id, &state);
+		err = dnet_backend_cleanup(node, control->backend_id, &state);
 		break;
 	case DNET_BACKEND_START_DEFRAG:
 		if (cb.defrag_start) {
@@ -457,6 +463,22 @@ int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		break;
 	case DNET_BACKEND_SET_IDS:
 		err = dnet_backend_set_ids(st->n, control->backend_id, control->ids, control->ids_count);
+		break;
+	case DNET_BACKEND_READ_ONLY:
+		if (io.read_only) {
+			err = -EALREADY;
+		} else {
+			io.read_only = 1;
+			err = 0;
+		}
+		break;
+	case DNET_BACKEND_WRITEABLE:
+		if (!io.read_only) {
+			err = -EALREADY;
+		} else {
+			io.read_only = 0;
+			err = 0;
+		}
 		break;
 	}
 
