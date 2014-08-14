@@ -32,9 +32,6 @@ target_link_libraries(dnet_ioclient ${ECOMMON_LIBRARIES} elliptics_cpp)
 add_executable(dnet_index index.cpp)
 target_link_libraries(dnet_index ${ECOMMON_LIBRARIES} elliptics_cpp)
 
-add_executable(dnet_stat stat.cpp)
-target_link_libraries(dnet_stat ${ECOMMON_LIBRARIES} elliptics_cpp)
-
 add_executable(dnet_notify notify.cpp)
 target_link_libraries(dnet_notify ${ECOMMON_LIBRARIES} elliptics_cpp)
 
@@ -49,7 +46,6 @@ install(TARGETS
         dnet_find
         dnet_ioclient
         dnet_index
-        dnet_stat
         dnet_notify
         dnet_ids
     RUNTIME DESTINATION bin COMPONENT runtime)

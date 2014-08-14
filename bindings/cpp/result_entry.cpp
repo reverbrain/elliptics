@@ -213,58 +213,6 @@ const char *lookup_result_entry::file_path() const
 	DNET_DATA_END(sizeof(dnet_addr) + sizeof(dnet_file_info) + sizeof(char));
 }
 
-stat_result_entry::stat_result_entry()
-{
-}
-
-stat_result_entry::stat_result_entry(const stat_result_entry &other) : callback_result_entry(other)
-{
-}
-
-stat_result_entry::~stat_result_entry()
-{
-}
-
-stat_result_entry &stat_result_entry::operator =(const stat_result_entry &other)
-{
-	callback_result_entry::operator =(other);
-	return *this;
-}
-
-dnet_stat *stat_result_entry::statistics() const
-{
-	DNET_DATA_BEGIN();
-	return data()
-		.data<struct dnet_stat>();
-	DNET_DATA_END(sizeof(dnet_stat));
-}
-
-stat_count_result_entry::stat_count_result_entry()
-{
-}
-
-stat_count_result_entry::stat_count_result_entry(const stat_count_result_entry &other) : callback_result_entry(other)
-{
-}
-
-stat_count_result_entry::~stat_count_result_entry()
-{
-}
-
-stat_count_result_entry &stat_count_result_entry::operator =(const stat_count_result_entry &other)
-{
-	callback_result_entry::operator =(other);
-	return *this;
-}
-
-struct dnet_addr_stat *stat_count_result_entry::statistics() const
-{
-	DNET_DATA_BEGIN();
-	return data()
-		.data<struct dnet_addr_stat>();
-	DNET_DATA_END(sizeof(dnet_addr_stat));
-}
-
 monitor_stat_result_entry::monitor_stat_result_entry()
 {}
 

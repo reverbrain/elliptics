@@ -632,7 +632,7 @@ struct dnet_node
 	size_t			route_addr_num;
 
 	struct dnet_lock	counters_lock;
-	struct dnet_stat_count	counters[__DNET_CNTR_MAX];
+	struct dnet_stat_count	counters[__DNET_CMD_MAX * 2];
 
 	int			bg_ionice_class;
 	int			bg_ionice_prio;
@@ -697,7 +697,7 @@ struct dnet_session {
 
 static inline int dnet_counter_init(struct dnet_node *n)
 {
-	memset(&n->counters, 0, __DNET_CNTR_MAX * sizeof(struct dnet_stat_count));
+	memset(&n->counters, 0, __DNET_CMD_MAX * 2 * sizeof(struct dnet_stat_count));
 	return dnet_lock_init(&n->counters_lock);
 }
 
@@ -708,8 +708,8 @@ static inline void dnet_counter_destroy(struct dnet_node *n)
 
 static inline void dnet_counter_inc(struct dnet_node *n, int counter, int err)
 {
-	if (counter >= __DNET_CNTR_MAX)
-		counter = DNET_CNTR_UNKNOWN;
+	if (counter >= __DNET_CMD_MAX * 2)
+		counter = DNET_CMD_UNKNOWN + __DNET_CMD_MAX;
 
 	dnet_lock_lock(&n->counters_lock);
 	if (!err)
@@ -726,8 +726,8 @@ static inline void dnet_counter_inc(struct dnet_node *n, int counter, int err)
 
 static inline void dnet_counter_set(struct dnet_node *n, int counter, int err, int64_t val)
 {
-	if (counter >= __DNET_CNTR_MAX)
-		counter = DNET_CNTR_UNKNOWN;
+	if (counter >= __DNET_CMD_MAX * 2)
+		counter = DNET_CMD_UNKNOWN + __DNET_CMD_MAX;
 
 	dnet_lock_lock(&n->counters_lock);
 	if (!err)

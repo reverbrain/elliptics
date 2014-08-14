@@ -48,8 +48,6 @@ static void dnet_usage(char *p)
 	fprintf(stderr, "Usage: %s\n"
 			" -r addr:port:family  - adds a route to the given node\n"
 			" -W file              - write given file to the network storage\n"
-			" -s                   - request IO counter stats from node\n"
-			" -z                   - request VFS IO stats from node\n"
 			" -a                   - request stats from all connected nodes\n"
 			" -U status            - update server status: 1 - elliptics exits, 2 - goes RO\n"
 			" -R file              - read given file from the network into the local storage\n"
@@ -94,7 +92,7 @@ static key create_id(unsigned char *id, const char *file_name)
 int main(int argc, char *argv[])
 {
 	int ch, err;
-	int io_counter_stat = 0, vfs_stat = 0, single_node_stat = 1;
+	int single_node_stat = 1;
 	struct dnet_node_status node_status;
 	int update_status = 0;
 	struct dnet_config cfg;
@@ -181,15 +179,9 @@ int main(int argc, char *argv[])
 				}
 
 				break;
-			case 's':
-				io_counter_stat = 1;
-				break;
 			case 'U':
 				node_status.status_flags = strtol(optarg, NULL, 0);
 				update_status = 1;
-				break;
-			case 'z':
-				vfs_stat = 1;
 				break;
 			case 'a':
 				single_node_stat = 0;
@@ -259,7 +251,7 @@ int main(int argc, char *argv[])
 		/*
 		 * Only request stats or start defrag on the single node
 		 */
-		if (single_node_stat && (vfs_stat || io_counter_stat || defrag)) {
+		if (single_node_stat && defrag) {
 			remote_flags = DNET_CFG_NO_ROUTE_LIST;
 			cfg.flags |= DNET_CFG_NO_ROUTE_LIST;
 		}
@@ -428,64 +420,6 @@ int main(int argc, char *argv[])
 								<< "\tsize: "	<< info->size << "\n"
 								<< "\toffset: " << info->offset << "\n"
 								<< "\ttime: " << info->mtime.tsec << "/" << info->mtime.tnsec << std::endl;
-			}
-		}
-
-		if (vfs_stat) {
-			float la[3];
-			auto results = s.stat_log();
-			for (auto it = results.begin(); it != results.end(); ++it) {
-				const stat_result_entry &result = *it;
-				dnet_cmd *cmd = result.command();
-				dnet_addr *addr = result.address();
-				dnet_stat *st = result.statistics();
-
-				la[0] = (float)st->la[0] / 100.0;
-				la[1] = (float)st->la[1] / 100.0;
-				la[2] = (float)st->la[2] / 100.0;
-
-				printf("%s: %s: la: %.2f %.2f %.2f.\n",
-					dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
-					la[0], la[1], la[2]);
-				printf("%s: %s: mem: total: %llu kB, free: %llu kB, cache: %llu kB.\n",
-						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
-						(unsigned long long)st->vm_total,
-						(unsigned long long)st->vm_free,
-						(unsigned long long)st->vm_cached);
-				printf("%s: %s: fs: total: %llu mB, avail: %llu mB, files: %llu, fsid: 0x%llx.\n",
-						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
-						(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
-						(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),
-						(unsigned long long)st->files, (unsigned long long)st->fsid);
-				fflush(stdout);
-			}
-		}
-
-		if (io_counter_stat) {
-			auto results = s.stat_log_count();
-			for (auto it = results.begin(); it != results.end(); ++it) {
-				const stat_count_result_entry &result = *it;
-				dnet_cmd *cmd = result.command();
-				dnet_addr *addr = result.address();
-				dnet_addr_stat *as = result.statistics();
-
-				for (int j = 0; j < (int)((cmd->size - sizeof(struct dnet_addr_stat)) / sizeof(struct dnet_stat_count)); ++j) {
-					if (j == 0)
-						printf("%s: %s: storage-to-storage commands\n",
-							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
-					if (j == as->cmd_num)
-						printf("%s: %s: client-to-storage commands\n",
-							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
-					if (j == as->cmd_num * 2)
-						printf("%s: %s: Global stat counters\n",
-							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
-
-					printf("%s: %s: cmd: %s, count: %llu, err: %llu",
-							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
-							dnet_counter_string(j, as->cmd_num),
-							(unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
-					fflush(stdout);
-				}
 			}
 		}
 

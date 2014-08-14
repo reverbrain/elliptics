@@ -103,9 +103,5 @@ try:
 	for route in routes:
 		print route[0].group_id, route[0], route[1]
 
-	print "Requesting stat_log"
-	for stat in s.stat_log():
-		pprint(stat.statistics)
-
 except:
 	print "Unexpected error:", sys.exc_info()

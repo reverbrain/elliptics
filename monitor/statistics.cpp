@@ -38,45 +38,23 @@ statistics::statistics(monitor& mon, struct dnet_config *cfg)
 	memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
 }
 
-void statistics::command_counter(int cmd, const int trans, const int err, const int cache,
-                     const uint32_t size, const unsigned long time) {
+void statistics::command_counter(int cmd,
+                                 const int trans,
+                                 const int err,
+                                 const int cache,
+                                 const uint32_t size,
+                                 const unsigned long time) {
 	if (cmd >= __DNET_CMD_MAX || cmd <= 0)
 		cmd = DNET_CMD_UNKNOWN;
 
 	std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
-	if (cache) {
-		if (trans) {
-			if (!err)
-				m_cmd_stats[cmd].cache_successes++;
-			else
-				m_cmd_stats[cmd].cache_failures++;
-			m_cmd_stats[cmd].cache_size += size;
-			m_cmd_stats[cmd].cache_time += time;
-		} else {
-			if (!err)
-				m_cmd_stats[cmd].cache_internal_successes++;
-			else
-				m_cmd_stats[cmd].cache_internal_failures++;
-			m_cmd_stats[cmd].cache_internal_size += size;
-			m_cmd_stats[cmd].cache_internal_time += time;
-		}
-	} else {
-		if (trans) {
-			if (!err)
-				m_cmd_stats[cmd].disk_successes++;
-			else
-				m_cmd_stats[cmd].disk_failures++;
-			m_cmd_stats[cmd].disk_size += size;
-			m_cmd_stats[cmd].disk_time += time;
-		} else {
-			if (!err)
-				m_cmd_stats[cmd].disk_internal_successes++;
-			else
-				m_cmd_stats[cmd].disk_internal_failures++;
-			m_cmd_stats[cmd].disk_internal_size += size;
-			m_cmd_stats[cmd].disk_internal_time += time;
-		}
-	}
+	auto &place = cache ? m_cmd_stats[cmd].cache : m_cmd_stats[cmd].disk;
+	auto &source = trans ? place.outside : place.internal;
+	auto &counter = err ? source.counter.failures : source.counter.successes;
+
+	++counter;
+	source.size += size;
+	source.time += time;
 
 	if (m_history_length > 0) {
 		m_cmd_info_current.emplace_back(command_stat_info{cmd, size, time, trans == 0, cache != 0});
@@ -168,10 +146,10 @@ std::string statistics::report(uint64_t categories) {
 
 	if (categories & DNET_MONITOR_COMMANDS) {
 		rapidjson::Value commands_value(rapidjson::kObjectType);
-		report.AddMember("commands_stat", commands_report(commands_value, allocator), allocator);
+		report.AddMember("commands", commands_report(commands_value, allocator), allocator);
 
 		rapidjson::Value history_value(rapidjson::kArrayType);
-		report.AddMember("history_stat", history_report(history_value, allocator), allocator);
+		report.AddMember("history", history_report(history_value, allocator), allocator);
 	}
 
 	if (categories & DNET_MONITOR_IO_HISTOGRAMS) {
@@ -196,59 +174,95 @@ std::string statistics::report(uint64_t categories) {
 	return convert_report(report);
 }
 
-rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
+static void ext_stat_json(ext_counter &ext_stat, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	stat_value.AddMember("successes", ext_stat.counter.successes, allocator);
+	stat_value.AddMember("failures", ext_stat.counter.failures, allocator);
+	stat_value.AddMember("size", ext_stat.size, allocator);
+	stat_value.AddMember("time", ext_stat.time, allocator);
+}
+
+static void source_stat_json(source_counter &source_stat, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	rapidjson::Value outside_stat(rapidjson::kObjectType);
+	ext_stat_json(source_stat.outside, outside_stat, allocator);
+	stat_value.AddMember("outside", outside_stat, allocator);
+
+	rapidjson::Value internal_stat(rapidjson::kObjectType);
+	ext_stat_json(source_stat.internal, internal_stat, allocator);
+	stat_value.AddMember("internal", internal_stat, allocator);
+}
+
+static void dnet_stat_count_json(dnet_stat_count &counter, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	stat_value.AddMember("successes", counter.count, allocator);
+	stat_value.AddMember("failures", counter.err, allocator);
+}
+
+static void node_stat_json(dnet_node *n, int cmd, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	rapidjson::Value storage_stat(rapidjson::kObjectType);
+	dnet_stat_count_json(n->counters[cmd], storage_stat, allocator);
+	stat_value.AddMember("storage", storage_stat, allocator);
+
+	rapidjson::Value proxy_stat(rapidjson::kObjectType);
+	dnet_stat_count_json(n->counters[cmd + __DNET_CMD_MAX], proxy_stat, allocator);
+	stat_value.AddMember("proxy", proxy_stat, allocator);
+}
+
+static void cmd_stat_json(dnet_node *node, int cmd, command_counters &cmd_stat, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	rapidjson::Value cache_stat(rapidjson::kObjectType);
+	source_stat_json(cmd_stat.cache, cache_stat, allocator);
+	stat_value.AddMember("cache", cache_stat, allocator);
+
+	rapidjson::Value disk_stat(rapidjson::kObjectType);
+	source_stat_json(cmd_stat.disk, disk_stat, allocator);
+	stat_value.AddMember("disk", disk_stat, allocator);
+
+	rapidjson::Value total_stat(rapidjson::kObjectType);
+	node_stat_json(node, cmd, total_stat, allocator);
+	stat_value.AddMember("total", total_stat, allocator);
+}
+
+static void single_client_stat_json(dnet_net_state *st, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
 	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
-		auto &cmd_stat = m_cmd_stats[i];
-		stat_value.AddMember(dnet_cmd_string(i),
-	                         allocator,
-		                     rapidjson::Value(rapidjson::kObjectType)
-		                     .AddMember("cache",
-		                                rapidjson::Value(rapidjson::kObjectType)
-		                                .AddMember("successes", cmd_stat.cache_successes, allocator)
-		                                .AddMember("failures",  cmd_stat.cache_failures, allocator),
-		                                allocator)
-		                     .AddMember("cache_internal",
-		                                rapidjson::Value(rapidjson::kObjectType)
-		                                .AddMember("successes", cmd_stat.cache_internal_successes, allocator)
-		                                .AddMember("failures",  cmd_stat.cache_internal_failures, allocator),
-		                                allocator)
-		                     .AddMember("disk",
-		                                rapidjson::Value(rapidjson::kObjectType)
-		                                .AddMember("successes", cmd_stat.disk_successes, allocator)
-		                                .AddMember("failures",  cmd_stat.disk_failures, allocator),
-		                                allocator)
-		                     .AddMember("disk_internal",
-		                                rapidjson::Value(rapidjson::kObjectType)
-		                                .AddMember("successes", cmd_stat.disk_internal_successes, allocator)
-		                                .AddMember("failures",  cmd_stat.disk_internal_failures, allocator),
-		                                allocator)
-		                     .AddMember("cache_size",
-		                                cmd_stat.cache_size,
-		                                allocator)
-		                     .AddMember("cache_intenal_size",
-		                                cmd_stat.cache_internal_size,
-		                                allocator)
-		                     .AddMember("disk_size",
-		                                cmd_stat.disk_size,
-		                                allocator)
-		                     .AddMember("disk_internal_size",
-		                                cmd_stat.disk_internal_size,
-		                                allocator)
-		                     .AddMember("cache_time",
-		                                cmd_stat.cache_time,
-		                                allocator)
-		                     .AddMember("cache_internal_time",
-		                                cmd_stat.cache_internal_time,
-		                                allocator)
-		                     .AddMember("disk_time",
-		                                cmd_stat.disk_time,
-		                                allocator)
-		                     .AddMember("disk_internal_time",
-		                                cmd_stat.disk_internal_time,
-		                                allocator),
-		                     allocator);
+		rapidjson::Value cmd_stat(rapidjson::kObjectType);
+		dnet_stat_count_json(st->stat[i], cmd_stat, allocator);
+		stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
 	}
+}
+
+static void clients_stat_json(dnet_node *n, rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	struct dnet_net_state *st;
+
+	pthread_mutex_lock(&n->state_lock);
+	try {
+		list_for_each_entry(st, &n->empty_state_list, node_entry) {
+			rapidjson::Value client_stat(rapidjson::kObjectType);
+			single_client_stat_json(st, client_stat, allocator);
+			stat_value.AddMember(dnet_server_convert_dnet_addr(&st->addr), allocator, client_stat, allocator);
+		}
+	} catch(std::exception &e) {
+		pthread_mutex_unlock(&n->state_lock);
+		dnet_log(n, DNET_LOG_ERROR, "monitor: failed collecting client state stats: %s\n", e.what());
+		throw;
+	} catch(...) {
+		pthread_mutex_unlock(&n->state_lock);
+		dnet_log(n, DNET_LOG_ERROR, "monitor: failed collecting client state stats: unknown exception\n");
+		throw;
+	}
+	pthread_mutex_unlock(&n->state_lock);
+}
+
+rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	{
+		std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
+		for (int i = 1; i < __DNET_CMD_MAX; ++i) {
+			rapidjson::Value cmd_stat(rapidjson::kObjectType);
+			cmd_stat_json(m_monitor.node(), i, m_cmd_stats[i], cmd_stat, allocator);
+			stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
+		}
+	}
+	rapidjson::Value clients_stat(rapidjson::kObjectType);
+	clients_stat_json(m_monitor.node(), clients_stat, allocator);
+	stat_value.AddMember("clients", clients_stat, allocator);
+
 	return stat_value;
 }
 

@@ -4,7 +4,6 @@ usr/lib/libelliptics_monitor.so.*
 usr/bin/dnet_find
 usr/bin/dnet_ioclient
 usr/bin/dnet_index
-usr/bin/dnet_stat
 usr/bin/dnet_notify
 usr/bin/dnet_ids
 usr/bin/dnet_balancer

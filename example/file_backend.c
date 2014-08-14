@@ -391,9 +391,6 @@ static int file_backend_command_handler(void *state, void *priv, struct dnet_cmd
 		case DNET_CMD_READ:
 			err = file_read(r, state, cmd, data);
 			break;
-		case DNET_CMD_STAT:
-			err = backend_stat(r->blog, state, r->root, cmd);
-			break;
 		case DNET_CMD_DEL:
 			err = file_del(r, state, cmd, data);
 			break;
@@ -509,20 +506,6 @@ err_out_exit:
 	return err;
 }
 
-int file_backend_storage_stat(void *priv, struct dnet_stat *st)
-{
-	int err;
-	struct file_backend_root *r = priv;
-
-	memset(st, 0, sizeof(struct dnet_stat));
-
-	err = backend_stat_low_level(r->blog, r->root ? r->root : ".", st);
-	if (err)
-		return err;
-
-	return 0;
-}
-
 static void dnet_file_db_cleanup(struct file_backend_root *r)
 {
 	eblob_cleanup(r->meta);
@@ -586,7 +569,6 @@ static int dnet_file_config_init(struct dnet_config_backend *b)
 	b->cb.command_handler = file_backend_command_handler;
 	b->cb.checksum = file_backend_checksum;
 
-	b->cb.storage_stat = file_backend_storage_stat;
 	b->cb.backend_cleanup = file_backend_cleanup;
 
 	mkdir("history", 0755);

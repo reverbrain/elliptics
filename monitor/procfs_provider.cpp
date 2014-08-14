@@ -21,128 +21,9 @@
 
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
+#include "elliptics/interface.h"
 
 namespace ioremap { namespace monitor {
-
-struct vm_stat {
-	uint16_t		la[3];
-	uint64_t		vm_active;
-	uint64_t		vm_inactive;
-	uint64_t		vm_total;
-	uint64_t		vm_free;
-	uint64_t		vm_cached;
-	uint64_t		vm_buffers;
-};
-
-#if defined HAVE_PROC_STAT
-static int fill_vm_stat(dnet_logger *l, struct vm_stat &st) {
-	int err;
-	FILE *f;
-	float la[3];
-	unsigned long long stub;
-
-	f = fopen("/proc/loadavg", "r");
-	if (!f) {
-		err = -errno;
-		dnet_backend_log(l, DNET_LOG_ERROR, "Failed to open '/proc/loadavg': %s [%d].",
-		                 strerror(errno), errno);
-		goto err_out_exit;
-	}
-
-	err = fscanf(f, "%f %f %f", &la[0], &la[1], &la[2]);
-	if (err != 3) {
-		err = -errno;
-		if (!err)
-			err = -EINVAL;
-
-		dnet_backend_log(l, DNET_LOG_ERROR, "Failed to read load average data: %s [%d].",
-		                 strerror(errno), errno);
-		goto err_out_close;
-	}
-
-	st.la[0] = la[0] * 100;
-	st.la[1] = la[1] * 100;
-	st.la[2] = la[2] * 100;
-
-	fclose(f);
-
-	f = fopen("/proc/meminfo", "r");
-	if (!f) {
-		err = -errno;
-		dnet_backend_log(l, DNET_LOG_ERROR, "Failed to open '/proc/meminfo': %s [%d].",
-		                 strerror(errno), errno);
-		goto err_out_exit;
-	}
-
-	err = fscanf(f, "MemTotal:%llu kB\n", (unsigned long long *)&st.vm_total);
-	err = fscanf(f, "MemFree:%llu kB\n", (unsigned long long *)&st.vm_free);
-	err = fscanf(f, "Buffers:%llu kB\n", (unsigned long long *)&st.vm_buffers);
-	err = fscanf(f, "Cached:%llu kB\n", (unsigned long long *)&st.vm_cached);
-	err = fscanf(f, "SwapCached:%llu kB\n", (unsigned long long *)&stub);
-	err = fscanf(f, "Active:%llu kB\n", (unsigned long long *)&st.vm_active);
-	err = fscanf(f, "Inactive:%llu kB\n", (unsigned long long *)&st.vm_inactive);
-
-	fclose(f);
-	return 0;
-
-err_out_close:
-	fclose(f);
-err_out_exit:
-	return err;
-}
-#elif defined HAVE_SYSCTL_STAT
-#include <sys/sysctl.h>
-#include <sys/resource.h>
-
-static int fill_vm_stat(dnet_logger *l, struct vm_stat &st) {
-	int err;
-	struct loadavg la;
-	long page_size = 0;
-	size_t sz = sizeof(la);
-
-	err = sysctlbyname("vm.loadavg", &la, &sz, NULL, 0);
-	if (err) {
-		err = -errno;
-		dnet_backend_log(l, DNET_LOG_ERROR, "Failed to get load average data: %s [%d].",
-				strerror(errno), errno);
-		return err;
-	}
-
-	st.la[0] = (double)la.ldavg[0] / la.fscale * 100;
-	st.la[1] = (double)la.ldavg[1] / la.fscale * 100;
-	st.la[2] = (double)la.ldavg[2] / la.fscale * 100;
-
-	sz = sizeof(uint64_t);
-	sysctlbyname("vm.stats.vm.v_active_count", &st.vm_active, &sz, NULL, 0);
-	sz = sizeof(uint64_t);
-	sysctlbyname("vm.stats.vm.v_inactive_count", &st.vm_inactive, &sz, NULL, 0);
-	sz = sizeof(uint64_t);
-	sysctlbyname("vm.stats.vm.v_cache_count", &st.vm_cached, &sz, NULL, 0);
-	sz = sizeof(uint64_t);
-	sysctlbyname("vm.stats.vm.v_free_count", &st.vm_free, &sz, NULL, 0);
-	sz = sizeof(uint64_t);
-	sysctlbyname("vm.stats.vm.v_wire_count", &st.vm_buffers, &sz, NULL, 0);
-	sz = sizeof(uint64_t);
-	sysctlbyname("vm.stats.vm.v_page_count", &st.vm_total, &sz, NULL, 0);
-	sz = sizeof(page_size);
-	sysctlbyname("vm.stats.vm.v_page_size", &page_size, &sz, NULL, 0);
-
-	page_size /= 1024;
-
-	st->vm_total *= page_size;
-	st->vm_active *= page_size;
-	st->vm_inactive *= page_size;
-	st->vm_free *= page_size;
-	st->vm_cached *= page_size;
-	st->vm_buffers *= page_size;
-
-	return 0;
-}
-#else
-static int fill_vm_stat(dnet_logger *l __unused, struct vm_stat &st __unused) {
-	return 0;
-}
-#endif
 
 struct proc_io_stat {
 	uint64_t rchar;
@@ -236,8 +117,8 @@ procfs_provider::procfs_provider(struct dnet_node *node)
 static void fill_vm(dnet_node *node,
                     rapidjson::Value &stat_value,
                     rapidjson::Document::AllocatorType &allocator) {
-	vm_stat st;
-	if (fill_vm_stat(node->log, st))
+	dnet_vm_stat st;
+	if (dnet_get_vm_stat(node->log, &st))
 		return;
 
 	rapidjson::Value vm_value(rapidjson::kObjectType);

@@ -613,8 +613,6 @@ bool async_result_handler<get_index_metadata_result_entry>::check(error_info *er
 template class async_result<callback_result_entry>;
 template class async_result<read_result_entry>;
 template class async_result<lookup_result_entry>;
-template class async_result<stat_result_entry>;
-template class async_result<stat_count_result_entry>;
 template class async_result<monitor_stat_result_entry>;
 template class async_result<backend_status_result_entry>;
 template class async_result<exec_result_entry>;
@@ -626,8 +624,6 @@ template class async_result<get_index_metadata_result_entry>;
 template class async_result_handler<callback_result_entry>;
 template class async_result_handler<read_result_entry>;
 template class async_result_handler<lookup_result_entry>;
-template class async_result_handler<stat_result_entry>;
-template class async_result_handler<stat_count_result_entry>;
 template class async_result_handler<monitor_stat_result_entry>;
 template class async_result_handler<backend_status_result_entry>;
 template class async_result_handler<exec_result_entry>;

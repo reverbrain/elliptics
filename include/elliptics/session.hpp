@@ -587,25 +587,6 @@ class session
 		async_remove_result remove(const key &id);
 
 		/*!
-		 * Queries statistics information from the server nodes.
-		 *
-		 * Returns async_stat_result.
-		 */
-		async_stat_result stat_log();
-		/*!
-		 * \overload stat_log()
-		 * Allows to specify the key \a id.
-		 */
-		async_stat_result stat_log(const key &id);
-
-		/*!
-		 * Queries statistics information from the server nodes.
-		 *
-		 * Returns async_stat_count_result.
-		 */
-		async_stat_count_result stat_log_count();
-
-		/*!
 		 * Queries monitor statistics information from server nodes.
 		 */
 		async_monitor_stat_result monitor_stat(uint64_t categories);

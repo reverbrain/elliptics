@@ -121,7 +121,6 @@ rm -rf %{buildroot}
 %{_bindir}/dnet_find
 %{_bindir}/dnet_ioclient
 %{_bindir}/dnet_index
-%{_bindir}/dnet_stat
 %{_bindir}/dnet_notify
 %{_bindir}/dnet_ids
 %{_bindir}/dnet_balancer

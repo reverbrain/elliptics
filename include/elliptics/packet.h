@@ -52,10 +52,10 @@ enum dnet_commands {
 	DNET_CMD_LIST_DEPRECATED,	/* List all objects for given node ID. Deperacted and forbidden */
 	DNET_CMD_EXEC,				/* Execute given command on the remote node */
 	DNET_CMD_ROUTE_LIST,			/* Receive route table from given node */
-	DNET_CMD_STAT,				/* Gather remote VM, LA and FS statistics */
+	DNET_CMD_STAT_DEPRECATED,		/* Gather remote VM, LA and FS statistics */
 	DNET_CMD_NOTIFY,			/* Notify when object in question was modified */
 	DNET_CMD_DEL,				/* Remove given object from the storage */
-	DNET_CMD_STAT_COUNT,			/* Gather remote per-cmd statistics */
+	DNET_CMD_STAT_COUNT_DEPRECATED,	/* Gather remote per-cmd statistics */
 	DNET_CMD_STATUS,			/* Change elliptics node status */
 	DNET_CMD_READ_RANGE,			/* Read range of objects */
 	DNET_CMD_DEL_RANGE,			/* Remove range of objects */
@@ -72,37 +72,6 @@ enum dnet_commands {
 	DNET_CMD_BACKEND_STATUS,	/* Special command to see current statuses of backends */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
-};
-
-enum dnet_counters {
-	DNET_CNTR_LA1 = __DNET_CMD_MAX*2,	/* Load average for 1 min */
-	DNET_CNTR_LA5,				/* Load average for 5 min */
-	DNET_CNTR_LA15,				/* Load average for 15 min */
-	DNET_CNTR_BSIZE,			/* Block size */
-	DNET_CNTR_FRSIZE,			/* Fragment size */
-	DNET_CNTR_BLOCKS,			/* Filesystem size in frsize units */
-	DNET_CNTR_BFREE,			/* # free blocks */
-	DNET_CNTR_BAVAIL,			/* # free blocks for non-root */
-	DNET_CNTR_FILES,			/* # inodes */
-	DNET_CNTR_FFREE,			/* # free inodes */
-	DNET_CNTR_FAVAIL,			/* # free inodes for non-root */
-	DNET_CNTR_FSID,				/* File system ID */
-	DNET_CNTR_VM_ACTIVE,			/* Active memory */
-	DNET_CNTR_VM_INACTIVE,			/* Inactive memory */
-	DNET_CNTR_VM_TOTAL,			/* Total memory */
-	DNET_CNTR_VM_FREE,			/* Free memory */
-	DNET_CNTR_VM_CACHED,			/* Used for cache */
-	DNET_CNTR_VM_BUFFERS,			/* Used for buffers */
-	DNET_CNTR_NODE_FILES,			/* # Number of available objects in the backend */
-	DNET_CNTR_NODE_FILES_REMOVED,		/* Number of removed objects, but yet not cleaned, like marked as removed in eblob backend */
-	DNET_CNTR_RESERVED2,			/* Reserved for future statistics */
-	DNET_CNTR_RESERVED3,			/* Reserved for future statistics */
-	DNET_CNTR_RESERVED4,			/* Reserved for future statistics */
-	DNET_CNTR_RESERVED5,			/* Reserved for future statistics */
-	DNET_CNTR_RESERVED6,			/* Reserved for future statistics */
-	DNET_CNTR_RESERVED7,			/* Reserved for future statistics */
-	DNET_CNTR_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown counters */
-	__DNET_CNTR_MAX,
 };
 
 /*
@@ -669,70 +638,6 @@ static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 	dnet_convert_time(&a->timestamp);
 }
 
-struct dnet_stat
-{
-	/* Load average from the target system multiplied by 100 */
-	uint16_t		la[3];
-
-	uint16_t		namemax;	/* maximum filename length */
-
-	uint64_t		bsize;		/* Block size */
-	uint64_t		frsize;		/* Fragment size */
-	uint64_t		blocks;		/* Filesystem size in frsize units */
-	uint64_t		bfree;		/* # free blocks */
-	uint64_t		bavail;		/* # free blocks for non-root */
-	uint64_t		files;		/* # inodes */
-	uint64_t		ffree;		/* # free inodes */
-	uint64_t		favail;		/* # free inodes for non-root */
-	uint64_t		fsid;		/* file system ID */
-	uint64_t		flag;		/* mount flags */
-
-	/*
-	 * VM counters in KB (1024) units.
-	 * On FreeBSD vm_buffers is used for wire counter.
-	 */
-	uint64_t		vm_active;
-	uint64_t		vm_inactive;
-	uint64_t		vm_total;
-	uint64_t		vm_free;
-	uint64_t		vm_cached;
-	uint64_t		vm_buffers;
-
-	/*
-	 * Per node IO statistics will live here.
-	 * Reserved for future use.
-	 */
-	uint64_t		node_files;
-	uint64_t		node_files_removed;
-	uint64_t		reserved[30];
-};
-
-static inline void dnet_convert_stat(struct dnet_stat *st)
-{
-	int i;
-
-	for (i=0; i<3; ++i)
-		st->la[i] = dnet_bswap16(st->la[i]);
-
-	st->bsize = dnet_bswap64(st->bsize);
-	st->frsize = dnet_bswap64(st->frsize);
-	st->blocks = dnet_bswap64(st->blocks);
-	st->bfree = dnet_bswap64(st->bfree);
-	st->bavail = dnet_bswap64(st->bavail);
-	st->files = dnet_bswap64(st->files);
-	st->ffree = dnet_bswap64(st->ffree);
-	st->favail = dnet_bswap64(st->favail);
-	st->fsid = dnet_bswap64(st->fsid);
-	st->namemax = dnet_bswap16(st->namemax);
-
-	st->vm_active = dnet_bswap64(st->vm_active);
-	st->vm_inactive = dnet_bswap64(st->vm_inactive);
-	st->vm_total = dnet_bswap64(st->vm_total);
-	st->vm_free = dnet_bswap64(st->vm_free);
-	st->vm_buffers = dnet_bswap64(st->vm_buffers);
-	st->vm_cached = dnet_bswap64(st->vm_cached);
-}
-
 struct dnet_io_notification
 {
 	struct dnet_addr		addr;
@@ -759,25 +664,6 @@ static inline void dnet_convert_stat_count(struct dnet_stat_count *st, int num)
 		st[i].count = dnet_bswap64(st[i].count);
 		st[i].err = dnet_bswap64(st[i].err);
 	}
-}
-
-struct dnet_addr_stat
-{
-	struct dnet_addr		addr;
-	int				num;
-	int				cmd_num;
-	struct dnet_stat_count		count[0];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_addr_stat(struct dnet_addr_stat *st, int num)
-{
-	st->addr.addr_len = dnet_bswap32(st->addr.addr_len);
-	st->num = dnet_bswap32(st->num);
-	if (!num)
-		num = st->num;
-	st->cmd_num = dnet_bswap32(st->cmd_num);
-
-	dnet_convert_stat_count(st->count, num);
 }
 
 static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)

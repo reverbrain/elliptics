@@ -141,8 +141,6 @@ void init_async_results() {
 	def_async_result<	callback_result_entry,
 						lookup_result_entry,
 						read_result_entry,
-						stat_result_entry,
-						stat_count_result_entry,
 						monitor_stat_result_entry,
 						iterator_result_entry,
 						exec_result_entry,

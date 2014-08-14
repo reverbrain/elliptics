@@ -138,10 +138,10 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_LIST_DEPRECATED] = "CHECK",
 	[DNET_CMD_EXEC] = "EXEC",
 	[DNET_CMD_ROUTE_LIST] = "ROUTE_LIST",
-	[DNET_CMD_STAT] = "STAT",
+	[DNET_CMD_STAT_DEPRECATED] = "STAT",
 	[DNET_CMD_NOTIFY] = "NOTIFY",
 	[DNET_CMD_DEL] = "REMOVE",
-	[DNET_CMD_STAT_COUNT] = "STAT_COUNT",
+	[DNET_CMD_STAT_COUNT_DEPRECATED] = "STAT_COUNT",
 	[DNET_CMD_STATUS] = "STATUS",
 	[DNET_CMD_READ_RANGE] = "READ_RANGE",
 	[DNET_CMD_DEL_RANGE] = "DEL_RANGE",
@@ -159,57 +159,12 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
-static char *dnet_counter_strings[] = {
-	[DNET_CNTR_LA1] = "DNET_CNTR_LA1",
-	[DNET_CNTR_LA5] = "DNET_CNTR_LA5",
-	[DNET_CNTR_LA15] = "DNET_CNTR_LA15",
-	[DNET_CNTR_BSIZE] = "DNET_CNTR_BSIZE",
-	[DNET_CNTR_FRSIZE] = "DNET_CNTR_FRSIZE",
-	[DNET_CNTR_BLOCKS] = "DNET_CNTR_BLOCKS",
-	[DNET_CNTR_BFREE] = "DNET_CNTR_BFREE",
-	[DNET_CNTR_BAVAIL] = "DNET_CNTR_BAVAIL",
-	[DNET_CNTR_FILES] = "DNET_CNTR_FILES",
-	[DNET_CNTR_FFREE] = "DNET_CNTR_FFREE",
-	[DNET_CNTR_FAVAIL] = "DNET_CNTR_FAVAIL",
-	[DNET_CNTR_FSID] = "DNET_CNTR_FSID",
-	[DNET_CNTR_VM_ACTIVE] = "DNET_CNTR_VM_ACTIVE",
-	[DNET_CNTR_VM_INACTIVE] = "DNET_CNTR_VM_INACTIVE",
-	[DNET_CNTR_VM_TOTAL] = "DNET_CNTR_VM_TOTAL",
-	[DNET_CNTR_VM_FREE] = "DNET_CNTR_VM_FREE",
-	[DNET_CNTR_VM_CACHED] = "DNET_CNTR_VM_CACHED",
-	[DNET_CNTR_VM_BUFFERS] = "DNET_CNTR_VM_BUFFERS",
-	[DNET_CNTR_NODE_FILES] = "DNET_CNTR_NODE_FILES",
-	[DNET_CNTR_NODE_FILES_REMOVED] = "DNET_CNTR_NODE_FILES_REMOVED",
-	[DNET_CNTR_RESERVED2] = "DNET_CNTR_RESERVED2",
-	[DNET_CNTR_RESERVED3] = "DNET_CNTR_RESERVED3",
-	[DNET_CNTR_RESERVED4] = "DNET_CNTR_RESERVED4",
-	[DNET_CNTR_RESERVED5] = "DNET_CNTR_RESERVED5",
-	[DNET_CNTR_RESERVED6] = "DNET_CNTR_RESERVED6",
-	[DNET_CNTR_RESERVED7] = "DNET_CNTR_RESERVED7",
-	[DNET_CNTR_UNKNOWN] = "UNKNOWN",
-};
-
 char *dnet_cmd_string(int cmd)
 {
 	if (cmd <= 0 || cmd >= __DNET_CMD_MAX || cmd >= DNET_CMD_UNKNOWN)
 		cmd = DNET_CMD_UNKNOWN;
 
 	return dnet_cmd_strings[cmd];
-}
-
-char *dnet_counter_string(int cntr, int cmd_num)
-{
-	if (cntr <= 0 || cntr >= __DNET_CNTR_MAX || cntr >= DNET_CNTR_UNKNOWN)
-		cntr = DNET_CNTR_UNKNOWN;
-
-	if (cntr < cmd_num)
-		return dnet_cmd_string(cntr);
-
-	if (cntr >= cmd_num && cntr < (cmd_num * 2))
-		return dnet_cmd_string(cntr - cmd_num);
-
-	cntr += DNET_CNTR_LA1 - cmd_num * 2;
-	return dnet_counter_strings[cntr];
 }
 
 const char *dnet_backend_state_string(uint32_t state)
@@ -1637,3 +1592,112 @@ int dnet_version_check(struct dnet_net_state *st, int *version)
 	return err;
 }
 
+#if defined HAVE_PROC_STAT
+int dnet_get_vm_stat(dnet_logger *l, struct dnet_vm_stat *st) {
+	int err;
+	FILE *f;
+	float la[3];
+	unsigned long long stub;
+
+	f = fopen("/proc/loadavg", "r");
+	if (!f) {
+		err = -errno;
+		dnet_log_only_log(l, DNET_LOG_ERROR, "Failed to open '/proc/loadavg': %s [%d].",
+		                 strerror(errno), errno);
+		goto err_out_exit;
+	}
+
+	err = fscanf(f, "%f %f %f", &la[0], &la[1], &la[2]);
+	if (err != 3) {
+		err = -errno;
+		if (!err)
+			err = -EINVAL;
+
+		dnet_log_only_log(l, DNET_LOG_ERROR, "Failed to read load average data: %s [%d].",
+		                 strerror(errno), errno);
+		goto err_out_close;
+	}
+
+	st->la[0] = la[0] * 100;
+	st->la[1] = la[1] * 100;
+	st->la[2] = la[2] * 100;
+
+	fclose(f);
+
+	f = fopen("/proc/meminfo", "r");
+	if (!f) {
+		err = -errno;
+		dnet_log_only_log(l, DNET_LOG_ERROR, "Failed to open '/proc/meminfo': %s [%d].",
+		                 strerror(errno), errno);
+		goto err_out_exit;
+	}
+
+	err = fscanf(f, "MemTotal:%llu kB\n", (unsigned long long *)&st->vm_total);
+	err = fscanf(f, "MemFree:%llu kB\n", (unsigned long long *)&st->vm_free);
+	err = fscanf(f, "Buffers:%llu kB\n", (unsigned long long *)&st->vm_buffers);
+	err = fscanf(f, "Cached:%llu kB\n", (unsigned long long *)&st->vm_cached);
+	err = fscanf(f, "SwapCached:%llu kB\n", (unsigned long long *)&stub);
+	err = fscanf(f, "Active:%llu kB\n", (unsigned long long *)&st->vm_active);
+	err = fscanf(f, "Inactive:%llu kB\n", (unsigned long long *)&st->vm_inactive);
+
+	fclose(f);
+	return 0;
+
+err_out_close:
+	fclose(f);
+err_out_exit:
+	return err;
+}
+#elif defined HAVE_SYSCTL_STAT
+#include <sys/sysctl.h>
+#include <sys/resource.h>
+
+int dnet_get_vm_stat(dnet_logger *l, struct dnet_vm_stat *st) {
+	int err;
+	struct loadavg la;
+	long page_size = 0;
+	size_t sz = sizeof(la);
+
+	err = sysctlbyname("vm.loadavg", &la, &sz, NULL, 0);
+	if (err) {
+		err = -errno;
+		dnet_log_only_log(l, DNET_LOG_ERROR, "Failed to get load average data: %s [%d].",
+				strerror(errno), errno);
+		return err;
+	}
+
+	st->la[0] = (double)la.ldavg[0] / la.fscale * 100;
+	st->la[1] = (double)la.ldavg[1] / la.fscale * 100;
+	st->la[2] = (double)la.ldavg[2] / la.fscale * 100;
+
+	sz = sizeof(uint64_t);
+	sysctlbyname("vm.stats.vm.v_active_count", &st->vm_active, &sz, NULL, 0);
+	sz = sizeof(uint64_t);
+	sysctlbyname("vm.stats.vm.v_inactive_count", &st->vm_inactive, &sz, NULL, 0);
+	sz = sizeof(uint64_t);
+	sysctlbyname("vm.stats.vm.v_cache_count", &st->vm_cached, &sz, NULL, 0);
+	sz = sizeof(uint64_t);
+	sysctlbyname("vm.stats.vm.v_free_count", &st->vm_free, &sz, NULL, 0);
+	sz = sizeof(uint64_t);
+	sysctlbyname("vm.stats.vm.v_wire_count", &st->vm_buffers, &sz, NULL, 0);
+	sz = sizeof(uint64_t);
+	sysctlbyname("vm.stats.vm.v_page_count", &st->vm_total, &sz, NULL, 0);
+	sz = sizeof(page_size);
+	sysctlbyname("vm.stats.vm.v_page_size", &page_size, &sz, NULL, 0);
+
+	page_size /= 1024;
+
+	st->vm_total *= page_size;
+	st->vm_active *= page_size;
+	st->vm_inactive *= page_size;
+	st->vm_free *= page_size;
+	st->vm_cached *= page_size;
+	st->vm_buffers *= page_size;
+
+	return 0;
+}
+#else
+int dnet_get_vm_stat(dnet_logger *l __unused, struct dnet_vm_stat *st __unused) {
+	return 0;
+}
+#endif

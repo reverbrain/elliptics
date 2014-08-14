@@ -45,27 +45,24 @@
 			"DNET_CMD_DEL", {}
 		),
 		[12] = elliptics_command(
-			"DNET_CMD_STAT_COUNT", {}
-		),
-		[13] = elliptics_command(
 			"DNET_CMD_STATUS", {}
 		),
-		[14] = elliptics_command(
+		[13] = elliptics_command(
 			"DNET_CMD_READ_RANGE", {}
 		),
-		[15] = elliptics_command(
+		[14] = elliptics_command(
 			"DNET_CMD_DEL_RANGE", {}
 		),
-		[16] = elliptics_command(
+		[15] = elliptics_command(
 			"DNET_CMD_AUTH", {}
 		),
-		[17] = elliptics_command(
+		[16] = elliptics_command(
 			"DNET_CMD_BULK_READ", {}
 		),
-		[18] = elliptics_command(
+		[17] = elliptics_command(
 			"DNET_CMD_DEFRAG", {}
 		),
-		[19] = elliptics_command(
+		[18] = elliptics_command(
 			"DNET_CMD_ITERATOR", {}
 		)
 	}

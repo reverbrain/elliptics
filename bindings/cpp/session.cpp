@@ -1739,39 +1739,6 @@ async_remove_result session::remove(const key &id)
 	return send_to_groups(*this, ctl);
 }
 
-async_stat_result session::stat_log()
-{
-	transport_control control;
-	control.set_command(DNET_CMD_STAT);
-	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
-
-	session sess = clean_clone();
-	return async_result_cast<stat_result_entry>(*this, send_to_each_backend(sess, control));
-}
-
-async_stat_result session::stat_log(const key &id)
-{
-	transform(id);
-
-	transport_control control;
-	control.set_key(id.id());
-	control.set_command(DNET_CMD_STAT);
-	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
-
-	session sess = clean_clone();
-	return async_result_cast<stat_result_entry>(*this, send_to_single_state(sess, control));
-}
-
-async_stat_count_result session::stat_log_count()
-{
-	transport_control control;
-	control.set_command(DNET_CMD_STAT_COUNT);
-	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
-
-	session sess = clean_clone();
-	return async_result_cast<stat_count_result_entry>(*this, send_to_each_backend(sess, control));
-}
-
 async_monitor_stat_result session::monitor_stat(uint64_t categories)
 {
 	dnet_monitor_stat_request request;

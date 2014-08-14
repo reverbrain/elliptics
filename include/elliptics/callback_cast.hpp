@@ -39,14 +39,6 @@ INIT_CALLBACK_TYPE(lookup_result_entry,
 	DNET_CMD_WRITE
 )
 
-INIT_CALLBACK_TYPE(stat_result_entry,
-	DNET_CMD_STAT
-)
-
-INIT_CALLBACK_TYPE(stat_count_result_entry,
-	DNET_CMD_STAT_COUNT
-)
-
 INIT_CALLBACK_TYPE(monitor_stat_result_entry,
 	DNET_CMD_MONITOR_STAT
 )

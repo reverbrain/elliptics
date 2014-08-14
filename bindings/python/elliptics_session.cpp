@@ -696,14 +696,6 @@ public:
 		return create_result(std::move(session::remove_index_internal(transform(id).raw_id())));
 	}
 
-	python_stat_result stat_log() {
-		return create_result(std::move(session::stat_log()));
-	}
-
-	python_stat_result stat_log_id(const bp::api::object &id) {
-		return create_result(std::move(session::stat_log(transform(id).id())));
-	}
-
 	python_monitor_stat_result monitor_stat(const bp::tuple &addr, uint64_t categories) {
 		if (bp::len(addr) == 0)
 			return create_result(std::move(session::monitor_stat(categories)));
@@ -716,10 +708,6 @@ public:
 		                                                             get_port(),
 		                                                             get_family()),
 		                                                     categories)));
-	}
-
-	python_stat_count_result stat_log_count() {
-		return create_result(std::move(session::stat_log_count()));
 	}
 
 private:
@@ -1744,73 +1732,6 @@ void init_elliptics_session() {
 		     "    Doesn't change indexes list of @id\n")
 
 // Statistics
-
-		.def("stat_log_count", &elliptics_session::stat_log_count,
-		    "stat_log_count()\n"
-		    "    Counters statistics of Elliptics node. Returns elliptics.AsyncResult.\n\n"
-		    "    result = session.stat_log_count()\n"
-		    "    stats = result.get()\n"
-		    "    for stat in stats:\n"
-		    "        print 'Address:', stat.address\n"
-		    "        print 'Counters:', stat.statistics.counters\n")
-
-		.def("stat_log", &elliptics_session::stat_log,
-		    "stat_log()\n"
-		    "    Provides statistics about virtual memory and file system utilization. Returns elliptics.AsyncResult\n\n"
-		    "    result = session.stat_log()\n"
-		    "    stats = result.get()\n"
-		    "    for stat in stats:\n"
-		    "        print 'Address:', stat.address\n"
-		    "        print 'la:', stat.statistics.la\n"
-		    "        print 'bsize:', stat.statistics.bsize\n"
-		    "        print 'frsize:', stat.statistics.frsize\n"
-		    "        print 'blocks:', stat.statistics.blocks\n"
-		    "        print 'bfree:', stat.statistics.bfree\n"
-		    "        print 'bavail:', stat.statistics.bavail\n"
-		    "        print 'files:', stat.statistics.files\n"
-		    "        print 'ffree:', stat.statistics.ffree\n"
-		    "        print 'favail:', stat.statistics.favail\n"
-		    "        print 'fsid:', stat.statistics.fsid\n"
-		    "        print 'flag:', stat.statistics.flag\n"
-		    "        print 'vm_active:', stat.statistics.vm_active\n"
-		    "        print 'vm_inactive:', stat.statistics.vm_inactive\n"
-		    "        print 'vm_total:', stat.statistics.vm_total\n"
-		    "        print 'vm_free:', stat.statistics.vm_free\n"
-		    "        print 'vm_cached:', stat.statistics.vm_cached\n"
-		    "        print 'vm_buffers:', stat.statistics.vm_buffers\n"
-		    "        print 'node_files:', stat.statistics.node_files\n"
-		    "        print 'node_files_removed:', stat.statistics.node_files_removed\n")
-
-		.def("stat_log", &elliptics_session::stat_log_id,
-		     (bp::arg("key")),
-		    "stat_log(key)\n"
-		    "    Provides statistics about virtual memory and file system utilization for the node speicified by @key.\n"
-		    "    Returns elliptics.AsyncResult\n"
-		    "    -- key - elliptics.Id which specifies node\n\n"
-		    "    id = session.routes.get_address_id(elliptics.Address.from_host_port('host.com:1025'))\n"
-		    "    result = session.stat_log(id)\n"
-		    "    stats = result.get()\n"
-		    "    for stat in stats:\n"
-		    "        print 'Address:', stat.address\n"
-		    "        print 'la:', stat.statistics.la\n"
-		    "        print 'bsize:', stat.statistics.bsize\n"
-		    "        print 'frsize:', stat.statistics.frsize\n"
-		    "        print 'blocks:', stat.statistics.blocks\n"
-		    "        print 'bfree:', stat.statistics.bfree\n"
-		    "        print 'bavail:', stat.statistics.bavail\n"
-		    "        print 'files:', stat.statistics.files\n"
-		    "        print 'ffree:', stat.statistics.ffree\n"
-		    "        print 'favail:', stat.statistics.favail\n"
-		    "        print 'fsid:', stat.statistics.fsid\n"
-		    "        print 'flag:', stat.statistics.flag\n"
-		    "        print 'vm_active:', stat.statistics.vm_active\n"
-		    "        print 'vm_inactive:', stat.statistics.vm_inactive\n"
-		    "        print 'vm_total:', stat.statistics.vm_total\n"
-		    "        print 'vm_free:', stat.statistics.vm_free\n"
-		    "        print 'vm_cached:', stat.statistics.vm_cached\n"
-		    "        print 'vm_buffers:', stat.statistics.vm_buffers\n"
-		    "        print 'node_files:', stat.statistics.node_files\n"
-		    "        print 'node_files_removed:', stat.statistics.node_files_removed\n")
 
 		.def("monitor_stat", &elliptics_session::monitor_stat,
 		     (bp::arg("address"), bp::arg("categories")=elliptics_monitor_categories_all),

@@ -149,16 +149,6 @@ struct entry_converter
 		dnet_convert_io_attr(entry.io_attribute());
 	}
 
-	static void convert(stat_result_entry &entry, callback_result_data *)
-	{
-		dnet_convert_stat(entry.statistics());
-	}
-
-	static void convert(stat_count_result_entry &entry, callback_result_data *)
-	{
-		dnet_convert_addr_stat(entry.statistics(), 0);
-	}
-
 	static void convert(backend_status_result_entry &, callback_result_data *)
 	{
 	}

@@ -146,30 +146,6 @@ class lookup_result_entry : public callback_result_entry
 		const char *file_path() const;
 };
 
-class stat_result_entry : public callback_result_entry
-{
-	public:
-		stat_result_entry();
-		stat_result_entry(const stat_result_entry &other);
-		~stat_result_entry();
-
-		stat_result_entry &operator =(const stat_result_entry &other);
-
-		struct dnet_stat *statistics() const;
-};
-
-class stat_count_result_entry : public callback_result_entry
-{
-	public:
-		stat_count_result_entry();
-		stat_count_result_entry(const stat_count_result_entry &other);
-		~stat_count_result_entry();
-
-		stat_count_result_entry &operator =(const stat_count_result_entry &other);
-
-		struct dnet_addr_stat *statistics() const;
-};
-
 class monitor_stat_result_entry : public callback_result_entry
 {
 	public:
@@ -298,10 +274,6 @@ typedef std::vector<read_result_entry> sync_read_result;
 typedef async_generic_result async_remove_result;
 typedef sync_generic_result sync_remove_result;
 
-typedef async_result<stat_result_entry> async_stat_result;
-typedef std::vector<stat_result_entry> sync_stat_result;
-typedef async_result<stat_count_result_entry> async_stat_count_result;
-typedef std::vector<stat_count_result_entry> sync_stat_count_result;
 typedef async_result<monitor_stat_result_entry> async_monitor_stat_result;
 typedef std::vector<monitor_stat_result_entry> sync_monitor_stat_result;
 

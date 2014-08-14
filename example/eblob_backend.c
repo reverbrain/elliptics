@@ -783,7 +783,6 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 
 	int err;
 	struct eblob_backend_config *c = priv;
-	char *path, *p;
 
 	switch (cmd->cmd) {
 		case DNET_CMD_LOOKUP:
@@ -798,24 +797,6 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 		case DNET_CMD_READ_RANGE:
 		case DNET_CMD_DEL_RANGE:
 			err = blob_read_range(c, state, cmd, data);
-			break;
-		case DNET_CMD_STAT:
-			path = strdup(c->data.file);
-			if (!path) {
-				err = -ENOMEM;
-				break;
-			}
-
-			p = strrchr(path, '/');
-			if (p) {
-				*p = '\0';
-			} else {
-				free(path);
-				path = NULL;
-			}
-
-			err = backend_stat(c->blog, state, path, cmd);
-			free(path);
 			break;
 		case DNET_CMD_DEL:
 			err = blob_del(c, cmd);
@@ -952,32 +933,9 @@ static int dnet_blob_set_blob_flags(struct dnet_config_backend *b, char *key __u
 	return 0;
 }
 
-int eblob_backend_storage_stat(void *priv, struct dnet_stat *st)
-{
-	int err;
+uint64_t eblob_backend_total_elements(void *priv) {
 	struct eblob_backend_config *r = priv;
-
-	memset(st, 0, sizeof(struct dnet_stat));
-
-	err = backend_stat_low_level(r->blog, r->data.file, st);
-	if (err) {
-		char root[strlen(r->data.file)+1], *ptr;
-
-		snprintf(root, sizeof(root), "%s", r->data.file);
-		ptr = strrchr(root, '/');
-		if (ptr) {
-			*ptr = '\0';
-			err = backend_stat_low_level(r->blog, root, st);
-		}
-
-		if (err)
-			return err;
-	}
-
-	st->node_files = eblob_total_elements(r->eblob);
-	st->node_files_removed = eblob_stat_get_summary(r->eblob, EBLOB_LST_RECORDS_REMOVED);
-
-	return 0;
+	return eblob_total_elements(r->eblob);
 }
 
 int eblob_backend_storage_stat_json(void *priv, char **json_stat, size_t *size)
@@ -1093,7 +1051,7 @@ static void dnet_eblob_log_implemenation(void *priv, int level, const char *msg)
 static int dnet_blob_config_init(struct dnet_config_backend *b)
 {
 	struct eblob_backend_config *c = b->data;
-	struct dnet_stat st;
+	struct dnet_vm_stat st;
 	int err = 0;
 
 	c->blog = b->log;
@@ -1123,8 +1081,8 @@ static int dnet_blob_config_init(struct dnet_config_backend *b)
 		goto err_out_last_read_lock_destroy;
 	}
 
-	memset(&st, 0, sizeof(struct dnet_stat));
-	err = eblob_backend_storage_stat(c, &st);
+	memset(&st, 0, sizeof(struct dnet_vm_stat));
+	err = dnet_get_vm_stat(c->blog, &st);
 	if (err)
 		goto err_out_last_read_lock_destroy;
 
@@ -1132,8 +1090,8 @@ static int dnet_blob_config_init(struct dnet_config_backend *b)
 
 	c->vm_total = st.vm_total * st.vm_total * 1024 * 1024;
 
-	b->cb.storage_stat = eblob_backend_storage_stat;
 	b->cb.storage_stat_json = eblob_backend_storage_stat_json;
+	b->cb.total_elements = eblob_backend_total_elements;
 
 	b->cb.command_private = c;
 	b->cb.command_handler = eblob_backend_command_handler;

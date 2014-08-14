@@ -202,11 +202,11 @@ struct dnet_backend_callbacks {
 	/* this must be provided as @priv argument to all above and below callbacks*/
 	void			*command_private;
 
-	/* fills storage statistics */
-	int			(* storage_stat)(void *priv, struct dnet_stat *st);
-
 	/* fills storage statistics in json format */
 	int			(* storage_stat_json)(void *priv, char **json_stat, size_t *size);
+
+	/* returns total elements at backend */
+	uint64_t	(* total_elements)(void *priv);
 
 	/* cleanups backend at exit */
 	void			(* backend_cleanup)(void *command_private);
@@ -781,9 +781,6 @@ enum id_params {
 	DNET_ID_PARAM_FREE_SPACE,
 };
 
-//TODO int dnet_generate_ids_by_param(struct dnet_session *s, struct dnet_id *id, enum id_params param, struct dnet_id_param **dst);
-//TODO int64_t dnet_get_param(struct dnet_session *s, struct dnet_id *id, enum id_params param);
-
 struct dnet_check_reply {
 	int			total;
 	int			completed;
@@ -855,7 +852,6 @@ static inline int is_trans_destroyed(struct dnet_cmd *cmd)
 int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp);
 
 char * __attribute__((weak)) dnet_cmd_string(int cmd);
-char *dnet_counter_string(int cntr, int cmd_num);
 const char *dnet_backend_state_string(uint32_t state);
 const char *dnet_backend_defrag_state_string(uint32_t state);
 
@@ -897,6 +893,18 @@ void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)
 int dnet_parse_addr(char *addr, int *portp, int *familyp);
 
 int dnet_parse_numeric_id(const char *value, unsigned char *id);
+
+struct dnet_vm_stat {
+	uint16_t	la[3];
+	uint64_t	vm_active;
+	uint64_t	vm_inactive;
+	uint64_t	vm_total;
+	uint64_t	vm_free;
+	uint64_t	vm_cached;
+	uint64_t	vm_buffers;
+};
+
+int dnet_get_vm_stat(dnet_logger *l, struct dnet_vm_stat *st);
 
 #ifdef __cplusplus
 }
