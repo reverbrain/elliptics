@@ -1497,7 +1497,7 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 
 	dnet_convert_cmd(cmd);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup to %s.\n", dnet_dump_id(id), dnet_server_convert_dnet_addr(&t->st->addr));
+	dnet_log(n, DNET_LOG_INFO, "%s: lookup to %s.\n", dnet_dump_id(id), dnet_server_convert_dnet_addr(&t->st->addr));
 
 	memset(&req, 0, sizeof(req));
 	req.st = t->st;
