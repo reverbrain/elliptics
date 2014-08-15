@@ -30,11 +30,19 @@ struct cache_config
 
 }}
 
+/**
+ * This structure holds config value read from config file
+ * @entry.key contains config key, @value_template holds value for given key
+ *
+ * When backend is being initialized, it calls @entry.callback() function for each config entry
+ *
+ * Please note that backend initalization copies value into temporal copy,
+ * since @entry.callback() can modify this data.
+ */
 struct dnet_backend_config_entry
 {
 	dnet_config_entry *entry;
 	std::vector<char> value_template;
-	std::vector<char> value;
 };
 
 struct dnet_backend_info

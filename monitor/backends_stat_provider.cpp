@@ -41,7 +41,7 @@ static void fill_backend_backend(rapidjson::Value &stat_value,
                                  const struct dnet_backend_io &backend) {
 	char *json_stat = NULL;
 	size_t size = 0;
-	auto cb = backend.cb;
+	struct dnet_backend_callbacks *cb = backend.cb;
 	if (cb->storage_stat_json) {
 		cb->storage_stat_json(cb->command_private, &json_stat, &size);
 		if (json_stat && size) {
@@ -87,7 +87,7 @@ static void fill_backend_cache(rapidjson::Value &stat_value,
                                rapidjson::Document::AllocatorType &allocator,
                                const struct dnet_backend_io &backend) {
 	if (backend.cache) {
-		auto cache = (ioremap::cache::cache_manager *)backend.cache;
+		ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager *)backend.cache;
 		rapidjson::Document caches_value(&allocator);
 		caches_value.Parse<0>(cache->stat_json().c_str());
 		stat_value.AddMember("cache",
@@ -121,24 +121,21 @@ static void fill_backend_status(rapidjson::Value &stat_value,
 }
 
 /*
- * Fills config section of one disabled backend
+ * Fills config with common backend info like config, group id
  */
 static void fill_disabled_backend_config(rapidjson::Value &stat_value,
                                          rapidjson::Document::AllocatorType &allocator,
-                                         struct dnet_node *node,
-                                         size_t backend_id) {
-	rapidjson::Value backend_value(rapidjson::kObjectType);
+					 const dnet_backend_info &config_backend) {
 	rapidjson::Value config_value(rapidjson::kObjectType);
 
-	auto &backend_info = node->config_data->backends->backends[backend_id];
-	for (auto it = backend_info.options.begin(); it != backend_info.options.end(); ++it) {
-		auto &entry = *it;
-		entry.value.assign(entry.value_template.begin(), entry.value_template.end());
+	for (auto it = config_backend.options.begin(); it != config_backend.options.end(); ++it) {
+		const dnet_backend_config_entry &entry = *it;
+
 		config_value.AddMember(entry.entry->key,
-		                       entry.value.data(),
+		                       entry.value_template.data(),
 		                       allocator);
 	}
-	config_value.AddMember("group", backend_info.group, allocator);
+	config_value.AddMember("group", config_backend.group, allocator);
 	stat_value.AddMember("config", config_value, allocator);
 }
 
@@ -151,14 +148,15 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
                                             struct dnet_node *node,
                                             size_t backend_id) {
 	dnet_backend_status status;
-	const auto &backends = node->config_data->backends->backends;
-	std::lock_guard<std::mutex> guard(*backends[backend_id].state_mutex);
+	const auto &config_backend = node->config_data->backends->backends[backend_id];
+	std::lock_guard<std::mutex> guard(*config_backend.state_mutex);
 
 	stat_value.AddMember("backend_id", backend_id, allocator);
 	fill_backend_status(stat_value, allocator, node, status, backend_id);
 
 	if (status.state == DNET_BACKEND_ENABLED && node->io) {
-		auto backend = node->io->backends[backend_id];
+		const struct dnet_backend_io & backend = node->io->backends[backend_id];
+
 		if (categories & DNET_MONITOR_BACKEND) {
 			fill_backend_backend(stat_value, allocator, backend);
 		}
@@ -171,7 +169,7 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 	}
 
 	if (categories & DNET_MONITOR_BACKEND) {
-		fill_disabled_backend_config(stat_value, allocator, node, backend_id);
+		fill_disabled_backend_config(stat_value, allocator, config_backend);
 	}
 
 	return stat_value;

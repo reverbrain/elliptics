@@ -374,7 +374,6 @@ void parse_backends(config_data *data, const config &backends)
 
 				dnet_backend_config_entry option = {
 					&entry,
-					value,
 					value
 				};
 
