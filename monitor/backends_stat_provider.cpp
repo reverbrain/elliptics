@@ -52,6 +52,8 @@ static void fill_backend_backend(rapidjson::Value &stat_value,
 			                     allocator);
 		}
 	}
+
+	free(json_stat);
 }
 
 static void dump_list_stats(rapidjson::Value &stat, list_stat &list_stats, rapidjson::Document::AllocatorType &allocator) {
