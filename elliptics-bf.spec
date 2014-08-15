@@ -128,7 +128,6 @@ rm -rf %{buildroot}
 %{_bindir}/dnet_client
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
-%{_libdir}/libelliptics_monitor.so.*
 %{python_sitelib}/elliptics/core.so.*
 %{python_sitelib}/elliptics_recovery/*
 %{python_sitelib}/elliptics/*.py*
@@ -138,7 +137,6 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/libelliptics_client.so
-%{_libdir}/libelliptics_monitor.so
 %{_libdir}/libelliptics_cpp.so
 %{_datadir}/elliptics/cmake/*
 %{python_sitelib}/elliptics/core.so

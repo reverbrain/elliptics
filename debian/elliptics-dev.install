@@ -5,4 +5,3 @@ usr/lib/libelliptics.so
 usr/lib/libelliptics_client.so
 usr/lib/libelliptics_cpp.so
 usr/lib/libelliptics_module_backend_cpp.so
-usr/lib/libelliptics_monitor.so

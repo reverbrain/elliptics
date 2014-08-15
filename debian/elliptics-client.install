@@ -1,6 +1,5 @@
 usr/lib/libelliptics_client.so.*
 usr/lib/libelliptics_cpp.so.*
-usr/lib/libelliptics_monitor.so.*
 usr/bin/dnet_find
 usr/bin/dnet_ioclient
 usr/bin/dnet_index
