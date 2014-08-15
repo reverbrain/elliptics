@@ -1,8 +1,10 @@
-#include <memory>
-#include <fcntl.h>
 #include "elliptics.h"
 #include "../monitor/monitor.hpp"
+
 #include <fstream>
+#include <memory>
+
+#include <fcntl.h>
 
 static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned long long storage_free)
 {
