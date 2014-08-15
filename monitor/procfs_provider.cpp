@@ -43,7 +43,7 @@ static int fill_proc_io_stat(dnet_logger *l, struct proc_io_stat &st) {
 	f = fopen("/proc/self/io", "r");
 	if (!f) {
 		err = -errno;
-		dnet_backend_log(l, DNET_LOG_ERROR, "Failed to open '/proc/self/io': %s [%d].",
+		dnet_log_only_log(l, DNET_LOG_ERROR, "Failed to open '/proc/self/io': %s [%d].",
 		                 strerror(errno), errno);
 		goto err_out_exit;
 	}
@@ -83,7 +83,7 @@ static int fill_proc_stat(dnet_logger *l, struct proc_stat &st) {
 	f = fopen("/proc/self/stat", "r");
 	if (!f) {
 		err = -errno;
-		dnet_backend_log(l, DNET_LOG_ERROR, "Failed to open '/proc/self/stat': %s [%d].",
+		dnet_log_only_log(l, DNET_LOG_ERROR, "Failed to open '/proc/self/stat': %s [%d].",
 		                 strerror(errno), errno);
 		goto err_out_exit;
 	}
@@ -96,7 +96,7 @@ static int fill_proc_stat(dnet_logger *l, struct proc_stat &st) {
 	f = fopen("/proc/self/statm", "r");
 	if (!f) {
 		err = -errno;
-		dnet_backend_log(l, DNET_LOG_ERROR, "Failed to open '/proc/self/statm': %s [%d].",
+		dnet_log_only_log(l, DNET_LOG_ERROR, "Failed to open '/proc/self/statm': %s [%d].",
 		                 strerror(errno), errno);
 		goto err_out_exit;
 	}
