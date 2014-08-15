@@ -133,9 +133,8 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 	for (auto it = config_backend.options.begin(); it != config_backend.options.end(); ++it) {
 		const dnet_backend_config_entry &entry = *it;
 
-		config_value.AddMember(entry.entry->key,
-		                       entry.value_template.data(),
-		                       allocator);
+		rapidjson::Value tmp(entry.value_template.data(), entry.value_template.size(), allocator);
+		config_value.AddMember(entry.entry->key, tmp, allocator);
 	}
 	config_value.AddMember("group", config_backend.group, allocator);
 	stat_value.AddMember("config", config_value, allocator);
