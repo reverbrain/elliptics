@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.0
+Version:	2.26.3.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Aug 15 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.1
+- monitor: stat fixes
+- backends: added ability to make backends readonly
+- monitor: added config stats
+
 * Thu Aug 14 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.0
 - cache: Added ability to configure backend's cache
 - client: Added send_to_each_node
