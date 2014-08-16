@@ -24,8 +24,11 @@ file_logger::file_logger(const char *file, log_level level)
 
 	auto formatter = blackhole::utils::make_unique<blackhole::formatter::string_t>(format());
 	formatter->set_mapper(file_logger::mapping());
-	auto sink = blackhole::utils::make_unique<blackhole::sink::files_t<>>(blackhole::sink::files_t<>::config_type(file));
-	auto frontend = blackhole::utils::make_unique<blackhole::frontend_t<blackhole::formatter::string_t, blackhole::sink::files_t<>>>(std::move(formatter), std::move(sink));
+	auto sink = blackhole::utils::make_unique<blackhole::sink::files_t<>>
+		(blackhole::sink::files_t<>::config_type(file));
+	auto frontend = blackhole::utils::make_unique
+		<blackhole::frontend_t<blackhole::formatter::string_t, blackhole::sink::files_t<>>>
+			(std::move(formatter), std::move(sink));
 
 	add_frontend(std::move(frontend));
 
@@ -44,7 +47,7 @@ static const char *severity_names[] = {
 	"warning",
 	"error"
 };
-const size_t severity_names_count = sizeof(severity_names) / sizeof(severity_names[0]);
+static const size_t severity_names_count = sizeof(severity_names) / sizeof(severity_names[0]);
 
 std::string file_logger::generate_level(log_level level)
 {
@@ -98,7 +101,8 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 	using blackhole::scoped_attributes_t;
 
 	if (blackhole_attributes) {
-		dnet_log_only_log(logger, DNET_LOG_ERROR, "logic error: you must not call dnet_node_set_trace_id twice, dnet_node_unset_trace_id call missed");
+		dnet_log_only_log(logger, DNET_LOG_ERROR,
+			"logic error: you must not call dnet_node_set_trace_id twice, dnet_node_unset_trace_id call missed");
 		return;
 	}
 

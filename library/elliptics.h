@@ -83,7 +83,7 @@ extern __thread uint64_t trace_id;
 			dnet_log_write(local_dnet_log, local_dnet_record, format, ##a);
 
 #define DNET_LOG_PRINT_ERR(err, format, a...) \
-			dnet_log_write_err(local_dnet_log, local_dnet_record, err, format, ##a);
+			dnet_log_write_err(local_dnet_log, local_dnet_record, err, format": %s [%d]", ##a, strerror(-err), err);
 
 #define DNET_LOG_END() \
 			dnet_log_close_record(local_dnet_record); \

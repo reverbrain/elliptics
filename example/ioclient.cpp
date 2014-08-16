@@ -39,10 +39,6 @@
 
 using namespace ioremap::elliptics;
 
-#ifndef __unused
-#define __unused	__attribute__ ((unused))
-#endif
-
 static void dnet_usage(char *p)
 {
 	fprintf(stderr, "Usage: %s\n"

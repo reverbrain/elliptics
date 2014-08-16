@@ -62,7 +62,7 @@ extern "C" {
 typedef struct cpp_ioremap_elliptics_logger dnet_logger;
 typedef struct cpp_blackhole_log_record_t dnet_logger_record;
 
-// Keep in sink with blackhole::defaults::severity
+// Keep in sync with blackhole::defaults::severity
 enum dnet_log_level {
 	DNET_LOG_DEBUG,
         DNET_LOG_NOTICE,
