@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.0
+Version:	2.26.3.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:	python-devel
 BuildRequires:	libcocaine-core2-devel >= 0.11.2.0
 BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
-BuildRequires:	eblob-devel >= 0.22.3
+BuildRequires:	eblob-devel >= 0.22.4
 BuildRequires:	react-devel >= 2.3.1
 BuildRequires:  libblackhole-devel >= 0.2.0
 BuildRequires:	libev-devel libtool-ltdl-devel
@@ -143,6 +143,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Aug 15 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.1
+- monitor: stat fixes
+- backends: added ability to make backends readonly
+- monitor: added config stats
+
 * Thu Aug 14 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.0
 - cache: Added ability to configure backend's cache
 - client: Added send_to_each_node

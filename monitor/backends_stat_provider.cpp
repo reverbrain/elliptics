@@ -133,8 +133,8 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 	for (auto it = config_backend.options.begin(); it != config_backend.options.end(); ++it) {
 		const dnet_backend_config_entry &entry = *it;
 
-		rapidjson::Value tmp(entry.value_template.data(), entry.value_template.size(), allocator);
-		config_value.AddMember(entry.entry->key, tmp, allocator);
+		rapidjson::Value tmp_val(entry.value_template.data(), allocator);
+		config_value.AddMember(entry.entry->key, tmp_val, allocator);
 	}
 	config_value.AddMember("group", config_backend.group, allocator);
 	stat_value.AddMember("config", config_value, allocator);
@@ -149,6 +149,8 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
                                             struct dnet_node *node,
                                             size_t backend_id) {
 	dnet_backend_status status;
+	memset(&status, 0, sizeof(status));
+
 	const auto &config_backend = node->config_data->backends->backends[backend_id];
 	std::lock_guard<std::mutex> guard(*config_backend.state_mutex);
 
