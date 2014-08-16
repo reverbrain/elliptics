@@ -1,3 +1,10 @@
+elliptics (2.26.3.2) unstable; urgency=low
+
+  * state: minor cleanups, optimizations and fixes
+  * stack: print minimum stack size (1M) if current stack size is less than that
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 17 Aug 2014 03:48:06 +0400
+
 elliptics (2.26.3.1) unstable; urgency=low
 
   * monitor: stat fixes
