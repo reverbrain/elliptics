@@ -32,6 +32,7 @@
 static int dnet_node_check_stack(struct dnet_node *n)
 {
 	size_t stack_size;
+	size_t min_stack_size = 1024 * 1024;
 	int err;
 
 	err = pthread_attr_getstacksize(&n->attr, &stack_size);
@@ -41,8 +42,9 @@ static int dnet_node_check_stack(struct dnet_node *n)
 		goto err_out_exit;
 	}
 
-	if (stack_size <= 1024 * 1024) {
-		dnet_log(n, DNET_LOG_ERROR, "Stack size (%zd bytes) is too small, exiting", stack_size);
+	if (stack_size < min_stack_size) {
+		dnet_log(n, DNET_LOG_ERROR, "Stack size (%zd bytes) is too small, should be at least %zd, exiting",
+				stack_size, min_stack_size);
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
