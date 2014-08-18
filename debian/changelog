@@ -1,3 +1,9 @@
+elliptics (2.26.3.5) unstable; urgency=low
+
+  * logger: do not even try to process logging if log level is small enough
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 19 Aug 2014 01:40:44 +0400
+
 elliptics (2.26.3.4) unstable; urgency=low
 
   * Get rid of foreign/blackhole include dir which can contain old/obscure version of the package
