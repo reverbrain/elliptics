@@ -134,6 +134,9 @@ static __thread char dnet_logger_record_buffer[sizeof(dnet_logger_record)];
 
 dnet_logger_record *dnet_log_open_record(dnet_logger *logger, dnet_log_level level)
 {
+	if (level < logger->log().verbosity())
+		return NULL;
+
 	dnet_logger_record *record = reinterpret_cast<dnet_logger_record *>(dnet_logger_record_buffer);
 
 	try {
