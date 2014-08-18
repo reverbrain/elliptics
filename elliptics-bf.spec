@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.2
+Version:	2.26.3.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Aug 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.3
+- Rebuild with the proper blackhole-dev package
+
 * Sun Aug 17 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.2
 - state: minor cleanups, optimizations and fixes
 - stack: print minimum stack size (1M) if current stack size is less than that

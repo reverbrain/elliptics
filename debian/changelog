@@ -1,3 +1,9 @@
+elliptics (2.26.3.3) unstable; urgency=low
+
+  * Rebuild with the proper blackhole-dev package
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Aug 2014 17:49:24 +0400
+
 elliptics (2.26.3.2) unstable; urgency=low
 
   * state: minor cleanups, optimizations and fixes
