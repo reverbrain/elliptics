@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.3
+Version:	2.26.3.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Aug 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.4
+- Get rid of foreign/blackhole include dir which can contain old/obscure version of the package
+
 * Mon Aug 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.3
 - Rebuild with the proper blackhole-dev package
 

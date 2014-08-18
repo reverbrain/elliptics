@@ -1,3 +1,9 @@
+elliptics (2.26.3.4) unstable; urgency=low
+
+  * Get rid of foreign/blackhole include dir which can contain old/obscure version of the package
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Aug 2014 20:26:45 +0400
+
 elliptics (2.26.3.3) unstable; urgency=low
 
   * Rebuild with the proper blackhole-dev package
