@@ -519,15 +519,25 @@ result_error_handler remove_on_fail(const session &sess)
 
 } // namespace error_handlers
 
+static void create_session_data(session_data &sess, struct dnet_node *node)
+{
+	sess.session_ptr = dnet_session_create(node);
+	if (!sess.session_ptr)
+		throw std::bad_alloc();
+	sess.filter = filters::positive;
+	sess.checker = checkers::at_least_one;
+	sess.error_handler = error_handlers::none;
+	sess.policy = session::default_exceptions;
+}
+
 session_data::session_data(const node &n) : logger(n.get_log(), blackhole::log::attributes_t())
 {
-	session_ptr = dnet_session_create(n.get_native());
-	if (!session_ptr)
-		throw std::bad_alloc();
-	filter = filters::positive;
-	checker = checkers::at_least_one;
-	error_handler = error_handlers::none;
-	policy = session::default_exceptions;
+	create_session_data(*this, n.get_native());
+}
+
+session_data::session_data(dnet_node *node) : logger(*dnet_node_get_logger(node), blackhole::log::attributes_t())
+{
+	create_session_data(*this, node);
 }
 
 session_data::session_data(session_data &other)
@@ -549,6 +559,11 @@ session_data::~session_data()
 
 session::session(const node &n) : m_data(std::make_shared<session_data>(n))
 {
+}
+
+session::session(dnet_node *node) : m_data(std::make_shared<session_data>(node))
+{
+
 }
 
 session::session(const std::shared_ptr<session_data> &d) : m_data(d)

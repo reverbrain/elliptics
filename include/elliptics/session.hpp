@@ -235,6 +235,7 @@ class session
 		};
 
 		explicit session(const node &n);
+		explicit session(dnet_node *node);
 		explicit session(const std::shared_ptr<session_data> &d);
 		session(const session &other);
 		virtual ~session();

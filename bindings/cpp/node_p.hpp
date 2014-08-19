@@ -41,6 +41,7 @@ class session_data
 {
 	public:
 		session_data(const node &n);
+		session_data(dnet_node *node);
 		session_data(session_data &other);
 		~session_data();
 
