@@ -72,20 +72,6 @@
 
 namespace ioremap { namespace elliptics { namespace config {
 
-struct config_data : public dnet_config_data
-{
-	config_data() : logger(logger_base, blackhole::log::attributes_t())
-	{
-	}
-
-	dnet_backend_info_list backends_guard;
-	std::string logger_value;
-	ioremap::elliptics::logger_base logger_base;
-	ioremap::elliptics::logger logger;
-	std::vector<address> remotes;
-	std::unique_ptr<cache::cache_config> cache_config;
-};
-
 extern "C" dnet_config_data *dnet_config_data_create()
 {
 	config_data *data = new config_data;
@@ -318,68 +304,9 @@ void parse_backends(config_data *data, const config &backends)
 
 	for (size_t index = 0; index < backends.size(); ++index) {
 		const config backend = backends.at(index);
-		std::string type = backend.at<std::string>("type");
+		dnet_backend_info &info = data->backends->backends[index];
 
-		dnet_config_backend *backends_info[] = {
-			dnet_eblob_backend_info(),
-			dnet_file_backend_info(),
-#ifdef HAVE_MODULE_BACKEND_SUPPORT
-			dnet_module_backend_info(),
-#endif
-		};
-
-		dnet_backend_info *info = NULL;
-
-		for (size_t i = 0; i < sizeof(backends_info) / sizeof(backends_info[0]); ++i) {
-			dnet_config_backend *current_backend = backends_info[i];
-			if (type == current_backend->name) {
-				info = &data->backends->backends[index];
-
-				info->config_template = *current_backend;
-				info->config = *current_backend;
-				info->data.resize(info->config.size, '\0');
-				info->log = data->cfg_state.log;
-				break;
-			}
-		}
-
-		if (!info)
-			throw config_error() << backend.at("type").path() << " is unknown backend";
-
-		info->group = backend.at<int>("group");
-		info->history = backend.at<std::string>("history");
-		info->enable_at_start = backend.at<bool>("enable", true);
-		info->cache = NULL;
-
-		if (backend.has("cache")) {
-			const config cache = backend.at("cache");
-			info->cache_config = ioremap::cache::cache_config::parse(cache);
-		} else if (data->cache_config) {
-			info->cache_config = blackhole::utils::make_unique<ioremap::cache::cache_config>(*data->cache_config);
-		}
-
-		info->io_thread_num = backend.at("io_thread_num", data->cfg_state.io_thread_num);
-		info->nonblocking_io_thread_num = backend.at("nonblocking_io_thread_num", data->cfg_state.nonblocking_io_thread_num);
-
-		for (int i = 0; i < info->config.num; ++i) {
-			dnet_config_entry &entry = info->config.ent[i];
-			if (backend.has(entry.key)) {
-				std::string key_str = entry.key;
-				std::vector<char> key(key_str.begin(), key_str.end());
-				key.push_back('\0');
-
-				std::string value_str = backend.at(entry.key).to_string();
-				std::vector<char> value(value_str.begin(), value_str.end());
-				value.push_back('\0');
-
-				dnet_backend_config_entry option = {
-					&entry,
-					value
-				};
-
-				info->options.emplace_back(std::move(option));
-			}
-		}
+		info.parse(data, backend);
 	}
 }
 
@@ -392,6 +319,8 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		data = static_cast<config_data *>(dnet_config_data_create());
 		if (!data)
 			throw std::bad_alloc();
+
+		data->config_path = file;
 
 		const config root = config_parser().open(file);
 		const config logger = root.at("logger");

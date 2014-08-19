@@ -1,10 +1,13 @@
 #ifndef CONFIG_HPP
 #define CONFIG_HPP
 
-#define BLACKHOLE_HEADER_ONLY
-
 #include <elliptics/error.hpp>
 #include <blackhole/dynamic.hpp>
+#include <blackhole/attribute.hpp>
+
+#include <elliptics/session.hpp>
+#include "../library/backend.h"
+#include "../library/elliptics.h"
 
 namespace ioremap { namespace elliptics { namespace config {
 
@@ -336,6 +339,21 @@ public:
 	~config_parser();
 
 	config open(const std::string &path);
+};
+
+struct config_data : public dnet_config_data
+{
+	config_data() : logger(logger_base, blackhole::log::attributes_t())
+	{
+	}
+
+	std::string config_path;
+	dnet_backend_info_list backends_guard;
+	std::string logger_value;
+	ioremap::elliptics::logger_base logger_base;
+	ioremap::elliptics::logger logger;
+	std::vector<address> remotes;
+	std::unique_ptr<cache::cache_config> cache_config;
 };
 
 } } } // namespace ioremap::elliptics::config

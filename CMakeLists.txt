@@ -88,6 +88,7 @@ include_directories(${EBLOB_INCLUDE_DIRS})
 
 if (HAVE_MODULE_BACKEND_SUPPORT)
     add_definitions(-DHAVE_MODULE_BACKEND_SUPPORT=1)
+    add_subdirectory(example/module_backend)
 endif()
 
 # Find react

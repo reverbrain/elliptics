@@ -14,6 +14,7 @@
 
 namespace ioremap { namespace elliptics { namespace config {
 class config;
+class config_data;
 }}}
 
 namespace ioremap { namespace cache {
@@ -100,6 +101,8 @@ struct dnet_backend_info
 
 		return *this;
 	}
+
+	void parse(ioremap::elliptics::config::config_data *data, const ioremap::elliptics::config::config &config);
 
 	dnet_config_backend config_template;
 	dnet_logger *log;

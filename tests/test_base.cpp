@@ -389,13 +389,13 @@ server_node::server_node() : m_node(NULL), m_monitor_port(0), m_fork(false), m_k
 {
 }
 
-server_node::server_node(const std::string &path, const address &remote, int monitor_port, bool fork)
-	: m_node(NULL), m_path(path), m_remote(remote), m_monitor_port(monitor_port), m_fork(fork), m_kill_sent(false), m_pid(0)
+server_node::server_node(const std::string &path, const server_config &config, const address &remote, int monitor_port, bool fork)
+	: m_node(NULL), m_path(path), m_config(config), m_remote(remote), m_monitor_port(monitor_port), m_fork(fork), m_kill_sent(false), m_pid(0)
 {
 }
 
 server_node::server_node(server_node &&other) :
-	m_node(other.m_node), m_path(std::move(other.m_path)), m_remote(std::move(other.m_remote)),
+	m_node(other.m_node), m_path(std::move(other.m_path)), m_config(std::move(other.m_config)), m_remote(std::move(other.m_remote)),
 	m_monitor_port(other.monitor_port()), m_fork(other.m_fork), m_kill_sent(other.m_kill_sent), m_pid(other.m_pid)
 {
 	other.m_node = NULL;
@@ -519,6 +519,16 @@ bool server_node::is_stopped() const
 	}
 
 	return true;
+}
+
+std::string server_node::config_path() const
+{
+	return m_path;
+}
+
+server_config server_node::config() const
+{
+	return m_config;
 }
 
 address server_node::remote() const
@@ -824,6 +834,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		config.write(server_path + "/ioserv.conf");
 
 		server_node server(server_path + "/ioserv.conf",
+			config,
 			create_remote(ports[i]),
 			boost::lexical_cast<int>(monitor_ports[i]),
 			fork);

@@ -398,6 +398,46 @@ static void test_make_backend_writeable(session &sess)
 	ELLIPTICS_REQUIRE_ERROR(second_async_readonly_result, sess.make_writable(node.remote(), 4), -EALREADY);
 }
 
+static void test_change_group(session &sess)
+{
+	server_node &node = global_data->nodes.back();
+	const uint32_t backend_id = 4;
+	const int old_group_id = 2;
+	const int new_group_id = 10;
+
+	std::string host = node.remote().to_string();
+	auto old_tuple = std::make_tuple(host, old_group_id, backend_id);
+	auto new_tuple = std::make_tuple(host, new_group_id, backend_id);
+
+	auto unique_hosts = get_unique_hosts(sess);
+
+	BOOST_REQUIRE_MESSAGE(unique_hosts.find(old_tuple) != unique_hosts.end(),
+		"Host must not exist: " + host + ", group: 2, backend: 1");
+
+	BOOST_REQUIRE_MESSAGE(unique_hosts.find(new_tuple) == unique_hosts.end(),
+		"Host must not exist: " + host + ", group: 10, backend: 1");
+
+	server_config server = node.config();
+	config_data &backend = server.backends[backend_id];
+	backend("group", new_group_id);
+
+	server.write(node.config_path());
+
+	ELLIPTICS_REQUIRE(stop_result, sess.disable_backend(node.remote(), backend_id));
+	ELLIPTICS_REQUIRE(start_result, sess.enable_backend(node.remote(), backend_id));
+
+	// Wait 0.1 secs to ensure that route list was changed
+	usleep(100 * 1000);
+
+	unique_hosts = get_unique_hosts(sess);
+
+	BOOST_REQUIRE_MESSAGE(unique_hosts.find(old_tuple) == unique_hosts.end(),
+		"Host must not exist: " + host + ", group: 2, backend: 1");
+
+	BOOST_REQUIRE_MESSAGE(unique_hosts.find(new_tuple) != unique_hosts.end(),
+		"Host must not exist: " + host + ", group: 10, backend: 1");
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_enable_at_start, create_session(n, { 1, 2, 3 }, 0, 0));
@@ -412,6 +452,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_set_backend_ids_for_enabled, create_session(n, { 0 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_make_backend_readonly, create_session(n, { 0 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_make_backend_writeable, create_session(n, { 0 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_change_group, create_session(n, { 0 }, 0, 0));
 
 	return true;
 }

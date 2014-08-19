@@ -169,7 +169,7 @@ class server_node
 {
 public:
 	server_node();
-	server_node(const std::string &path, const address &remote, int monitor_port, bool fork);
+	server_node(const std::string &path, const server_config &config, const address &remote, int monitor_port, bool fork);
 	server_node(server_node &&other);
 
 	server_node &operator =(server_node &&other);
@@ -185,6 +185,9 @@ public:
 	bool is_started() const;
 	bool is_stopped() const;
 
+	std::string config_path() const;
+	server_config config() const;
+
 	address remote() const;
 	int monitor_port() const;
 	pid_t pid() const;
@@ -193,6 +196,7 @@ public:
 private:
 	dnet_node *m_node;
 	std::string m_path;
+	server_config m_config;
 	address m_remote;
 	int m_monitor_port;
 	bool m_fork;

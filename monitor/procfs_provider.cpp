@@ -88,7 +88,7 @@ static int fill_proc_stat(dnet_logger *l, struct proc_stat &st) {
 		goto err_out_exit;
 	}
 
-	static const char f_str[] = "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*lu %*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %ld %*ld %*llu %lu %ld %lu";
+	static const char f_str[] = "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %*u %*d %*d %*d %*d %ld %*d %*u %lu %ld %lu";
 
 	err = fscanf(f, f_str, &st.threads_num, &st.vsize, &st.rss, &st.rsslim);
 	fclose(f);

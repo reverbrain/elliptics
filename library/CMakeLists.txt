@@ -21,7 +21,21 @@ set(ELLIPTICS_SRCS
     server.c
     route.cpp
     backend.cpp
+    ../example/config.hpp
+    ../example/config.cpp
+    ../example/config_impl.cpp
+    ../example/file_backend.c
+    ../example/backends.c
+    ../example/eblob_backend.c
     )
+
+if (HAVE_MODULE_BACKEND_SUPPORT)
+    list(APPEND ELLIPTICS_SRCS
+	../example/module_backend/core/module_backend_t.c
+	../example/module_backend/core/dlopen_handle_t.c)
+
+    list(APPEND ELLIPTICS_LIBRARIES dl)
+endif()
 
 add_library(elliptics_ids STATIC ids.cpp)
 if(UNIX OR MINGW)
@@ -42,7 +56,7 @@ set_target_properties(elliptics PROPERTIES
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     LINKER_LANGUAGE CXX
     )
-target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids elliptics_monitor elliptics_client elliptics_cpp)
+target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} ${EBLOB_LIBRARIES} elliptics_common elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids elliptics_monitor elliptics_client elliptics_cpp)
 
 install(TARGETS elliptics
     LIBRARY DESTINATION lib${LIB_SUFFIX}

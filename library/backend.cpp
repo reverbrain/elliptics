@@ -1,5 +1,6 @@
 #include "elliptics.h"
 #include "../monitor/monitor.hpp"
+#include "../example/config.hpp"
 
 #include <fstream>
 #include <memory>
@@ -160,12 +161,33 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 
 	dnet_log(node, DNET_LOG_INFO, "backend_init: backend: %zu, initializing", backend_id);
 
+	int err;
+	dnet_backend_io *backend_io;
+
+	try {
+		using namespace ioremap::elliptics::config;
+		auto &data = *static_cast<config_data *>(node->config_data);
+		config_parser parser;
+		config cfg = parser.open(data.config_path);
+		const config backend_config = cfg.at("backends").at(backend_id);
+
+		backend.parse(&data, backend_config);
+	} catch (std::bad_alloc &) {
+		err = -ENOMEM;
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed as not enouh memory", backend_id);
+		goto err_out_exit;
+	} catch (std::exception &exc) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to read configuration file: %s", backend_id, exc.what());
+		err = -EBADF;
+		goto err_out_exit;
+	}
+
 	backend.config = backend.config_template;
 	backend.data.assign(backend.data.size(), '\0');
 	backend.config.data = backend.data.data();
 	backend.config.log = backend.log;
 
-	dnet_backend_io *backend_io = &node->io->backends[backend_id];
+	backend_io = &node->io->backends[backend_id];
 	backend_io->need_exit = 0;
 
 	for (auto it = backend.options.begin(); it != backend.options.end(); ++it) {
@@ -177,7 +199,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 		entry.entry->callback(&backend.config, entry.entry->key, tmp.data());
 	}
 
-	int err = backend.config.init(&backend.config);
+	err = backend.config.init(&backend.config);
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init backend: %d", backend_id, err);
 		goto err_out_exit;
@@ -541,4 +563,69 @@ int dnet_cmd_backend_status(struct dnet_net_state *st, struct dnet_cmd *cmd, voi
 	}
 
 	return err;
+}
+
+void dnet_backend_info::parse(ioremap::elliptics::config::config_data *data, const ioremap::elliptics::config::config &backend)
+{
+	std::string type = backend.at<std::string>("type");
+
+	dnet_config_backend *backends_info[] = {
+		dnet_eblob_backend_info(),
+		dnet_file_backend_info(),
+#ifdef HAVE_MODULE_BACKEND_SUPPORT
+		dnet_module_backend_info(),
+#endif
+	};
+
+	bool found_backend = false;
+
+	for (size_t i = 0; i < sizeof(backends_info) / sizeof(backends_info[0]); ++i) {
+		dnet_config_backend *current_backend = backends_info[i];
+		if (type == current_backend->name) {
+			config_template = *current_backend;
+			config = *current_backend;
+			this->data.resize(config.size, '\0');
+			log = data->cfg_state.log;
+			found_backend = true;
+			break;
+		}
+	}
+
+	if (!found_backend)
+		throw ioremap::elliptics::config::config_error() << backend.at("type").path() << " is unknown backend";
+
+	group = backend.at<int>("group");
+	history = backend.at<std::string>("history");
+	enable_at_start = backend.at<bool>("enable", true);
+	cache = NULL;
+
+	if (backend.has("cache")) {
+		const auto cache = backend.at("cache");
+		cache_config = ioremap::cache::cache_config::parse(cache);
+	} else if (data->cache_config) {
+		cache_config = blackhole::utils::make_unique<ioremap::cache::cache_config>(*data->cache_config);
+	}
+
+	io_thread_num = backend.at("io_thread_num", data->cfg_state.io_thread_num);
+	nonblocking_io_thread_num = backend.at("nonblocking_io_thread_num", data->cfg_state.nonblocking_io_thread_num);
+
+	for (int i = 0; i < config.num; ++i) {
+		dnet_config_entry &entry = config.ent[i];
+		if (backend.has(entry.key)) {
+			std::string key_str = entry.key;
+			std::vector<char> key(key_str.begin(), key_str.end());
+			key.push_back('\0');
+
+			std::string value_str = backend.at(entry.key).to_string();
+			std::vector<char> value(value_str.begin(), value_str.end());
+			value.push_back('\0');
+
+			dnet_backend_config_entry option = {
+				&entry,
+				value
+			};
+
+			options.emplace_back(std::move(option));
+		}
+	}
 }
