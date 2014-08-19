@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.5
+Version:	2.26.3.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Aug 19 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.6
+- backend: Read config at backend's start
+- logger: Removed useless premature optimization
+
 * Tue Aug 19 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.5
 - logger: do not even try to process logging if log level is small enough
 

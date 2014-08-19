@@ -1,3 +1,10 @@
+elliptics (2.26.3.6) unstable; urgency=low
+
+  * backend: Read config at backend's start
+  * logger: Removed useless premature optimization
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Tue, 19 Aug 2014 21:16:56 +0400
+
 elliptics (2.26.3.5) unstable; urgency=low
 
   * logger: do not even try to process logging if log level is small enough
