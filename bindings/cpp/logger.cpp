@@ -96,7 +96,7 @@ dnet_logger *dnet_node_get_logger(struct dnet_node *node)
 static __thread char blackhole_scoped_attributes_buffer[sizeof(blackhole::scoped_attributes_t)];
 static __thread blackhole::scoped_attributes_t *blackhole_attributes = NULL;
 
-void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit)
+void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit, int backend_id)
 {
 	using blackhole::scoped_attributes_t;
 
@@ -113,6 +113,11 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 			ioremap::elliptics::keyword::request_id() = trace_id,
 			blackhole::keyword::tracebit() = bool(tracebit)
 		};
+
+		if (backend_id >= 0) {
+			attributes.insert(std::make_pair(std::string("backend_id"), blackhole::log::attribute_t(backend_id)));
+		}
+
 		new (blackhole_attributes) scoped_attributes_t(*logger, std::move(attributes));
 		// Set all bits to ensure that it has tracebit set
 		backend_trace_id_hook = tracebit ? ~0ull : 0;
