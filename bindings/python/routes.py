@@ -47,15 +47,13 @@ if __name__ == '__main__':
     if len(args.remotes) == 0:
         args.remotes = "localhost:1025:2"
 
-    log = elliptics.Logger(args.log, args.log_level)
-    n = elliptics.Node(log)
+    n = elliptics.create_node(remotes=[args.remotes],
+                              log_file=args.log,
+                              log_level=int(args.log_level),
+                              io_thread_num=4,
+                              net_thread_num=4,
+                              nonblocking_io_thread_num=16)
     s = elliptics.Session(n)
-
-    try:
-        n.add_remote(args.remotes)
-    except Exception as e:
-        print e
-        pass
 
     routes = s.get_routes()
     if args.percentage:
