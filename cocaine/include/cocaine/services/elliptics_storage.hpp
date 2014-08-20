@@ -46,6 +46,25 @@ struct cache_read
 	result_type;
 };
 
+struct read_latest
+{
+	typedef elliptics_tag tag;
+
+	typedef boost::mpl::list<
+	/* Key namespace. Currently no ACL checks are performed, so in theory any app can read
+	   any other app data without restrictions. */
+		std::string,
+	/* Key. */
+		std::string
+	> tuple_type;
+
+	typedef
+	/* The stored value. Typically it will be serialized with msgpack, but it's not a strict
+	   requirement. But as there's no way to know the format, try to unpack it anyway. */
+		std::string
+	result_type;
+};
+
 struct cache_write
 {
 	typedef elliptics_tag tag;
@@ -111,7 +130,8 @@ struct protocol<elliptics_tag> : public extends<storage_tag>
 	typedef boost::mpl::list<
 		elliptics::cache_read,
 		elliptics::cache_write,
-		elliptics::bulk_read
+		elliptics::bulk_read,
+		elliptics::read_latest
 //		elliptics::bulk_write
 	> type;
 };
