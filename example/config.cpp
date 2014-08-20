@@ -268,6 +268,7 @@ void parse_options(config_data *data, const config &options)
 	data->cfg_state.client_prio = options.at("client_net_prio", 0);
 	data->cfg_state.indexes_shard_count = options.at("indexes_shard_count", 0);
 	data->daemon_mode = options.at("daemon", false);
+	data->parallel_start = options.at("parallel", true);
 	snprintf(data->cfg_state.cookie, DNET_AUTH_COOKIE_SIZE, "%s", options.at<std::string>("auth_cookie").c_str());
 
 	if (options.has("srw_config")) {

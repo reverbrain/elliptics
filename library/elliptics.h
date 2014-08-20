@@ -554,6 +554,7 @@ struct dnet_config_data {
 
 	struct dnet_config cfg_state;
 	int daemon_mode;
+	int parallel_start;
 
 	dnet_backend_info_list *backends;
 };

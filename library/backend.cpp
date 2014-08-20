@@ -1,6 +1,7 @@
 #include "elliptics.h"
 #include "../monitor/monitor.hpp"
 #include "../example/config.hpp"
+#include "../bindings/cpp/functional_p.h"
 
 #include <fstream>
 #include <memory>
@@ -323,27 +324,60 @@ int dnet_backend_init_all(struct dnet_node *node)
 	unsigned state = DNET_BACKEND_ENABLED;
 
 	auto &backends = node->config_data->backends->backends;
-	for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
-		dnet_backend_info &backend = node->config_data->backends->backends[backend_id];
-		if (!backend.enable_at_start)
-			continue;
 
-		int tmp = dnet_backend_init(node, backend_id, &state);
-		if (!tmp) {
-			err = 0;
-		} else if (err == 1) {
-			err = tmp;
-			all_ok = false;
+	if (node->config_data->parallel_start) {
+		try {
+			using ioremap::elliptics::session;
+			using ioremap::elliptics::async_backend_control_result;
+
+			session sess(node);
+			sess.set_exceptions_policy(session::no_exceptions);
+			sess.set_timeout(std::numeric_limits<unsigned>::max() / 2);
+
+			session clean_sess = sess.clean_clone();
+
+			std::vector<async_backend_control_result> results;
+
+			for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
+				dnet_backend_info &backend = node->config_data->backends->backends[backend_id];
+				if (!backend.enable_at_start)
+					continue;
+
+				results.emplace_back(clean_sess.enable_backend(node->st->addr, backend_id));
+			}
+
+			async_backend_control_result result = ioremap::elliptics::aggregated(sess, results.begin(), results.end());
+			result.wait();
+
+			err = result.error().code();
+		} catch (std::bad_alloc &) {
+			return -ENOMEM;
+		}
+	} else {
+		for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
+			dnet_backend_info &backend = node->config_data->backends->backends[backend_id];
+			if (!backend.enable_at_start)
+				continue;
+
+			int tmp = dnet_backend_init(node, backend_id, &state);
+			if (!tmp) {
+				err = 0;
+			} else if (err == 1) {
+				err = tmp;
+				all_ok = false;
+			}
 		}
 	}
 
 	if (all_ok) {
-		return 0;
+		err = 0;
+	} else if (err == 1) {
+		err = -EINVAL;
 	}
-	else if (err == 1)
-		return -EINVAL;
-	else
-		return err;
+
+	dnet_log(node, err ? DNET_LOG_ERROR : DNET_LOG_NOTICE, "backend_init_all: finished initializing all backends: %d", err);
+
+	return err;
 }
 
 void dnet_backend_cleanup_all(struct dnet_node *node)
