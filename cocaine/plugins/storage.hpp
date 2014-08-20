@@ -79,6 +79,7 @@ class elliptics_storage_t : public api::storage_t
 		std::pair<ioremap::elliptics::async_read_result, key_name_map> async_bulk_read(const std::string &collection, const std::vector<std::string> &keys);
 		ioremap::elliptics::async_write_result async_bulk_write(const std::string &collection, const std::vector<std::string> &keys,
 			const std::vector<std::string> &blobs);
+		ioremap::elliptics::async_read_result async_read_latest(const std::string &collection, const std::string &key);
 
 		static std::vector<std::string> convert_list_result(const ioremap::elliptics::sync_find_indexes_result &result);
 

@@ -221,6 +221,24 @@ ell::async_read_result elliptics_storage_t::async_read(const std::string &collec
 	return session.read_data(key, 0, 0);
 }
 
+ell::async_read_result elliptics_storage_t::async_read_latest(const std::string &collection, const std::string &key)
+{
+	using namespace std::placeholders;
+
+	COCAINE_LOG_DEBUG(
+		m_log,
+		"reading the '%s' object, collection: '%s'",
+		key,
+		collection
+	);
+
+	ell::session session = m_session.clone();
+	session.set_namespace(collection.data(), collection.size());
+	session.set_timeout(m_timeouts.read);
+
+	return session.read_latest(key, 0, 0);
+}
+
 static void on_adding_index_finished(const elliptics_storage_t::log_ptr &log,
 	ell::async_result_handler<ell::write_result_entry> handler,
 	const ell::error_info &err)
