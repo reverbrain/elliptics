@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.6
+Version:	2.26.3.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 20 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.7
+- client: Added ability to construct session from dnet_node
+- server: Make possible to send request yourself
+- cocaine: added read_latest to elliptics service
+- server: Added option.parallel option
+- dnet_client: Return non-zero code on fail
+- thread: Changed name pattern for threads
+
 * Tue Aug 19 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.6
 - backend: Read config at backend's start
 - logger: Removed useless premature optimization

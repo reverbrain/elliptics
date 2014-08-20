@@ -1,3 +1,14 @@
+elliptics (2.26.3.7) unstable; urgency=low
+
+  * client: Added ability to construct session from dnet_node
+  * server: Make possible to send request yourself
+  * cocaine: added read_latest to elliptics service
+  * server: Added option.parallel option
+  * dnet_client: Return non-zero code on fail
+  * thread: Changed name pattern for threads
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Wed, 20 Aug 2014 17:42:07 +0400
+
 elliptics (2.26.3.6) unstable; urgency=low
 
   * backend: Read config at backend's start
