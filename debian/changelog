@@ -1,3 +1,10 @@
+elliptics (2.26.3.8) unstable; urgency=low
+
+  * logger: Log io/c/indexes/cfg flags with names
+  * node: Print cfg flags on start
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Wed, 20 Aug 2014 18:43:44 +0400
+
 elliptics (2.26.3.7) unstable; urgency=low
 
   * client: Added ability to construct session from dnet_node
