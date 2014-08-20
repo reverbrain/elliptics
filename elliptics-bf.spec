@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.8
+Version:	2.26.3.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 20 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.9
+- dnet_client: Fixed default log level
+- server: Add backend_id to every log at io pool
+
 * Wed Aug 20 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.8
 - logger: Log io/c/indexes/cfg flags with names
 - node: Print cfg flags on start

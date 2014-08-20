@@ -1,3 +1,10 @@
+elliptics (2.26.3.9) unstable; urgency=low
+
+  * dnet_client: Fixed default log level
+  * server: Add backend_id to every log at io pool
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Wed, 20 Aug 2014 20:12:08 +0400
+
 elliptics (2.26.3.8) unstable; urgency=low
 
   * logger: Log io/c/indexes/cfg flags with names
