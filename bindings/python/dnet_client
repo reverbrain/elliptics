@@ -163,6 +163,7 @@ if __name__ == '__main__':
                 'message': str(e)
             }
         })
+        sys.exit(1)
     #except Exception as e:
     #    print_result({
     #        'error': {
