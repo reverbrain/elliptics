@@ -296,10 +296,12 @@ def get_routes(options):
     '''
     Connects to elliptics, gets route list and returns it
     '''
-    logger = elliptics.Logger(options.log,
-                              int(options.log_level))
-    node = elliptics.Node(logger)
-    node.add_remote(options.remote)
+    node = elliptics.create_node(remotes=[options.remote],
+                                 log_file=options.log,
+                                 log_level=int(options.log_level),
+                                 io_thread_num=4,
+                                 net_thread_num=4,
+                                 nonblocking_io_thread_num=16)
 
     session = elliptics.Session(node)
 
