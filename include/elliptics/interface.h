@@ -174,6 +174,23 @@ int __attribute__((weak)) dnet_send_read_data(void *state, struct dnet_cmd *cmd,
 #define DNET_CFG_RANDOMIZE_STATES	(1<<5)		/* randomize states for read requests */
 #define DNET_CFG_KEEPS_IDS_IN_CLUSTER	(1<<6)		/* keeps ids in elliptics cluster */
 
+static inline const char *dnet_flags_dump_cfgflags(uint64_t flags)
+{
+	static __thread char buffer[256];
+	static struct flag_info infos[] = {
+		{ DNET_CFG_JOIN_NETWORK, "join" },
+		{ DNET_CFG_NO_ROUTE_LIST, "no_route_list" },
+		{ DNET_CFG_MIX_STATES, "mix_states" },
+		{ DNET_CFG_NO_CSUM, "n_ocsum" },
+		{ DNET_CFG_RANDOMIZE_STATES, "randomize_states" },
+		{ DNET_CFG_KEEPS_IDS_IN_CLUSTER, "keeps_ids_in_cluster" },
+	};
+
+	dnet_flags_dump_raw(buffer, sizeof(buffer), flags, infos, sizeof(infos) / sizeof(infos[0]));
+
+	return buffer;
+}
+
 /*
  * New-style iterator control
  */

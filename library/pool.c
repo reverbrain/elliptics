@@ -270,9 +270,9 @@ void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 		unsigned long long tid = cmd->trans;
 		int reply = !!(cmd->flags & DNET_FLAGS_REPLY);
 
-		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: 0x%llx, trans: %lld, reply: %d",
+		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: %s, trans: %lld, reply: %d",
 			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd), nonblocking,
-			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
+			(unsigned long long)cmd->size, dnet_flags_dump_cflags(cmd->flags), tid, reply);
 	}
 
 	if (cmd->flags & DNET_FLAGS_DIRECT_BACKEND)
@@ -412,10 +412,10 @@ again:
 		tid = c->trans;
 
 		dnet_log(n, DNET_LOG_DEBUG, "%s: received trans: %llu / 0x%llx, "
-				"reply: %d, size: %llu, flags: 0x%llx, status: %d.",
+				"reply: %d, size: %llu, flags: %s, status: %d.",
 				dnet_dump_id(&c->id), tid, (unsigned long long)c->trans,
 				!!(c->flags & DNET_FLAGS_REPLY),
-				(unsigned long long)c->size, (unsigned long long)c->flags, c->status);
+				(unsigned long long)c->size, dnet_flags_dump_cflags(c->flags), c->status);
 
 		r = malloc(c->size + sizeof(struct dnet_cmd) + sizeof(struct dnet_io_req));
 		if (!r) {

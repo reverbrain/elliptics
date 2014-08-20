@@ -27,6 +27,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <stdio.h>
 
 #include <elliptics/typedefs.h>
 #include <elliptics/core.h>
@@ -153,6 +154,61 @@ enum dnet_backend_defrag_state {
 
 /* This reply was generated on server, and it IS reply from the server */
 #define DNET_FLAGS_REPLY		(1<<9)
+
+struct flag_info
+{
+	uint64_t flag;
+	const char *name;
+};
+
+static inline void dnet_flags_dump_raw(char *buffer, size_t buffer_size, uint64_t flags, struct flag_info *infos, size_t infos_count)
+{
+	size_t offset;
+	size_t i;
+	int any_printed = 0;
+
+	offset = snprintf(buffer, buffer_size, "0x%llx [", (unsigned long long)flags);
+	buffer_size -= offset;
+	buffer += offset;
+
+	for (i = 0; i < infos_count; ++i) {
+		if (flags & infos[i].flag) {
+			if (buffer_size > 0) {
+				offset = snprintf(buffer, buffer_size, "%s%s", any_printed ? "|" : "", infos[i].name);
+				buffer_size -= offset;
+				buffer += offset;
+			}
+			any_printed = 1;
+		}
+	}
+
+	if (buffer_size > 0) {
+		offset = snprintf(buffer, buffer_size, "]");
+		buffer_size -= offset;
+		buffer += offset;
+	}
+}
+
+static inline const char *dnet_flags_dump_cflags(uint64_t flags)
+{
+	static __thread char buffer[256];
+	static struct flag_info infos[] = {
+		{ DNET_FLAGS_NEED_ACK, "need_ack" },
+		{ DNET_FLAGS_MORE, "more" },
+		{ DNET_FLAGS_DESTROY, "destroy" },
+		{ DNET_FLAGS_DIRECT, "direct" },
+		{ DNET_FLAGS_NOLOCK, "nolock" },
+		{ DNET_FLAGS_CHECKSUM, "checksum" },
+		{ DNET_FLAGS_NOCACHE, "nocache" },
+		{ DNET_FLAGS_DIRECT_BACKEND, "direct_backend" },
+		{ DNET_FLAGS_TRACE_BIT, "tracebit" },
+		{ DNET_FLAGS_REPLY, "reply" },
+	};
+
+	dnet_flags_dump_raw(buffer, sizeof(buffer), flags, infos, sizeof(infos) / sizeof(infos[0]));
+
+	return buffer;
+}
 
 typedef uint64_t trace_id_t;
 
@@ -424,6 +480,32 @@ static inline void dnet_convert_list(struct dnet_list *l)
  */
 #define DNET_IO_FLAGS_WRITE_NO_FILE_INFO	(1<<14)
 
+static inline const char *dnet_flags_dump_ioflags(uint64_t flags)
+{
+	static __thread char buffer[256];
+	static struct flag_info infos[] = {
+		{ DNET_IO_FLAGS_SKIP_SENDING, "skip_sending" },
+		{ DNET_IO_FLAGS_APPEND, "append" },
+		{ DNET_IO_FLAGS_PREPARE, "prepare" },
+		{ DNET_IO_FLAGS_COMMIT, "commit" },
+		{ DNET_IO_FLAGS_REMOVED, "removed" },
+		{ DNET_IO_FLAGS_OVERWRITE, "overwrite" },
+		{ DNET_IO_FLAGS_NOCSUM, "nocsum" },
+		{ DNET_IO_FLAGS_PLAIN_WRITE, "plain_write" },
+		{ DNET_IO_FLAGS_NODATA, "nodata" },
+		{ DNET_IO_FLAGS_CACHE, "cache" },
+		{ DNET_IO_FLAGS_CACHE_ONLY, "cache_only" },
+		{ DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK, "remove_from_disk" },
+		{ DNET_IO_FLAGS_COMPARE_AND_SWAP, "cas" },
+		{ DNET_IO_FLAGS_CHECKSUM, "checksum" },
+		{ DNET_IO_FLAGS_WRITE_NO_FILE_INFO, "no_file_info" },
+	};
+
+	dnet_flags_dump_raw(buffer, sizeof(buffer), flags, infos, sizeof(infos) / sizeof(infos[0]));
+
+	return buffer;
+}
+
 /*
  * DNET_INDEXES_FLAGS_INTERSECT
  *
@@ -470,6 +552,22 @@ static inline void dnet_convert_list(struct dnet_list *l)
  * This flag is for DNET_CMD_INDEXES_UPDATE request only.
  */
 #define DNET_INDEXES_FLAGS_REMOVE_ONLY		(1<<4)
+
+static inline const char *dnet_flags_dump_indexes(uint64_t flags)
+{
+	static __thread char buffer[256];
+	static struct flag_info infos[] = {
+		{ DNET_INDEXES_FLAGS_INTERSECT, "intersect" },
+		{ DNET_INDEXES_FLAGS_UNITE, "unite" },
+		{ DNET_INDEXES_FLAGS_UPDATE_ONLY, "update_only" },
+		{ DNET_INDEXES_FLAGS_MORE, "more" },
+		{ DNET_INDEXES_FLAGS_REMOVE_ONLY, "remove_only" },
+	};
+
+	dnet_flags_dump_raw(buffer, sizeof(buffer), flags, infos, sizeof(infos) / sizeof(infos[0]));
+
+	return buffer;
+}
 
 
 /*
@@ -525,6 +623,23 @@ static inline void dnet_convert_list(struct dnet_list *l)
  * This flag is for DNET_CMD_INDEXES_INTERNAL request only.
  */
 #define DNET_INDEXES_FLAGS_INTERNAL_CAPPED_COLLECTION	(1<<5)
+
+static inline const char *dnet_flags_dump_indexes_internal(uint64_t flags)
+{
+	static __thread char buffer[256];
+	static struct flag_info infos[] = {
+		{ DNET_INDEXES_FLAGS_INTERNAL_INSERT, "insert" },
+		{ DNET_INDEXES_FLAGS_INTERNAL_REMOVE, "remove" },
+		{ DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL, "remove_all" },
+		{ DNET_INDEXES_FLAGS_INTERNAL_REMOVE_FROM_OBJECTS, "remove_from_objects" },
+		{ DNET_INDEXES_FLAGS_INTERNAL_REMOVE_FROM_STORAGE, "remove_from_storage" },
+		{ DNET_INDEXES_FLAGS_INTERNAL_CAPPED_COLLECTION, "capped_collection" },
+	};
+
+	dnet_flags_dump_raw(buffer, sizeof(buffer), flags, infos, sizeof(infos) / sizeof(infos[0]));
+
+	return buffer;
+}
 
 
 struct dnet_time {

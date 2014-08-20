@@ -1228,10 +1228,10 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 		struct dnet_cmd *cmd = r->header;
 		if (!cmd)
 			cmd = r->data;
-		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: 0x%llx, start-sent: %zd/%zd.",
+		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: %s, start-sent: %zd/%zd.",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 			(unsigned long long)cmd->trans,
-			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,
+			(unsigned long long)cmd->size, dnet_flags_dump_cflags(cmd->flags),
 			st->send_offset, r->dsize + r->hsize + r->fsize);
 	}
 
@@ -1272,10 +1272,10 @@ err_out_exit:
 		struct dnet_cmd *cmd = r->header;
 		if (!cmd)
 			cmd = r->data;
-		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: 0x%llx, finish-sent: %zd/%zd.",
+		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: %s, finish-sent: %zd/%zd.",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 			(unsigned long long)cmd->trans,
-			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,
+			(unsigned long long)cmd->size, dnet_flags_dump_cflags(cmd->flags),
 			st->send_offset, r->dsize + r->hsize + r->fsize);
 	}
 

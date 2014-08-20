@@ -608,10 +608,10 @@ int process_internal_indexes_entry(struct dnet_backend_io *backend, dnet_node *n
 		char index_buffer[DNET_ID_SIZE * 2 + 1];
 		char object_buffer[DNET_DUMP_NUM * 2 + 1];
 
-		dnet_log(node, DNET_LOG_DEBUG, "INDEXES_INTERNAL: index: %s, object: %s, flags: 0x%llx",
+		dnet_log(node, DNET_LOG_DEBUG, "INDEXES_INTERNAL: index: %s, object: %s, flags: %s",
 			dnet_dump_id_len_raw(entry.id.id, DNET_ID_SIZE, index_buffer),
 			dnet_dump_id_len_raw(request.id.id, DNET_DUMP_NUM, object_buffer),
-			static_cast<unsigned long long>(entry.flags));
+			dnet_flags_dump_indexes_internal(entry.flags));
 	}
 
 	uint32_t action = entry.flags & (DNET_INDEXES_FLAGS_INTERNAL_INSERT
@@ -639,8 +639,8 @@ int process_internal_indexes_entry(struct dnet_backend_io *backend, dnet_node *n
 			return err;
 		}
 		default: {
-			dnet_log(node, DNET_LOG_ERROR, "INDEXES_INTERNAL: invalid flags: 0x%llx",
-				static_cast<unsigned long long>(entry.flags));
+			dnet_log(node, DNET_LOG_ERROR, "INDEXES_INTERNAL: invalid flags: %s",
+				dnet_flags_dump_indexes_internal(entry.flags));
 			removed = NULL;
 			return -EINVAL;
 		}
@@ -747,8 +747,8 @@ int process_find_indexes(struct dnet_backend_io *backend, dnet_net_state *state,
 	const bool intersection = request->flags & DNET_INDEXES_FLAGS_INTERSECT;
 	const bool unite = request->flags & DNET_INDEXES_FLAGS_UNITE;
 
-	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_FIND: indexes count: %u, flags: %llu, more: %d",
-		 (unsigned) request->entries_count, (unsigned long long) request->flags, int(more));
+	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_FIND: indexes count: %u, flags: %s, more: %d",
+		 (unsigned) request->entries_count, dnet_flags_dump_indexes(request->flags), int(more));
 
 	if ((intersection && unite) || !(intersection || unite)) {
 		return -EINVAL;

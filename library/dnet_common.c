@@ -392,11 +392,11 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 	request_addr = dnet_state_addr(t->st);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: 0x%llx, size: %llu, offset: %llu, "
+	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: %s, size: %llu, offset: %llu, "
 			"fd: %d, local_offset: %llu -> %s weight: %f, wait-ts: %ld.",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
-			dnet_cmd_string(ctl->cmd), (unsigned long long)cmd->flags,
+			dnet_cmd_string(ctl->cmd), dnet_flags_dump_cflags(cmd->flags),
 			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
 			ctl->fd,
 			(unsigned long long)ctl->local_offset,

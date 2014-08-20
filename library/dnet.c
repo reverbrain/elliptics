@@ -197,9 +197,10 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 
 	dnet_convert_node_status(st);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: status-change: nflags: 0x%x->0x%x, log_level: %d->%d, "
+	dnet_log(n, DNET_LOG_INFO, "%s: status-change: nflags: %s->%s, log_level: %d->%d, "
 			"status_flags: EXIT: %d, RO: %d",
-			dnet_dump_id(&cmd->id), n->flags, st->nflags, (int)dnet_log_get_verbosity(n->log), st->log_level,
+			dnet_dump_id(&cmd->id), dnet_flags_dump_cfgflags(n->flags), dnet_flags_dump_cfgflags(st->nflags),
+			(int)dnet_log_get_verbosity(n->log), st->log_level,
 			!!(st->status_flags & DNET_STATUS_EXIT), !!(st->status_flags & DNET_STATUS_RO));
 
 	if (st->status_flags != -1) {
@@ -278,9 +279,9 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int 
 		ack.flags |= DNET_FLAGS_REPLY;
 		ack.status = err;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: 0x%llx, status: %d.",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: %s, status: %d.",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
-				tid, (unsigned long long)ack.flags, err);
+				tid, dnet_flags_dump_cflags(ack.flags), err);
 
 		dnet_convert_cmd(&ack);
 		err = dnet_send(st, &ack, sizeof(struct dnet_cmd));
@@ -314,10 +315,10 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsign
 	if (size)
 		memcpy(data, odata, size);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: 0x%llx.",
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: %s",
 		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 		(unsigned long long)c->trans,
-		size, (unsigned long long)c->flags);
+		size, dnet_flags_dump_cflags(c->flags));
 
 	dnet_convert_cmd(c);
 
@@ -1077,20 +1078,20 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 		localtime_r((time_t *)&io_tv.tv_sec, &io_tm);
 		strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
 
-		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: 0x%llx, "
-				"ioflags: 0x%llx, io-offset: %llu, io-size: %llu/%llu, io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', "
+		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: %s, "
+				"ioflags: %s, io-offset: %llu, io-size: %llu/%llu, io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', "
 				"time: %ld usecs, err: %d.",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_state_dump_addr(st),
-				tid, (unsigned long long)cmd->flags,
-				(unsigned long long)io->flags,
+				tid, dnet_flags_dump_cflags(cmd->flags),
+				dnet_flags_dump_ioflags(io->flags),
 				(unsigned long long)io->offset, (unsigned long long)io->size, (unsigned long long)io->total_size,
 				(unsigned long long)io->user_flags,
 				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec,
 				diff, err);
 	} else {
-		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.",
+		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: %s, time: %ld usecs, err: %d.",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_state_dump_addr(st),
-				tid, (unsigned long long)cmd->flags, diff, err);
+				tid, dnet_flags_dump_cflags(cmd->flags), diff, err);
 	}
 
 	err = dnet_send_ack(st, cmd, err, recursive);
@@ -1183,9 +1184,9 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	send_time = DIFF(csum_tv, send_tv);
 	total_time = DIFF(start_tv, send_tv);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: %s: reply: cflags: 0x%llx, ioflags: 0x%llx, offset: %llu, size: %llu, csum-time: %ld, send-time: %ld, total-time: %ld usecs.",
+	dnet_log(n, DNET_LOG_INFO, "%s: %s: reply: cflags: %s, ioflags: %s, offset: %llu, size: %llu, csum-time: %ld, send-time: %ld, total-time: %ld usecs.",
 			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
-			(unsigned long long)cmd->flags, (unsigned long long)io->flags,
+			dnet_flags_dump_cflags(cmd->flags), dnet_flags_dump_ioflags(io->flags),
 			(unsigned long long)io->offset,	(unsigned long long)io->size,
 			csum_time, send_time, total_time);
 
