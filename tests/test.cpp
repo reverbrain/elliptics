@@ -1320,6 +1320,20 @@ static void test_lookup_non_existing(session &sess, int error)
 	ELLIPTICS_REQUIRE_ERROR(lookup, sess.lookup(std::string("lookup_non_existing")), error);
 }
 
+#ifndef NO_SERVER
+static void test_requests_to_own_server(session &sess)
+{
+	key id = std::string("own-requests-id");
+	sess.set_filter(filters::positive);
+
+	ELLIPTICS_REQUIRE(async_write, sess.write_data(id, "some-file", 0));
+
+	sync_write_result result = async_write;
+
+	BOOST_REQUIRE_EQUAL(result.size(), 3);
+}
+#endif
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
@@ -1375,6 +1389,9 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 1, 2 }, 0, 0), -ENOENT);
 	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 1 }, 0, 0), -ENOENT);
 	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 99 }, 0, 0), -ENXIO);
+#ifndef NO_SERVER
+	ELLIPTICS_TEST_CASE(test_requests_to_own_server, create_session(node::from_raw(global_data->nodes.front().get_native()), { 1, 2, 3 }, 0, 0));
+#endif
 
 	return true;
 }

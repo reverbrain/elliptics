@@ -530,7 +530,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	memset(&addr, 0, sizeof(addr));
 
 	salen = addr.addr_len = sizeof(addr.addr);
-	cs = accept(orig->read_s, (struct sockaddr *)&addr.addr, &salen);
+	cs = accept(orig->accept_s, (struct sockaddr *)&addr.addr, &salen);
 	if (cs < 0) {
 		err = -errno;
 
@@ -567,7 +567,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 
 	idx = dnet_local_addr_index(n, &saddr);
 
-	st = dnet_state_create(n, NULL, 0, &addr, cs, &err, 0, 0, idx, dnet_state_net_process);
+	st = dnet_state_create(n, NULL, 0, &addr, cs, &err, 0, 0, idx, 0);
 	if (!st) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]",
 				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
@@ -589,12 +589,18 @@ err_out_exit:
 
 void dnet_unschedule_send(struct dnet_net_state *st)
 {
-	epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->write_s, NULL);
+	if (st->write_s >= 0)
+		epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->write_s, NULL);
 }
 
-void dnet_unschedule_recv(struct dnet_net_state *st)
+void dnet_unschedule_all(struct dnet_net_state *st)
 {
-	epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->read_s, NULL);
+	if (st->read_s >= 0)
+		epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->read_s, NULL);
+	if (st->write_s >= 0)
+		epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->write_s, NULL);
+	if (st->accept_s >= 0)
+		epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->accept_s, NULL);
 }
 
 static int dnet_process_send_single(struct dnet_net_state *st)
@@ -669,20 +675,37 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 		pthread_mutex_lock(&st->n->io->full_lock);
 		list_stat_size_increase(&st->n->io->output_stats, 1);
 		pthread_mutex_unlock(&st->n->io->full_lock);
+
+		ev.data.ptr = &st->write_data;
 	} else {
 		ev.events = EPOLLIN;
 		fd = st->read_s;
-	}
-	ev.data.ptr = st;
 
-	err = epoll_ctl(st->epoll_fd, EPOLL_CTL_ADD, fd, &ev);
+		ev.data.ptr = &st->read_data;
+	}
+
+	if (fd >= 0) {
+		err = epoll_ctl(st->epoll_fd, EPOLL_CTL_ADD, fd, &ev);
+	} else {
+		err = 0;
+	}
+
 	if (err < 0) {
 		err = -errno;
 
 		if (err == -EEXIST) {
 			err = 0;
 		} else {
-			dnet_log_err(st->n, "%s: failed to add %s event", dnet_state_dump_addr(st), send ? "SEND" : "RECV");
+			dnet_log_err(st->n, "%s: failed to add %s event, fd: %d", dnet_state_dump_addr(st), send ? "SEND" : "RECV", fd);
+		}
+	} else if (!send && st->accept_s >= 0) {
+		ev.data.ptr = &st->accept_data;
+		err = epoll_ctl(st->epoll_fd, EPOLL_CTL_ADD, st->accept_s, &ev);
+
+		if (err < 0) {
+			err = -errno;
+
+			dnet_log_err(st->n, "%s: failed to add %s event, fd: %d", dnet_state_dump_addr(st), "ACCEPT", st->accept_s);
 		}
 	}
 
@@ -767,6 +790,7 @@ static void *dnet_io_process_network(void *data_)
 {
 	struct dnet_net_io *nio = data_;
 	struct dnet_node *n = nio->n;
+	struct dnet_net_epoll_data *data;
 	struct dnet_net_state *st;
 	struct epoll_event *evs = malloc(sizeof(struct epoll_event));
 	struct epoll_event *evs_tmp = NULL;
@@ -820,13 +844,18 @@ static void *dnet_io_process_network(void *data_)
 		// suffles available epoll_events
 		dnet_shuffle_epoll_events(evs, err);
 		for (i = 0; i < err; ++i) {
-			st = evs[i].data.ptr;
+			data = evs[i].data.ptr;
+			st = data->st;
 			st->epoll_fd = nio->epoll_fd;
 
-			// if event is send or io pool queues are not full then process it
-			if ((evs[i].events & EPOLLOUT) || dnet_check_io_pool(n->io)) {
+			if (data->fd == st->accept_s) {
+				// We have to accept new connection
 				++tmp;
-				err = st->process(st, &evs[i]);
+				err = dnet_state_accept_process(st, &evs[i]);
+			} else if ((evs[i].events & EPOLLOUT) || dnet_check_io_pool(n->io)) {
+				// if event is send or io pool queues are not full then process it
+				++tmp;
+				err = dnet_state_net_process(st, &evs[i]);
 			}
 			else
 				continue;
@@ -851,8 +880,7 @@ static void *dnet_io_process_network(void *data_)
 				dnet_state_reset(st, err);
 
 				pthread_mutex_lock(&st->send_lock);
-				dnet_unschedule_send(st);
-				dnet_unschedule_recv(st);
+				dnet_unschedule_all(st);
 				pthread_mutex_unlock(&st->send_lock);
 
 				dnet_add_reconnect_state(st->n, &st->addr, st->__join_state);
@@ -897,8 +925,7 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 	struct dnet_net_state *st, *tmp;
 
 	list_for_each_entry_safe(st, tmp, &n->storage_state_list, storage_state_entry) {
-		dnet_unschedule_send(st);
-		dnet_unschedule_recv(st);
+		dnet_unschedule_all(st);
 
 		dnet_state_reset(st, -EUCLEAN);
 

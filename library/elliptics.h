@@ -142,6 +142,12 @@ struct dnet_io_req {
 /* Internal flag to ignore cache */
 #define DNET_IO_FLAGS_NOCACHE		(1<<28)
 
+struct dnet_net_epoll_data
+{
+	struct dnet_net_state *st;
+	int fd;
+};
+
 struct dnet_net_state
 {
 	// To store state either at node::empty_state_list (List of all client nodes, used for statistics)
@@ -156,6 +162,7 @@ struct dnet_net_state
 
 	atomic_t		refcnt;
 	int			read_s, write_s;
+	int			accept_s;
 
 	int			__need_exit;
 
@@ -173,8 +180,6 @@ struct dnet_net_state
 
 	/* address used to connect to cluster */
 	struct dnet_addr	addr;
-
-	int			(* process)(struct dnet_net_state *st, struct epoll_event *ev);
 
 	struct dnet_cmd		rcv_cmd;
 	uint64_t		rcv_offset;
@@ -207,6 +212,10 @@ struct dnet_net_state
 
 	/* Remote protocol version */
 	int version[4];
+
+	struct dnet_net_epoll_data read_data;
+	struct dnet_net_epoll_data write_data;
+	struct dnet_net_epoll_data accept_data;
 };
 
 int dnet_socket_local_addr(int s, struct dnet_addr *addr);
@@ -234,15 +243,14 @@ void dnet_idc_remove_backend_nolock(struct dnet_net_state *st, int backend_id);
 int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *ids);
 void dnet_idc_destroy_nolock(struct dnet_net_state *st);
 
-int dnet_state_micro_init(struct dnet_net_state *st, struct dnet_node *n, struct dnet_addr *addr, int join,
-		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
+int dnet_state_micro_init(struct dnet_net_state *st, struct dnet_node *n, struct dnet_addr *addr, int join);
 int dnet_state_set_server_prio(struct dnet_net_state *st);
 
 int dnet_state_move_to_dht(struct dnet_net_state *st, struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_backend_ids **backends, int backends_count,
 		struct dnet_addr *addr, int s, int *errp, int join, int server_node, int idx,
-		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
+		int accepting_state);
 
 void dnet_state_reset(struct dnet_net_state *st, int error);
 void dnet_state_clean(struct dnet_net_state *st);
@@ -270,7 +278,7 @@ int dnet_schedule_send(struct dnet_net_state *st);
 int dnet_schedule_recv(struct dnet_net_state *st);
 
 void dnet_unschedule_send(struct dnet_net_state *st);
-void dnet_unschedule_recv(struct dnet_net_state *st);
+void dnet_unschedule_all(struct dnet_net_state *st);
 
 int dnet_setup_control_nolock(struct dnet_net_state *st);
 
@@ -759,7 +767,6 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r);
 int __attribute__((weak)) dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int recursive);
 int __attribute__((weak)) dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
 int __attribute__((weak)) dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
-int dnet_send_to_backend(struct dnet_net_state *st, struct dnet_io_req *req, int backend_id);
 void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r);
 
 struct dnet_config;
@@ -793,8 +800,6 @@ struct dnet_trans
 	struct dnet_net_state		*st;
 	uint64_t			trans, rcv_trans;
 	struct dnet_cmd			cmd;
-	int				destination_backend_id;
-	int				source_backend_id;
 
 	atomic_t			refcnt;
 
@@ -810,7 +815,6 @@ void dnet_trans_destroy(struct dnet_trans *t);
 int dnet_trans_send_fail(struct dnet_session *s, struct dnet_addr *addr, struct dnet_trans_control *ctl, int err, int destroy);
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size);
 int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl);
-int dnet_trans_alloc_send_state_to_backend(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl, int backend_id, int source_backend_id);
 int dnet_trans_timer_setup(struct dnet_trans *t);
 
 static inline struct dnet_trans *dnet_trans_get(struct dnet_trans *t)

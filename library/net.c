@@ -24,8 +24,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <poll.h>
+#include <unistd.h>
 #include <fcntl.h>
 
 #include <netinet/tcp.h>
@@ -372,32 +372,6 @@ static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t
 	dnet_trans_insert_timer_nolock(st, t);
 }
 
-int dnet_send_to_backend(struct dnet_net_state *st, struct dnet_io_req *orig, int backend_id)
-{
-	struct dnet_io_req *req;
-	struct dnet_cmd *cmd;
-
-	req = dnet_io_req_copy(st, orig);
-	if (!req) {
-		return -ENOMEM;
-	}
-
-	req->st = dnet_state_get(st);
-
-	cmd = req->header;
-	cmd->backend_id = backend_id;
-	cmd->flags |= DNET_FLAGS_DIRECT_BACKEND;
-
-	req->hsize = sizeof(struct dnet_cmd);
-
-	req->data = cmd->data;
-	req->dsize = cmd->size;
-
-	dnet_schedule_io(st->n, req);
-
-	return 0;
-}
-
 int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 {
 	struct dnet_net_state *st = req->st;
@@ -413,14 +387,7 @@ int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 	if (err)
 		goto err_out_put;
 
-	if (t->destination_backend_id >= 0) {
-		dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s, cross-backends: request, trans: %llu, dest_backend: %d, source_backend: %d",
-			dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->cmd.cmd),
-			(unsigned long long)t->trans, t->destination_backend_id, t->source_backend_id);
-		err = dnet_send_to_backend(st, req, t->destination_backend_id);
-	} else {
-		err = dnet_io_req_queue(st, req);
-	}
+	err = dnet_io_req_queue(st, req);
 	if (err)
 		goto err_out_remove;
 
@@ -870,8 +837,7 @@ int dnet_setup_control_nolock(struct dnet_net_state *st)
 		pthread_mutex_lock(&st->send_lock);
 		err = dnet_schedule_recv(st);
 		if (err) {
-			dnet_unschedule_send(st);
-			dnet_unschedule_recv(st);
+			dnet_unschedule_all(st);
 		}
 		pthread_mutex_unlock(&st->send_lock);
 		if (err)
@@ -938,14 +904,11 @@ static int dnet_auth_send(struct dnet_net_state *st)
 }
 
 int dnet_state_micro_init(struct dnet_net_state *st,
-		struct dnet_node *n, struct dnet_addr *addr, int join,
-		int (* process)(struct dnet_net_state *st, struct epoll_event *ev))
+		struct dnet_node *n, struct dnet_addr *addr, int join)
 {
 	int err = 0;
 
 	st->n = n;
-
-	st->process = process;
 
 	st->la = 1;
 	st->weight = DNET_STATE_DEFAULT_WEIGHT;
@@ -1028,7 +991,7 @@ int dnet_state_move_to_dht(struct dnet_net_state *st, struct dnet_addr *addr)
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_backend_ids **backends, int backends_count,
 		struct dnet_addr *addr, int s, int *errp, int join, int server_node, int idx,
-		int (* process)(struct dnet_net_state *st, struct epoll_event *ev))
+		int accepting_state)
 {
 	int err = -ENOMEM, i;
 	struct dnet_net_state *st;
@@ -1049,19 +1012,48 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	memset(st, 0, sizeof(struct dnet_net_state));
 
 	st->idx = idx;
-	st->read_s = s;
-	st->write_s = dup(s);
-	if (st->write_s < 0) {
-		err = -errno;
-		dnet_log_err(n, "%s: failed to duplicate socket", dnet_server_convert_dnet_addr(addr));
-		goto err_out_free;
+
+	if (accepting_state) {
+		int sockets[2];
+
+		st->accept_s = s;
+		st->read_s = -1;
+		st->write_s = -1;
+
+		err = socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, PF_UNIX, sockets);
+		if (err < 0) {
+			err = -errno;
+			dnet_log_err(n, "%s: failed to create socket pair", dnet_server_convert_dnet_addr(addr));
+			goto err_out_free;
+		}
+
+		st->read_s = sockets[0];
+		st->write_s = sockets[1];
+	} else {
+		st->accept_s = -1;
+		st->read_s = s;
+		st->write_s = dup(s);
+		if (st->write_s < 0) {
+			err = -errno;
+			dnet_log_err(n, "%s: failed to duplicate socket", dnet_server_convert_dnet_addr(addr));
+			goto err_out_free;
+		}
 	}
+
+	st->read_data.st = st;
+	st->read_data.fd = st->read_s;
+
+	st->write_data.st = st;
+	st->write_data.fd = st->write_s;
+
+	st->accept_data.st = st;
+	st->accept_data.fd = st->accept_s;
 
 	fcntl(st->write_s, F_SETFD, FD_CLOEXEC);
 
 	dnet_log(n, DNET_LOG_DEBUG, "dnet_state_create: %s: sockets: %d/%d", dnet_server_convert_dnet_addr(addr), st->read_s, st->write_s);
 
-	err = dnet_state_micro_init(st, n, addr, join, process);
+	err = dnet_state_micro_init(st, n, addr, join);
 	if (err)
 		goto err_out_dup_destroy;
 
@@ -1100,14 +1092,14 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 				goto err_out_send_destroy;
 		}
 
-		if ((st->__join_state == DNET_JOIN) && (process != dnet_state_accept_process)) {
-			err = dnet_state_join(st);
-
-			err = dnet_auth_send(st);
-		} else if (process == dnet_state_accept_process) {
+		if (accepting_state) {
 			err = dnet_copy_addrs(st, n->addrs, n->addr_num);
 			if (err)
 				goto err_out_send_destroy;
+		} else if (st->__join_state == DNET_JOIN) {
+			err = dnet_state_join(st);
+
+			err = dnet_auth_send(st);
 		}
 
 		pthread_mutex_lock(&n->state_lock);
@@ -1198,6 +1190,9 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	if (st->read_s >= 0) {
 		dnet_sock_close(st->n, st->read_s);
 		dnet_sock_close(st->n, st->write_s);
+	}
+	if (st->accept_s >= 0) {
+		dnet_sock_close(st->n, st->accept_s);
 	}
 
 	dnet_state_clean(st);

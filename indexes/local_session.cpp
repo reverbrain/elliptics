@@ -29,8 +29,6 @@ static const char *update_index_action_strings[] = {
 	"remove",
 };
 
-static int noop_process(struct dnet_net_state *, struct epoll_event *) { return 0; }
-
 #undef list_entry
 #define list_entry(ptr, type, member) ({			\
 	const list_head *__mptr = (ptr);	\
@@ -57,8 +55,9 @@ local_session::local_session(dnet_backend_io *backend, dnet_node *node) : m_back
 	m_state->__need_exit = -1;
 	m_state->write_s = -1;
 	m_state->read_s = -1;
+	m_state->accept_s = -1;
 
-	dnet_state_micro_init(m_state, node, &addr, 0, noop_process);
+	dnet_state_micro_init(m_state, node, &addr, 0);
 	dnet_state_get(m_state);
 }
 

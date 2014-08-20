@@ -250,9 +250,9 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			int backend_id = sess.backend_id();
 			net_state_ptr index_state(dnet_state_get_first_with_backend(state->n, &base_id, &backend_id));
 
-			if (index_state) {
+			if (index_state.get() != state->n->st || backend_id != sess.backend_id()) {
 				remote_inserted++;
-				int err = send_remote(new_sess, index_state, backend_id, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_INSERT);
+				int err = send_remote(new_sess, index_state, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_INSERT);
 				if (err)
 					goto err_out_complete;
 			} else {
@@ -270,9 +270,9 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			int backend_id = sess.backend_id();
 			net_state_ptr index_state(dnet_state_get_first_with_backend(state->n, &base_id, &backend_id));
 
-			if (index_state) {
+			if (index_state.get() != state->n->st || backend_id != sess.backend_id()) {
 				remote_removed++;
-				int err = send_remote(new_sess, index_state, backend_id, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_REMOVE);
+				int err = send_remote(new_sess, index_state, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_REMOVE);
 				if (err)
 					goto err_out_complete;
 			} else {
@@ -351,7 +351,7 @@ err_out_complete:
 		ptr functor;
 	};
 
-	int send_remote(dnet_session *sess, const net_state_ptr &state, int backend_id, const dnet_raw_id &index, const data_pointer &data, uint32_t action)
+	int send_remote(dnet_session *sess, const net_state_ptr &state, const dnet_raw_id &index, const data_pointer &data, uint32_t action)
 	{
 		data_buffer buffer(sizeof(dnet_indexes_request) + sizeof(dnet_indexes_request_entry) + data.size());
 
@@ -396,11 +396,7 @@ err_out_complete:
 
 		++requests_in_progress;
 
-		const bool same_node = (state.get() == sess->node->st);
-		const int source_backend = same_node ? this->sess.backend_id() : -1;
-		const int dest_backend = same_node ? backend_id : -1;
-
-		int err = dnet_trans_alloc_send_state_to_backend(sess, state.get(), &control, dest_backend, source_backend);
+		int err = dnet_trans_alloc_send_state(sess, state.get(), &control);
 
 		if (err) {
 			--requests_in_progress;

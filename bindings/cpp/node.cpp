@@ -75,8 +75,8 @@ node node::from_raw(dnet_node *n, blackhole::log::attributes_t attributes)
 	node result;
 	logger log(*dnet_node_get_logger(n), std::move(attributes));
 
-	result.m_data->destroy_node = false;
 	result.m_data = std::make_shared<node_data>(std::move(log));
+	result.m_data->destroy_node = false;
 	result.m_data->node_ptr = n;
 
 	return result;

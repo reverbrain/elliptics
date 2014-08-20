@@ -261,50 +261,6 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_send_reply_raw(struct dnet_net_state *st, struct dnet_cmd *cmd)
-{
-	struct dnet_node *node = st->n;
-
-	if (node->st == st) {
-		uint64_t trans_id = cmd->trans;
-		struct dnet_trans *trans = dnet_trans_search(st, trans_id);
-		struct dnet_io_req req;
-		int backend_id;
-
-		if (!trans) {
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: cross-backends: reply, trans: %llu, not found",
-				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), (unsigned long long) trans_id);
-			return -ENXIO;
-		}
-
-		if (trans->source_backend_id < 0) {
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: %s, cross-backends: reply, trans: %llu, dest_backend: %d, source_backend: %d, not found",
-				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
-				(unsigned long long)trans_id, trans->destination_backend_id, trans->source_backend_id);
-			dnet_trans_put(trans);
-			return -ENXIO;
-		}
-
-		dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s, cross-backends: reply, trans: %llu, dest_backend: %d, source_backend: %d",
-			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
-			(unsigned long long)trans_id, trans->destination_backend_id, trans->source_backend_id);
-
-		memset(&req, 0, sizeof(req));
-		req.st = st;
-		req.header = cmd;
-		req.hsize = sizeof(struct dnet_cmd) + cmd->size;
-		req.fd = -1;
-
-		backend_id = trans->source_backend_id;
-
-		dnet_trans_put(trans);
-
-		return dnet_send_to_backend(st, &req, backend_id);
-	}
-
-	return dnet_send(st, cmd, sizeof(struct dnet_cmd) + cmd->size);
-}
-
 int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int recursive)
 {
 	if (st && cmd && (cmd->flags & DNET_FLAGS_NEED_ACK)) {
@@ -327,7 +283,7 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int 
 				tid, (unsigned long long)ack.flags, err);
 
 		dnet_convert_cmd(&ack);
-		err = dnet_send_reply_raw(st, &ack);
+		err = dnet_send(st, &ack, sizeof(struct dnet_cmd));
 	}
 
 	return err;
@@ -339,9 +295,6 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsign
 	struct dnet_cmd *c;
 	void *data;
 	int err;
-
-	if (st == st->n->st)
-		return 0;
 
 	c = malloc(sizeof(struct dnet_cmd) + size);
 	if (!c)
@@ -368,7 +321,7 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsign
 
 	dnet_convert_cmd(c);
 
-	err = dnet_send_reply_raw(st, c);
+	err = dnet_send(st, c, sizeof(struct dnet_cmd) + size);
 	free(c);
 
 	return err;

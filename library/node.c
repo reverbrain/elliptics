@@ -516,27 +516,14 @@ ssize_t dnet_state_search_backend(struct dnet_node *n, const struct dnet_id *id)
 struct dnet_net_state *dnet_state_get_first_with_backend(struct dnet_node *n, const struct dnet_id *id, int *backend_id)
 {
 	struct dnet_net_state *found;
-	int original_backend_id;
-	int tmp_backend_id;
-
-	if (backend_id) {
-		original_backend_id = *backend_id;
-	} else {
-		original_backend_id = -1;
-		backend_id = &tmp_backend_id;
-	}
 
 	pthread_mutex_lock(&n->state_lock);
 	found = dnet_state_search_nolock(n, id, backend_id);
+	pthread_mutex_unlock(&n->state_lock);
+
 	if (!found) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: could not find network state for request", dnet_dump_id(id));
 	}
-
-	if (found == n->st && (original_backend_id == -1 || original_backend_id == *backend_id)) {
-		dnet_state_put(found);
-		found = NULL;
-	}
-	pthread_mutex_unlock(&n->state_lock);
 
 	return found;
 }

@@ -904,7 +904,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 
 		dnet_net_state *st = dnet_state_create(state.node, backends.get(),
 			id_container->backends_count, &socket->addr, socket->s,
-			&err, state.join, 1, idx, dnet_state_net_process);
+			&err, state.join, 1, idx, 0);
 
 		socket->s = -1;
 		if (!st) {
@@ -932,7 +932,6 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		state.succeed_count++;
 
 		socket->ok = 1;
-		// Fall through
 
 		if (socket->ask_route_list) {
 			dnet_request_route_list(state, st);
