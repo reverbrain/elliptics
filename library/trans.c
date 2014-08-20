@@ -580,7 +580,7 @@ static void *dnet_reconnect_process(void *data)
 	long i, timeout;
 	struct timeval tv1, tv2;
 
-	dnet_set_name("reconnect");
+	dnet_set_name("dnet_reconnect");
 
 	if (!n->check_timeout)
 		n->check_timeout = 10;
@@ -615,7 +615,7 @@ static void *dnet_check_process(void *data)
 {
 	struct dnet_node *n = data;
 
-	dnet_set_name("stall-check");
+	dnet_set_name("dnet_check");
 
 	while (!n->need_exit) {
 		dnet_check_all_states(n);

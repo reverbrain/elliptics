@@ -36,18 +36,17 @@
 #ifdef HAVE_SENDFILE4_SUPPORT
 #include <sys/prctl.h>
 
-int dnet_set_name(char *n)
+int dnet_set_name(const char *format, ...)
 {
-	char str[] = "dnet-";
-	char name[16];
-	int len = strlen(n);
-	int rest = sizeof(name) - sizeof(str);
-	int offset = 0;
+	char name[16 + 1];
+	memset(name, 0, sizeof(name));
 
-	if (len >= rest)
-		offset = len - rest - 1;
 
-	snprintf(name, sizeof(name), "%s%s", str, n + offset);
+	va_list args;
+	va_start(args, format);
+	vsnprintf(name, sizeof(name), format, args);
+	va_end(args);
+
 	return prctl(PR_SET_NAME, name);
 }
 
@@ -57,7 +56,7 @@ long dnet_get_id(void)
 	return syscall(SYS_gettid);
 }
 #else
-int dnet_set_name(char *name __attribute__ ((unused))) { return 0; }
+int dnet_set_name(char *format __attribute__ ((unused)), ...) { return 0; }
 
 long dnet_get_id(void)
 {

@@ -800,7 +800,7 @@ static void *dnet_io_process_network(void *data_)
 	int i = 0;
 	struct timeval prev_tv, curr_tv;
 
-	dnet_set_name("net_pool");
+	dnet_set_name("dnet_net");
 
 	dnet_log(n, DNET_LOG_NOTICE, "started net pool");
 
@@ -991,11 +991,15 @@ static void *dnet_io_process(void *data_)
 	struct dnet_io_req *r;
 	int err;
 	struct dnet_cmd *cmd;
+	int nonblocking = (pool->mode == DNET_WORK_IO_MODE_NONBLOCKING);
 
-	dnet_set_name("io_pool");
+	if (pool->io)
+		dnet_set_name("dnet_%sio_%zu", nonblocking ? "nb_" : "", pool->io->backend_id);
+	else
+		dnet_set_name("dnet_%sio", nonblocking ? "nb_" : "");
 
 	dnet_log(n, DNET_LOG_NOTICE, "started io thread: #%d, nonblocking: %d, backend: %zd",
-		wio->thread_index, pool->mode == DNET_WORK_IO_MODE_NONBLOCKING, pool->io ? (ssize_t)pool->io->backend_id : -1);
+		wio->thread_index, nonblocking, pool->io ? (ssize_t)pool->io->backend_id : -1);
 
 	while (!n->need_exit && (!pool->io || !pool->io->need_exit)) {
 		r = NULL;

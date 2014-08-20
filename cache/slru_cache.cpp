@@ -686,6 +686,8 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 
 void slru_cache_t::life_check(void) {
 
+	dnet_set_name("dnet_cache_%zu", m_backend->backend_id);
+
 	while (!need_exit()) {
 		if (m_node->monitor) {
 			react_activate(m_node->react_aggregator);
