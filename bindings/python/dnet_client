@@ -15,7 +15,7 @@ def add_node_options(parser):
     group.add_option("-g", "--groups", action="store_true", help="Group option.")
     group.add_option("-l", "--log", dest="log", default='/dev/stderr', metavar="FILE",
                      help="Output log messages from library to file [default: %default]")
-    group.add_option("-L", "--log-level", action="store", type="int", dest="log_level", default=1,
+    group.add_option("-L", "--log-level", action="store", type="int", dest="log_level", default=elliptics.log_level.error,
                      help="Elliptics client verbosity [default: %default]")
     group.add_option("-r", "--remote", action="append", dest="remote",
                      help="Elliptics node address in format host:port:family [default: %default]")
