@@ -47,6 +47,7 @@ class elliptics_service_t : public api::service_t
 		deferred<std::map<std::string, std::string> > bulk_read(const std::string &collection, const std::vector<std::string> &keys);
 		deferred<std::map<std::string, int> > bulk_write(const std::string &collection, const std::vector<std::string> &keys,
 			const std::vector<std::string> &blob);
+		deferred<std::string> read_latest(const std::string &collection, const std::string &key);
 
 	private:
 		typedef storage::elliptics_storage_t::key_name_map key_name_map;
