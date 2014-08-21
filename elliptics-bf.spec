@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.9
+Version:	2.26.3.10
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 21 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.10
+- Python: removed using of dropped elliptics.log_level.data
+- Log: fixed typo and fixed spaces
+- backends: Added mandatory field backend_id
+
 * Wed Aug 20 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.9
 - dnet_client: Fixed default log level
 - server: Add backend_id to every log at io pool

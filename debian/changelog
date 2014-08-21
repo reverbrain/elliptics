@@ -1,3 +1,11 @@
+elliptics (2.26.3.10) unstable; urgency=low
+
+  * Python: removed using of dropped elliptics.log_level.data
+  * Log: fixed typo and fixed spaces
+  * backends: Added mandatory field backend_id
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Thu, 21 Aug 2014 16:59:02 +0400
+
 elliptics (2.26.3.9) unstable; urgency=low
 
   * dnet_client: Fixed default log level
