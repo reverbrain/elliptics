@@ -2053,6 +2053,7 @@ async_exec_result session::exec(const exec_context &tmp_context, const std::stri
 	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
 
 	dnet_id id;
+	memset(&id, 0, sizeof(dnet_id));
 	dnet_setup_id(&id, 0, s->src.id);
 
 	return request(&id, context);
