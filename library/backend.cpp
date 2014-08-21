@@ -170,9 +170,23 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 		auto &data = *static_cast<config_data *>(node->config_data);
 		config_parser parser;
 		config cfg = parser.open(data.config_path);
-		const config backend_config = cfg.at("backends").at(backend_id);
+		const config backends_config = cfg.at("backends");
+		bool found = false;
 
-		backend.parse(&data, backend_config);
+		for (size_t index = 0; index < backends_config.size(); ++index) {
+			const config backend_config = backends_config.at(index);
+			const uint32_t config_backend_id = backend_config.at<uint32_t>("backend_id");
+			if (backend_id == config_backend_id) {
+				backend.parse(&data, backend_config);
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, have not found backend section in configuration file", backend_id);
+			goto err_out_exit;
+		}
 	} catch (std::bad_alloc &) {
 		err = -ENOMEM;
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed as not enouh memory", backend_id);
@@ -398,6 +412,12 @@ static int dnet_backend_set_ids(dnet_node *node, uint32_t backend_id, dnet_raw_i
 	}
 
 	dnet_backend_info &backend = backends[backend_id];
+
+	if (backend.history.empty()) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: backend_id: %u, failed to open temporary ids file: history is not specified", backend_id);
+		return -EINVAL;
+	}
+
 	char tmp_ids[1024];
 	char target_ids[1024];
 	snprintf(tmp_ids, sizeof(tmp_ids), "%s/ids_%08x%08x", backend.history.c_str(), rand(), rand());
@@ -407,7 +427,7 @@ static int dnet_backend_set_ids(dnet_node *node, uint32_t backend_id, dnet_raw_i
 	std::ofstream out(tmp_ids, std::ofstream::binary | std::ofstream::trunc);
 	if (!out) {
 		err = -errno;
-		dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: failed to open temporary ids file: %s, err: %d", tmp_ids, err);
+		dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: backend_id: %u, failed to open temporary ids file: %s, err: %d", backend_id, tmp_ids, err);
 		return err;
 	}
 
@@ -418,7 +438,7 @@ static int dnet_backend_set_ids(dnet_node *node, uint32_t backend_id, dnet_raw_i
 
 		if (!out) {
 			err = -errno;
-			dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: failed to write ids to temporary file: %s, err: %d", tmp_ids, err);
+			dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: backend_id: %u, failed to write ids to temporary file: %s, err: %d", backend_id, tmp_ids, err);
 		} else {
 
 			if (!err) {
@@ -630,7 +650,6 @@ void dnet_backend_info::parse(ioremap::elliptics::config::config_data *data, con
 
 	group = backend.at<int>("group");
 	history = backend.at<std::string>("history");
-	enable_at_start = backend.at<bool>("enable", true);
 	cache = NULL;
 
 	if (backend.has("cache")) {

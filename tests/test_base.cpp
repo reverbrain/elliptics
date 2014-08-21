@@ -829,6 +829,9 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 					("history", prefix + "/history")
 					("data", prefix + "/blob")
 					;
+
+			if (!config.backends[i].has_value("backend_id"))
+				config.backends[i]("backend_id", static_cast<int64_t>(i));
 		}
 
 		config.write(server_path + "/ioserv.conf");

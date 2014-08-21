@@ -299,15 +299,32 @@ void parse_options(config_data *data, const config &options)
 
 void parse_backends(config_data *data, const config &backends)
 {
-	data->backends->backends.reserve(backends.size());
-	for (size_t index = 0; index < backends.size(); ++index)
-		data->backends->backends.emplace_back();
+	std::set<uint32_t> backends_ids;
+	auto &backends_info = data->backends->backends;
 
 	for (size_t index = 0; index < backends.size(); ++index) {
 		const config backend = backends.at(index);
-		dnet_backend_info &info = data->backends->backends[index];
+		const uint32_t backend_id = backend.at<uint32_t>("backend_id");
 
-		info.parse(data, backend);
+		// Check if this is first backend with such backend_id
+		if (!backends_ids.insert(backend_id).second) {
+			throw ioremap::elliptics::config::config_error()
+				<< backend.at("backend_id").path()
+				<< " duplicates one of previous backend_id";
+		}
+
+		while (backend_id + 1 > backends_info.size())
+			backends_info.emplace_back();
+
+		dnet_backend_info &info = backends_info[backend_id];
+		info.enable_at_start = backend.at<bool>("enable", true);
+		info.history = backend.at("history", std::string());
+
+		if (info.enable_at_start) {
+			// It's parsed to check configuration at start
+			// It will be reparsed again at backend's initialization anyway
+			info.parse(data, backend);
+		}
 	}
 }
 

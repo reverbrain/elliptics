@@ -49,7 +49,7 @@ struct dnet_backend_config_entry
 struct dnet_backend_info
 {
 	dnet_backend_info() :
-		log(NULL), group(0), cache(NULL), enable_at_start(true),
+		log(NULL), group(0), cache(NULL), enable_at_start(false),
 		state_mutex(new std::mutex), state(DNET_BACKEND_DISABLED),
 		io_thread_num(0), nonblocking_io_thread_num(0)
 	{
