@@ -65,10 +65,10 @@ typedef struct cpp_blackhole_log_record_t dnet_logger_record;
 // Keep in sync with blackhole::defaults::severity
 enum dnet_log_level {
 	DNET_LOG_DEBUG,
-        DNET_LOG_NOTICE,
-        DNET_LOG_INFO,
-        DNET_LOG_WARNING,
-        DNET_LOG_ERROR
+	DNET_LOG_NOTICE,
+	DNET_LOG_INFO,
+	DNET_LOG_WARNING,
+	DNET_LOG_ERROR
 };
 
 #define ELLIPTICS_LOG_LEVEL enum dnet_log_level

@@ -51,7 +51,7 @@ class Handler(logging.Handler):
             level = elliptics.log_level.debug
         elif record.levelno <= logging.INFO:
             level = elliptics.log_level.info
-        else record.levelno <= logging.ERROR:
+        else:
             level = elliptics.log_level.error
 
         self.logger.log(level, record.msg.format(*record.args))
