@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.10
+Version:	2.26.3.11
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 21 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.11
+- Logger: Write logs in local time
+
 * Thu Aug 21 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.10
 - Python: removed using of dropped elliptics.log_level.data
 - Log: fixed typo and fixed spaces
