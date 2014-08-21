@@ -77,10 +77,26 @@ static void format_request_id(blackhole::aux::attachable_ostringstream &out, uin
 	out << std::setw(16) << std::setfill('0') << std::hex << request_id;
 }
 
+struct localtime_formatter_action {
+    blackhole::aux::datetime::generator_t generator;
+
+    localtime_formatter_action(const std::string &format) :
+	generator(blackhole::aux::datetime::generator_factory_t::make(format))
+    {
+    }
+
+    void operator() (blackhole::aux::attachable_ostringstream &stream, const timeval &value) const
+    {
+	std::tm tm;
+	localtime_r(&value.tv_sec, &tm);
+	generator(stream, tm, value.tv_usec);
+    }
+};
+
 blackhole::mapping::value_t file_logger::mapping()
 {
 	blackhole::mapping::value_t mapper;
-	mapper.add<blackhole::keyword::tag::timestamp_t>("%Y-%m-%d %H:%M:%S.%f");
+	mapper.add<blackhole::keyword::tag::timestamp_t>(localtime_formatter_action("%Y-%m-%d %H:%M:%S.%f"));
 	mapper.add<keyword::tag::request_id_t>(format_request_id);
 	mapper.add<blackhole::keyword::tag::severity_t<log_level>>(blackhole::defaults::map_severity);
 	return mapper;
