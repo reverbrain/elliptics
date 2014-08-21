@@ -1,5 +1,5 @@
-#ifndef LOGGER_HPP
-#define LOGGER_HPP
+#ifndef __IOREMAP_LOGGER_HPP
+#define __IOREMAP_LOGGER_HPP
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -96,4 +96,4 @@ void dnet_log_close_record(dnet_logger_record *record);
 
 #endif
 
-#endif // LOGGER_HPP
+#endif // __IOREMAP_LOGGER_HPP
