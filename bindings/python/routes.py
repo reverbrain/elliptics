@@ -40,7 +40,7 @@ if __name__ == '__main__':
         help='if present, dump parts of DHT ring each node occupies (in percents)')
     parser.add_argument('--log', default='/dev/stdout', help='log file')
     parser.add_argument('--log-level', type=int, default=elliptics.log_level.error,
-        help='log level: %d-%d' % (elliptics.log_level.data, elliptics.log_level.debug))
+        help='log level: %d-%d' % (elliptics.log_level.error, elliptics.log_level.debug))
 
     args = parser.parse_args()
     if len(args.remotes) == 0:
