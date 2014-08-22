@@ -178,7 +178,7 @@ def balance_group(group, routes, min_deviation, max_deviation):
     '''
     updated_addresses = set()
     log.debug("Origin routes:\n{0}".format(routes))
-    log.debug("Origin spread:\n{0}".format(log_spread(routes.spread()[group])))
+    log.debug("Origin spread:\n{0}".format(log_spread(routes.percentages()[group])))
 
     remove_fake_routes(routes)
 
@@ -291,7 +291,7 @@ def balance_group(group, routes, min_deviation, max_deviation):
 
     restore_fake_routes(routes, group)
     log.debug("Final routes:\n{0}".format(routes))
-    log.debug("Final spread:\n{0}".format(log_spread(routes.spread()[group])))
+    log.debug("Final spread:\n{0}".format(log_spread(routes.percentages()[group])))
 
     return ids_mapping
 
@@ -361,7 +361,7 @@ def check(options):
                           length * 1. / middle_size,
                           length * 100. / total))
         restore_fake_routes(group_routes, group)
-        print log_spread(group_routes.spread()[group])
+        print log_spread(group_routes.percentages()[group])
 
 
 if __name__ == '__main__':
