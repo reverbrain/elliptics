@@ -373,7 +373,7 @@ class session
 		/*!
 		 * Set/get transaction timeout
 		 */
-		void			set_timeout(unsigned int timeout);
+		void			set_timeout(long timeout);
 		long			get_timeout() const;
 
 		/*!

@@ -890,7 +890,7 @@ uint64_t dnet_session_get_user_flags(struct dnet_session *s)
 	return s->user_flags;
 }
 
-void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout)
+void dnet_session_set_timeout(struct dnet_session *s, long wait_timeout)
 {
 	s->wait_ts.tv_sec = wait_timeout;
 }
@@ -900,7 +900,7 @@ struct timespec *dnet_session_get_timeout(struct dnet_session *s)
 	return s->wait_ts.tv_sec ? &s->wait_ts : &s->node->wait_ts;
 }
 
-void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)
+void dnet_set_timeouts(struct dnet_node *n, long wait_timeout, long check_timeout)
 {
 	n->wait_ts.tv_sec = wait_timeout;
 	n->check_timeout = check_timeout;

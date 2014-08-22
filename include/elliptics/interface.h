@@ -272,7 +272,7 @@ struct dnet_config
 	 * Wait timeout in seconds used for example to wait
 	 * for remote content sync.
 	 */
-	unsigned int		wait_timeout;
+	long			wait_timeout;
 
 	/*
 	 * Specifies wether given node will join the network,
@@ -344,7 +344,7 @@ struct dnet_config
 
 	/* Minimum timeout for call tree.
 	 * Only call tree with spent time >= this timeout will be presented at monitor statistics */
-	unsigned int		monitor_call_tree_timeout;
+	long			monitor_call_tree_timeout;
 
 	/* so that we do not change major version frequently */
 	int			reserved_for_future_use[8];
@@ -382,7 +382,7 @@ void dnet_session_set_direct_backend(struct dnet_session *s, uint32_t backend_id
 void dnet_session_set_user_flags(struct dnet_session *s, uint64_t user_flags);
 uint64_t dnet_session_get_user_flags(struct dnet_session *s);
 
-void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout);
+void dnet_session_set_timeout(struct dnet_session *s, long wait_timeout);
 struct timespec *dnet_session_get_timeout(struct dnet_session *s);
 
 void dnet_set_keepalive(struct dnet_node *n, int idle, int cnt, int interval);
@@ -904,7 +904,7 @@ int dnet_send_cmd(struct dnet_session *s,
 	struct sph *e);
 
 int dnet_flags(struct dnet_node *n);
-void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout);
+void dnet_set_timeouts(struct dnet_node *n, long wait_timeout, long check_timeout);
 
 #define DNET_CONF_ADDR_DELIM	':'
 int dnet_parse_addr(char *addr, int *portp, int *familyp);

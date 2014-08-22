@@ -730,7 +730,7 @@ void session::get_timestamp(dnet_time *ts)
 	dnet_session_get_timestamp(m_data->session_ptr, ts);
 }
 
-void session::set_timeout(unsigned int timeout)
+void session::set_timeout(long timeout)
 {
 	dnet_session_set_timeout(m_data->session_ptr, timeout);
 }
