@@ -360,9 +360,11 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 			throw config_error("failed to create node");
 
 		static_assert(sizeof(dnet_addr) == sizeof(address), "Size of dnet_addr and size of address must be equal");
-		int err = dnet_add_state(node, reinterpret_cast<const dnet_addr *>(data->remotes.data()), data->remotes.size(), 0);
-		if (err < 0)
-			BH_LOG(*node->log, DNET_LOG_WARNING, "Failed to connect to remote nodes: %d", err);
+		if (data->remotes.size() != 0) {
+			int err = dnet_add_state(node, reinterpret_cast<const dnet_addr *>(data->remotes.data()), data->remotes.size(), 0);
+			if (err < 0)
+				BH_LOG(*node->log, DNET_LOG_WARNING, "Failed to connect to remote nodes: %d", err);
+		}
 
 	} catch (std::exception &exc) {
 		if (data && data->cfg_state.log) {
