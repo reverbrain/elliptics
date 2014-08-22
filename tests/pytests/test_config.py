@@ -115,10 +115,7 @@ class TestConfig:
                       set_property, cfg, 'check_timeout', 2 ** 63)
 
         pytest.raises(OverflowError,
-                      set_property, cfg, 'wait_timeout', -1)
-
-        pytest.raises(OverflowError,
-                      set_property, cfg, 'wait_timeout', 2 ** 32)
+                      set_property, cfg, 'wait_timeout', 2 ** 63)
 
         pytest.raises(OverflowError,
                       set_property, cfg, 'io_thread_num', 2 ** 32)
