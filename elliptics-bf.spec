@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.11
+Version:	2.26.3.12
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,17 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Aug 22 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.12
+- Logs: removed '\n' from the end of logs - blackhole adds '\n'
+- example: Added backend_id to example config
+- balancer: changed usage removed spread by percentages
+- server: Don't check for forward if direct request
+- backends: Write duration of backend's init
+- backends: set correct error if missed backend_id
+- Monitor: wrapped json generation by try/catch
+- backends: Make unique log for every backend
+- node: EEXIST for state is 'good' error
+
 * Thu Aug 21 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.11
 - Logger: Write logs in local time
 

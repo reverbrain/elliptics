@@ -131,7 +131,7 @@ inline std::string convert_report(const rapidjson::Document &report) {
 
 std::string statistics::report(uint64_t categories) {
 	rapidjson::Document report;
-	dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: collecting statistics for categories: %lx\n", categories);
+	dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: collecting statistics for categories: %lx", categories);
 	report.SetObject();
 	auto &allocator = report.GetAllocator();
 
@@ -170,7 +170,7 @@ std::string statistics::report(uint64_t categories) {
 		                 allocator);
 	}
 
-	dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: finished generating json statistics for categories: %lx\n", categories);
+	dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: finished generating json statistics for categories: %lx", categories);
 	return convert_report(report);
 }
 
@@ -240,11 +240,11 @@ static void clients_stat_json(dnet_node *n, rapidjson::Value &stat_value, rapidj
 		}
 	} catch(std::exception &e) {
 		pthread_mutex_unlock(&n->state_lock);
-		dnet_log(n, DNET_LOG_ERROR, "monitor: failed collecting client state stats: %s\n", e.what());
+		dnet_log(n, DNET_LOG_ERROR, "monitor: failed collecting client state stats: %s", e.what());
 		throw;
 	} catch(...) {
 		pthread_mutex_unlock(&n->state_lock);
-		dnet_log(n, DNET_LOG_ERROR, "monitor: failed collecting client state stats: unknown exception\n");
+		dnet_log(n, DNET_LOG_ERROR, "monitor: failed collecting client state stats: unknown exception");
 		throw;
 	}
 	pthread_mutex_unlock(&n->state_lock);

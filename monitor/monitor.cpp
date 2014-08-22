@@ -170,6 +170,12 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	if (!real_monitor)
 		return dnet_send_reply(orig, cmd, disabled_reply.c_str(), disabled_reply.size(), 0);
 
-	auto json = real_monitor->get_statistics().report(req->categories);
-	return dnet_send_reply(orig, cmd, &*json.begin(), json.size(), 0);
+	try {
+		auto json = real_monitor->get_statistics().report(req->categories);
+		return dnet_send_reply(orig, cmd, &*json.begin(), json.size(), 0);
+	} catch(std::exception &e) {
+		static const std::string rep = "{\"monitor_status\":\"failed: " + std::string(e.what()) + "\"}";
+		dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: failed to generate json: %s", e.what());
+		return dnet_send_reply(orig, cmd, &*rep.begin(), rep.size(), 0);
+	}
 }

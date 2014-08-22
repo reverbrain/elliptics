@@ -48,8 +48,17 @@ struct dnet_backend_config_entry
 
 struct dnet_backend_info
 {
-	dnet_backend_info() :
-		log(NULL), group(0), cache(NULL), enable_at_start(false),
+	static blackhole::log::attributes_t make_attributes(uint32_t backend_id)
+	{
+		blackhole::log::attributes_t result = {
+			blackhole::attribute::make("backend_id", backend_id)
+		};
+		return std::move(result);
+	}
+
+	dnet_backend_info(dnet_logger &logger, uint32_t backend_id) :
+		log(new dnet_logger(logger, make_attributes(backend_id))),
+		group(0), cache(NULL), enable_at_start(false),
 		state_mutex(new std::mutex), state(DNET_BACKEND_DISABLED),
 		io_thread_num(0), nonblocking_io_thread_num(0)
 	{
@@ -62,7 +71,7 @@ struct dnet_backend_info
 
 	dnet_backend_info(dnet_backend_info &&other) ELLIPTICS_NOEXCEPT :
 		config_template(other.config_template),
-		log(other.log),
+		log(std::move(other.log)),
 		options(std::move(other.options)),
 		group(other.group),
 		cache(other.cache),
@@ -83,7 +92,7 @@ struct dnet_backend_info
 	dnet_backend_info &operator =(dnet_backend_info &&other) ELLIPTICS_NOEXCEPT
 	{
 		config_template = other.config_template;
-		log = other.log;
+		log = std::move(other.log);
 		options = std::move(other.options);
 		group = other.group;
 		cache = other.cache;
@@ -105,7 +114,7 @@ struct dnet_backend_info
 	void parse(ioremap::elliptics::config::config_data *data, const ioremap::elliptics::config::config &config);
 
 	dnet_config_backend config_template;
-	dnet_logger *log;
+	std::unique_ptr<dnet_logger> log;
 	std::vector<dnet_backend_config_entry> options;
 	int group;
 	void *cache;
