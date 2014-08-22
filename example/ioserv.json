@@ -47,6 +47,7 @@
 	},
 	"backends": [
 		{
+			"backend_id": 1,
 			"type": "blob",
 			"group": 2,
 			"history": "/opt/elliptics/history.2",
