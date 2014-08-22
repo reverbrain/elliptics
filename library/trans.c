@@ -513,8 +513,9 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT/need-exit: stall-check wait-ts: %ld, need-exit: %d, cmd: %s [%d], started: %s.%06lu",
-				dnet_state_dump_addr(st), (unsigned long long)t->trans,
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: backend: %d, trans: %llu TIMEOUT/need-exit: "
+				"stall-check wait-ts: %ld, need-exit: %d, cmd: %s [%d], started: %s.%06lu",
+				dnet_state_dump_addr(st), dnet_dump_id(&t->cmd.id), t->cmd.backend_id, (unsigned long long)t->trans,
 				(unsigned long)t->wait_ts.tv_sec,
 				st->__need_exit,
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
