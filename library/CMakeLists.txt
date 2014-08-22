@@ -48,7 +48,7 @@ set_target_properties(elliptics_client PROPERTIES
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     LINKER_LANGUAGE CXX
     )
-target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT} ${Boost_THREAD_LIBRARY} ${Boost_FILESYSTEM_LIBRARY})
+target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT} ${Boost_THREAD_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_FILESYSTEM_LIBRARY})
 
 add_library(elliptics SHARED ${ELLIPTICS_SRCS})
 set_target_properties(elliptics PROPERTIES
