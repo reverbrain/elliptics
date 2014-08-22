@@ -740,7 +740,7 @@ static void dnet_state_remove_and_shutdown(struct dnet_net_state *st, int error)
 {
 	int level = DNET_LOG_NOTICE;
 
-	if (error && (error != -EUCLEAN))
+	if (error && (error != -EUCLEAN && error != -EEXIST))
 		level = DNET_LOG_ERROR;
 
 	dnet_log(st->n, level, "%s: resetting state: %s [%d]",
