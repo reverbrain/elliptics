@@ -221,7 +221,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 	backend.config = backend.config_template;
 	backend.data.assign(backend.data.size(), '\0');
 	backend.config.data = backend.data.data();
-	backend.config.log = backend.log;
+	backend.config.log = backend.log.get();
 
 	backend_io = &node->io->backends[backend_id];
 	backend_io->need_exit = 0;
@@ -523,15 +523,10 @@ void backend_fill_status(dnet_node *node, dnet_backend_status *status, size_t ba
 	backend_fill_status_nolock(node, status, backend_id);
 }
 
-int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+static int dnet_cmd_backend_control_dangerous(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	dnet_node *node = st->n;
 	const auto &backends = node->config_data->backends->backends;
-
-	if (cmd->size < sizeof(dnet_backend_control)) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_control: command size is not enough for dnet_backend_control, state: %s", dnet_state_dump_addr(st));
-		return -EINVAL;
-	}
 
 	struct dnet_backend_control *control = reinterpret_cast<dnet_backend_control *>(data);
 
@@ -613,6 +608,34 @@ int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	return err;
 }
 
+int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+{
+	dnet_node *node = st->n;
+
+	if (cmd->size < sizeof(dnet_backend_control)) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_control: command size is not enough for dnet_backend_control, state: %s", dnet_state_dump_addr(st));
+		return -EINVAL;
+	}
+
+	struct dnet_backend_control *control = reinterpret_cast<dnet_backend_control *>(data);
+
+	try {
+		blackhole::log::attributes_t attributes = {
+			blackhole::attribute::make("backend_id", uint32_t(control->backend_id))
+		};
+
+		blackhole::scoped_attributes_t scoped(*node->log, std::move(attributes));
+
+		return dnet_cmd_backend_control_dangerous(st, cmd, data);
+	} catch (std::bad_alloc &) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_control: insufficient memory");
+		return -ENOMEM;
+	} catch (std::exception &exc) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_control: %s", exc.what());
+		return -EINVAL;
+	}
+}
+
 int dnet_cmd_backend_status(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	(void) data;
@@ -665,7 +688,6 @@ void dnet_backend_info::parse(ioremap::elliptics::config::config_data *data, con
 			config_template = *current_backend;
 			config = *current_backend;
 			this->data.resize(config.size, '\0');
-			log = data->cfg_state.log;
 			found_backend = true;
 			break;
 		}

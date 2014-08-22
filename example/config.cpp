@@ -314,7 +314,7 @@ void parse_backends(config_data *data, const config &backends)
 		}
 
 		while (backend_id + 1 > backends_info.size())
-			backends_info.emplace_back();
+			backends_info.emplace_back(data->logger, backends_info.size());
 
 		dnet_backend_info &info = backends_info[backend_id];
 		info.enable_at_start = backend.at<bool>("enable", true);
