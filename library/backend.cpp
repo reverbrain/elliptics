@@ -201,6 +201,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 		}
 
 		if (!found) {
+			err = -EBADF;
 			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, have not found backend section in configuration file, elapsed: %s",
 				backend_id, elapsed(start));
 			goto err_out_exit;
