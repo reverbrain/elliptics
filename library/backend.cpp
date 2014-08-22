@@ -131,6 +131,20 @@ err_out_exit:
 	return NULL;
 }
 
+static const char *elapsed(const dnet_time &start)
+{
+	static __thread char buffer[64];
+	dnet_time end;
+	dnet_current_time(&end);
+
+	const unsigned long long nano = 1000 * 1000 * 1000;
+
+	const unsigned long long delta = (end.tsec - start.tsec) * nano + end.tnsec - start.tnsec;
+
+	snprintf(buffer, sizeof(buffer), "%lld.%06lld secs", delta / nano, (delta % nano) / 1000);
+	return buffer;
+}
+
 int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state)
 {
 	int ids_num;
@@ -143,12 +157,15 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 	}
 
 	dnet_backend_info &backend = backends[backend_id];
+	dnet_time start;
+	dnet_current_time(&start);
 
 	{
 		std::lock_guard<std::mutex> guard(*backend.state_mutex);
 		*state = backend.state;
 		if (backend.state != DNET_BACKEND_DISABLED) {
-			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, trying to activate not disabled backend", backend_id);
+			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, trying to activate not disabled backend, elapsed: %s",
+				backend_id, elapsed(start));
 			if (*state == DNET_BACKEND_ENABLED)
 				return -EALREADY;
 			else if (*state == DNET_BACKEND_ACTIVATING)
@@ -184,15 +201,18 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 		}
 
 		if (!found) {
-			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, have not found backend section in configuration file", backend_id);
+			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, have not found backend section in configuration file, elapsed: %s",
+				backend_id, elapsed(start));
 			goto err_out_exit;
 		}
 	} catch (std::bad_alloc &) {
 		err = -ENOMEM;
-		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed as not enouh memory", backend_id);
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed as not enouh memory, elapsed: %s",
+			backend_id, elapsed(start));
 		goto err_out_exit;
 	} catch (std::exception &exc) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to read configuration file: %s", backend_id, exc.what());
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to read configuration file: %s, elapsed: %s",
+			backend_id, exc.what(), elapsed(start));
 		err = -EBADF;
 		goto err_out_exit;
 	}
@@ -216,14 +236,17 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 
 	err = backend.config.init(&backend.config);
 	if (err) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init backend: %d", backend_id, err);
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init backend: %d, elapsed: %s",
+			backend_id, err, elapsed(start));
 		goto err_out_exit;
 	}
 
 	if (backend.cache_config) {
 		backend_io->cache = backend.cache = dnet_cache_init(node, backend_io, backend.cache_config.get());
 		if (!backend.cache) {
-			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init cache, err: %d", backend_id, err);
+			err = -ENOMEM;
+			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init cache, err: %d, elapsed: %s",
+				backend_id, err, elapsed(start));
 			goto err_out_backend_cleanup;
 		}
 	}
@@ -232,7 +255,8 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 
 	err = dnet_backend_io_init(node, backend_io, backend.io_thread_num, backend.nonblocking_io_thread_num);
 	if (err) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init io pool, err: %d", backend_id, err);
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init io pool, err: %d, elapsed: %s",
+			backend_id, err, elapsed(start));
 		goto err_out_cache_cleanup;
 	}
 
@@ -242,11 +266,12 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 	free(ids);
 
 	if (err) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to add backend to route list, err: %d", backend_id, err);
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to add backend to route list, err: %d, elapsed: %s",
+			backend_id, err, elapsed(start));
 		goto err_out_backend_io_cleanup;
 	}
 
-	dnet_log(node, DNET_LOG_INFO, "backend_init: backend: %zu, initialized", backend_id);
+	dnet_log(node, DNET_LOG_INFO, "backend_init: backend: %zu, initialized, elapsed: %s", backend_id, elapsed(start));
 
 	{
 		std::lock_guard<std::mutex> guard(*backend.state_mutex);
