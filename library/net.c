@@ -599,7 +599,7 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 	int err = 0;
 	struct dnet_trans *t = NULL;
 	struct dnet_node *n = st->n;
-	struct dnet_net_state *forward_state;
+	struct dnet_net_state *forward_state = NULL;
 	struct dnet_cmd *cmd = r->header;
 
 	if (cmd->flags & DNET_FLAGS_REPLY) {
@@ -675,9 +675,11 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 	}
 
 #if 1
-	forward_state = dnet_state_get_first(n, &cmd->id);
-	if (!forward_state || forward_state == st || forward_state == n->st ||
-			(cmd->flags & DNET_FLAGS_DIRECT)) {
+	if (!(cmd->flags & DNET_FLAGS_DIRECT)) {
+		forward_state = dnet_state_get_first(n, &cmd->id);
+	}
+
+	if (!forward_state || forward_state == st || forward_state == n->st) {
 		dnet_state_put(forward_state);
 
 		err = dnet_process_cmd_raw(backend, st, cmd, r->data, 0);
