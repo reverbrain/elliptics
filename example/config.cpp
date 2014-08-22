@@ -209,7 +209,7 @@ static void dnet_set_addr(config_data *data, const std::vector<std::string> &add
 			err = dnet_fill_addr(&wrap.addr, address_copy.data(), port, SOCK_STREAM, IPPROTO_TCP);
 
 			if (err) {
-				throw config_error() << *it << ": failed to parse address: " << strerror(-err)
+				throw config_error() << *it << ": could not resolve address: " << strerror(-err)
 					<< ", " << boost::lexical_cast<std::string>(err);
 			}
 
