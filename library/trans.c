@@ -301,7 +301,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			strftime(time_str, sizeof(time_str), "%F %R:%S", &tm);
 
 			snprintf(io_buf, sizeof(io_buf), ", ioflags: %s, io-offset: %llu, io-size: %llu/%llu, "
-					"io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', weight: %f -> %f\n",
+					"io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', weight: %f -> %f",
 				dnet_flags_dump_ioflags(local_io->flags),
 				(unsigned long long)local_io->offset, (unsigned long long)local_io->size, (unsigned long long)local_io->total_size,
 				(unsigned long long)local_io->user_flags,
@@ -414,7 +414,7 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	req.hsize = sizeof(struct dnet_cmd) + ctl->size;
 	req.fd = -1;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send %s trans: %llu -> %s, weight: %f.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send %s trans: %llu -> %s, weight: %f.",
 			dnet_dump_id(&cmd->id),
 			dnet_cmd_string(ctl->cmd),
 			(unsigned long long)t->trans,

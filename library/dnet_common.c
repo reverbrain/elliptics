@@ -1574,14 +1574,14 @@ int dnet_version_check(struct dnet_net_state *st, int *version)
 	int err = 0;
 
 	if ((version[0] == CONFIG_ELLIPTICS_VERSION_0) && (version[1] == CONFIG_ELLIPTICS_VERSION_1)) {
-		dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: network version: %d.%d.%d.%d, local version: %d.%d.%d.%d\n",
+		dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: network version: %d.%d.%d.%d, local version: %d.%d.%d.%d",
 				dnet_state_dump_addr(st),
 				version[0], version[1], version[2], version[3],
 				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
 				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3);
 	} else {
 		dnet_log(n, DNET_LOG_ERROR, "%s: reverse lookup command: VERSION MISMATCH: "
-				"network version: %d.%d.%d.%d, local version: %d.%d.%d.%d\n",
+				"network version: %d.%d.%d.%d, local version: %d.%d.%d.%d",
 				dnet_state_dump_addr(st),
 				version[0], version[1], version[2], version[3],
 				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,

@@ -728,7 +728,7 @@ static inline void dnet_counter_inc(struct dnet_node *n, int counter, int err)
 		n->counters[counter].err++;
 	dnet_lock_unlock(&n->counters_lock);
 
-	dnet_log(n, DNET_LOG_DEBUG, "Incrementing counter: %d, err: %d, value is: %llu %llu.\n",
+	dnet_log(n, DNET_LOG_DEBUG, "Incrementing counter: %d, err: %d, value is: %llu %llu.",
 				counter, err,
 				(unsigned long long)n->counters[counter].count,
 				(unsigned long long)n->counters[counter].err);
