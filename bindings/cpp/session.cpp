@@ -2548,6 +2548,26 @@ async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, con
 	return aggregated(*this, results.begin(), results.end());
 }
 
+async_remove_result session::bulk_remove(const std::vector<key> &keys)
+{
+	std::vector<async_remove_result> results;
+
+	{
+		session_scope scope(*this);
+
+		// Ensure checkers and filters will work only for aggregated request
+		set_checker(checkers::no_check);
+		set_filter(filters::all_with_ack);
+		set_exceptions_policy(no_exceptions);
+
+		for(size_t i = 0; i < keys.size(); ++i) {
+			results.emplace_back(std::move(remove(keys[i])));
+		}
+	}
+
+	return aggregated(*this, results.begin(), results.end());
+}
+
 async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<std::string> &data)
 {
 	std::vector<argument_data> pointer_data;

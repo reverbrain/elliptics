@@ -588,6 +588,12 @@ class session
 		async_remove_result remove(const key &id);
 
 		/*!
+		 * Removes vector of keys from all server nodes.
+		 * Returns async_remove_result.
+		 */
+		async_remove_result bulk_remove(const std::vector<key> &keys);
+
+		/*!
 		 * Queries monitor statistics information from server nodes.
 		 */
 		async_monitor_stat_result monitor_stat(uint64_t categories);

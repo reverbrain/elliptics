@@ -596,6 +596,45 @@ static void test_bulk_read(session &sess, size_t test_count)
 	}
 }
 
+static void test_bulk_remove(session &sess, size_t test_count)
+{
+	std::vector<key> keys;
+
+	for (size_t i = 0; i < test_count; ++i) {
+		std::ostringstream os;
+		os << "bulk_write" << i;
+
+		key id(os.str());
+
+		keys.push_back(id);
+	}
+
+	sess.set_checker(checkers::no_check);
+	sess.set_filter(filters::all_with_ack);
+
+	ELLIPTICS_REQUIRE(remove_result, sess.bulk_remove(keys));
+
+	sync_remove_result result = remove_result.get();
+
+	size_t count = 0;
+	for (auto it = result.begin(); it != result.end(); ++it) {
+		// count only acks since they are the only packets returned by remove()
+		count += (it->status() == 0) && (it->is_ack());
+		BOOST_WARN_EQUAL(it->status(), 0);
+	}
+	BOOST_REQUIRE_EQUAL(count, test_count * 2);
+
+	sess.set_checker(checkers::at_least_one);
+	sess.set_filter(filters::positive);
+	for (size_t i = 0; i < test_count; ++i) {
+		std::ostringstream os;
+		os << "bulk_write" << i;
+
+		ELLIPTICS_REQUIRE_ERROR(read_result, sess.read_data(os.str(), 0, 0), -ENOENT);
+	}
+}
+
+
 static void test_range_request_prepare(session &sess, size_t item_count)
 {
 	const size_t number_index = 5; // DNET_ID_SIZE - 1
@@ -1367,6 +1406,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_prepare_commit, create_session(n, {1, 2}, 0, 0), "prepare-commit-test-4", 1, 1);
 	ELLIPTICS_TEST_CASE(test_bulk_write, create_session(n, {1, 2}, 0, 0), 1000);
 	ELLIPTICS_TEST_CASE(test_bulk_read, create_session(n, {1, 2}, 0, 0), 1000);
+	ELLIPTICS_TEST_CASE(test_bulk_remove, create_session(n, {1, 2}, 0, 0), 1000);
 	ELLIPTICS_TEST_CASE(test_range_request, create_session(n, {2}, 0, 0), 0, 255, 2);
 	ELLIPTICS_TEST_CASE(test_range_request, create_session(n, {2}, 0, 0), 3, 14, 2);
 	ELLIPTICS_TEST_CASE(test_range_request, create_session(n, {2}, 0, 0), 7, 3, 2);
