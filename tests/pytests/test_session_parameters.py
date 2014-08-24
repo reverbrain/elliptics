@@ -102,7 +102,7 @@ class TestSession:
              elliptics.exceptions_policy.throw_at_iterator_end)),
         ('timeout', 'set_timeout', 'get_timeout', (
          28376487,
-         2 ** 32 - 1)),
+         2 ** 63 - 1)),
         ('timestamp', 'set_timestamp', 'get_timestamp', (
          elliptics.Time(0, 0),
          elliptics.Time(2 ** 64 - 1, 2 ** 64 - 1),
@@ -136,7 +136,7 @@ class TestSession:
                              ('cflags', 2 ** 64),
                              ('ioflags', 2 ** 32),
                              ('exceptions_policy', 2 ** 32),
-                             ('timeout', 2 ** 32),
+                             ('timeout', 2 ** 63),
                              ('trace_id', 2 ** 64),
                              ('user_flags', 2 ** 64)])
     def test_properties_out_of_limits(self, server, simple_node, prop, value):
