@@ -497,6 +497,12 @@ def main(ctx):
         group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
         group_stats.timer('group', 'started')
 
+        group_routes = ctx.routes.filter_by_groups([group])
+        if len(group_routes.addresses_with_backends()) < 2:
+            log.warning("Group {0} hasn't enough nodes/backends for recovery: {1}".format(group, group_routes.addresses_with_backends()))
+            group_stats.timer('group', 'finished')
+            continue
+
         ranges = get_ranges(ctx, group)
 
         if ranges is None or not len(ranges):
