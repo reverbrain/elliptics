@@ -1,3 +1,16 @@
+elliptics (2.26.3.13) unstable; urgency=low
+
+  * session: implemented bulk_remove() method
+  * tests: since timeouts are now long, fix its overflow test
+  * config: fixed misleading config error exception message
+  * timeouts: all timeouts are long
+  * config: only try to add new nodes if remotes() vector contains some addresses
+  * trans: extended timeout transaction log
+  * client: Explicitly link with boost-system
+  * package: depend on blackhole 0.2.0-0rc10
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 25 Aug 2014 21:30:46 +0400
+
 elliptics (2.26.3.12) unstable; urgency=low
 
   * Logs: removed '\n' from the end of logs - blackhole adds '\n'

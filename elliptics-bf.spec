@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.12
+Version:	2.26.3.13
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Aug 25 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.13
+- session: implemented bulk_remove() method
+- tests: since timeouts are now long, fix its overflow test
+- config: fixed misleading config error exception message
+- timeouts: all timeouts are long
+- config: only try to add new nodes if remotes() vector contains some addresses
+- trans: extended timeout transaction log
+- client: Explicitly link with boost-system
+- package: depend on blackhole 0.2.0-0rc10
+
 * Fri Aug 22 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.3.12
 - Logs: removed '\n' from the end of logs - blackhole adds '\n'
 - example: Added backend_id to example config
