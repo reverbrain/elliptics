@@ -36,7 +36,7 @@ namespace ioremap { namespace monitor {
 
 monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 : m_node(n)
-, m_server(*this, cfg->monitor_port)
+, m_server(*this, cfg->monitor_port, cfg->family)
 , m_statistics(*this, cfg)
 {}
 

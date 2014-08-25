@@ -59,9 +59,13 @@ private:
 	std::string						m_report;
 };
 
-server::server(monitor &mon, unsigned int port)
+static boost::asio::ip::tcp convert_family(int family) {
+	return family == AF_INET6 ? boost::asio::ip::tcp::v6() : boost::asio::ip::tcp::v4();
+}
+
+server::server(monitor &mon, unsigned int port, int family)
 : m_monitor(mon)
-, m_acceptor(m_io_service, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port)) {
+, m_acceptor(m_io_service, boost::asio::ip::tcp::endpoint(convert_family(family), port)) {
 	m_listen = std::thread(std::bind(&server::listen, this));
 }
 

@@ -42,7 +42,7 @@ public:
 	/*!
 	 * Constructor: initializes server for @mon to listen @port
 	 */
-	server(monitor &mon, unsigned int port);
+	server(monitor &mon, unsigned int port, int family);
 
 	/*!
 	 * Destructor: stops server and freeing all data
