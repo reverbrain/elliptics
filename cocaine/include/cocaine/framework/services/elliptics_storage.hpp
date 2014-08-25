@@ -51,6 +51,11 @@ public:
 	bulk_read(const std::string &collection, const std::vector<std::string> &keys) {
 		return call<io::elliptics::bulk_read>(collection, keys);
 	}
+
+	service_traits<io::elliptics::cache_read>::future_type
+	cache_read_latest(const std::string &collection, const std::string &key) {
+		return call<io::elliptics::read_latest>(collection, key);
+	}
 };
 
 }} // namespace cocaine::framework

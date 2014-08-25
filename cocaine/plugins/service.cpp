@@ -45,6 +45,7 @@ elliptics_service_t::elliptics_service_t(context_t &context, io::reactor_t &reac
 	on<io::elliptics::cache_read >("cache_read",  std::bind(&elliptics_service_t::cache_read,  this, _1, _2));
 	on<io::elliptics::cache_write>("cache_write", std::bind(&elliptics_service_t::cache_write, this, _1, _2, _3, _4));
 	on<io::elliptics::bulk_read  >("bulk_read",   std::bind(&elliptics_service_t::bulk_read,   this, _1, _2));
+	on<io::elliptics::read_latest>("read_latest", std::bind(&elliptics_service_t::read_latest, this, _1, _2));
 }
 
 deferred<std::string> elliptics_service_t::read(const std::string &collection, const std::string &key)
@@ -53,6 +54,17 @@ deferred<std::string> elliptics_service_t::read(const std::string &collection, c
 	deferred<std::string> promise;
 
 	m_elliptics->async_read(collection, key).connect(std::bind(&elliptics_service_t::on_read_completed,
+		promise, _1, _2));
+
+	return promise;
+}
+
+deferred<std::string> elliptics_service_t::read_latest(const std::string &collection, const std::string &key)
+{
+	debug() << "read_latest, collection: " << collection << ", key: " << key << std::endl;
+	deferred<std::string> promise;
+
+	m_elliptics->async_read_latest(collection, key).connect(std::bind(&elliptics_service_t::on_read_completed,
 		promise, _1, _2));
 
 	return promise;
