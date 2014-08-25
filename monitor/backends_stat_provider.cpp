@@ -128,6 +128,7 @@ static void fill_backend_status(rapidjson::Value &stat_value,
 static void fill_disabled_backend_config(rapidjson::Value &stat_value,
                                          rapidjson::Document::AllocatorType &allocator,
 					 const dnet_backend_info &config_backend) {
+	rapidjson::Value backend_value(rapidjson::kObjectType);
 	rapidjson::Value config_value(rapidjson::kObjectType);
 
 	for (auto it = config_backend.options.begin(); it != config_backend.options.end(); ++it) {
@@ -136,8 +137,10 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 		rapidjson::Value tmp_val(entry.value_template.data(), allocator);
 		config_value.AddMember(entry.entry->key, tmp_val, allocator);
 	}
+
 	config_value.AddMember("group", config_backend.group, allocator);
-	stat_value.AddMember("config", config_value, allocator);
+	backend_value.AddMember("config", config_value, allocator);
+	stat_value.AddMember("backend", backend_value, allocator);
 }
 
 /*
@@ -169,9 +172,7 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 		if (categories & DNET_MONITOR_CACHE) {
 			fill_backend_cache(stat_value, allocator, backend);
 		}
-	}
-
-	if (categories & DNET_MONITOR_BACKEND) {
+	} else if (categories & DNET_MONITOR_BACKEND) {
 		fill_disabled_backend_config(stat_value, allocator, config_backend);
 	}
 
