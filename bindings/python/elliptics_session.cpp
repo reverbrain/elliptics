@@ -925,8 +925,8 @@ void init_elliptics_session() {
 		.def("set_timeout", &elliptics_session::set_timeout)
 		.def("get_timeout", &elliptics_session::get_timeout)
 
-		.def("get_routes", &elliptics_session::get_routes,
-		     "get_routes()\n"
+		.add_property("routes", &elliptics_session::get_routes,
+		     "routes\n"
 		     "    Returns current routes table\n\n"
 		     "    routes = session.routes")
 
