@@ -140,7 +140,7 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
     ctx.custom_recover = ''
     ctx.dump_file = None
     ctx.chunk_size = 1024
-    ctx.log_level = 4
+    ctx.log_level = elliptics.log_level.debug
     ctx.remotes = remotes
     ctx.backend_id = backend_id
     ctx.address = address

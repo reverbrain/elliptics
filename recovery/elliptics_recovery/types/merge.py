@@ -136,7 +136,7 @@ class Recovery(object):
                                                                    data=self.write_data,
                                                                    remote_offset=self.recovered_size,
                                                                    psize=self.total_size)
-                elif self.recovered_size + self.write_size < self.total_size:
+                elif self.recovered_size + len(self.write_data) < self.total_size:
                     # if it is not last chunk - write it via write_plain
                     self.write_result = self.session.write_plain(key=self.key,
                                                                  data=self.write_data,
@@ -236,7 +236,6 @@ class Recovery(object):
                 self.timestamp = results[0].timestamp
             self.stats.read += 1
             self.write_data = results[0].data
-            self.write_size = results[0].size
             self.total_size = results[0].io_attribute.total_size
             self.stats.read_bytes += results[0].size
             self.attempt = 0
@@ -280,8 +279,8 @@ class Recovery(object):
                 return
 
             self.stats.write += 1
-            self.stats.written_bytes += self.write_size
-            self.recovered_size += self.write_size
+            self.stats.written_bytes += len(self.write_data)
+            self.recovered_size += len(self.write_data)
             self.attempt = 0
 
             if self.recovered_size < self.total_size:
