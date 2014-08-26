@@ -27,3 +27,6 @@ if(UNIX OR MINGW)
 endif()
 
 target_link_libraries(elliptics_monitor ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} react elliptics_client elliptics_cache)
+if (WITH_STATS)
+    target_link_libraries(elliptics_monitor ${HANDYSTATS_LIBRARY})
+endif()

@@ -47,6 +47,8 @@
 
 #include "react/elliptics_react.h"
 
+#include "monitor/measure_points.h"
+
 /*
  * FIXME: __unused is used internally by glibc, so it may cause conflicts.
  */
@@ -138,6 +140,8 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 		struct dnet_cmd *cmd, void *data)
 {
 	react_start_action(ACTION_BACKEND_EBLOB_WRITE);
+
+	HANDY_TIMER_SCOPE("io_pool.eblob.write", dnet_get_id());
 
 	struct dnet_ext_list elist;
 	struct dnet_io_attr *io = data;
@@ -261,6 +265,7 @@ err_out_exit:
 
 static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data, int last)
 {
+	HANDY_TIMER_SCOPE("io_pool.eblob.read", dnet_get_id());
 	react_start_action(ACTION_BACKEND_EBLOB_READ);
 
 	struct dnet_ext_list elist;

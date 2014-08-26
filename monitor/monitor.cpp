@@ -33,13 +33,41 @@ static ioremap::monitor::monitor* get_monitor(struct dnet_node *n) {
 	return n->monitor ? static_cast<ioremap::monitor::monitor*>(n->monitor) : NULL;
 }
 
+#ifdef HAVE_HANDYSTATS
+#include <handystats/core.hpp>
+#endif
+
 namespace ioremap { namespace monitor {
 
 monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 : m_node(n)
 , m_server(*this, cfg->monitor_port, cfg->family)
 , m_statistics(*this, cfg)
-{}
+{
+#if defined(HAVE_HANDYSTATS) && !defined(HANDYSTATS_DISABLE)
+	if (cfg->handystats_config != nullptr) {
+		BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, config file '%s'", cfg->handystats_config);
+		//TODO: add configuration error logging when handystats will
+		// allow to get them
+		HANDY_CONFIG_FILE(cfg->handystats_config);
+	} else {
+		BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, no config file specified, using defaults");
+	}
+	HANDY_INIT();
+#else
+	BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: stats subsystem disabled at compile time");
+#endif
+}
+
+monitor::~monitor()
+{
+	//TODO: is node still alive here? If so, add shutdown log messages
+	// for both monitoring and handystats
+	stop();
+#if defined(HAVE_HANDYSTATS) && !defined(HANDYSTATS_DISABLE)
+	HANDY_FINALIZE();
+#endif
+}
 
 void monitor::stop() {
 	m_server.stop();

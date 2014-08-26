@@ -42,6 +42,7 @@
 #include "elliptics/interface.h"
 
 #include "react/elliptics_react.h"
+#include "monitor/measure_points.h"
 
 int dnet_remove_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id)
 {
@@ -1047,6 +1048,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 
 	int react_was_activated = 0;
 
+
 	if (n->monitor) {
 		if (!react_is_active()) {
 			err = react_activate(st->n->react_aggregator);
@@ -1060,6 +1062,11 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	}
 
 	react_start_action(ACTION_DNET_PROCESS_CMD_RAW);
+
+	HANDY_TIMER_SCOPE(recursive ? "io_pool.process_raw.recursive" : "io_pool.process_raw", dnet_get_id());
+	char timer_name[255];
+	sprintf(timer_name,  "io_pool.process_raw.%s%s", dnet_cmd_string(cmd->cmd), recursive ? ".recursive" : "");
+	HANDY_TIMER_SCOPE(timer_name, dnet_get_id());
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
 		dnet_oplock(n, &cmd->id);

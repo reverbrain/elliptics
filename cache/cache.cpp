@@ -25,6 +25,7 @@
 #include "monitor/monitor.h"
 #include "monitor/monitor.hpp"
 #include "monitor/statistics.hpp"
+#include "monitor/measure_points.h"
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
@@ -209,6 +210,9 @@ int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st
 
 	cache_manager *cache = (cache_manager *)backend->cache;
 	std::shared_ptr<raw_data_t> d;
+	char timer_name[255];
+	sprintf(timer_name, "cache.%s", dnet_cmd_string(cmd->cmd));
+	HANDY_TIMER_SCOPE(timer_name, dnet_get_id());
 
 	try {
 		switch (cmd->cmd) {

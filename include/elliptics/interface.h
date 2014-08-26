@@ -329,10 +329,13 @@ struct dnet_config
 	/* Number of shards to store indexes data */
 	int			indexes_shard_count;
 
+	/* Config values for srw backend */
 	struct srw_init_ctl	srw;
 
 	int			reserved_for_future_use_2[5];
-	int			*reserved_for_future_use_3[1];
+
+	/* Config file name for handystats library */
+	const char 	*handystats_config;
 
 	/*
 	 * Monitor socket port

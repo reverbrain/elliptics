@@ -21,6 +21,8 @@
 #include "slru_cache.hpp"
 #include <cassert>
 
+#include "monitor/measure_points.h"
+
 namespace ioremap { namespace cache {
 
 // public:
@@ -637,6 +639,7 @@ void slru_cache_t::erase_element(data_t *obj) {
 
 void slru_cache_t::sync_element(const dnet_id &raw, bool after_append, const std::vector<char> &data, uint64_t user_flags, const dnet_time &timestamp) {
 	react::action_guard sync_guard(ACTION_CACHE_SYNC);
+	HANDY_TIMER_SCOPE("cache.sync_element", dnet_get_id());
 
 	local_session sess(m_backend, m_node);
 	sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | (after_append ? DNET_IO_FLAGS_APPEND : 0));
@@ -757,6 +760,7 @@ void slru_cache_t::life_check(void) {
 			}
 
 			react_start_action(ACTION_CACHE_SYNC_ITERATE);
+			HANDY_GAUGE_SET("cache.elements_for_sync.size", elements_for_sync.size());
 			for (auto it = elements_for_sync.begin(); it != elements_for_sync.end(); ++it) {
 				if (m_clear_occured)
 					break;

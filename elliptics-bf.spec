@@ -20,6 +20,7 @@ BuildRequires:	react-devel >= 2.3.1
 BuildRequires:  libblackhole-devel >= 0.2.0-2
 BuildRequires:	libev-devel libtool-ltdl-devel
 BuildRequires:	cmake msgpack-devel python-msgpack
+BuildRequires:	handystats >= 1.8
 
 %define boost_ver %{nil}
 
@@ -372,7 +373,7 @@ rm -rf %{buildroot}
 
 * Sun Aug 03 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.4
 - library: Fixed race of creating dht states
-- 
+-
 
 * Sun Aug 03 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.3
 - route: Add states after join_request to dht_list
@@ -380,7 +381,7 @@ rm -rf %{buildroot}
 - library: Reimplemented reconnection thread
 - * Now it makes reconnection and route list requests simultaneously, which gradually decreasis time of this operations with low-latency network
 - net: Removed autodiscovery support
-- 
+-
 
 * Fri Aug 01 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.26.0.2
 - Fixed version
@@ -515,7 +516,7 @@ rm -rf %{buildroot}
 - client: Introduced merge_indexes method
 - tests: Docs for test_index_metadata added
 - index: More docs for get_index_metadata helper function
-- 
+-
 
 * Wed Jun 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.17
 - Pytests: added testing of index interface: set/update/remove
@@ -607,7 +608,7 @@ rm -rf %{buildroot}
 - Upped elliptics version
 
 * Fri Apr 25 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.4.6-1
-- 
+-
 - Fixed package details
 
 * Tue Apr 22 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.4.6
