@@ -1,3 +1,12 @@
+elliptics (2.25.6.11) unstable; urgency=low
+
+  * Elliptics service for Cocaine: added read_latest
+  * С++: fixed garbage at id.trace_id
+  * python: increased net threads and nonblocking io threads in dnet_balancer's and routes.py's node
+  * lookup: print transaction allocation info in INFO log level
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 26 Aug 2014 22:09:52 +0400
+
 elliptics (2.25.6.10) unstable; urgency=low
 
   * client: Don't request route-list from every node

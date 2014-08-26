@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.10
+Version:	2.25.6.11
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Aug 26 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.11
+- Elliptics service for Cocaine: added read_latest
+- С++: fixed garbage at id.trace_id
+- python: increased net threads and nonblocking io threads in dnet_balancer's and routes.py's node
+- lookup: print transaction allocation info in INFO log level
+
 * Wed Aug 13 2014 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.25.6.10
 - client: Don't request route-list from every node
 
