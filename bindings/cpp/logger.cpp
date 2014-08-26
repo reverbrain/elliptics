@@ -109,20 +109,35 @@ dnet_logger *dnet_node_get_logger(struct dnet_node *node)
 	return node->log;
 }
 
-static __thread char blackhole_scoped_attributes_buffer[sizeof(blackhole::scoped_attributes_t)];
-static __thread blackhole::scoped_attributes_t *blackhole_attributes = NULL;
+namespace blackhole_scoped_attributes {
+
+enum {
+	DNET_SCOPED_LIMIT = 5
+};
+
+static __thread char scoped_buffer[DNET_SCOPED_LIMIT][sizeof(blackhole::scoped_attributes_t)];
+static __thread blackhole::scoped_attributes_t *scoped_attributes[DNET_SCOPED_LIMIT];
+static __thread uint64_t scoped_trace_id_hook[DNET_SCOPED_LIMIT];
+static __thread size_t scoped_count = 0;
+
+}
 
 void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit, int backend_id)
 {
 	using blackhole::scoped_attributes_t;
+	using namespace blackhole_scoped_attributes;
 
-	if (blackhole_attributes) {
+	if (scoped_count >= DNET_SCOPED_LIMIT) {
 		dnet_log_only_log(logger, DNET_LOG_ERROR,
 			"logic error: you must not call dnet_node_set_trace_id twice, dnet_node_unset_trace_id call missed");
+		++scoped_count;
 		return;
 	}
 
-	blackhole_attributes = reinterpret_cast<scoped_attributes_t *>(blackhole_scoped_attributes_buffer);
+	auto &local_attributes = scoped_attributes[scoped_count];
+	local_attributes = reinterpret_cast<scoped_attributes_t *>(scoped_buffer[scoped_count]);
+
+	scoped_trace_id_hook[scoped_count] = tracebit ? ~0ull : 0;
 
 	try {
 		blackhole::log::attributes_t attributes = {
@@ -134,21 +149,33 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 			attributes.insert(std::make_pair(std::string("backend_id"), blackhole::log::attribute_t(backend_id)));
 		}
 
-		new (blackhole_attributes) scoped_attributes_t(*logger, std::move(attributes));
+		new (local_attributes) scoped_attributes_t(*logger, std::move(attributes));
+
 		// Set all bits to ensure that it has tracebit set
-		backend_trace_id_hook = tracebit ? ~0ull : 0;
+		backend_trace_id_hook = scoped_trace_id_hook[scoped_count];
 	} catch (...) {
-		blackhole_attributes = NULL;
+		local_attributes = NULL;
 	}
+
+	++scoped_count;
 }
 
 void dnet_node_unset_trace_id()
 {
-	if (blackhole_attributes) {
-		blackhole_attributes->~scoped_attributes_t();
-		blackhole_attributes = NULL;
+	using namespace blackhole_scoped_attributes;
+
+	--scoped_count;
+
+	if (scoped_count < DNET_SCOPED_LIMIT) {
+		auto &local_attributes = scoped_attributes[scoped_count];
+		local_attributes->~scoped_attributes_t();
+		local_attributes = NULL;
+
+		if (scoped_count > 0)
+			backend_trace_id_hook = scoped_trace_id_hook[scoped_count - 1];
+		else
+			backend_trace_id_hook = 0;
 	}
-	backend_trace_id_hook = 0;
 }
 
 static __thread char dnet_logger_record_buffer[sizeof(dnet_logger_record)];
@@ -206,7 +233,10 @@ static void dnet_log_add_message(dnet_logger_record *record, const char *format,
 	while (len > 0 && buffer[len - 1] == '\n')
 		buffer[--len] = '\0';
 
-	record->attributes.insert(blackhole::keyword::message() = buffer);
+	try {
+		record->attributes.insert(blackhole::keyword::message() = buffer);
+	} catch (...) {
+	}
 }
 
 void dnet_log_vwrite(dnet_logger *logger, dnet_logger_record *record, const char *format, va_list args)
@@ -241,4 +271,14 @@ void dnet_log_write_err(dnet_logger *logger, dnet_logger_record *record, int err
 void dnet_log_close_record(dnet_logger_record *record)
 {
 	record->~record_t();
+}
+
+
+void dnet_log_record_set_request_id(dnet_logger_record *record, uint64_t trace_id, int tracebit)
+{
+	try {
+		record->attributes.insert(ioremap::elliptics::keyword::request_id() = trace_id);
+		record->attributes.insert(blackhole::keyword::tracebit() = tracebit);
+	} catch (...) {
+	}
 }

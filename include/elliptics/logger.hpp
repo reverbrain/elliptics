@@ -81,6 +81,7 @@ dnet_logger *dnet_node_get_logger(struct dnet_node *node);
 void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit, int backend_id);
 void dnet_node_unset_trace_id();
 dnet_logger_record *dnet_log_open_record(dnet_logger *logger, ELLIPTICS_LOG_LEVEL level);
+void dnet_log_record_set_request_id(dnet_logger_record *record, uint64_t trace_id, int tracebit);
 int dnet_log_enabled(dnet_logger *logger, ELLIPTICS_LOG_LEVEL level);
 ELLIPTICS_LOG_LEVEL dnet_log_get_verbosity(dnet_logger *logger);
 void dnet_log_set_verbosity(dnet_logger *logger, ELLIPTICS_LOG_LEVEL level);
