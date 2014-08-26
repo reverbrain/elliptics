@@ -20,14 +20,15 @@ sys.path.insert(0, "")  # for running from cmake
 import pytest
 
 
-from conftest import set_property, simple_node, raises
+from conftest import set_property, simple_node, raises, make_session
 from server import server
 import elliptics
 
 
 class TestSession:
     def test_monitor_stat(self, server, simple_node):
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_monitor_stat')
         for addr in session.routes.addresses():
             stat = session.monitor_stat(addr).get()[0]
             assert stat.error.code == 0

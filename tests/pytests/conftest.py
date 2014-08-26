@@ -117,6 +117,17 @@ def elliptics_remotes(request):
 def elliptics_groups(request):
     return [int(g) for g in request.config.option.groups.split(',')]
 
+def make_trace_id(test_name):
+    import hashlib
+    return int(hashlib.sha512(test_name).hexdigest(), 16) % (1 << 64)
+
+def make_session(node, test_name, test_namespace=None):
+    session = elliptics.Session(node)
+    session.trace_id = make_trace_id(test_name)
+    if test_namespace:
+        session.set_namespace(test_namespace)
+    return session
+
 
 #@pytest.fixture(scope='module')
 @pytest.fixture

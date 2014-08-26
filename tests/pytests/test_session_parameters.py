@@ -18,7 +18,7 @@
 import sys
 sys.path.insert(0, "")  # for running from cmake
 import pytest
-from conftest import set_property, simple_node, raises
+from conftest import set_property, simple_node, raises, make_session
 from server import server
 import elliptics
 
@@ -80,7 +80,7 @@ class TestSession:
         ('trace_id', 0),
         ('user_flags', 0)])
     def test_properties_default(self, server, simple_node, prop, value):
-        session = elliptics.Session(simple_node)
+        session = elliptics.Session(node=simple_node)
         assert getattr(session, prop) == value
 
     @pytest.mark.parametrize('prop, setter, getter, values', [
@@ -117,7 +117,7 @@ class TestSession:
          2 ** 64 - 1))])
     def test_properties(self, server, simple_node,
                         prop, setter, getter, values):
-        session = elliptics.Session(simple_node)
+        session = elliptics.Session(node=simple_node)
         assert type(session) == elliptics.Session
         for value in values:
             set_property(session, prop, value,
@@ -125,7 +125,8 @@ class TestSession:
                          getter=getter)
 
     def test_resetting_timeout(self, server, simple_node):
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_resetting_timeout')
         assert session.timeout == 5  # check default timeout value
         session.timeout = 1  # set different value
         assert session.timeout == 1  # check that the value has been set
@@ -146,7 +147,8 @@ class TestSession:
                       .format(prop, value))
 
     def test_clone(self, server, simple_node):
-        orig_s = elliptics.Session(simple_node)
+        orig_s = make_session(node=simple_node,
+                              test_name='TestSession.test_clone')
 
         orig_s.groups = [1, 2, 3]
         orig_s.timeout = 13

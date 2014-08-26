@@ -20,7 +20,7 @@ sys.path.insert(0, "")  # for running from cmake
 import pytest
 
 
-from conftest import simple_node
+from conftest import simple_node, make_session
 from server import server
 import elliptics
 
@@ -71,7 +71,8 @@ class TestSession:
                              ('without_group_key_2', 'data'),
                              ("without_group_key_3", '309u8ryeygwvfgadd0u9g8y0ahbg8')])
     def test_write_without_groups(self, server, simple_node, key, data):
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_write_without_groups')
         result = session.write_data(key, data)
         try:
             result.get()
@@ -90,7 +91,8 @@ class TestSession:
                               None)])
     def test_write_to_all_groups(self, server, simple_node,
                                  key, data, exception):
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_write_to_all_groups')
         groups = session.routes.groups()
         session.groups = groups
 
@@ -102,8 +104,8 @@ class TestSession:
 
     def test_write_to_one_group(self, server, simple_node):
         data = 'some data'
-
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_write_to_one_group')
         for group in session.routes.groups():
             tmp_key = 'one_groups_key_' + str(group)
             session.groups = [group]
@@ -122,8 +124,9 @@ class TestSession:
         ns2 = 'namespace 2'
         data1 = 'some data 1'
         data2 = 'unique data 2'
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_write_namespace')
 
-        session = elliptics.Session(simple_node)
         groups = session.routes.groups()
         session.groups = groups
 
@@ -152,8 +155,8 @@ class TestSession:
         key2 = 'append_key_2'
         data1 = 'some data 1'
         data2 = 'some data 2'
-
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_write_append')
         groups = session.routes.groups()
         session.groups = groups
 
@@ -172,7 +175,8 @@ class TestSession:
         checked_read(session, key2, data1 + data2)
 
     def test_bulk_write_read(self, server, simple_node):
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_bulk_write_read')
         groups = session.routes.groups()
         session.groups = groups
 
@@ -188,7 +192,8 @@ class TestSession:
         checked_bulk_read(session, keys, data)
 
     def test_write_cas(self, server, simple_node):
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_write_cas')
         groups = session.routes.groups()
         session.groups = groups
 
@@ -208,7 +213,8 @@ class TestSession:
         checked_read(session, key, '__' + data2 + '__')
 
     def test_prepare_write_commit(self, server, simple_node):
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_prepare_write_commit')
         session.groups = [session.routes.groups()[0]]
 
         routes = session.routes.filter_by_groups(session.groups)

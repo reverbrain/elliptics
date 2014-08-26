@@ -20,7 +20,7 @@ sys.path.insert(0, "")  # for running from cmake
 import pytest
 
 
-from conftest import simple_node
+from conftest import simple_node, make_session
 from server import server
 import elliptics
 
@@ -205,7 +205,9 @@ class TestRecovery:
         '''
         Turns off all backends from all node except one.
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_disable_backends',
+                               test_namespace=self.namespace)
         session.set_timeout(10)
         groups = session.routes.groups()
         scope.test_group = groups[0]
@@ -246,8 +248,9 @@ class TestRecovery:
         '''
         Writes self.keys to chosen group and checks their availability.
         '''
-        session = elliptics.Session(simple_node)
-        session.set_namespace = self.namespace
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_prepare_data',
+                               test_namespace=self.namespace)
         session.groups = [scope.test_group]
 
         write_data(scope, session, self.keys, self.datas)
@@ -258,7 +261,9 @@ class TestRecovery:
         Turns on one backend from the same group.
         '''
         assert scope.disabled_backends[-1][0] == scope.test_group
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_enable_group_one_backend',
+                               test_namespace=self.namespace)
         group, address, backend = scope.disabled_backends[-1]
         r = enable_backend(scope, session, group, address, backend)
         check_backend_status(r.get(), backend, state=1)
@@ -270,8 +275,9 @@ class TestRecovery:
         Runs dnet_recovery merge with --one-node=scope.test_address and --backend-id==scope.test_backend.
         Checks self.keys availability after recovering.
         '''
-
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_merge_two_backends',
+                               test_namespace=self.namespace)
 
         recovery(one_node=True,
                  remotes=map(elliptics.Address.from_host_port_family, server.remotes),
@@ -283,7 +289,6 @@ class TestRecovery:
                  log_file='merge_2_backends.log',
                  tmp_dir='merge_2_backends')
 
-        session.set_namespace = self.namespace
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas)
 
@@ -291,7 +296,9 @@ class TestRecovery:
         '''
         Enables all backends from all nodes from first group
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_enable_all_group_backends',
+                               test_namespace=self.namespace)
         enable_group(scope, session, scope.test_group)
 
     def test_merge_one_group(self, scope, server, simple_node):
@@ -299,8 +306,9 @@ class TestRecovery:
         Runs dnet_recovery merge without --one-node and without --backend-id.
         Checks self.keys availability after recovering.
         '''
-
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_merge_one_group',
+                               test_namespace=self.namespace)
 
         recovery(one_node=False,
                  remotes=map(elliptics.Address.from_host_port_family, server.remotes),
@@ -312,7 +320,6 @@ class TestRecovery:
                  log_file='merge_one_group.log',
                  tmp_dir='merge_one_group')
 
-        session.set_namespace = self.namespace
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas)
 
@@ -320,7 +327,9 @@ class TestRecovery:
         '''
         Enables one backend from one node from second group.
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_enable_second_group_one_backend',
+                               test_namespace=self.namespace)
         group, address, backend = next(((g, a, b) for g, a, b in scope.disabled_backends if g == scope.test_group2))
         scope.test_address2 = address
         scope.test_backend2 = backend
@@ -334,7 +343,9 @@ class TestRecovery:
         Runs dnet_recovery dc with --one-node=scope.test_address2, --backend-id=scope.test_backend2 and against both groups.
         Checks self.keys availability after recovering in both groups.
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_dc_one_backend_and_one_group',
+                               test_namespace=self.namespace)
 
         recovery(one_node=True,
                  remotes=map(elliptics.Address.from_host_port_family, server.remotes),
@@ -346,7 +357,6 @@ class TestRecovery:
                  log_file='dc_one_backend.log',
                  tmp_dir='dc_one_backend')
 
-        session.set_namespace = self.namespace
         session.groups = (scope.test_group2,)
         check_data(scope, session, self.keys, self.datas)
 
@@ -354,7 +364,9 @@ class TestRecovery:
         '''
         Enables all backends from all node in second group.
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_enable_all_second_group_backends',
+                               test_namespace=self.namespace)
         enable_group(scope, session, scope.test_group2)
 
     def test_dc_two_groups(self, scope, server, simple_node):
@@ -362,7 +374,9 @@ class TestRecovery:
         Runs dnet_recovery dc without --one-node and without --backend-id against both groups.
         Checks self.keys availability after recovering in both groups.
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_dc_two_groups',
+                               test_namespace=self.namespace)
 
         recovery(one_node=False,
                  remotes=map(elliptics.Address.from_host_port_family, server.remotes),
@@ -374,8 +388,6 @@ class TestRecovery:
                  log_file='dc_two_groups.log',
                  tmp_dir='dc_two_groups')
 
-        session.set_namespace = self.namespace
-
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas)
 
@@ -386,15 +398,18 @@ class TestRecovery:
         '''
         Enables all backends from all node from third group.
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_enable_all_third_group_backends',
+                               test_namespace=self.namespace)
         enable_group(scope, session, scope.test_group3)
 
     def test_write_data_to_third_group(self, scope, server, simple_node):
         '''
         Writes different data by self.key in third group
         '''
-        session = elliptics.Session(simple_node)
-        session.set_namespace = self.namespace
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_write_data_to_third_group',
+                               test_namespace=self.namespace)
         session.groups = [scope.test_group3]
 
 
@@ -406,7 +421,9 @@ class TestRecovery:
         Run dc recovery without --one-node and without --backend-id against all three groups.
         Checks that all three groups contain data from third group.
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_dc_three_groups',
+                               test_namespace=self.namespace)
 
         recovery(one_node=False,
                  remotes=map(elliptics.Address.from_host_port_family, server.remotes),
@@ -417,8 +434,6 @@ class TestRecovery:
                  rtype=RECOVERY.DC,
                  log_file='dc_three_groups.log',
                  tmp_dir='dc_three_groups')
-
-        session.set_namespace = self.namespace
 
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas2)
@@ -434,7 +449,9 @@ class TestRecovery:
         Runs defragmentation on all backends from all nodes and groups.
         Waiting defragmentation stops and checks results.
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_defragmentation',
+                               test_namespace=self.namespace)
         res = []
         for address, backend in session.routes.addresses_with_backends():
             res.append((session.start_defrag(address, backend), backend))
@@ -462,8 +479,6 @@ class TestRecovery:
                     cnt += r.defrag_state
             print "In defragmentation:", cnt
 
-        session.set_namespace = self.namespace
-
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas2)
 
@@ -477,7 +492,9 @@ class TestRecovery:
         '''
         Restore all groups with all nodes and all backends.
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_enable_rest_backends',
+                               test_namespace=self.namespace)
         for g in scope.test_other_groups:
             enable_group(scope, session, g)
 
@@ -485,5 +502,7 @@ class TestRecovery:
         '''
         Checks statuses of all backends from all nodes and groups
         '''
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_checks_all_enabled',
+                               test_namespace=self.namespace)
         assert set(scope.init_routes.addresses()) == set(session.routes.addresses())
