@@ -1401,13 +1401,12 @@ async_write_result session::merge_indexes(const key &id, const std::vector<int> 
 	async_write_result result(*this);
 
 	session read_session = clone();
-	read_session.set_checker(checkers::no_check);
+	read_session.set_checker(checkers::at_least_one);
 	read_session.set_filter(filters::positive);
 	read_session.set_exceptions_policy(session::no_exceptions);
 
 	session write_session = clone();
 	write_session.set_groups(to);
-	write_session.set_checker(checkers::no_check);
 	write_session.set_filter(filters::all_with_ack);
 	write_session.set_exceptions_policy(session::no_exceptions);
 
@@ -1422,6 +1421,7 @@ async_write_result session::merge_indexes(const key &id, const std::vector<int> 
 	// Read this index from every provided group
 	for (auto it = from.begin(); it != from.end(); ++it) {
 		session sess = read_session.clone();
+		sess.set_checker(checkers::no_check);
 		read_results.emplace_back(sess.read_data(id, std::vector<int>(1, *it), 0, 0));
 	}
 
