@@ -748,22 +748,42 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_check_io_pool(struct dnet_io *io)
+static void dnet_check_work_pool_place(struct dnet_work_pool_place *place, uint64_t *list_size, uint64_t *threads_count)
 {
-	struct dnet_work_pool *pool = io->pool.recv_pool.pool;
-	struct dnet_work_pool *nb_pool = io->pool.recv_pool_nb.pool;
-	int max_size = (pool->num + nb_pool->num) * 1000;
-	int list_size = 0;
+	struct dnet_work_pool *pool;
 
-	pthread_mutex_lock(&pool->lock);
-	list_size = pool->list_stats.list_size;
-	pthread_mutex_unlock(&pool->lock);
+	pthread_mutex_lock(&place->lock);
+	pool = place->pool;
+	if (pool) {
+		pthread_mutex_lock(&pool->lock);
+		*list_size += pool->list_stats.list_size;
+		*threads_count += pool->num;
+		pthread_mutex_unlock(&pool->lock);
+	}
+	pthread_mutex_unlock(&place->lock);
+}
 
-	pthread_mutex_lock(&nb_pool->lock);
-	list_size += nb_pool->list_stats.list_size;
-	pthread_mutex_unlock(&nb_pool->lock);
+static void dnet_check_io_pool(struct dnet_io_pool *io, uint64_t *list_size, uint64_t *threads_count)
+{
+	dnet_check_work_pool_place(&io->recv_pool, list_size, threads_count);
+	dnet_check_work_pool_place(&io->recv_pool_nb, list_size, threads_count);
+}
 
-	if (list_size <= max_size)
+static int dnet_check_io(struct dnet_io *io)
+{
+	uint64_t list_size = 0;
+	uint64_t threads_count = 0;
+
+	dnet_check_io_pool(&io->pool, &list_size, &threads_count);
+
+	if (io->backends) {
+		size_t i;
+		for (i = 0; i < io->backends_count; ++i) {
+			dnet_check_io_pool(&io->backends[i].pool, &list_size, &threads_count);
+		}
+	}
+
+	if (list_size <= threads_count * 1000)
 		return 1;
 
 	return 0;
@@ -852,7 +872,7 @@ static void *dnet_io_process_network(void *data_)
 				// We have to accept new connection
 				++tmp;
 				err = dnet_state_accept_process(st, &evs[i]);
-			} else if ((evs[i].events & EPOLLOUT) || dnet_check_io_pool(n->io)) {
+			} else if ((evs[i].events & EPOLLOUT) || dnet_check_io(n->io)) {
 				// if event is send or io pool queues are not full then process it
 				++tmp;
 				err = dnet_state_net_process(st, &evs[i]);
@@ -898,7 +918,7 @@ static void *dnet_io_process_network(void *data_)
 		}
 
 		// wait condition variable if no data was sended and io pool queues are still full
-		if (tmp == 0 && dnet_check_io_pool(n->io) == 0) {
+		if (tmp == 0 && dnet_check_io(n->io) == 0) {
 			gettimeofday(&curr_tv, NULL);
 			// print log only if previous log was writed more then 1 seconds
 			if ((curr_tv.tv_sec - prev_tv.tv_sec) > 1) {

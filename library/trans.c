@@ -211,7 +211,7 @@ void dnet_trans_remove(struct dnet_trans *t)
 	pthread_mutex_unlock(&st->trans_lock);
 }
 
-struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
+struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
 {
 	struct dnet_trans *t;
 
@@ -222,6 +222,7 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
 	memset(t, 0, sizeof(struct dnet_trans) + size);
 
 	t->alloc_size = size;
+	t->n = n;
 
 	atomic_init(&t->refcnt, 1);
 	INIT_LIST_HEAD(&t->trans_list_entry);
@@ -260,8 +261,10 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	}
 
 	if (t->complete) {
+		dnet_node_set_trace_id(t->n->log, t->cmd.trace_id, t->cmd.flags & DNET_FLAGS_TRACE_BIT, -1);
 		t->cmd.flags |= DNET_FLAGS_DESTROY;
 		t->complete(t->st ? dnet_state_addr(t->st) : NULL, &t->cmd, t->priv);
+		dnet_node_unset_trace_id();
 	}
 
 	if (st && st->n && t->command != 0) {
@@ -473,8 +476,11 @@ void dnet_trans_clean_list(struct list_head *head)
 		t->cmd.flags &= ~DNET_FLAGS_REPLY;
 		t->cmd.status = -ETIMEDOUT;
 
-		if (t->complete)
+		if (t->complete) {
+			dnet_node_set_trace_id(t->n->log, t->cmd.trace_id, t->cmd.flags & DNET_FLAGS_TRACE_BIT, -1);
 			t->complete(dnet_state_addr(t->st), &t->cmd, t->priv);
+			dnet_node_unset_trace_id();
+		}
 
 		dnet_trans_put(t);
 	}
@@ -513,6 +519,10 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
+		// TODO: We may use dnet_log_record_set_request_id here,
+		// but blackhole currently has higher priority for scoped attributes =(
+		dnet_node_set_trace_id(st->n->log, t->cmd.trace_id, t->cmd.flags & DNET_FLAGS_TRACE_BIT, -1);
+
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: backend: %d, trans: %llu TIMEOUT/need-exit: "
 				"stall-check wait-ts: %ld, need-exit: %d, cmd: %s [%d], started: %s.%06lu",
 				dnet_state_dump_addr(st), dnet_dump_id(&t->cmd.id), t->cmd.backend_id, (unsigned long long)t->trans,
@@ -520,6 +530,8 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 				st->__need_exit,
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
+
+		dnet_node_unset_trace_id();
 
 		trans_moved++;
 

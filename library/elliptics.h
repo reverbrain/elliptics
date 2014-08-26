@@ -90,6 +90,9 @@ extern __thread uint64_t trace_id;
 		} \
 	} while (0)
 
+#define DNET_LOG_SET_TRACE_ID(trace_id, trace_bit) \
+	dnet_log_record_set_request_id(local_dnet_record, (trace_id), (trace_bit))
+
 #define dnet_log(n, level, format, a...) \
 	DNET_LOG_BEGIN(n, level) \
 	DNET_LOG_PRINT(format, ##a) \
@@ -798,6 +801,7 @@ struct dnet_trans
 	struct dnet_net_state		*orig; /* only for forward */
 	size_t				alloc_size;
 
+	struct dnet_node		*n;
 	struct dnet_net_state		*st;
 	uint64_t			trans, rcv_trans;
 	struct dnet_cmd			cmd;

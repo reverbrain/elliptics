@@ -34,8 +34,8 @@ public:
 		return 0;
 	}
 
-	basic_handler(const elliptics::logger &logger, async_generic_result &result) :
-		m_logger(logger, blackhole::log::attributes_t()),
+	basic_handler(const elliptics::logger *logger, async_generic_result &result) :
+		m_logger(*logger),
 		m_handler(result), m_completed(0), m_total(0)
 	{
 	}
@@ -86,7 +86,7 @@ private:
 		return false;
 	}
 
-	logger m_logger;
+	const elliptics::logger &m_logger;
 	async_result_handler<callback_result_entry> m_handler;
 	std::atomic_size_t m_completed;
 	std::atomic_size_t m_total;
@@ -100,7 +100,7 @@ async_generic_result send_impl(session &sess, T &control, Method method)
 	scoped_trace_id guard(sess);
 	async_generic_result result(sess);
 
-	detail::basic_handler *handler = new detail::basic_handler(sess.get_logger(), result);
+	detail::basic_handler *handler = new detail::basic_handler(sess.get_native_node()->log, result);
 
 	control.complete = detail::basic_handler::handler;
 	control.priv = handler;
@@ -213,7 +213,7 @@ async_generic_result send_srw_command(session &sess, dnet_id *id, sph *srw_data)
 	scoped_trace_id guard(sess);
 	async_generic_result result(sess);
 
-	detail::basic_handler *handler = new detail::basic_handler(sess.get_logger(), result);
+	detail::basic_handler *handler = new detail::basic_handler(sess.get_native_node()->log, result);
 
 	const size_t count = dnet_send_cmd(sess.get_native(), id, detail::basic_handler::handler, handler, srw_data);
 

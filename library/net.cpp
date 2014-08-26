@@ -882,6 +882,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 			}
 		}
 		if (idx == -1) {
+			err = -EPROTO;
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: there is no connected addr in received reverse lookup data",
 					dnet_server_convert_dnet_addr(&socket->addr));
 			dnet_fail_socket(state, socket, err);

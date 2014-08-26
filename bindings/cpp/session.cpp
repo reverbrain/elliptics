@@ -788,8 +788,15 @@ public:
 			m_read_result = entry;
 		}
 
-		if (entry.status() == -ENOENT || entry.status() == -EBADFD)
+		switch (entry.status()) {
+		case -ENOENT:
+		case -EBADFD:
+		case -EILSEQ:
 			m_failed_groups.push_back(current_group());
+			break;
+		default:
+			break;
+		}
 	}
 
 	std::string join_groups(const std::vector<int> &groups)
