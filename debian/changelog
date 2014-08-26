@@ -1,3 +1,13 @@
+elliptics (2.26.3.14) unstable; urgency=low
+
+  * server: Fixed io queue limits
+  * client: Throw -EPROTO if we connected to wrong addr
+  * client: Fixed checkers at merge_indexes
+  * client: Recover files on read also for -EILSEQ
+  * client: Don't lose trace_id at timeout
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 26 Aug 2014 22:08:29 +0400
+
 elliptics (2.26.3.13) unstable; urgency=low
 
   * session: implemented bulk_remove() method

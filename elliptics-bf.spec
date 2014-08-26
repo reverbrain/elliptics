@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.13
+Version:	2.26.3.14
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Aug 26 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.14
+- server: Fixed io queue limits
+- client: Throw -EPROTO if we connected to wrong addr
+- client: Fixed checkers at merge_indexes
+- client: Recover files on read also for -EILSEQ
+- client: Don't lose trace_id at timeout
+
 * Mon Aug 25 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.13
 - session: implemented bulk_remove() method
 - tests: since timeouts are now long, fix its overflow test
