@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.14
+Version:	2.26.3.15
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,19 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 27 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.15
+- elliptics: Fixed handler::total at several places
+- monitor: forced deflate of the transmitted json
+- recovery: now if dc couldn't read the newer version of the key - it skips it and use next one by timestamp and so on
+- Monitor: moved config of disabled backend to 'backend->config'
+- Pytest: marked each test case by unique trace_id
+- Pytests: added monitor statistics to log
+- monitor: now monitor listen the same net family as the node does
+- merge recovery: added user-friendly log when group has only one node with one backend
+- tools: added '-n/--check_nodes' option to dnet_balancer for printing only nodes spread without route-list
+- Python: completely removed old interface elliptics.Session.get_routes and used new elliptics.Session.routes wherever needed
+- package: depend on blackhole 0.2.0-2 and higher
+
 * Tue Aug 26 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.14
 - server: Fixed io queue limits
 - client: Throw -EPROTO if we connected to wrong addr
