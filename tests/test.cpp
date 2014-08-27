@@ -1156,9 +1156,10 @@ static void test_read_latest_non_existing(session &sess, const std::string &id)
  * \li Merge indexes for 'merge-key' at groups 1, 2
  * \li Check if indexes were merged successfully
  */
-static void test_merge_indexes(session &sess)
+static void test_merge_indexes(session &sess, std::string suffix, result_checker checker)
 {
-	sess.set_namespace("merge-indexes");
+	sess.set_namespace("merge-indexes-" + suffix);
+	sess.set_checker(checker);
 
 	key object_id = std::string("merge-key");
 	sess.transform(object_id);
@@ -1424,7 +1425,9 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_fail_quorum_lookup, create_session(n, {1, 2, 3}, 0, 0), -ENOENT);
 	ELLIPTICS_TEST_CASE(test_fail_quorum_lookup, create_session(n, {91, 92, 93}, 0, 0), -ENXIO);
 	ELLIPTICS_TEST_CASE(test_read_latest_non_existing, create_session(n, {1, 2}, 0, 0), "read-latest-non-existing");
-	ELLIPTICS_TEST_CASE(test_merge_indexes, create_session(n, { 1, 2 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_merge_indexes, create_session(n, { 1, 2 }, 0, 0), "one", checkers::at_least_one);
+	ELLIPTICS_TEST_CASE(test_merge_indexes, create_session(n, { 1, 2 }, 0, 0), "quorum", checkers::quorum);
+	ELLIPTICS_TEST_CASE(test_merge_indexes, create_session(n, { 1, 2 }, 0, 0), "all", checkers::all);
 	ELLIPTICS_TEST_CASE(test_index_recovery, create_session(n, { 1, 2 }, 0, 0));
 	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 1, 2 }, 0, 0), -ENOENT);
 	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 1 }, 0, 0), -ENOENT);

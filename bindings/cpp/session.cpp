@@ -955,6 +955,7 @@ async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t 
 
 	async_read_result result(*this);
 	read_latest_callback callback = { sess, id, offset, size, result, std::move(groups) };
+	callback.handler.set_total(1);
 	prepare_latest(id, callback.groups).connect(callback);
 	return result;
 }
@@ -1125,6 +1126,7 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 		count(count),
 		groups(groups)
 	{
+		handler.set_total(1);
 	}
 
 	session sess;
@@ -1573,6 +1575,7 @@ async_lookup_result session::prepare_latest(const key &id, const std::vector<int
 {
 	async_lookup_result result(*this);
 	async_result_handler<lookup_result_entry> result_handler(result);
+	result_handler.set_total(groups.size());
 
 	// One clones the session in order not to affect the user settings
 	auto sess = clean_clone();

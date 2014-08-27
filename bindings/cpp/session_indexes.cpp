@@ -222,6 +222,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 	async_update_indexes_result final_result(orig_sess);
 
 	async_update_indexes_handler handler(final_result);
+	handler.set_total(result.total());
 
 	result.connect(std::bind(on_update_index_entry, handler, std::placeholders::_1),
 		std::bind(on_update_index_finished, handler, std::placeholders::_1));
@@ -1415,6 +1416,8 @@ async_write_result session::merge_indexes(const key &id, const std::vector<int> 
 		write_session,
 		result
 	};
+
+	callback.handler.set_total(to.size());
 
 	std::vector<async_read_result> read_results;
 
