@@ -128,6 +128,12 @@ class async_result
 		 */
 		 bool ready() const;
 
+		 /*!
+		  * Returnes expected number of received positive final replies from server.
+		  *
+		  * This number is used afterwards in session::checker to determine if
+		  * operation was successfull.
+		  */
 		 size_t total() const;
 
 		/*!

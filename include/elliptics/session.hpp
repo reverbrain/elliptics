@@ -34,10 +34,10 @@ typedef std::function<bool (const callback_result_entry &)> result_filter;
 typedef std::function<bool (const std::vector<dnet_cmd> &, size_t)> result_checker;
 typedef std::function<void (const error_info &, const std::vector<dnet_cmd> &)> result_error_handler;
 
-/*
+/*!
  * Built-in filters.
  *
- * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new built-in filter
+ * \attention IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new built-in filter
  * please also add it to elliptics_filters in elliptics_session.cpp
  */
 namespace filters
@@ -53,10 +53,10 @@ bool all_with_ack(const callback_result_entry &entry);
 bool all_final(const callback_result_entry &entry);
 }
 
-/*
+/*!
  * Built-in checkers.
  *
- * IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new built-in checker
+ * \attention IT IS ALSO PROVIDED IN PYTHON BINDING so if you want to add new built-in checker
  * please also add it to elliptics_checkers in elliptics_session.cpp
  */
 namespace checkers
