@@ -99,8 +99,7 @@ try:
 	except Exception as e:
 		print "Failed to read bulk:", e
 
-	routes = s.get_routes()
-	for route in routes:
+	for route in s.routes:
 		print route[0].group_id, route[0], route[1]
 
 except:

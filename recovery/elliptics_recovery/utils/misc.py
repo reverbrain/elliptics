@@ -22,6 +22,7 @@ import sys
 import hashlib
 import errno
 import traceback
+import struct
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -43,6 +44,13 @@ def mk_container_name(address, backend_id, prefix="iterator_"):
     Makes filename for iterators' results
     """
     return "{0}{1}.{2}".format(prefix, hashlib.sha256(str(address)).hexdigest(), backend_id)
+
+INDEX_MAGIC_NUMBER = struct.pack('Q', 6747391680278904871)
+INDEX_MAGIC_NUMBER_LENGTH = len(INDEX_MAGIC_NUMBER)
+def validate_index(result):
+    if result.size < INDEX_MAGIC_NUMBER_LENGTH:
+        return False
+    return result.data[:8] == INDEX_MAGIC_NUMBER
 
 def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_timeout=60, flags=0, io_thread_num=1, net_thread_num=1, nonblocking_io_thread_num=1, remotes=[]):
     """
@@ -96,6 +104,7 @@ class RecoverStat(object):
         self.remove_old = 0
         self.remove_old_failed = 0
         self.remove_old_bytes = 0
+        self.merged_indexes = 0
 
     def apply(self, stats):
         if self.skipped:
@@ -136,6 +145,8 @@ class RecoverStat(object):
             stats.counter('local_removes_old', -self.remove_old_failed)
         if self.remove_old_bytes:
             stats.counter('local_removes_old_bytes', self.remove_old_bytes)
+        if self.merged_indexes:
+            stats.counter("merged_indexes", self.merged_indexes)
 
     def __add__(a, b):
         ret = RecoverStat()
@@ -158,6 +169,7 @@ class RecoverStat(object):
         ret.remove_old = a.remove_old + b.remove_old
         ret.remove_old_failed = a.remove_old_failed + b.remove_old_failed
         ret.remove_old_bytes = a.remove_old_bytes + b.remove_old_bytes
+        ret.merged_indexes = a.merged_indexes + b.merged_indexes
         return ret
 
 # base class for direct operations with id from address in group

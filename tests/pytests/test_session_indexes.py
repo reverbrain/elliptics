@@ -20,7 +20,7 @@ sys.path.insert(0, "")  # for running from cmake
 import pytest
 
 
-from conftest import set_property, simple_node, raises
+from conftest import set_property, simple_node, raises, make_session
 from server import server
 import elliptics
 
@@ -70,7 +70,8 @@ class TestSession:
 
 
     def test_indexes_simple(self, server, simple_node):
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_indexes_simple')
         session.groups = session.routes.groups()
 
         check_dict = {}
@@ -100,7 +101,8 @@ class TestSession:
         self.check_indexes(session, key, check_dict.keys(), check_dict.values())
 
     def test_indexes_dict(self, server, simple_node):
-        session = elliptics.Session(simple_node)
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_indexes_dict')
         session.groups = session.routes.groups()
 
         key = 'dict_key'

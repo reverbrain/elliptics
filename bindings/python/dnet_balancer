@@ -355,11 +355,12 @@ def check(options):
         ranges_count = len(group_routes)
         middle_size = total / ranges_count  # calculates middle size of range
         ranges = compute_ranges(group_routes)
-        for index, length in enumerate(ranges):
-            print("{0} length {1} -> {2}%"
-                  .format(group_routes.routes[index],
-                          length * 1. / middle_size,
-                          length * 100. / total))
+        if options.check_mode:
+            for index, length in enumerate(ranges):
+                print("{0} length {1} -> {2}%"
+                      .format(group_routes.routes[index],
+                              length * 1. / middle_size,
+                              length * 100. / total))
         restore_fake_routes(group_routes, group)
         print log_spread(group_routes.percentages()[group])
 
@@ -396,6 +397,9 @@ if __name__ == '__main__':
                       dest='check_mode', default=False,
                       help='Prints current route list state '
                       '(spread, ranges length etc.) and exits')
+    parser.add_option('-n', '--check-nodes', action='store_true',
+                      dest='check_nodes', default=False,
+                      help='Prints actial nodes statistics')
 
     (options, args) = parser.parse_args()
 
@@ -411,7 +415,7 @@ if __name__ == '__main__':
     if options.groups:
         options.groups = map(int, options.groups.split(','))
 
-    if options.check_mode:
+    if options.check_mode or options.check_nodes:
         check(options)
     else:
         balance(options)

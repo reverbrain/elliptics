@@ -56,8 +56,7 @@ if __name__ == '__main__':
         print e
         pass
 
-    routes = s.get_routes()
     if args.percentage:
-        percentage(routes)
+        percentage(s.routes)
     else:
         print routes

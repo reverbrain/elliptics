@@ -19,10 +19,9 @@ import logging
 import threading
 import os
 from itertools import groupby
-import struct
 import traceback
 
-from elliptics_recovery.utils.misc import elliptics_create_node
+from elliptics_recovery.utils.misc import elliptics_create_node, RecoverStat, validate_index, INDEX_MAGIC_NUMBER_LENGTH
 
 sys.path.insert(0, "bindings/python/")
 
@@ -31,140 +30,197 @@ from elliptics import Address
 
 log = logging.getLogger()
 
-# current version of index file format. All merged index files will have this version
-INDEX_VERSION = 2
-
-
-class RecoverStat(object):
-    def __init__(self):
-        self.read = 0
-        self.read_failed = 0
-        self.read_bytes = 0
-        self.merged_indexes = 0
-        self.write = 0
-        self.write_failed = 0
-        self.written_bytes = 0
-
-    def apply(self, stats):
-        if self.read:
-            stats.counter("reads", self.read)
-        if self.read_failed:
-            stats.counter("reads", -self.read_failed)
-        if self.read_bytes:
-            stats.counter("read_bytes", self.read_bytes)
-        if self.merged_indexes:
-            stats.counter("merged_indexes", self.merged_indexes)
-        if self.write:
-            stats.counter("writes", self.write)
-        if self.write_failed:
-            stats.counter("writes", -self.write_failed)
-        if self.written_bytes:
-            stats.counter("written_bytes", self.written_bytes)
-
-    def __add__(a, b):
-        ret = RecoverStat()
-        ret.read = a.read + b.read
-        ret.read_failed = a.read_failed + b.read_failed
-        ret.read_bytes = a.read_bytes + b.read_bytes
-        ret.write = a.write + b.write
-        ret.write_failed = a.write_failed + b.write_failed
-        ret.written_bytes = a.written_bytes + b.written_bytes
-        return ret
-
-
-
-def validate_index(result):
-    if result.size < 8:
-        return False
-
-    magic_number = struct.pack('Q', 6747391680278904871)
-    return result.data[:8] == magic_number
-
 
 class KeyRecover(object):
-    def __init__(self, key, origin_group, diff_groups, missed_groups, node):
+    def __init__(self, ctx, key, key_infos, missed_groups, node):
+        self.ctx = ctx
         self.complete = threading.Event()
         self.stats = RecoverStat()
         self.key = key
-        self.origin_group = origin_group
-        self.diff_groups = set(diff_groups)
-        self.missed_groups = set(missed_groups)
+        self.key_infos = key_infos
+        self.diff_groups = []
+        self.missed_groups = list(missed_groups)
 
-        self.origin_session = elliptics.Session(node)
-        self.origin_session.groups = [origin_group]
-
+        self.read_session = elliptics.Session(node)
+        self.read_session.set_filter(elliptics.filters.all)
         self.write_session = elliptics.Session(node)
+        #self.write_session.set_checker(elliptics.checkers.all)
         self.result = False
+        self.attempt = 0
+
+        log.debug("Recovering key: {0} from nonempty groups: {1} and missed groups: {2}"
+                  .format(repr(self.key), [k.group_id for k in self.key_infos], self.missed_groups))
+        self.run()
 
     def run(self):
-        log.debug("Recovering key: {0}, origin group: {1}, "
-                  "groups with diff: {2}, missed groups: {3}"
-                  .format(repr(self.key), self.origin_group,
-                          self.diff_groups,
-                          self.missed_groups))
+        self.total_size = self.key_infos[0].size
+        self.chunked = self.total_size > self.ctx.chunk_size
+        self.recovered_size = 0
+        self.same_groups = [k.group_id for k in self.key_infos if (k.timestamp, k.size) == (self.key_infos[0].timestamp, self.key_infos[0].size)]
+        self.key_infos = [k for k in self.key_infos if k.group_id not in self.same_groups]
+        self.diff_groups += [k.group_id for k in self.key_infos]
+        if not self.diff_groups and not self.missed_groups:
+            log.debug("Key: {0} already up-to-date in all groups: {1}".format(self.key, self.same_groups))
+            self.stop(False)
+            return
 
-        self.origin_read = self.origin_session.read_data(self.key)
-        self.origin_read.connect(self.on_read_origin)
+        log.debug("Try to recover key: {0} from groups: {1} to groups: {2}: diff groups: {3}, missed groups: {4}"
+                  .format(self.key, self.same_groups, self.diff_groups + self.missed_groups, self.diff_groups, self.missed_groups))
 
-    def on_read_origin(self, results, error):
-        self.origin_read = None
+        self.read_session.groups = self.same_groups
+        self.write_session.groups = self.diff_groups + self.missed_groups
+        self.read()
+
+    def stop(self, result):
+        self.result = result
+        log.debug("Finished recovering key: {0} with result: {1}".format(self.key, self.result))
+        self.complete.set()
+
+    def read(self):
+        size = 0
         try:
-            if error.code or len(results) < 1:
-                log.error("Read key: {0} from group: {1} has failed: {2}".
-                          format(self.key, self.origin_group, error))
+            log.debug("Reading key: {0} from groups: {1}, chunked: {2}"
+                      .format(self.key, self.read_session.groups, self.chunked))
+            if self.chunked:
+                size = min(self.total_size - self.recovered_size, self.ctx.chunk_size)
+            if self.recovered_size != 0:
+                self.read_session.ioflags != elliptics.io_flags.nocsum
+            else:
+                #first read should be at least INDEX_MAGIC_NUMBER_LENGTH bytes
+                size = min(self.total_size, max(size, INDEX_MAGIC_NUMBER_LENGTH))
+            self.read_result = self.read_session.read_data(self.key)
+            self.read_result.connect(self.onread)
+        except Exception as e:
+            log.error("Read key: {0} by offset: {1} and size: {2} raised exception: {3}, traceback: {4}"
+                      .format(self.key, self.recovered_size, size, repr(e), traceback.format_exc()))
+            self.stop(False)
+
+    def write(self):
+        try:
+            if self.index_shard:
+                merge_groups = self.diff_groups + self.same_groups
+                write_groups = merge_groups + self.missed_groups
+                log.debug("Merging index shard: {0} from groups: {1} and writting it to groups: {2}"
+                          .format(repr(self.key), merge_groups, write_groups))
+                self.write_result = self.write_session.merge_indexes(self.key, merge_groups, write_groups)
+                self.write_result.connect(self.onwrite)
+            else:
+                log.debug("Writing key: {0} to groups: {1}"
+                          .format(repr(self.key), self.diff_groups + self.missed_groups))
+                params = {'key' : self.key,
+                          'data' : self.write_data,
+                          'remote_offset' : self.recovered_size}
+                if self.chunked:
+                    if self.recovered_size == 0:
+                        params['psize'] = self.total_size
+                        log.debug("Write_prepare key: {0} to groups: {1}, remote_offset: {2}, write_size: {3}, prepare_size: {4}"
+                                  .format(params['key'], self.write_session.groups, params['remote_offset'], len(params['data']), params['psize']))
+                        self.write_result = self.write_session.write_prepare(**params)
+                    elif self.recovered_size + len(params['data']) < self.total_size:
+                        log.debug("Write_plain key: {0} to groups: {1}, remote_offset: {2}, write_size: {3}, total_size: {4}"
+                                  .format(params['key'], self.write_session.groups, params['remote_offset'], len(params['data']), self.total_size))
+                        self.write_result = self.write_session.write_plain(**params)
+                    else:
+                        params['csize'] = self.total_size
+                        log.debug("Write_commit key: {0} to groups: {1}, remote_offset: {2}, write_size: {3}, commit_size: {4}"
+                                  .format(params['key'], self.write_session.groups, params['remote_offset'], len(params['data']), params['csize']))
+                        self.write_result = self.write_session.write_commit(**params)
+                else:
+                    params['offset'] = params.pop('remote_offset')
+                    log.debug("Write_data key: {0} to groups: {1}, offset: {2}, write_size: {3}, total_size: {4}"
+                              .format(params['key'], self.write_session.groups, params['offset'], len(params['data']), self.total_size))
+                    self.write_result = self.write_session.write_data(**params)
+                self.write_result.connect(self.onwrite)
+        except Exception as e:
+            log.error("Writing key: {0} raised exception: {1}, traceback: {2}"
+                      .format(self.key, repr(e), traceback.format_exc()))
+            self.stop(False)
+
+    def onread(self, results, error):
+        self.read_result = None
+        try:
+            if error.code:
+                log.error("Failed to read key: {0} from groups: {1}: {2}".format(self.key, self.same_groups, error))
                 self.stats.read_failed += 1
-                self.complete.set()
-                return
+                if error.code == 110 and self.attempt < self.ctx.attempts:
+                    self.attempt += len(self.read_session.groups)
+                    log.debug("Read has been timed out. Try to reread key: {0} from groups: {1}, attempt: {2}/{3}"
+                              .format(self.key, self.same_groups, self.attempt, self.ctx.attempts))
+                elif len(self.key_infos) > 1:
+                    self.stats.read_failed += len(self.read_session.groups)
+                    self.diff_groups += self.read_session.groups
+                    self.run()
+                else:
+                    log.error("Failed to read key: {0} from any available group. This key couldn't be recovered now.")
+                    self.stop(False)
+                    return
 
             self.stats.read += 1
-            self.stats.read_bytes += results[0].size
+            self.stats.read_bytes += results[-1].size
 
-            if validate_index(results[0]) and self.diff_groups:
-                merge_groups = self.diff_groups.union([self.origin_group])
-                write_groups = merge_groups.union(self.missed_groups)
-                log.debug("Index has been found in key: {0}. "
-                          "Merging shards from groups: {1} and writting it to groups:{2}"
-                          .format(repr(self.key), merge_groups, write_groups))
-                self.write_result = self.write_session.merge_indexes(
-                    self.key,
-                    merge_groups,
-                    write_groups)
-                self.write_result.connect(self.on_write)
-                self.size_to_write = 0
+            if self.recovered_size == 0:
+                self.write_session.user_flags = results[-1].user_flags
+                self.timestamp = results[-1].timestamp
+            self.attempt = 0
+
+            if self.chunked and len(results) > 1:
+                self.missed_groups += [r.group_id for r in results if r.error.code]
+
+            if validate_index(results[-1]) and self.diff_groups:
+                self.index_shard = True
+                log.debug("Index has been found in key: {0}".format(repr(self.key)))
             else:
-                self.write_session.groups = self.diff_groups \
-                    .union(self.missed_groups)
-                log.debug("Regular object has been found in key: {0}. "
-                          "Simply copy it from group: {1} to groups: {2}"
-                          .format(repr(self.key), self.origin_group,
-                                  self.write_session.groups))
-                self.size_to_write = results[0].size
-                self.write_result = self.write_session.write_data(
-                    results[0].io_attribute,
-                    results[0].data)
-                self.write_result.connect(self.on_write)
+                log.debug("Regular object has been found in key: {0}. Copy it from groups: {1} to groups: {2}"
+                          .format(repr(self.key), self.same_groups, self.write_session.groups))
+                self.index_shard = False
+                self.write_data = results[-1].data
+            self.write()
         except Exception as e:
             log.error("Failed to handle origin key: {0}, exception: {1}, traceback: {2}"
                       .format(self.key, repr(e), traceback.format_exc()))
-            self.complete.set()
+            self.stop(False)
 
-    def on_write(self, results, error):
+    def onwrite(self, results, error):
         try:
             if error.code:
                 self.stats.write_failed += 1
-                log.error("Failed to write key: {0}: {1}"
-                          .format(self.key, error))
+                log.error("Failed to write key: {0}: to groups: {1}: {2}"
+                          .format(self.key, self.write_session.groups, error))
+                if self.attempt < self.ctx.attempts:
+                    old_timeout = self.write_session.timeout
+                    self.write_session.timeout *= 2
+                    self.attempt += 1
+                    log.debug("Retry to write key: {0} attempts: {1}/{2} "
+                              "increased timeout: {3}/{4}"
+                              .format(repr(self.key),
+                                      self.attempt, self.ctx.attempts,
+                                      self.write_session.timeout,
+                                      old_timeout))
+                    self.stats.write_failed += 1
+                    self.write()
+                    return
+                self.stats.write_failed += 1
+                self.stop(False)
+                return
+
+            self.stats.write += len(results)
+            self.stats.written_bytes += sum([r.size for r in results])
+            if self.index_shard:
+                log.debug("Recovered index shard at key: {0}".format(repr(self.key)))
+                self.stop(True)
+                return
+
+            self.recovered_size += len(self.write_data)
+            self.attempt = 0
+            if self.recovered_size < self.total_size:
+                self.read()
             else:
-                log.debug("Writed key: {0}".format(repr(self.key)))
-                self.result = True
-                self.stats.write += len(results)
-                self.stats.written_bytes = 0
-                for r in results:
-                    self.stats.written_bytes += r.size
-            self.complete.set()
+                log.debug("Key: {0} has been successfully copied to groups: {1}".format(repr(self.key), [r.group_id for r in results]))
+                self.stop(True)
         except Exception as e:
             log.error("Failed to handle write result key: {0}: {1}, traceback: {2}"
                       .format(self.key, repr(e), traceback.format_exc()))
+            self.stop(False)
 
     def wait(self):
         if not self.complete.is_set():
@@ -185,59 +241,32 @@ def unpcikle(filepath):
             pass
 
 
-def filter(filepath, groups):
-    # removes duplicates from groups
+def iterate_key(filepath, groups):
+    '''
+    Iterates key and sort each key key_infos by timestamp and size
+    '''
     groups = set(groups)
-    # for each key with its infos
     for key, key_infos in unpcikle(filepath):
-        origin = None
-        diffs = []
-        same = []
+        if len(key_infos) + len(groups) > 1:
+            key_infos = sorted(key_infos, key=lambda x: (x.timestamp, x.size), reverse=True)
+            missed_groups = tuple(groups.difference([k.group_id for k in key_infos]))
 
-        # for each infos assosiated with key
-        for key_info in key_infos:
-            # Sets first key_info as origin
-            if origin is None:
-                origin = key_info
+            #if all key_infos has the same timestamp and size and there is no missed groups - skip key, it is already up-to-date in all groups
+            if (key_infos[0].timestamp, key_infos[0].size) == (key_infos[-1].timestamp, key_infos[-1].size) and not missed_groups:
                 continue
 
-            cmp_time = cmp(key_info.timestamp, origin.timestamp)
-            cmp_size = cmp(key_info.size, origin.size)
-
-            # if timestamp of origin is younger then in key_info
-            if cmp_time < 0:
-                # adds key_info to diffs
-                diffs.append(key_info)
-            # if timestamp of origin is older or
-            # size of origin is smaller then in key_info
-            elif cmp_time > 0 or cmp_size > 0:
-                same.append(origin)
-                diffs += same
-                origin = key_info
-                same = []
-            elif cmp_time == cmp_size == 0:
-                same.append(key_info)
-            else:
-                diffs.append(key_info)
-
-        same_groups = set((x.group_id for x in same))
-        diff_groups = set((x.group_id for x in diffs))
-
-        missed_groups = groups.difference(same_groups) \
-                              .difference(diff_groups) \
-                              .difference([origin.group_id])
-
-        if not diff_groups and not missed_groups:
-            continue
-
-        yield (key, origin.group_id, diff_groups, missed_groups)
+            yield (key, key_infos, missed_groups)
+        else:
+            log.error("Invalid number of replicas for key: {0}: infos_count: {1}, groups_count: {2}".format(key, len(key_infos), len(groups)))
 
 
 def recover(ctx):
     ret = True
     stats = ctx.monitor.stats['recover']
 
-    filtered = filter(ctx.merged_filename, ctx.groups)
+    stats.timer('recover', 'started')
+
+    it = iterate_key(ctx.merged_filename, ctx.groups)
 
     node = elliptics_create_node(address=ctx.address,
                                  elog=ctx.elog,
@@ -246,19 +275,19 @@ def recover(ctx):
                                  io_thread_num=1,
                                  remotes=ctx.remotes)
 
-    for batch_id, batch in groupby(enumerate(filtered),
+    for batch_id, batch in groupby(enumerate(it),
                                    key=lambda x: x[0] / ctx.batch_size):
         recovers = []
         rs = RecoverStat()
         for _, val in batch:
-            rec = KeyRecover(*val, node=node)
+            rec = KeyRecover(ctx, *val, node=node)
             recovers.append(rec)
-            rec.run()
         for r in recovers:
             r.wait()
             ret &= r.succeeded()
             rs += r.stats
         rs.apply(stats)
+    stats.timer('recover', 'finished')
     return ret
 
 
