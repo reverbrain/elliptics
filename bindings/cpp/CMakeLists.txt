@@ -42,7 +42,7 @@ set_target_properties(elliptics_cpp PROPERTIES
     VERSION ${ELLIPTICS_VERSION}
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     )
-target_link_libraries(elliptics_cpp elliptics_client ${MSGPACK_LIBRARIES} ${Boost_THREAD_LIBRARY} ${Boost_FILESYSTEM_LIBRARY})
+target_link_libraries(elliptics_cpp elliptics_client ${MSGPACK_LIBRARIES} ${Boost_THREAD_LIBRARY} ${Boost_FILESYSTEM_LIBRARY} ${Boost_IOSTREAMS_LIBRARY})
 
 install(TARGETS elliptics_cpp
     EXPORT EllipticsTargets

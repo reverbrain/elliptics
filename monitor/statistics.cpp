@@ -22,6 +22,7 @@
 #include "monitor.hpp"
 #include "cache/cache.hpp"
 #include "elliptics/backends.h"
+#include "monitor/compress.hpp"
 
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
@@ -126,7 +127,7 @@ inline std::string convert_report(const rapidjson::Document &report) {
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
 	report.Accept(writer);
-	return buffer.GetString();
+	return compress(buffer.GetString());
 }
 
 std::string statistics::report(uint64_t categories) {

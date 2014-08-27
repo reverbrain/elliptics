@@ -71,24 +71,24 @@ const std::map<std::string, uint64_t> handlers = {{"/all", DNET_MONITOR_ALL},
  * Generates HTTP response for @req category with @content
  */
 std::string make_reply(uint64_t req, std::string content = "") {
-	std::string ret;
+	std::stringstream ret;
 	std::string content_type = "application/json";
 	if (req == 0) {
-		ret = status_strings::ok;
+		ret << status_strings::ok;
 		content = content_strings::list;
 		content_type = "text/html";
+	} else {
+		ret << status_strings::ok;
 	}
-	ret = status_strings::ok;
 
-	ret.append("Content-Type: ");
-	ret.append(content_type);
-	ret.append("\r\n");
-	ret.append("Content-Length: ");
-	ret.append(std::to_string((long long unsigned int)content.size()));
-	ret.append("\r\n\r\n");
-	ret.append(content);
+	ret << "Content-Type: " << content_type << "\r\n"
+		<< "Content-Length: " << std::to_string((long long unsigned int)content.size()) << "\r\n"
+		<< "Content-Encoding: deflate\r\n"
+		<< "Connection: close\r\n"
+		<< "\r\n"
+		<< content;
 
-	return ret;
+	return ret.str();
 }
 
 /*!

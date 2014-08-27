@@ -17,6 +17,7 @@
 #define _XOPEN_SOURCE 600
 
 #include "callback_p.h"
+#include "monitor/compress.hpp"
 
 #include <errno.h>
 #include <sstream>
@@ -232,7 +233,7 @@ monitor_stat_result_entry &monitor_stat_result_entry::operator =(const monitor_s
 std::string monitor_stat_result_entry::statistics() const
 {
 	DNET_DATA_BEGIN();
-	return data().to_string();
+	return ioremap::monitor::decompress(data().to_string());
 	DNET_DATA_END(0);
 }
 
