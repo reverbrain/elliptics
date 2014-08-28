@@ -681,8 +681,6 @@ struct dnet_node
 
 	void			*monitor;
 
-	void			*react_aggregator;
-
 	struct dnet_config_data *config_data;
 };
 

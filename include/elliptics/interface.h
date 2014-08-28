@@ -342,9 +342,8 @@ struct dnet_config
 	 */
 	unsigned int		monitor_port;
 
-	/* Minimum timeout for call tree.
-	 * Only call tree with spent time >= this timeout will be presented at monitor statistics */
-	long			monitor_call_tree_timeout;
+	/* Unused. Will be removed at next major release */
+	long		__unused_1;
 
 	/* so that we do not change major version frequently */
 	int			reserved_for_future_use[8];

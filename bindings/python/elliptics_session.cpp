@@ -64,16 +64,14 @@ enum elliptics_monitor_categories {
 	elliptics_monitor_categories_io = DNET_MONITOR_IO,
 	elliptics_monitor_categories_commands = DNET_MONITOR_COMMANDS,
 	elliptics_monitor_categories_backend = DNET_MONITOR_BACKEND,
-	elliptics_monitor_categories_call_tree = DNET_MONITOR_CALL_TREE,
-	elliptics_monitor_categories_procfs = DNET_MONITOR_PROCFS,
 	elliptics_monitor_categories_stats = DNET_MONITOR_STATS,
+	elliptics_monitor_categories_procfs = DNET_MONITOR_PROCFS,
 	elliptics_monitor_categories_all = DNET_MONITOR_CACHE |
 	                                   DNET_MONITOR_IO |
 	                                   DNET_MONITOR_COMMANDS |
 	                                   DNET_MONITOR_BACKEND |
-	                                   DNET_MONITOR_CALL_TREE |
-	                                   DNET_MONITOR_PROCFS |
-	                                   DNET_MONITOR_STATS
+	                                   DNET_MONITOR_STATS |
+	                                   DNET_MONITOR_PROCFS
 };
 
 struct write_cas_converter {
@@ -779,17 +777,15 @@ void init_elliptics_session() {
 		"io\n    Category for IO queue statistics\n"
 		"commands\n    Category for commands statistics\n"
 		"backend\n    Category for backend statistics\n"
-		"call_tree\n    Category for react call tree statistics"
-		"procfs\n    Category for system statistics about process"
-		"stats\n    Category for in-process runtime statistics")
+		"stats\n    Category for in-process runtime statistics"
+		"procfs\n    Category for system statistics about process")
 		.value("all", elliptics_monitor_categories_all)
 		.value("cache", elliptics_monitor_categories_cache)
 		.value("io", elliptics_monitor_categories_io)
 		.value("commands", elliptics_monitor_categories_commands)
 		.value("backend", elliptics_monitor_categories_backend)
-		.value("call_tree", elliptics_monitor_categories_call_tree)
-		.value("procfs", elliptics_monitor_categories_procfs)
 		.value("stats", elliptics_monitor_categories_stats)
+		.value("procfs", elliptics_monitor_categories_procfs)
 	;
 
 	bp::enum_<exec_context::final_state>("exec_context_final_states",

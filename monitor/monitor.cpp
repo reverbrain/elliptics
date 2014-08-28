@@ -25,7 +25,6 @@
 
 #include "library/elliptics.h"
 #include "io_stat_provider.hpp"
-#include "react_stat_provider.hpp"
 #include "backends_stat_provider.hpp"
 #include "procfs_provider.hpp"
 
@@ -96,17 +95,6 @@ static void init_io_stat_provider(struct dnet_node *n, struct dnet_config *cfg) 
 	}
 }
 
-static void init_react_stat_provider(struct dnet_node *n, struct dnet_config *cfg) {
-	try {
-		auto call_tree_timeout = n->config_data->cfg_state.monitor_call_tree_timeout;
-		auto provider = new react_stat_provider(call_tree_timeout);
-		add_provider(n, provider, "call_tree");
-		n->react_aggregator = static_cast<void*> (&provider->get_react_aggregator());
-	}catch (std::exception &e) {
-		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize react_stat_provider: %s.", e.what());
-	}
-}
-
 static void init_backends_stat_provider(struct dnet_node *n, struct dnet_config *cfg) {
 	try {
 		add_provider(n, new backends_stat_provider(n), "backends");
@@ -140,7 +128,6 @@ int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
 	}
 
 	ioremap::monitor::init_io_stat_provider(n, cfg);
-	ioremap::monitor::init_react_stat_provider(n, cfg);
 	ioremap::monitor::init_backends_stat_provider(n, cfg);
 	ioremap::monitor::init_procfs_provider(n, cfg);
 
@@ -179,8 +166,6 @@ void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans
 
 int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
-	react::action_guard monitor_process_cmd_guard(ACTION_DNET_MONITOR_PROCESS_CMD);
-
 	if (cmd->size != sizeof(dnet_monitor_stat_request)) {
 		dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, invalid size: %llu",
 			dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), static_cast<unsigned long long>(cmd->size));

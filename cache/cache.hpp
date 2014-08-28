@@ -44,8 +44,6 @@
 
 #include "treap.hpp"
 
-#include "react/elliptics_react.hpp"
-
 namespace ioremap { namespace cache {
 
 class raw_data_t {

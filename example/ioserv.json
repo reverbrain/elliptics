@@ -40,9 +40,8 @@
 		},
 		"indexes_shard_count": 2,
 		"monitor": {
-			"port":20000,
-			"call_tree_timeout": 0
-		}
+			"port":20000
+		},
 	},
 	"backends": [
 		{

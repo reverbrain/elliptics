@@ -91,12 +91,6 @@ if (HAVE_MODULE_BACKEND_SUPPORT)
     add_subdirectory(example/module_backend)
 endif()
 
-# Find react
-include(cmake/Modules/locate_library.cmake)
-locate_library(REACT "react/react.hpp" "react")
-include_directories(${REACT_INCLUDE_DIRS})
-link_directories(${REACT_LIBRARY_DIRS})
-
 # Handystats instrumentation
 option(WITH_STATS "Build with runtime statistics gathering" ON)
 
