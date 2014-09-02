@@ -454,6 +454,14 @@ public:
 		return create_result(std::move(session::request_backends_status(address(host, port, family))));
 	}
 
+	python_backend_status_result make_readonly(const std::string &host, int port, int family, uint32_t backend_id) {
+		return create_result(std::move(session::make_readonly(address(host, port, family), backend_id)));
+	}
+
+	python_backend_status_result make_writable(const std::string &host, int port, int family, uint32_t backend_id) {
+		return create_result(std::move(session::make_writable(address(host, port, family), backend_id)));
+	}
+
 
 	python_read_result read_data_range(const elliptics_range &r) {
 		return create_result(std::move(session::read_data_range(r.io_attr(), r.group_id)));
@@ -1357,22 +1365,22 @@ void init_elliptics_session() {
 		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id")),
 		     "enable_backend(host, port, family, backend_id)\n"
 		     "    Enables backend @backend_id at node addressed by @host, @port, @family\n"
-		     "    Returns AsyncResult which provides new backend status\n\n"
+		     "    Returns AsyncResult which provides new status of the backend\n\n"
 		     "    new_status = session.enable_backend(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]")
 
 		.def("disable_backend", &elliptics_session::disable_backend,
 		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id")),
 		     "disable_backend(host, port, family, backend_id)\n"
 		     "    Disables backend @backend_id at node addressed by @host, @port, @family\n"
-		     "    Returns AsyncResult which provides new backend status\n\n"
-		     "    new_status = session.enable_backend(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]")
+		     "    Returns AsyncResult which provides new status of the backend\n\n"
+		     "    new_status = session.disable_backend(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]")
 
 		.def("start_defrag", &elliptics_session::start_defrag,
 		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id")),
 		     "start_defrag(host, port, family, backend_id)\n"
 		     "    Start defragmentation of backend @backend_id at node addressed by @host, @port, @family\n"
-		     "    Returns AsyncResult which provides new backend status\n\n"
-		     "    new_status = session.enable_backend(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]\n"
+		     "    Returns AsyncResult which provides new status of the backend\n\n"
+		     "    new_status = session.start_defrag(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]\n"
 		     "    defrag_state = new_state.defrag_state")
 
 		.def("request_backends_status", &elliptics_session::request_backends_status,
@@ -1380,7 +1388,21 @@ void init_elliptics_session() {
 		     "request_backends_status(host, port, family)\n"
 		     "    Request all backends status from node addressed by @host, @port, @family\n"
 		     "    Returns AsyncResult which provides backends statuses\n\n"
-		     "    backends_statuses = session.enable_backend(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends")
+		     "    backends_statuses = session.request_backends_status(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET)).get()[0].backends")
+
+		.def("make_readonly", &elliptics_session::make_readonly,
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id")),
+		     "make_readonly(host, port, family, backend_id)\n"
+		     "    Makes backend with @backend_id read-only at node addressed by @host, @port, @family\n"
+		     "    Returns AsyncResult which provides new status of the backend\n\n"
+		     "    backends_statuses = session.make_readonly(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends")
+
+		.def("make_writable", &elliptics_session::make_writable,
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family")),
+		     "make_writable(host, port, family, backend_id)\n"
+		     "    Makes backend with @backend_id read-write-able at node addressed by @host, @port, @family\n"
+		     "    Returns AsyncResult which provides new status of the backend\n\n"
+		     "    backends_statuses = session.make_writable(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends")
 
 // Remove operations
 
