@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.18
+Version:	2.26.3.19
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.19
+- Pytest: added checking requesting all categories.
+- monitor: add 'group' to 'backend->config' only if it was requested
+
 * Tue Sep 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.18
 - reconnect: always add address into reconnection queue until it is EEXIST, ENOMEM or EBADF error
 

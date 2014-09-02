@@ -1,3 +1,10 @@
+elliptics (2.26.3.19) unstable; urgency=low
+
+  * Pytest: added checking requesting all categories.
+  * monitor: add 'group' to 'backend->config' only if it was requested
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 02 Sep 2014 21:54:48 +0400
+
 elliptics (2.26.3.18) unstable; urgency=low
 
   * reconnect: always add address into reconnection queue until it is EEXIST, ENOMEM or EBADF error
