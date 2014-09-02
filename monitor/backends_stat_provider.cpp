@@ -175,7 +175,9 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 		fill_disabled_backend_config(stat_value, allocator, config_backend);
 	}
 
-	stat_value["backend"]["config"].AddMember("group", config_backend.group, allocator);
+	if (categories & DNET_MONITOR_BACKEND) {
+		stat_value["backend"]["config"].AddMember("group", config_backend.group, allocator);
+	}
 
 	return stat_value;
 }

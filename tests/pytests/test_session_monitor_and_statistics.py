@@ -34,3 +34,12 @@ class TestSession:
             assert stat.error.code == 0
             assert stat.error.message == ''
             assert type(stat.statistics) == dict
+
+    def test_monitor_categories(self, server, simple_node):
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_monitor_categories')
+        addr = session.routes.addresses()[0]
+
+        for category in elliptics.monitor_stat_categories.values.values():
+            stat = session.monitor_stat(addr, categories=category).get()[0]
+            assert stat
