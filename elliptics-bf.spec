@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.15
+Version:	2.26.3.16
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.16
+- monitor: restored 'group' at 'backend->config'
+- python: added make_readonly and make_writable to elliptics.Session
+- monitor: removed commands history
+
 * Wed Aug 27 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.15
 - elliptics: Fixed handler::total at several places
 - monitor: forced deflate of the transmitted json
