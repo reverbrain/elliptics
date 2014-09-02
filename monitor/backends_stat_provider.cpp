@@ -116,8 +116,8 @@ static void fill_backend_status(rapidjson::Value &stat_value,
 	last_start.AddMember("tv_sec", status.last_start.tsec, allocator);
 	last_start.AddMember("tv_usec", status.last_start.tnsec / 1000, allocator);
 	status_value.AddMember("last_start", last_start, allocator);
-
 	status_value.AddMember("last_start_err", status.last_start_err, allocator);
+	status_value.AddMember("read_only", status.read_only, allocator);
 
 	stat_value.AddMember("status", status_value, allocator);
 }
@@ -138,7 +138,6 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 		config_value.AddMember(entry.entry->key, tmp_val, allocator);
 	}
 
-	config_value.AddMember("group", config_backend.group, allocator);
 	backend_value.AddMember("config", config_value, allocator);
 	stat_value.AddMember("backend", backend_value, allocator);
 }
@@ -175,6 +174,8 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 	} else if (categories & DNET_MONITOR_BACKEND) {
 		fill_disabled_backend_config(stat_value, allocator, config_backend);
 	}
+
+	stat_value["backend"]["config"].AddMember("group", config_backend.group, allocator);
 
 	return stat_value;
 }
