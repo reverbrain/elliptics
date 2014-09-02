@@ -129,14 +129,12 @@ static void dnet_add_to_reconnect_list(dnet_node *node, const dnet_addr &addr, i
 
 	dnet_log(node, DNET_LOG_NOTICE, "%s: could not add state, its error: %d", dnet_server_convert_dnet_addr(&addr), error);
 
-	if ((error == -EADDRINUSE)
-		|| (error == -ECONNREFUSED)
-		|| (error == -ECONNRESET)
-		|| (error == -EINPROGRESS)
-		|| (error == -EAGAIN)
-		|| (error == -ETIMEDOUT)) {
-		dnet_add_reconnect_state(node, &addr, join);
+	if ((error == -ENOMEM) ||
+		(error == -EBADF)) {
+		return;
 	}
+
+	dnet_add_reconnect_state(node, &addr, join);
 }
 
 /*!
