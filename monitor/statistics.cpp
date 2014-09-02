@@ -34,8 +34,7 @@ statistics::statistics(monitor& mon, struct dnet_config *cfg)
 , m_read_histograms(default_xs(), default_ys())
 , m_write_histograms(default_xs(), default_ys())
 , m_indx_update_histograms(default_xs(), default_ys())
-, m_indx_internal_histograms(default_xs(), default_ys())
-, m_history_length(cfg->monitor_history_length) {
+, m_indx_internal_histograms(default_xs(), default_ys()) {
 	memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
 }
 
@@ -48,7 +47,7 @@ void statistics::command_counter(int cmd,
 	if (cmd >= __DNET_CMD_MAX || cmd <= 0)
 		cmd = DNET_CMD_UNKNOWN;
 
-	std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
+	std::unique_lock<std::mutex> guard(m_cmd_stats_mutex);
 	auto &place = cache ? m_cmd_stats[cmd].cache : m_cmd_stats[cmd].disk;
 	auto &source = trans ? place.outside : place.internal;
 	auto &counter = err ? source.counter.failures : source.counter.successes;
@@ -56,16 +55,6 @@ void statistics::command_counter(int cmd,
 	++counter;
 	source.size += size;
 	source.time += time;
-
-	if (m_history_length > 0) {
-		m_cmd_info_current.emplace_back(command_stat_info{cmd, size, time, trans == 0, cache != 0});
-
-		if (m_cmd_info_current.size() >= m_history_length) {
-			std::unique_lock<std::mutex> swap_guard(m_cmd_info_previous_mutex);
-			m_cmd_info_current.swap(m_cmd_info_previous);
-			m_cmd_info_current.clear();
-		}
-	}
 
 	std::unique_lock<std::mutex> hist_guard(m_histograms_mutex);
 	command_histograms *hist = NULL;
@@ -148,9 +137,6 @@ std::string statistics::report(uint64_t categories) {
 	if (categories & DNET_MONITOR_COMMANDS) {
 		rapidjson::Value commands_value(rapidjson::kObjectType);
 		report.AddMember("commands", commands_report(commands_value, allocator), allocator);
-
-		rapidjson::Value history_value(rapidjson::kArrayType);
-		report.AddMember("history", history_report(history_value, allocator), allocator);
 	}
 
 	if (categories & DNET_MONITOR_IO_HISTOGRAMS) {
@@ -252,54 +238,21 @@ static void clients_stat_json(dnet_node *n, rapidjson::Value &stat_value, rapidj
 }
 
 rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	boost::array<command_counters, __DNET_CMD_MAX> tmp_stats;
 	{
-		std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
-		for (int i = 1; i < __DNET_CMD_MAX; ++i) {
-			rapidjson::Value cmd_stat(rapidjson::kObjectType);
-			cmd_stat_json(m_monitor.node(), i, m_cmd_stats[i], cmd_stat, allocator);
-			stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
-		}
+		std::unique_lock<std::mutex> guard(m_cmd_stats_mutex);
+		tmp_stats = m_cmd_stats;
 	}
+
+	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
+		rapidjson::Value cmd_stat(rapidjson::kObjectType);
+		cmd_stat_json(m_monitor.node(), i, tmp_stats[i], cmd_stat, allocator);
+		stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
+	}
+
 	rapidjson::Value clients_stat(rapidjson::kObjectType);
 	clients_stat_json(m_monitor.node(), clients_stat, allocator);
 	stat_value.AddMember("clients", clients_stat, allocator);
-
-	return stat_value;
-}
-
-inline rapidjson::Value& history_print(rapidjson::Value &stat_value,
-                                       rapidjson::Document::AllocatorType &allocator,
-                                       const command_stat_info &info) {
-	stat_value.AddMember(dnet_cmd_string(info.cmd),
-	                     allocator,
-	                     rapidjson::Value(rapidjson::kObjectType)
-	                     .AddMember("internal", (info.internal ? "true" : "false"), allocator)
-	                     .AddMember("cache", (info.cache ? "true" : "false"), allocator)
-	                     .AddMember("size", info.size, allocator)
-	                     .AddMember("time", info.time, allocator),
-	                     allocator);
-	return stat_value;
-}
-
-rapidjson::Value& statistics::history_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	if (m_cmd_info_previous.empty() && m_cmd_info_current.empty())
-		return stat_value;
-
-	{
-		std::unique_lock<std::mutex> guard(m_cmd_info_previous_mutex);
-		const auto begin = m_cmd_info_previous.begin(), end = m_cmd_info_previous.end();
-		for (auto it = begin; it != end; ++it) {
-			rapidjson::Value cmd_value(rapidjson::kObjectType);
-			stat_value.PushBack(history_print(cmd_value, allocator, *it), allocator);
-		}
-	} {
-		std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
-		const auto begin = m_cmd_info_current.begin(), end = m_cmd_info_current.end();
-		for (auto it = begin; it != end; ++it) {
-			rapidjson::Value cmd_value(rapidjson::kObjectType);
-			stat_value.PushBack(history_print(cmd_value, allocator, *it), allocator);
-		}
-	}
 
 	return stat_value;
 }

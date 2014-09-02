@@ -287,7 +287,6 @@ void parse_options(config_data *data, const config &options)
 	if (options.has("monitor")) {
 		const config monitor = options.at("monitor");
 		data->cfg_state.monitor_port = monitor.at("port", 0);
-		data->cfg_state.monitor_history_length = monitor.at("history_length", 50000);
 		data->cfg_state.monitor_call_tree_timeout = monitor.at("call_tree_timeout", 0);
 	}
 

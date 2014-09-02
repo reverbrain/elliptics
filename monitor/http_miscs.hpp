@@ -51,7 +51,7 @@ const std::string list = "<html>"
 	"GET <a href='/io_histograms'>/io_histograms</a> - Retrieves statistics about io histograms<br/>"
 	"GET <a href='/backend'>/backend</a> - Retrieves statistics about backend<br/>"
 	"GET <a href='/call_tree'>/call_tree</a> - Retrieves statistics about react call trees<br/>"
-	"GET <a href='/vm'>/vm</a> - Retrieves virtual memory statistics<br/>"
+	"GET <a href='/procfs'>/procfs</a> - Retrieves procfs statistics<br/>"
 	"</body>"
 	"</html>";
 }
@@ -83,7 +83,7 @@ std::string make_reply(uint64_t req, std::string content = "") {
 
 	ret << "Content-Type: " << content_type << "\r\n"
 		<< "Content-Length: " << std::to_string((long long unsigned int)content.size()) << "\r\n"
-		<< "Content-Encoding: deflate\r\n"
+		<< (req != 0 ? "Content-Encoding: deflate\r\n" : "")
 		<< "Connection: close\r\n"
 		<< "\r\n"
 		<< content;
