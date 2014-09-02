@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.11
+Version:	2.25.6.12
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.12
+- reconnect: always add address into reconnection queue until it is EEXIST, ENOMEM or EBADF error
+
 * Tue Aug 26 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.11
 - Elliptics service for Cocaine: added read_latest
 - С++: fixed garbage at id.trace_id
