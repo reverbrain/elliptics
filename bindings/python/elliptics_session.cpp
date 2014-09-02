@@ -1398,7 +1398,7 @@ void init_elliptics_session() {
 		     "    backends_statuses = session.make_readonly(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends")
 
 		.def("make_writable", &elliptics_session::make_writable,
-		     (bp::arg("host"), bp::arg("port"), bp::arg("family")),
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id")),
 		     "make_writable(host, port, family, backend_id)\n"
 		     "    Makes backend with @backend_id read-write-able at node addressed by @host, @port, @family\n"
 		     "    Returns AsyncResult which provides new status of the backend\n\n"
