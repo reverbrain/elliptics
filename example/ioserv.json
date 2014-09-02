@@ -41,7 +41,6 @@
 		"indexes_shard_count": 2,
 		"monitor": {
 			"port":20000,
-			"history_length": 50000,
 			"call_tree_timeout": 0
 		}
 	},

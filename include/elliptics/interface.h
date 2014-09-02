@@ -339,9 +339,6 @@ struct dnet_config
 	 */
 	unsigned int		monitor_port;
 
-	/* Number of last commands that would be presented at monitor statistics */
-	unsigned int		monitor_history_length;
-
 	/* Minimum timeout for call tree.
 	 * Only call tree with spent time >= this timeout will be presented at monitor statistics */
 	long			monitor_call_tree_timeout;

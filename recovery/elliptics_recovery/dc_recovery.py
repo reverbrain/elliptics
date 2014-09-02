@@ -44,7 +44,7 @@ class KeyRecover(object):
         self.read_session = elliptics.Session(node)
         self.read_session.set_filter(elliptics.filters.all)
         self.write_session = elliptics.Session(node)
-        #self.write_session.set_checker(elliptics.checkers.all)
+        self.write_session.set_checker(elliptics.checkers.all)
         self.result = False
         self.attempt = 0
 
