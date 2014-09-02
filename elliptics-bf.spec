@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.16
+Version:	2.26.3.17
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.17
+- Python: fixed make_writable
+
 * Tue Sep 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.16
 - monitor: restored 'group' at 'backend->config'
 - python: added make_readonly and make_writable to elliptics.Session

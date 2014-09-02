@@ -1,3 +1,9 @@
+elliptics (2.26.3.17) unstable; urgency=low
+
+  * Python: fixed make_writable
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 02 Sep 2014 19:55:17 +0400
+
 elliptics (2.26.3.16) unstable; urgency=low
 
   * monitor: restored 'group' at 'backend->config'
