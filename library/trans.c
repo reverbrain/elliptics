@@ -244,6 +244,8 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	if (!t)
 		return;
 
+	dnet_node_set_trace_id(t->n->log, t->cmd.trace_id, t->cmd.flags & DNET_FLAGS_TRACE_BIT, -1);
+
 	gettimeofday(&tv, NULL);
 	diff = 1000000 * (tv.tv_sec - t->start.tv_sec) + (tv.tv_usec - t->start.tv_usec);
 
@@ -261,10 +263,8 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	}
 
 	if (t->complete) {
-		dnet_node_set_trace_id(t->n->log, t->cmd.trace_id, t->cmd.flags & DNET_FLAGS_TRACE_BIT, -1);
 		t->cmd.flags |= DNET_FLAGS_DESTROY;
 		t->complete(t->st ? dnet_state_addr(t->st) : NULL, &t->cmd, t->priv);
-		dnet_node_unset_trace_id();
 	}
 
 	if (st && st->n && t->command != 0) {
@@ -324,6 +324,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			t->cmd.status, io_buf);
 	}
 
+	dnet_node_unset_trace_id();
 
 	dnet_state_put(t->st);
 	dnet_state_put(t->orig);

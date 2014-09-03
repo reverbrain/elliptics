@@ -609,11 +609,18 @@ class session
 		int			state_num();
 
 		/*!
-		 * Requests execution of custom command at server.
+		 * Requests execution of custom command at all backends of all server nodes.
 		 *
 		 * Returns async_genetic_result.
 		 */
 		async_generic_result request_cmd(const transport_control &ctl);
+
+		/*!
+		 * Requests execution of custom command at single server.
+		 *
+		 * Returns async_genetic_result.
+		 */
+		async_generic_result request_single_cmd(const transport_control &ctl);
 
 		/*!
 		 * Changes node \a status on given \a address.
