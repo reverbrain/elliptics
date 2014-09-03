@@ -1807,6 +1807,11 @@ async_generic_result session::request_cmd(const transport_control &ctl)
 	return send_to_each_backend(*this, ctl);
 }
 
+async_generic_result session::request_single_cmd(const transport_control &ctl)
+{
+	return send_to_single_state(*this, ctl);
+}
+
 void session::update_status(const address &addr, dnet_node_status *status)
 {
 	scoped_trace_id guard(*this);
