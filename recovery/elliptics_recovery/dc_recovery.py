@@ -160,7 +160,7 @@ class KeyRecover(object):
 
             if self.recovered_size == 0:
                 self.write_session.user_flags = results[-1].user_flags
-                self.timestamp = results[-1].timestamp
+                self.write_session.timestamp = results[-1].timestamp
             self.attempt = 0
 
             if self.chunked and len(results) > 1:

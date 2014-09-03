@@ -88,13 +88,15 @@ def write_data(scope, session, keys, datas):
     for r in res:
         r.wait()
 
-def check_data(scope, session, keys, datas):
+def check_data(scope, session, keys, datas, timestamp):
     '''
     Reads @keys from the session. Reads all keys async at once and waits/checks results at the end.
     '''
-    res = map(session.read_data, keys)
-    res = map(lambda x: x.get()[0].data, res)
-    assert res == datas
+    results = map(session.read_data, keys)
+    results = map(lambda x: x.get()[0], results)
+    assert [x.data for x in results] == datas
+    timestamps = [x.timestamp for x in results]
+    assert all(x == timestamp for x in timestamps)
 
 def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log_file, tmp_dir):
     '''
@@ -199,7 +201,9 @@ class TestRecovery:
     count = 1024
     keys = map('{0}'.format, range(count))
     datas = keys
+    timestamp = elliptics.Time.now()
     datas2 = map('{0}.{0}'.format, keys)
+    timestamp2 = elliptics.Time(timestamp.tsec + 3600, timestamp.tnsec)
 
     def test_disable_backends(self, scope, server, simple_node):
         '''
@@ -252,9 +256,10 @@ class TestRecovery:
                                test_name='TestRecovery.test_prepare_data',
                                test_namespace=self.namespace)
         session.groups = [scope.test_group]
+        session.timestamp = self.timestamp
 
         write_data(scope, session, self.keys, self.datas)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
     def test_enable_group_one_backend(self, scope, server, simple_node):
         '''
@@ -290,7 +295,7 @@ class TestRecovery:
                  tmp_dir='merge_2_backends')
 
         session.groups = (scope.test_group,)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
     def test_enable_all_group_backends(self, scope, server, simple_node):
         '''
@@ -321,7 +326,7 @@ class TestRecovery:
                  tmp_dir='merge_one_group')
 
         session.groups = (scope.test_group,)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
     def test_enable_second_group_one_backend(self, scope, server, simple_node):
         '''
@@ -358,7 +363,7 @@ class TestRecovery:
                  tmp_dir='dc_one_backend')
 
         session.groups = (scope.test_group2,)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
     def test_enable_all_second_group_backends(self, scope, server, simple_node):
         '''
@@ -389,10 +394,10 @@ class TestRecovery:
                  tmp_dir='dc_two_groups')
 
         session.groups = (scope.test_group,)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
         session.groups = (scope.test_group2,)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
     def test_enable_all_third_group_backends(self, scope, server, simple_node):
         '''
@@ -411,10 +416,10 @@ class TestRecovery:
                                test_name='TestRecovery.test_write_data_to_third_group',
                                test_namespace=self.namespace)
         session.groups = [scope.test_group3]
-
+        session.timestamp = self.timestamp2
 
         write_data(scope, session, self.keys, self.datas2)
-        check_data(scope, session, self.keys, self.datas2)
+        check_data(scope, session, self.keys, self.datas2, self.timestamp2)
 
     def test_dc_three_groups(self, scope, server, simple_node):
         '''
@@ -436,13 +441,13 @@ class TestRecovery:
                  tmp_dir='dc_three_groups')
 
         session.groups = (scope.test_group,)
-        check_data(scope, session, self.keys, self.datas2)
+        check_data(scope, session, self.keys, self.datas2, self.timestamp2)
 
         session.groups = (scope.test_group2,)
-        check_data(scope, session, self.keys, self.datas2)
+        check_data(scope, session, self.keys, self.datas2, self.timestamp2)
 
         session.groups = (scope.test_group3,)
-        check_data(scope, session, self.keys, self.datas2)
+        check_data(scope, session, self.keys, self.datas2, self.timestamp2)
 
     def test_defragmentation(self, scope, server, simple_node):
         '''
@@ -480,13 +485,13 @@ class TestRecovery:
             print "In defragmentation:", cnt
 
         session.groups = (scope.test_group,)
-        check_data(scope, session, self.keys, self.datas2)
+        check_data(scope, session, self.keys, self.datas2, self.timestamp2)
 
         session.groups = (scope.test_group2,)
-        check_data(scope, session, self.keys, self.datas2)
+        check_data(scope, session, self.keys, self.datas2, self.timestamp2)
 
         session.groups = (scope.test_group3,)
-        check_data(scope, session, self.keys, self.datas2)
+        check_data(scope, session, self.keys, self.datas2, self.timestamp2)
 
     def test_enable_rest_backends(self, scope, server, simple_node):
         '''
