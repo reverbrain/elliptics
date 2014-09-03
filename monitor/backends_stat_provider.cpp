@@ -110,14 +110,18 @@ static void fill_backend_status(rapidjson::Value &stat_value,
 
 	rapidjson::Value status_value(rapidjson::kObjectType);
 	status_value.AddMember("state", status.state, allocator);
+	status_value.AddMember("string_state", dnet_backend_state_string(status.state), allocator);
 	status_value.AddMember("defrag_state", status.defrag_state, allocator);
+	status_value.AddMember("string_defrag_state", dnet_backend_defrag_state_string(status.defrag_state), allocator);
 
 	rapidjson::Value last_start(rapidjson::kObjectType);
 	last_start.AddMember("tv_sec", status.last_start.tsec, allocator);
 	last_start.AddMember("tv_usec", status.last_start.tnsec / 1000, allocator);
 	status_value.AddMember("last_start", last_start, allocator);
+
+	status_value.AddMember("string_last_time", dnet_print_time(&status.last_start), allocator);
 	status_value.AddMember("last_start_err", status.last_start_err, allocator);
-	status_value.AddMember("read_only", status.read_only, allocator);
+	status_value.AddMember("read_only", status.read_only == 1, allocator);
 
 	stat_value.AddMember("status", status_value, allocator);
 }
