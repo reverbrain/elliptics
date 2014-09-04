@@ -258,7 +258,7 @@ class RemoveDirect(DirectOperation):
                     self.run()
                     return
                 log.error("Key: {0} hasn't been removed from node: {1}/{2}: {3}"
-                          .format(repr(self.id), self.address, backend_id, repr(error)))
+                          .format(repr(self.id), self.address, self.backend_id, repr(error)))
                 self.stats.remove_failed += 1
                 self.callback(False, self.stats)
                 return
