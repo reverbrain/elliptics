@@ -544,8 +544,8 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 		goto err_out_exit;
 	}
 
-	for (size_t i = 0; i < states_num; i += cnt->node_addr_num) {
-		dnet_addr *addr = &cnt->addrs[i + st->idx];
+	for (size_t i = 0; i < states_num; ++i) {
+		dnet_addr *addr = &cnt->addrs[i * cnt->node_addr_num + st->idx];
 		memcpy(&addrs[i], addr, sizeof(dnet_addr));
 	}
 
