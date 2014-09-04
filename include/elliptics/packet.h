@@ -268,9 +268,6 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* drop notifiction */
 #define DNET_ATTR_DROP_NOTIFICATION		(1ULL<<32)
 
-/* What type of counters to fetch */
-#define DNET_ATTR_CNTR_GLOBAL			(1ULL<<32)
-
 /* Bulk request for checking files */
 #define DNET_ATTR_BULK_CHECK			(1ULL<<32)
 
