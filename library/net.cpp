@@ -487,7 +487,7 @@ static int dnet_validate_route_list(const char *server_addr, dnet_node *node, st
 		}
 
 		dnet_log(node, DNET_LOG_DEBUG, "route-list: from: %s, node: %d, addr: %s",
-			dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr)), i / cnt->node_addr_num, rem_addr);
+			server_addr, i / cnt->node_addr_num, dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr)));
 	}
 
 err_out_exit:
