@@ -487,7 +487,7 @@ static int dnet_validate_route_list(const char *server_addr, dnet_node *node, st
 		}
 
 		dnet_log(node, DNET_LOG_DEBUG, "route-list: from: %s, node: %d, addr: %s",
-			dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr)), i / cnt->node_addr_num, rem_addr);
+			server_addr, i / cnt->node_addr_num, dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr)));
 	}
 
 err_out_exit:
@@ -544,8 +544,8 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 		goto err_out_exit;
 	}
 
-	for (size_t i = 0; i < states_num; i += cnt->node_addr_num) {
-		dnet_addr *addr = &cnt->addrs[i + st->idx];
+	for (size_t i = 0; i < states_num; ++i) {
+		dnet_addr *addr = &cnt->addrs[i * cnt->node_addr_num + st->idx];
 		memcpy(&addrs[i], addr, sizeof(dnet_addr));
 	}
 
