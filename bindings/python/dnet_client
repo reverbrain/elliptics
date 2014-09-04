@@ -134,12 +134,49 @@ def process_backend():
 
     actions[action](options, session, elliptics.Address.from_host_port_family(options.remote[0]))
 
+def process_monitor_control(options, session, method):
+    import json
+    assert isinstance(session, elliptics.Session)
+    categories = elliptics.monitor_stat_categories.all if options.categories == -1 else options.categories
+    output = {}
+    for result in method(session, categories=categories).get():
+        output[str(result.address)] = result.statistics
+
+    print json.dumps(output, sort_keys=True, indent=4, separators=(',', ': '))
+
+def process_monitor():
+    from optparse import OptionParser
+    from functools import partial
+
+    parser = OptionParser()
+    parser.usage = '%prog monitor action [options]'
+    parser.add_option('--categories', dest='categories', type='int', default=-1,
+                      help='Categories of monitor statistics that will be requested')
+    add_node_options(parser)
+
+    (options, args) = parser.parse_args()
+
+    actions = {
+        'all' : lambda x, y: process_monitor_control(x, y, partial(elliptics.Session.monitor_stat, address=None)),
+        'one' : lambda x, y: process_monitor_control(x, y, partial(elliptics.Session.monitor_stat, address=elliptics.Address.from_host_port_family(options.remote[0])))
+    }
+
+    if len(args) > 2:
+        parser.error("Too many arguments passed: {0}, expected: 2".format(len(args)))
+    elif len(args) == 1 or args[1] not in actions:
+        parser.error("Please specify one of following modes: {0}".format(', '.join(actions.keys())))
+
+    action = args[1]
+
+    session = create_session(parser, options, single_remote=True)
+    actions[action](options, session)
 
 def main():
     from optparse import OptionParser
 
     commands = {
         'backend': process_backend,
+        'monitor': process_monitor,
     }
 
     parser = OptionParser()
