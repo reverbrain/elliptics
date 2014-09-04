@@ -884,6 +884,13 @@ static int dnet_blob_set_index_block_bloom_length(struct dnet_config_backend *b,
 	return 0;
 }
 
+static int dnet_blob_set_periodic_timeout(struct dnet_config_backend *b, char *key __unused, char *value) {
+	struct eblob_backend_config *c = b->data;
+
+	c->data.periodic_timeout = strtoul(value, NULL, 0);
+	return 0;
+}
+
 static int dnet_blob_set_records_in_blob(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct eblob_backend_config *c = b->data;
@@ -1131,6 +1138,7 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"blob_size_limit", dnet_blob_set_blob_size},
 	{"index_block_size", dnet_blob_set_index_block_size},
 	{"index_block_bloom_length", dnet_blob_set_index_block_bloom_length},
+	{"periodic_timeout", dnet_blob_set_periodic_timeout}
 };
 
 static struct dnet_config_backend dnet_eblob_backend = {
