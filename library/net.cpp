@@ -560,6 +560,7 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 	pthread_mutex_lock(&state->lock);
 
 	if (!state->finished) {
+		atomic_inc(&state->route_list_count);
 		list_add(&sockets->entry, &state->sockets_queue);
 		added_to_queue = true;
 	}
@@ -569,8 +570,8 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 	if (added_to_queue) {
 		dnet_interrupt_epoll(*state);
 
-		dnet_log(node, DNET_LOG_INFO, "Trying to connect to additional %llu states of %llu original from route_list_recv, state: %s",
-			sockets_count, states_num, server_addr);
+		dnet_log(node, DNET_LOG_INFO, "Trying to connect to additional %llu states of %llu original from route_list_recv, state: %s, route_list_count: %lld",
+			sockets_count, states_num, server_addr, atomic_read(&state->route_list_count));
 	} else {
 		dnet_log(node, DNET_LOG_ERROR, "Failed to connect to additional %llu states of %llu original from route_list_recv, state: %s, state is already desotryed, adding to reconnect list",
 			sockets_count, states_num, server_addr);
@@ -687,6 +688,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		list_for_each_entry_safe(list, tmp, &local_queue, entry) {
 			dnet_socket_connect_new_sockets(state, list);
 
+			atomic_dec(&state.route_list_count);
 			dnet_log(state.node, DNET_LOG_NOTICE, "Received route-list reply, count: %lld, route_list_count: %lld",
 				list->sockets_count, atomic_read(&state.route_list_count));
 		}
