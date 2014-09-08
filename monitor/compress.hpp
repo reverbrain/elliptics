@@ -24,7 +24,7 @@
 
 namespace ioremap { namespace monitor {
 
-static std::string compress(const std::string &data) {
+static inline std::string compress(const std::string &data) {
 	std::string compressed;
 
 	boost::iostreams::filtering_streambuf<boost::iostreams::output> out;
@@ -34,7 +34,7 @@ static std::string compress(const std::string &data) {
 	return compressed;
 }
 
-static std::string decompress(const std::string &data) {
+static inline std::string decompress(const std::string &data) {
 	std::string decompressed;
 
 	boost::iostreams::filtering_streambuf<boost::iostreams::input> in;
