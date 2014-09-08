@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.19
+Version:	2.26.3.20
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 09 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.20
+- monitor: compress every possible json reply from server to client including error jsons
+- monitor: static function in headers must be inlined
+- net: Fixed race condition of route-list counter
+- net: Fixed parsing of route list for dual stack
+- server: Set not-null address for accepting state
+- net: Fixed debug output for route lists
+- library: Added session::request_single_cmd
+- trans: Fixed trans_id at transactions' destruction
+
 * Tue Sep 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.19
 - Pytest: added checking requesting all categories.
 - monitor: add 'group' to 'backend->config' only if it was requested

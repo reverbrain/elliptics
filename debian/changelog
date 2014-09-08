@@ -1,3 +1,16 @@
+elliptics (2.26.3.20) unstable; urgency=low
+
+  * monitor: compress every possible json reply from server to client including error jsons
+  * monitor: static function in headers must be inlined
+  * net: Fixed race condition of route-list counter
+  * net: Fixed parsing of route list for dual stack
+  * server: Set not-null address for accepting state
+  * net: Fixed debug output for route lists
+  * library: Added session::request_single_cmd
+  * trans: Fixed trans_id at transactions' destruction
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Sep 2014 00:28:16 +0400
+
 elliptics (2.26.3.19) unstable; urgency=low
 
   * Pytest: added checking requesting all categories.
