@@ -17,7 +17,6 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "monitor/compress.hpp"
 #include "monitor.h"
 #include "monitor.hpp"
 
@@ -149,7 +148,7 @@ void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans
 		                                               cache, size, time);
 }
 
-int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data)
+int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
 	react::action_guard monitor_process_cmd_guard(ACTION_DNET_MONITOR_PROCESS_CMD);
 
@@ -167,22 +166,16 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd, 
 	dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, categories: %lx, monitor: %p",
 		dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), req->categories, n->monitor);
 
+	auto real_monitor = get_monitor(n);
+	if (!real_monitor)
+		return dnet_send_reply(orig, cmd, disabled_reply.c_str(), disabled_reply.size(), 0);
+
 	try {
-		std::string reply;
-
-		auto real_monitor = get_monitor(n);
-		if (!real_monitor) {
-			reply = disabled_reply;
-		} else {
-			reply = real_monitor->get_statistics().report(req->categories);
-		}
-
-		std::string compressed = ioremap::monitor::compress(reply);
-		return dnet_send_reply(orig, cmd, compressed.c_str(), compressed.size(), 0);
+		auto json = real_monitor->get_statistics().report(req->categories);
+		return dnet_send_reply(orig, cmd, &*json.begin(), json.size(), 0);
 	} catch(std::exception &e) {
-		static const std::string rep = "{\"monitor_status\":\"failed (caught exception): " + std::string(e.what()) + "\"}";
-		dnet_log(orig->n, DNET_LOG_ERROR, "monitor: caught exception during monitor processing: %s", e.what());
-		std::string compressed = ioremap::monitor::compress(rep);
-		return dnet_send_reply(orig, cmd, compressed.c_str(), compressed.size(), 0);
+		static const std::string rep = "{\"monitor_status\":\"failed: " + std::string(e.what()) + "\"}";
+		dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: failed to generate json: %s", e.what());
+		return dnet_send_reply(orig, cmd, &*rep.begin(), rep.size(), 0);
 	}
 }
