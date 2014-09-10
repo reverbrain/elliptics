@@ -1,3 +1,10 @@
+elliptics (2.26.3.21) unstable; urgency=low
+
+  * net: Use list_splice_init correctly
+  * monitor: compress returned data via both http and elliptics protocols
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 10 Sep 2014 20:13:18 +0400
+
 elliptics (2.26.3.20) unstable; urgency=low
 
   * monitor: compress every possible json reply from server to client including error jsons

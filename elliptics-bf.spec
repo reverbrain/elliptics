@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.20
+Version:	2.26.3.21
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Sep 10 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.21
+- net: Use list_splice_init correctly
+- monitor: compress returned data via both http and elliptics protocols
+
 * Tue Sep 09 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.20
 - monitor: compress every possible json reply from server to client including error jsons
 - monitor: static function in headers must be inlined
