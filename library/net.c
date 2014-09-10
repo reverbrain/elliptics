@@ -1132,13 +1132,12 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	return st;
 
+err_out_send_destroy:
+	pthread_mutex_lock(&n->state_lock);
 err_out_unlock:
 	list_del_init(&st->node_entry);
 	list_del_init(&st->storage_state_entry);
 	pthread_mutex_unlock(&n->state_lock);
-err_out_send_destroy:
-	list_del_init(&st->node_entry);
-	list_del_init(&st->storage_state_entry);
 	dnet_state_put(st);
 	pthread_mutex_destroy(&st->send_lock);
 	pthread_mutex_destroy(&st->trans_lock);
