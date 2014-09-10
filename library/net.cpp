@@ -1118,16 +1118,12 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_
 	pthread_mutex_lock(&state.lock);
 	state.finished = true;
 
-	list_splice_init(&state.sockets_list, &state.sockets_queue);
+	list_splice_init(&state.sockets_queue, &state.sockets_list);
 
 	pthread_mutex_unlock(&state.lock);
 
 err_out_put:
 	// Timeout! We need to close every socket where we have not connected yet.
-
-	if (original_list) {
-		list_add_tail(&original_list->entry, &state.sockets_list);
-	}
 
 	if (err == 0)
 		err = -ECONNREFUSED;
@@ -1147,6 +1143,8 @@ err_out_put:
 
 				dnet_log(state.node, DNET_LOG_ERROR, "Could not connect to %s because of timeout",
 					dnet_server_convert_dnet_addr(&socket->addr));
+
+				dnet_add_to_reconnect_list(state.node, socket->addr, -ETIMEDOUT, state.join);
 
 				continue;
 			}
