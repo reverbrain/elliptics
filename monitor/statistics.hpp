@@ -29,13 +29,10 @@
 #include <sstream>
 #include <thread>
 
-#include <boost/array.hpp>
-
 #include "rapidjson/document.h"
 
 #include "../library/elliptics.h"
 
-#include "histogram.hpp"
 #include "monitor.h"
 
 namespace ioremap { namespace monitor {
@@ -138,44 +135,47 @@ struct command_counters {
 /*!
  * \internal
  *
- * Commands histograms which consists of 4 histograms (size vs time)
- * for \a cache, \a disk, \a cache_internal and \a disk_internal
+ * Command (read, write and so on) counters.
+ * This structure can be embedded into each backend and also into @statistics class
+ * to maintain global command counters.
+ *
  */
-struct command_histograms {
-	command_histograms(const std::vector<std::pair<uint64_t, std::string>> &xs,
-	                   const std::vector<std::pair<uint64_t, std::string>> &ys)
-	: cache(xs, ys)
-	, cache_internal(xs, ys)
-	, disk(xs, ys)
-	, disk_internal(xs, ys)
-	{}
+class command_stats {
+public:
+	command_stats();
+	command_stats(const command_stats &other);
 
 	/*!
-	 * \internal
 	 *
-	 * Hisogram size vs time of commands executed in cache
+	 * Returns an atomic copy of internal counters
 	 */
-	histogram	cache;
+	std::vector<command_counters> copy();
+
+	/*!
+	 * Adds executed command properties to different command statistics
+	 * \a cmd - identifier of the command
+	 * \a trans - number of transaction
+	 * \a err - error code
+	 * \a cache - flag which shows was the command executed by cache
+	 * \a size - size of data that takes a part in command execution
+	 * \a time - time spended on command execution
+	 */
+	void command_counter(int cmd, const int trans, const int err, const int cache,
+	                     const uint32_t size, const unsigned long time);
+
+private:
 	/*!
 	 * \internal
 	 *
-	 * Hisogram size vs time of commands executed in cache
-	 * which wasn't genereted by client
+	 * Lock for controlling access to commands statistics
 	 */
-	histogram	cache_internal;
+	mutable std::mutex m_cmd_stats_mutex;
 	/*!
 	 * \internal
 	 *
-	 * Hisogram size vs time of commands executed in disk
+	 * Commands statistics
 	 */
-	histogram	disk;
-	/*!
-	 * \internal
-	 *
-	 * Hisogram size vs time of commands executed in disk
-	 * which wasn't genereted by client
-	 */
-	histogram	disk_internal;
+	std::vector<command_counters> m_cmd_stats;
 };
 
 /*!
@@ -238,15 +238,6 @@ private:
 
 	/*!
 	 * \internal
-	 *
-	 * Fills \a stat_value by commands histograms statistics and returns it
-	 * \a allocator - document allocator that is required by rapidjson
-	 */
-	rapidjson::Value& histogram_report(rapidjson::Value &stat_value,
-	                                   rapidjson::Document::AllocatorType &allocator);
-
-	/*!
-	 * \internal
 	 * Fills \a stat_value by usefull vm statistics and returns it
 	 * \a allocator - document allocator that is required by rapidjson
 	 */
@@ -262,15 +253,9 @@ private:
 	/*!
 	 * \internal
 	 *
-	 * Lock for controlling access to commands statistics
+	 * Global command statistics counters
 	 */
-	mutable std::mutex				m_cmd_stats_mutex;
-	/*!
-	 * \internal
-	 *
-	 * Commands statistics
-	 */
-	boost::array<command_counters, __DNET_CMD_MAX> m_cmd_stats;
+	command_stats m_command_stats;
 
 	/*!
 	 * \internal
@@ -285,37 +270,6 @@ private:
 	 * Reference to monitor that created the statistics
 	 */
 	monitor							&m_monitor;
-
-	/*!
-	 * \internal
-	 *
-	 * Lock for controlling access to histograms
-	 */
-	mutable std::mutex				m_histograms_mutex;
-	/*!
-	 * \internal
-	 *
-	 * Histograms for read command
-	 */
-	command_histograms				m_read_histograms;
-	/*!
-	 * \internal
-	 *
-	 * Histograms for write command
-	 */
-	command_histograms				m_write_histograms;
-	/*!
-	 * \internal
-	 *
-	 * Histograms for index update command
-	 */
-	command_histograms				m_indx_update_histograms;
-	/*!
-	 * \internal
-	 *
-	 * Histograms for index update internal command
-	 */
-	command_histograms				m_indx_internal_histograms;
 
 	/*!
 	 * \internal

@@ -63,14 +63,12 @@ enum elliptics_monitor_categories {
 	elliptics_monitor_categories_cache = DNET_MONITOR_CACHE,
 	elliptics_monitor_categories_io = DNET_MONITOR_IO,
 	elliptics_monitor_categories_commands = DNET_MONITOR_COMMANDS,
-	elliptics_monitor_categories_io_histograms = DNET_MONITOR_IO_HISTOGRAMS,
 	elliptics_monitor_categories_backend = DNET_MONITOR_BACKEND,
 	elliptics_monitor_categories_call_tree = DNET_MONITOR_CALL_TREE,
 	elliptics_monitor_categories_procfs = DNET_MONITOR_PROCFS,
 	elliptics_monitor_categories_all = DNET_MONITOR_CACHE |
 	                                   DNET_MONITOR_IO |
 	                                   DNET_MONITOR_COMMANDS |
-	                                   DNET_MONITOR_IO_HISTOGRAMS |
 	                                   DNET_MONITOR_BACKEND |
 	                                   DNET_MONITOR_CALL_TREE |
 	                                   DNET_MONITOR_PROCFS
@@ -778,14 +776,12 @@ void init_elliptics_session() {
 		"cache\n    Category for cache statistics\n"
 		"io\n    Category for IO queue statistics\n"
 		"commands\n    Category for commands statistics\n"
-		"io_histograms\n    Category for IO hisograms statistics\n"
 		"backend\n    Category for backend statistics\n"
 		"call_tree\n    Category for react call tree statistics")
 		.value("all", elliptics_monitor_categories_all)
 		.value("cache", elliptics_monitor_categories_cache)
 		.value("io", elliptics_monitor_categories_io)
 		.value("commands", elliptics_monitor_categories_commands)
-		.value("io_histograms", elliptics_monitor_categories_io_histograms)
 		.value("backend", elliptics_monitor_categories_backend)
 		.value("call_tree", elliptics_monitor_categories_call_tree)
 		.value("procfs", elliptics_monitor_categories_procfs)

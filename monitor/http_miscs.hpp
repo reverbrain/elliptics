@@ -48,7 +48,6 @@ const std::string list = "<html>"
 	"GET <a href='/cache'>/cache</a> - Retrieves statistics about cache<br/>"
 	"GET <a href='/io'>/io</a> - Retrieves statistics about io statistics<br/>"
 	"GET <a href='/commands'>/commands</a> - Retrieves statistics about commands<br/>"
-	"GET <a href='/io_histograms'>/io_histograms</a> - Retrieves statistics about io histograms<br/>"
 	"GET <a href='/backend'>/backend</a> - Retrieves statistics about backend<br/>"
 	"GET <a href='/call_tree'>/call_tree</a> - Retrieves statistics about react call trees<br/>"
 	"GET <a href='/procfs'>/procfs</a> - Retrieves procfs statistics<br/>"
@@ -62,7 +61,6 @@ const std::map<std::string, uint64_t> handlers = {{"/all", DNET_MONITOR_ALL},
 	{"/cache", DNET_MONITOR_CACHE},
 	{"/io", DNET_MONITOR_IO},
 	{"/commands", DNET_MONITOR_COMMANDS},
-	{"/io_histograms", DNET_MONITOR_IO_HISTOGRAMS},
 	{"/backend", DNET_MONITOR_BACKEND},
 	{"/call_tree", DNET_MONITOR_CALL_TREE},
 	{"/procfs", DNET_MONITOR_PROCFS}};

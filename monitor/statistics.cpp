@@ -29,21 +29,33 @@
 
 namespace ioremap { namespace monitor {
 
-statistics::statistics(monitor& mon, struct dnet_config *cfg)
-: m_monitor(mon)
-, m_read_histograms(default_xs(), default_ys())
-, m_write_histograms(default_xs(), default_ys())
-, m_indx_update_histograms(default_xs(), default_ys())
-, m_indx_internal_histograms(default_xs(), default_ys()) {
-	memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
+command_stats::command_stats() : m_cmd_stats(__DNET_CMD_MAX)
+{
 }
 
-void statistics::command_counter(int cmd,
+command_stats::command_stats(const command_stats &other)
+{
+	std::unique_lock<std::mutex> guard(other.m_cmd_stats_mutex);
+	m_cmd_stats = other.m_cmd_stats;
+}
+
+std::vector<command_counters> command_stats::copy()
+{
+	std::vector<command_counters> tmp;
+
+	std::unique_lock<std::mutex> guard(m_cmd_stats_mutex);
+	tmp = m_cmd_stats;
+
+	return tmp;
+}
+
+void command_stats::command_counter(int cmd,
                                  const int trans,
                                  const int err,
                                  const int cache,
                                  const uint32_t size,
-                                 const unsigned long time) {
+                                 const unsigned long time)
+{
 	if (cmd >= __DNET_CMD_MAX || cmd <= 0)
 		cmd = DNET_CMD_UNKNOWN;
 
@@ -55,41 +67,24 @@ void statistics::command_counter(int cmd,
 	++counter;
 	source.size += size;
 	source.time += time;
-
-	std::unique_lock<std::mutex> hist_guard(m_histograms_mutex);
-	command_histograms *hist = NULL;
-
-	switch (cmd) {
-		case DNET_CMD_READ:
-			hist = &m_read_histograms;
-			break;
-		case DNET_CMD_WRITE:
-			hist = &m_write_histograms;
-			break;
-		case DNET_CMD_INDEXES_UPDATE:
-			hist = &m_indx_update_histograms;
-			break;
-		case DNET_CMD_INDEXES_INTERNAL:
-			hist = &m_indx_internal_histograms;
-			break;
-		default:
-			return;
-	}
-
-	if (cache) {
-		if (trans)
-			hist->cache.update(time, size);
-		else
-			hist->cache_internal.update(time, size);
-	} else {
-		if (trans)
-			hist->disk.update(time, size);
-		else
-			hist->disk_internal.update(time, size);
-	}
 }
 
-void statistics::add_provider(stat_provider *stat, const std::string &name) {
+void statistics::command_counter(int cmd,
+                                 const int trans,
+                                 const int err,
+                                 const int cache,
+                                 const uint32_t size,
+                                 const unsigned long time)
+{
+	m_command_stats.command_counter(cmd, trans, err, cache, size, time);
+}
+
+statistics::statistics(monitor& mon, struct dnet_config *cfg) : m_monitor(mon)
+{
+}
+
+void statistics::add_provider(stat_provider *stat, const std::string &name)
+{
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
 	m_stat_providers.emplace_back(std::unique_ptr<stat_provider>(stat), name);
 }
@@ -104,7 +99,8 @@ struct provider_remover_condition
 	}
 };
 
-void statistics::remove_provider(const std::string &name) {
+void statistics::remove_provider(const std::string &name)
+{
 	provider_remover_condition condition = { name };
 
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
@@ -112,14 +108,16 @@ void statistics::remove_provider(const std::string &name) {
 	m_stat_providers.erase(it, m_stat_providers.end());
 }
 
-inline std::string convert_report(const rapidjson::Document &report) {
+inline std::string convert_report(const rapidjson::Document &report)
+{
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
 	report.Accept(writer);
 	return compress(buffer.GetString());
 }
 
-std::string statistics::report(uint64_t categories) {
+std::string statistics::report(uint64_t categories)
+{
 	rapidjson::Document report;
 	dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: collecting statistics for categories: %lx", categories);
 	report.SetObject();
@@ -137,11 +135,6 @@ std::string statistics::report(uint64_t categories) {
 	if (categories & DNET_MONITOR_COMMANDS) {
 		rapidjson::Value commands_value(rapidjson::kObjectType);
 		report.AddMember("commands", commands_report(commands_value, allocator), allocator);
-	}
-
-	if (categories & DNET_MONITOR_IO_HISTOGRAMS) {
-		rapidjson::Value histogram_value(rapidjson::kObjectType);
-		report.AddMember("histogram", histogram_report(histogram_value, allocator), allocator);
 	}
 
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
@@ -238,11 +231,7 @@ static void clients_stat_json(dnet_node *n, rapidjson::Value &stat_value, rapidj
 }
 
 rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	boost::array<command_counters, __DNET_CMD_MAX> tmp_stats;
-	{
-		std::unique_lock<std::mutex> guard(m_cmd_stats_mutex);
-		tmp_stats = m_cmd_stats;
-	}
+	std::vector<command_counters> tmp_stats = m_command_stats.copy();
 
 	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
 		rapidjson::Value cmd_stat(rapidjson::kObjectType);
@@ -254,53 +243,6 @@ rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapi
 	clients_stat_json(m_monitor.node(), clients_stat, allocator);
 	stat_value.AddMember("clients", clients_stat, allocator);
 
-	return stat_value;
-}
-
-inline rapidjson::Value& command_histograms_print(rapidjson::Value &stat_value,
-                            rapidjson::Document::AllocatorType &allocator,
-                            command_histograms &histograms) {
-	rapidjson::Value disk(rapidjson::kObjectType);
-	rapidjson::Value cache(rapidjson::kObjectType);
-	rapidjson::Value disk_internal(rapidjson::kObjectType);
-	rapidjson::Value cache_internal(rapidjson::kObjectType);
-
-	stat_value.AddMember("disk",
-	                     histograms.disk.report(disk, allocator),
-	                     allocator)
-	          .AddMember("cache",
-	                     histograms.cache.report(cache, allocator),
-	                     allocator)
-	          .AddMember("disk_internal",
-	                     histograms.disk_internal.report(disk_internal, allocator),
-	                     allocator)
-	          .AddMember("cache_internal",
-	                     histograms.cache_internal.report(cache_internal, allocator),
-	                     allocator);
-
-	return stat_value;
-}
-
-rapidjson::Value& statistics::histogram_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	std::unique_lock<std::mutex> guard(m_histograms_mutex);
-
-	rapidjson::Value read_stat(rapidjson::kObjectType);
-	rapidjson::Value write_stat(rapidjson::kObjectType);
-	rapidjson::Value indx_update(rapidjson::kObjectType);
-	rapidjson::Value indx_internal(rapidjson::kObjectType);
-
-	stat_value.AddMember("read",
-	                     command_histograms_print(read_stat, allocator, m_read_histograms),
-	                     allocator)
-	          .AddMember("write",
-	                     command_histograms_print(write_stat, allocator, m_write_histograms),
-	                     allocator)
-	          .AddMember("indx_update",
-	                     command_histograms_print(indx_update, allocator, m_indx_update_histograms),
-	                     allocator)
-	          .AddMember("indx_internal",
-	                     command_histograms_print(indx_internal, allocator, m_indx_internal_histograms),
-	                     allocator);
 	return stat_value;
 }
 
