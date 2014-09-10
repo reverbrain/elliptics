@@ -1,3 +1,9 @@
+elliptics (2.26.3.22) unstable; urgency=low
+
+  * net: Surround state->node_entry changes by state_lock
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 10 Sep 2014 21:20:24 +0400
+
 elliptics (2.26.3.21) unstable; urgency=low
 
   * net: Use list_splice_init correctly

@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.21
+Version:	2.26.3.22
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Sep 10 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.22
+- net: Surround state->node_entry changes by state_lock
+
 * Wed Sep 10 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.21
 - net: Use list_splice_init correctly
 - monitor: compress returned data via both http and elliptics protocols
