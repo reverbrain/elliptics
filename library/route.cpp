@@ -122,16 +122,12 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		}
 	}
 
-	err = dnet_state_move_to_dht(st, &cnt->addrs[idx]);
+	err = dnet_state_move_to_dht(st, cnt->addrs, cnt->addr_num);
 	if (err) {
 		// dnet_state_move_to_dht internally resets the state, no need to reset it second time
 		state_already_reseted = true;
 		goto err_out_free;
 	}
-
-	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
-	if (err)
-		goto err_out_move_back;
 
 	dnet_state_set_server_prio(st);
 

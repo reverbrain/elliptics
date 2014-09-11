@@ -905,17 +905,11 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 
 		dnet_net_state *st = dnet_state_create(state.node, backends.get(),
 			id_container->backends_count, &socket->addr, socket->s,
-			&err, state.join, 1, idx, 0);
+			&err, state.join, 1, idx, 0, cnt->addrs, cnt->addr_num);
 
 		socket->s = -1;
 		if (!st) {
 			/* socket is already closed */
-			dnet_fail_socket(state, socket, err, false);
-			break;
-		}
-
-		err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
-		if (err) {
 			dnet_fail_socket(state, socket, err, false);
 			break;
 		}

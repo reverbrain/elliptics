@@ -195,7 +195,7 @@ const char *dnet_backend_defrag_state_string(uint32_t state)
 	}
 }
 
-int dnet_copy_addrs(struct dnet_net_state *nst, struct dnet_addr *addrs, int addr_num)
+int dnet_copy_addrs_nolock(struct dnet_net_state *nst, struct dnet_addr *addrs, int addr_num)
 {
 	char addr_str[128];
 	struct dnet_node *n = nst->n;
@@ -208,20 +208,15 @@ int dnet_copy_addrs(struct dnet_net_state *nst, struct dnet_addr *addrs, int add
 				addr_num, nst->addr_num, nst->idx);
 		goto err_out_exit;
 	}
-	pthread_mutex_lock(&n->state_lock);
 
 	nst->addrs = malloc(sizeof(struct dnet_addr) * addr_num);
 	if (!nst->addrs) {
-		pthread_mutex_unlock(&n->state_lock);
-
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
 	nst->addr_num = addr_num;
 	memcpy(nst->addrs, addrs, addr_num * sizeof(struct dnet_addr));
-
-	pthread_mutex_unlock(&n->state_lock);
 
 	dnet_server_convert_dnet_addr_raw(dnet_state_addr(nst), addr_str, sizeof(addr_str));
 	for (i = 0; i < addr_num; ++i) {

@@ -224,7 +224,7 @@ struct dnet_net_state
 int dnet_socket_local_addr(int s, struct dnet_addr *addr);
 int dnet_local_addr_index(struct dnet_node *n, struct dnet_addr *addr);
 
-int dnet_copy_addrs(struct dnet_net_state *nst, struct dnet_addr *addrs, int addr_num);
+int dnet_copy_addrs_nolock(struct dnet_net_state *nst, struct dnet_addr *addrs, int addr_num);
 
 struct dnet_idc;
 struct dnet_state_id {
@@ -249,11 +249,11 @@ void dnet_idc_destroy_nolock(struct dnet_net_state *st);
 int dnet_state_micro_init(struct dnet_net_state *st, struct dnet_node *n, struct dnet_addr *addr, int join);
 int dnet_state_set_server_prio(struct dnet_net_state *st);
 
-int dnet_state_move_to_dht(struct dnet_net_state *st, struct dnet_addr *addr);
+int dnet_state_move_to_dht(struct dnet_net_state *st, struct dnet_addr *addrs, int addrs_count);
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_backend_ids **backends, int backends_count,
 		struct dnet_addr *addr, int s, int *errp, int join, int server_node, int idx,
-		int accepting_state);
+		int accepting_state, struct dnet_addr *addrs, int addrs_count);
 
 void dnet_state_reset(struct dnet_net_state *st, int error);
 void dnet_state_clean(struct dnet_net_state *st);
