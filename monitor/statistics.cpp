@@ -29,6 +29,95 @@
 
 namespace ioremap { namespace monitor {
 
+static void ext_stat_json(const ext_counter &ext_stat,
+		rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	stat_value.AddMember("successes", ext_stat.counter.successes, allocator);
+	stat_value.AddMember("failures", ext_stat.counter.failures, allocator);
+	stat_value.AddMember("size", ext_stat.size, allocator);
+	stat_value.AddMember("time", ext_stat.time, allocator);
+}
+
+static void source_stat_json(const source_counter &source_stat, rapidjson::Value &stat_value,
+		rapidjson::Document::AllocatorType &allocator) {
+	rapidjson::Value outside_stat(rapidjson::kObjectType);
+	ext_stat_json(source_stat.outside, outside_stat, allocator);
+	stat_value.AddMember("outside", outside_stat, allocator);
+
+	rapidjson::Value internal_stat(rapidjson::kObjectType);
+	ext_stat_json(source_stat.internal, internal_stat, allocator);
+	stat_value.AddMember("internal", internal_stat, allocator);
+}
+
+static void dnet_stat_count_json(const dnet_stat_count &counter, rapidjson::Value &stat_value,
+		rapidjson::Document::AllocatorType &allocator) {
+	stat_value.AddMember("successes", counter.count, allocator);
+	stat_value.AddMember("failures", counter.err, allocator);
+}
+
+static void node_stat_json(dnet_node *n, int cmd, rapidjson::Value &stat_value,
+		rapidjson::Document::AllocatorType &allocator) {
+	rapidjson::Value storage_stat(rapidjson::kObjectType);
+	dnet_stat_count_json(n->counters[cmd], storage_stat, allocator);
+	stat_value.AddMember("storage", storage_stat, allocator);
+
+	rapidjson::Value proxy_stat(rapidjson::kObjectType);
+	dnet_stat_count_json(n->counters[cmd + __DNET_CMD_MAX], proxy_stat, allocator);
+	stat_value.AddMember("proxy", proxy_stat, allocator);
+}
+
+static void cmd_stat_json(dnet_node *node, int cmd, const command_counters &cmd_stat,
+		rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
+	rapidjson::Value cache_stat(rapidjson::kObjectType);
+	source_stat_json(cmd_stat.cache, cache_stat, allocator);
+	stat_value.AddMember("cache", cache_stat, allocator);
+
+	rapidjson::Value disk_stat(rapidjson::kObjectType);
+	source_stat_json(cmd_stat.disk, disk_stat, allocator);
+	stat_value.AddMember("disk", disk_stat, allocator);
+
+	/*
+	 * @node is only set for global counters
+	 */
+	if (node) {
+		rapidjson::Value total_stat(rapidjson::kObjectType);
+		node_stat_json(node, cmd, total_stat, allocator);
+		stat_value.AddMember("total", total_stat, allocator);
+	}
+}
+
+static void single_client_stat_json(dnet_net_state *st, rapidjson::Value &stat_value,
+		rapidjson::Document::AllocatorType &allocator) {
+	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
+		rapidjson::Value cmd_stat(rapidjson::kObjectType);
+		dnet_stat_count_json(st->stat[i], cmd_stat, allocator);
+		stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
+	}
+}
+
+static void clients_stat_json(dnet_node *n, rapidjson::Value &stat_value,
+		rapidjson::Document::AllocatorType &allocator) {
+	struct dnet_net_state *st;
+
+	pthread_mutex_lock(&n->state_lock);
+	try {
+		list_for_each_entry(st, &n->empty_state_list, node_entry) {
+			rapidjson::Value client_stat(rapidjson::kObjectType);
+			single_client_stat_json(st, client_stat, allocator);
+			stat_value.AddMember(dnet_server_convert_dnet_addr(&st->addr), allocator, client_stat, allocator);
+		}
+	} catch(std::exception &e) {
+		pthread_mutex_unlock(&n->state_lock);
+		dnet_log(n, DNET_LOG_ERROR, "monitor: failed collecting client state stats: %s", e.what());
+		throw;
+	} catch(...) {
+		pthread_mutex_unlock(&n->state_lock);
+		dnet_log(n, DNET_LOG_ERROR, "monitor: failed collecting client state stats: unknown exception");
+		throw;
+	}
+	pthread_mutex_unlock(&n->state_lock);
+}
+
+
 command_stats::command_stats() : m_cmd_stats(__DNET_CMD_MAX)
 {
 }
@@ -69,6 +158,22 @@ void command_stats::command_counter(int cmd,
 	source.time += time;
 }
 
+rapidjson::Value& command_stats::commands_report(dnet_node *node, rapidjson::Value &stat_value,
+		rapidjson::Document::AllocatorType &allocator) {
+	std::unique_lock<std::mutex> guard(m_cmd_stats_mutex);
+	std::vector<command_counters> tmp_stats = m_cmd_stats;
+	guard.unlock();
+
+	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
+		rapidjson::Value cmd_stat(rapidjson::kObjectType);
+		cmd_stat_json(node, i, tmp_stats[i], cmd_stat, allocator);
+		stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
+	}
+
+	return stat_value;
+}
+
+
 void statistics::command_counter(int cmd,
                                  const int trans,
                                  const int err,
@@ -81,6 +186,7 @@ void statistics::command_counter(int cmd,
 
 statistics::statistics(monitor& mon, struct dnet_config *cfg) : m_monitor(mon)
 {
+	(void) cfg;
 }
 
 void statistics::add_provider(stat_provider *stat, const std::string &name)
@@ -134,7 +240,13 @@ std::string statistics::report(uint64_t categories)
 
 	if (categories & DNET_MONITOR_COMMANDS) {
 		rapidjson::Value commands_value(rapidjson::kObjectType);
-		report.AddMember("commands", commands_report(commands_value, allocator), allocator);
+		m_command_stats.commands_report(m_monitor.node(), commands_value, allocator);
+
+		rapidjson::Value clients_stat(rapidjson::kObjectType);
+		clients_stat_json(m_monitor.node(), clients_stat, allocator);
+		commands_value.AddMember("clients", clients_stat, allocator);
+
+		report.AddMember("commands", commands_value, allocator);
 	}
 
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
@@ -153,105 +265,6 @@ std::string statistics::report(uint64_t categories)
 	dnet_log(m_monitor.node(), DNET_LOG_DEBUG,
 			"monitor: finished generating json statistics for categories: %lx", categories);
 	return convert_report(report);
-}
-
-static void ext_stat_json(const ext_counter &ext_stat,
-		rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	stat_value.AddMember("successes", ext_stat.counter.successes, allocator);
-	stat_value.AddMember("failures", ext_stat.counter.failures, allocator);
-	stat_value.AddMember("size", ext_stat.size, allocator);
-	stat_value.AddMember("time", ext_stat.time, allocator);
-}
-
-static void source_stat_json(const source_counter &source_stat, rapidjson::Value &stat_value,
-		rapidjson::Document::AllocatorType &allocator) {
-	rapidjson::Value outside_stat(rapidjson::kObjectType);
-	ext_stat_json(source_stat.outside, outside_stat, allocator);
-	stat_value.AddMember("outside", outside_stat, allocator);
-
-	rapidjson::Value internal_stat(rapidjson::kObjectType);
-	ext_stat_json(source_stat.internal, internal_stat, allocator);
-	stat_value.AddMember("internal", internal_stat, allocator);
-}
-
-static void dnet_stat_count_json(const dnet_stat_count &counter, rapidjson::Value &stat_value,
-		rapidjson::Document::AllocatorType &allocator) {
-	stat_value.AddMember("successes", counter.count, allocator);
-	stat_value.AddMember("failures", counter.err, allocator);
-}
-
-static void node_stat_json(dnet_node *n, int cmd, rapidjson::Value &stat_value,
-		rapidjson::Document::AllocatorType &allocator) {
-	rapidjson::Value storage_stat(rapidjson::kObjectType);
-	dnet_stat_count_json(n->counters[cmd], storage_stat, allocator);
-	stat_value.AddMember("storage", storage_stat, allocator);
-
-	rapidjson::Value proxy_stat(rapidjson::kObjectType);
-	dnet_stat_count_json(n->counters[cmd + __DNET_CMD_MAX], proxy_stat, allocator);
-	stat_value.AddMember("proxy", proxy_stat, allocator);
-}
-
-static void cmd_stat_json(dnet_node *node, int cmd, const command_counters &cmd_stat,
-		rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	rapidjson::Value cache_stat(rapidjson::kObjectType);
-	source_stat_json(cmd_stat.cache, cache_stat, allocator);
-	stat_value.AddMember("cache", cache_stat, allocator);
-
-	rapidjson::Value disk_stat(rapidjson::kObjectType);
-	source_stat_json(cmd_stat.disk, disk_stat, allocator);
-	stat_value.AddMember("disk", disk_stat, allocator);
-
-	rapidjson::Value total_stat(rapidjson::kObjectType);
-	node_stat_json(node, cmd, total_stat, allocator);
-	stat_value.AddMember("total", total_stat, allocator);
-}
-
-static void single_client_stat_json(dnet_net_state *st, rapidjson::Value &stat_value,
-		rapidjson::Document::AllocatorType &allocator) {
-	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
-		rapidjson::Value cmd_stat(rapidjson::kObjectType);
-		dnet_stat_count_json(st->stat[i], cmd_stat, allocator);
-		stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
-	}
-}
-
-static void clients_stat_json(dnet_node *n, rapidjson::Value &stat_value,
-		rapidjson::Document::AllocatorType &allocator) {
-	struct dnet_net_state *st;
-
-	pthread_mutex_lock(&n->state_lock);
-	try {
-		list_for_each_entry(st, &n->empty_state_list, node_entry) {
-			rapidjson::Value client_stat(rapidjson::kObjectType);
-			single_client_stat_json(st, client_stat, allocator);
-			stat_value.AddMember(dnet_server_convert_dnet_addr(&st->addr), allocator, client_stat, allocator);
-		}
-	} catch(std::exception &e) {
-		pthread_mutex_unlock(&n->state_lock);
-		dnet_log(n, DNET_LOG_ERROR, "monitor: failed collecting client state stats: %s", e.what());
-		throw;
-	} catch(...) {
-		pthread_mutex_unlock(&n->state_lock);
-		dnet_log(n, DNET_LOG_ERROR, "monitor: failed collecting client state stats: unknown exception");
-		throw;
-	}
-	pthread_mutex_unlock(&n->state_lock);
-}
-
-rapidjson::Value& statistics::commands_report(rapidjson::Value &stat_value, rapidjson::Document::AllocatorType &allocator) {
-	std::vector<command_counters> tmp_stats = m_command_stats.copy();
-
-	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
-		rapidjson::Value cmd_stat(rapidjson::kObjectType);
-		cmd_stat_json(m_monitor.node(), i, tmp_stats[i], cmd_stat, allocator);
-		stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
-	}
-
-	rapidjson::Value clients_stat(rapidjson::kObjectType);
-	clients_stat_json(m_monitor.node(), clients_stat, allocator);
-	stat_value.AddMember("clients", clients_stat, allocator);
-
-	return stat_value;
 }
 
 }} /* namespace ioremap::monitor */

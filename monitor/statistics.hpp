@@ -163,6 +163,13 @@ public:
 	void command_counter(int cmd, const int trans, const int err, const int cache,
 	                     const uint32_t size, const unsigned long time);
 
+	/*!
+	 * Fills \a a stat_value by commands statistics and returns it
+	 * \a allocator - document allocator that is required by rapidjson
+	 */
+	rapidjson::Value& commands_report(dnet_node *node, rapidjson::Value &stat_value,
+	                                  rapidjson::Document::AllocatorType &allocator);
+
 private:
 	/*!
 	 * \internal
@@ -227,15 +234,6 @@ public:
 	void add_provider(stat_provider *stat, const std::string &name);
 	void remove_provider(const std::string &name);
 private:
-	/*!
-	 * \internal
-	 *
-	 * Fills \a a stat_value by commands statistics and returns it
-	 * \a allocator - document allocator that is required by rapidjson
-	 */
-	rapidjson::Value& commands_report(rapidjson::Value &stat_value,
-	                                  rapidjson::Document::AllocatorType &allocator);
-
 	/*!
 	 * \internal
 	 * Fills \a stat_value by usefull vm statistics and returns it
