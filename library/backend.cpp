@@ -252,13 +252,20 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 		}
 	}
 
+	err = dnet_backend_command_stats_init(backend_io);
+	if (err) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to allocate command stat structure, "
+				"err: %d, elapsed: %s", backend_id, err, elapsed(start));
+		goto err_out_cache_cleanup;
+	}
+
 	backend_io->cb = &backend.config.cb;
 
 	err = dnet_backend_io_init(node, backend_io, backend.io_thread_num, backend.nonblocking_io_thread_num);
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init io pool, err: %d, elapsed: %s",
 			backend_id, err, elapsed(start));
-		goto err_out_cache_cleanup;
+		goto err_out_command_stats_cleanup;
 	}
 
 	ids_num = 0;
@@ -267,8 +274,8 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 	free(ids);
 
 	if (err) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to add backend to route list, err: %d, elapsed: %s",
-			backend_id, err, elapsed(start));
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to add backend to route list, "
+				"err: %d, elapsed: %s", backend_id, err, elapsed(start));
 		goto err_out_backend_io_cleanup;
 	}
 
@@ -287,6 +294,8 @@ err_out_backend_io_cleanup:
 	backend_io->need_exit = 1;
 	dnet_backend_io_cleanup(node, backend_io);
 	node->io->backends[backend_id].cb = NULL;
+err_out_command_stats_cleanup:
+	dnet_backend_command_stats_cleanup(backend_io);
 err_out_cache_cleanup:
 	if (backend.cache) {
 		dnet_cache_cleanup(backend.cache);
@@ -317,7 +326,8 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 		std::lock_guard<std::mutex> guard(*backend.state_mutex);
 		*state = backend.state;
 		if (backend.state != DNET_BACKEND_ENABLED) {
-			dnet_log(node, DNET_LOG_ERROR, "backend_cleanup: backend: %zu, trying to destroy not activated backend", backend_id);
+			dnet_log(node, DNET_LOG_ERROR, "backend_cleanup: backend: %zu, trying to destroy not activated backend",
+					backend_id);
 			if (*state == DNET_BACKEND_DISABLED)
 				return -EALREADY;
 			else if (*state == DNET_BACKEND_DEACTIVATING)
@@ -340,6 +350,8 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 	if (backend_io)
 		dnet_backend_io_cleanup(node, backend_io);
 
+	if (backend_io)
+		dnet_backend_command_stats_cleanup(backend_io);
 	dnet_cache_cleanup(backend.cache);
 	if (backend_io)
 		backend_io->cb = NULL;

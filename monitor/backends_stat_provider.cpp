@@ -226,3 +226,31 @@ std::string backends_stat_provider::json(uint64_t categories) const {
 }
 
 }} /* namespace ioremap::monitor */
+
+
+int dnet_backend_command_stats_init(struct dnet_backend_io *backend_io)
+{
+	int err = 0;
+
+	try {
+		backend_io->command_stats = (void *)new ioremap::monitor::command_stats();
+	} catch (...) {
+		err = -ENOMEM;
+	}
+
+	return err;
+}
+
+void dnet_backend_command_stats_cleanup(struct dnet_backend_io *backend_io)
+{
+	delete (ioremap::monitor::command_stats *)backend_io->command_stats;
+}
+
+void dnet_backend_command_stats_update(struct dnet_node *node, struct dnet_backend_io *backend_io,
+		struct dnet_cmd *cmd, struct dnet_io_attr *io, int handled_in_cache, int err, long diff)
+{
+	ioremap::monitor::command_stats *stats = (ioremap::monitor::command_stats *)backend_io->command_stats;
+
+	(void) node;
+	stats->command_counter(cmd->cmd, cmd->trans, err, handled_in_cache, io ? io->size : 0, diff);
+}

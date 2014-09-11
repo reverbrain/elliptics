@@ -897,12 +897,17 @@ static int dnet_process_cmd_without_backend_raw(struct dnet_net_state *st, struc
 	return err;
 }
 
-static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int *handled_in_cache)
+static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, struct dnet_net_state *st,
+		struct dnet_cmd *cmd, void *data, int *handled_in_cache)
 {
 	int err = 0;
 	unsigned long long size = cmd->size;
 	struct dnet_node *n = st->n;
 	struct dnet_io_attr *io = NULL;
+	long diff;
+	struct timeval start, end;
+
+	gettimeofday(&start, NULL);
 
 	switch (cmd->cmd) {
 		case DNET_CMD_ITERATOR:
@@ -1011,6 +1016,10 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 			break;
 	}
 
+	gettimeofday(&end, NULL);
+	diff = DIFF(start, end);
+
+	dnet_backend_command_stats_update(n, backend, cmd, io, *handled_in_cache, err, diff);
 	return err;
 }
 
@@ -1021,8 +1030,6 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	unsigned long long tid = cmd->trans;
 	struct dnet_io_attr *io = NULL;
 	struct timeval start, end;
-
-#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
 
 	long diff;
 	int handled_in_cache = 0;
@@ -1177,8 +1184,6 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 		err = dnet_send_fd(st, c, hsize, fd, offset, rio->size, on_exit);
 
 	gettimeofday(&send_tv, NULL);
-
-#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
 
 	csum_time = DIFF(start_tv, csum_tv);
 	send_time = DIFF(csum_tv, send_tv);

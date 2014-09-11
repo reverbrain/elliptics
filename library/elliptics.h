@@ -492,7 +492,13 @@ struct dnet_backend_io
 	struct dnet_io_pool		pool;
 	struct dnet_backend_callbacks	*cb;
 	void				*cache;
+	void				*command_stats;
 };
+
+int dnet_backend_command_stats_init(struct dnet_backend_io *backend_io);
+void dnet_backend_command_stats_cleanup(struct dnet_backend_io *backend_io);
+void dnet_backend_command_stats_update(struct dnet_node *node, struct dnet_backend_io *backend_io,
+		struct dnet_cmd *cmd, struct dnet_io_attr *io, int handled_in_cache, int err, long diff);
 
 struct dnet_io {
 	int			need_exit;
