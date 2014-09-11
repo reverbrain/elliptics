@@ -124,4 +124,6 @@
 #endif
 #endif
 
+#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
+
 #endif /* __DNET_CORE_H */
