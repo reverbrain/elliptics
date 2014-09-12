@@ -118,33 +118,20 @@ static void clients_stat_json(dnet_node *n, rapidjson::Value &stat_value,
 }
 
 
-command_stats::command_stats() : m_cmd_stats(__DNET_CMD_MAX)
+command_stats::command_stats()
 {
+	m_cmd_stats.resize(__DNET_CMD_MAX);
 }
 
-command_stats::command_stats(const command_stats &other)
-{
-	std::unique_lock<std::mutex> guard(other.m_cmd_stats_mutex);
-	m_cmd_stats = other.m_cmd_stats;
-}
-
-std::vector<command_counters> command_stats::copy()
-{
-	std::vector<command_counters> tmp;
-
-	std::unique_lock<std::mutex> guard(m_cmd_stats_mutex);
-	tmp = m_cmd_stats;
-
-	return tmp;
-}
-
-void command_stats::command_counter(int cmd,
+void command_stats::command_counter(const int orig_cmd,
                                  const int trans,
                                  const int err,
                                  const int cache,
-                                 const uint32_t size,
+                                 const uint64_t size,
                                  const unsigned long time)
 {
+	int cmd = orig_cmd;
+
 	if (cmd >= __DNET_CMD_MAX || cmd <= 0)
 		cmd = DNET_CMD_UNKNOWN;
 
@@ -174,11 +161,11 @@ rapidjson::Value& command_stats::commands_report(dnet_node *node, rapidjson::Val
 }
 
 
-void statistics::command_counter(int cmd,
+void statistics::command_counter(const int cmd,
                                  const int trans,
                                  const int err,
                                  const int cache,
-                                 const uint32_t size,
+                                 const uint64_t size,
                                  const unsigned long time)
 {
 	m_command_stats.command_counter(cmd, trans, err, cache, size, time);

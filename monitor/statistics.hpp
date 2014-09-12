@@ -109,12 +109,16 @@ private:
 struct base_counter {
 	uint64_t successes;
 	uint64_t failures;
+
+	base_counter() : successes(0), failures(0) {}
 };
 
 struct ext_counter {
 	base_counter	counter;
 	uint64_t		size;
 	uint64_t		time;
+
+	ext_counter() : size(0), time(0) {}
 };
 
 struct source_counter {
@@ -143,13 +147,6 @@ struct command_counters {
 class command_stats {
 public:
 	command_stats();
-	command_stats(const command_stats &other);
-
-	/*!
-	 *
-	 * Returns an atomic copy of internal counters
-	 */
-	std::vector<command_counters> copy();
 
 	/*!
 	 * Adds executed command properties to different command statistics
@@ -160,8 +157,8 @@ public:
 	 * \a size - size of data that takes a part in command execution
 	 * \a time - time spended on command execution
 	 */
-	void command_counter(int cmd, const int trans, const int err, const int cache,
-	                     const uint32_t size, const unsigned long time);
+	void command_counter(const int cmd, const int trans, const int err, const int cache,
+	                     const uint64_t size, const unsigned long time);
 
 	/*!
 	 * Fills \a a stat_value by commands statistics and returns it
@@ -176,7 +173,8 @@ private:
 	 *
 	 * Lock for controlling access to commands statistics
 	 */
-	mutable std::mutex m_cmd_stats_mutex;
+	std::mutex m_cmd_stats_mutex;
+
 	/*!
 	 * \internal
 	 *
@@ -222,8 +220,8 @@ public:
 	 * \a size - size of data that takes a part in command execution
 	 * \a time - time spended on command execution
 	 */
-	void command_counter(int cmd, const int trans, const int err, const int cache,
-	                     const uint32_t size, const unsigned long time);
+	void command_counter(const int cmd, const int trans, const int err, const int cache,
+	                     const uint64_t size, const unsigned long time);
 
 	/*!
 	 * \internal
@@ -260,21 +258,22 @@ private:
 	 *
 	 * Lock for controlling access to \a m_cmd_info_previous
 	 */
-	mutable std::mutex				m_cmd_info_previous_mutex;
+	std::mutex m_cmd_info_previous_mutex;
 
 	/*!
 	 * \internal
 	 *
 	 * Reference to monitor that created the statistics
 	 */
-	monitor							&m_monitor;
+	monitor &m_monitor;
 
 	/*!
 	 * \internal
 	 *
 	 * Lock for controlling access to vector of external statistics provider
 	 */
-	mutable std::mutex				m_provider_mutex;
+	std::mutex m_provider_mutex;
+
 	std::vector<std::pair<std::unique_ptr<stat_provider>, std::string>>	m_stat_providers;
 };
 
