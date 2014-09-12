@@ -118,12 +118,20 @@ struct ext_counter {
 	uint64_t		size;
 	uint64_t		time;
 
+	bool has_data() const {
+		return size != 0 && time != 0;
+	}
+
 	ext_counter() : size(0), time(0) {}
 };
 
 struct source_counter {
 	ext_counter	outside;
 	ext_counter	internal;
+
+	bool has_data() const {
+		return outside.has_data() || internal.has_data();
+	}
 };
 
 /*!
@@ -134,6 +142,10 @@ struct source_counter {
 struct command_counters {
 	source_counter	cache;
 	source_counter	disk;
+
+	bool has_data() const {
+		return cache.has_data() || disk.has_data();
+	}
 };
 
 /*!
@@ -165,7 +177,7 @@ public:
 	 * \a allocator - document allocator that is required by rapidjson
 	 */
 	rapidjson::Value& commands_report(dnet_node *node, rapidjson::Value &stat_value,
-	                                  rapidjson::Document::AllocatorType &allocator);
+	                                  rapidjson::Document::AllocatorType &allocator) const;
 
 private:
 	/*!
@@ -173,7 +185,7 @@ private:
 	 *
 	 * Lock for controlling access to commands statistics
 	 */
-	std::mutex m_cmd_stats_mutex;
+	mutable std::mutex m_cmd_stats_mutex;
 
 	/*!
 	 * \internal

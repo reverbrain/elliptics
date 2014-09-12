@@ -146,15 +146,17 @@ void command_stats::command_counter(const int orig_cmd,
 }
 
 rapidjson::Value& command_stats::commands_report(dnet_node *node, rapidjson::Value &stat_value,
-		rapidjson::Document::AllocatorType &allocator) {
+		rapidjson::Document::AllocatorType &allocator) const {
 	std::unique_lock<std::mutex> guard(m_cmd_stats_mutex);
 	std::vector<command_counters> tmp_stats = m_cmd_stats;
 	guard.unlock();
 
 	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
-		rapidjson::Value cmd_stat(rapidjson::kObjectType);
-		cmd_stat_json(node, i, tmp_stats[i], cmd_stat, allocator);
-		stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
+		if (tmp_stats[i].has_data()) {
+			rapidjson::Value cmd_stat(rapidjson::kObjectType);
+			cmd_stat_json(node, i, tmp_stats[i], cmd_stat, allocator);
+			stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
+		}
 	}
 
 	return stat_value;
