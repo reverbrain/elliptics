@@ -110,6 +110,10 @@ struct base_counter {
 	uint64_t successes;
 	uint64_t failures;
 
+	bool has_data() const {
+		return successes != 0 || failures != 0;
+	}
+
 	base_counter() : successes(0), failures(0) {}
 };
 
@@ -119,7 +123,7 @@ struct ext_counter {
 	uint64_t		time;
 
 	bool has_data() const {
-		return size != 0 && time != 0;
+		return size != 0 || time != 0 || counter.has_data();
 	}
 
 	ext_counter() : size(0), time(0) {}
