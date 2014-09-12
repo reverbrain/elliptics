@@ -161,12 +161,13 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 
 	if (status.state == DNET_BACKEND_ENABLED && node->io) {
 		const struct dnet_backend_io & backend = node->io->backends[backend_id];
-#if 0
+
 		if (categories & DNET_MONITOR_COMMANDS) {
+			const command_stats *stats = (command_stats *)(backend.command_stats);
 			rapidjson::Value commands_value(rapidjson::kObjectType);
-			stat_value.AddMember("commands", commands_report(NULL, commands_value, allocator), allocator);
+			stat_value.AddMember("commands", stats->commands_report(NULL, commands_value, allocator), allocator);
 		}
-#endif
+
 		if (categories & DNET_MONITOR_BACKEND) {
 			fill_backend_backend(stat_value, allocator, backend);
 		}
