@@ -88,9 +88,11 @@ static void cmd_stat_json(dnet_node *node, int cmd, const command_counters &cmd_
 static void single_client_stat_json(dnet_net_state *st, rapidjson::Value &stat_value,
 		rapidjson::Document::AllocatorType &allocator) {
 	for (int i = 1; i < __DNET_CMD_MAX; ++i) {
-		rapidjson::Value cmd_stat(rapidjson::kObjectType);
-		dnet_stat_count_json(st->stat[i], cmd_stat, allocator);
-		stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
+		if (st->stat[i].count != 0 || st->stat[i].err != 0) {
+			rapidjson::Value cmd_stat(rapidjson::kObjectType);
+			dnet_stat_count_json(st->stat[i], cmd_stat, allocator);
+			stat_value.AddMember(dnet_cmd_string(i), allocator, cmd_stat, allocator);
+		}
 	}
 }
 
