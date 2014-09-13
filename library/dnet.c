@@ -901,7 +901,6 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 		struct dnet_cmd *cmd, void *data, int *handled_in_cache)
 {
 	int err = 0;
-	unsigned long long size = cmd->size;
 	struct dnet_node *n = st->n;
 	struct dnet_io_attr *io = NULL;
 	long diff;
@@ -953,9 +952,9 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 			}
 
 			io = NULL;
-			if (size < sizeof(struct dnet_io_attr)) {
-				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd: %u, rest_size: %llu",
-					dnet_dump_id(&cmd->id), cmd->cmd, size);
+			if (cmd->size < sizeof(struct dnet_io_attr)) {
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd: %u, cmd.size: %llu",
+					dnet_dump_id(&cmd->id), cmd->cmd, (unsigned long long)cmd->size);
 				err = -EINVAL;
 				break;
 			}
@@ -1072,13 +1071,30 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 
 	diff = DIFF(start, end);
 
-	// do not count error read size
-	// otherwise it leads to HUGE read traffic stats, although nothing was actually read
-	if (io) {
-		size = io->size;
-		if (cmd->cmd == DNET_CMD_READ && err < 0)
-			size = 0;
+	switch (cmd->cmd) {
+		case DNET_CMD_READ:
+		case DNET_CMD_WRITE:
+		case DNET_CMD_DEL:
+			if (cmd->size < sizeof(struct dnet_io_attr)) {
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd: %u, cmd.size: %llu",
+					dnet_dump_id(&cmd->id), cmd->cmd, (unsigned long long)cmd->size);
+				err = -EINVAL;
+				break;
+			}
+
+			// no need to convert IO attribute here, it is aloready converted in backend processing code
+			io = data;
+
+			// do not count error read size
+			// otherwise it leads to HUGE read traffic stats, although nothing was actually read
+			size = io->size;
+			if (cmd->cmd == DNET_CMD_READ && err < 0)
+				size = 0;
+			break;
+		default:
+			break;
 	}
+
 	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, size, diff);
 
 	if (((cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_WRITE)) && io) {
