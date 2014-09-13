@@ -1001,16 +1001,16 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 				}
 			}
 
-			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command
+			/* Remove DNET_FLAGS_NEED_ACK flags for READ and WRITE commands
 			   to eliminate double reply packets
-			   (the first one with dnet_file_info structure,
-			   the second to destroy transaction on client side) */
+			   (the first one with dnet_file_info structure or data has been read,
+			   the second to destroy transaction on client side, i.e. packet without DNET_FLAGS_MORE bit) */
 			if ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ)) {
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
 			err = backend->cb->command_handler(st, backend->cb->command_private, cmd, data);
 
-			/* If there was error in WRITE command - send empty reply
+			/* If there was error in READ or WRITE command - send empty reply
 			   to notify client with error code and destroy transaction */
 			if (err && ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ))) {
 				cmd->flags |= DNET_FLAGS_NEED_ACK;
