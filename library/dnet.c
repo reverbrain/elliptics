@@ -903,6 +903,7 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 	int err = 0;
 	struct dnet_node *n = st->n;
 	struct dnet_io_attr *io = NULL;
+	uint64_t iosize = 0;
 	long diff;
 	struct timeval start, end;
 
@@ -961,6 +962,12 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 			io = data;
 			dnet_convert_io_attr(io);
 
+			// do not count error read size
+			// otherwise it leads to HUGE read traffic stats, although nothing was actually read
+			iosize = io->size;
+			if (cmd->cmd == DNET_CMD_READ && err < 0)
+				iosize = 0;
+
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
 
@@ -1018,7 +1025,7 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 	gettimeofday(&end, NULL);
 	diff = DIFF(start, end);
 
-	dnet_backend_command_stats_update(n, backend, cmd, io, *handled_in_cache, err, diff);
+	dnet_backend_command_stats_update(n, backend, cmd, iosize, *handled_in_cache, err, diff);
 	return err;
 }
 

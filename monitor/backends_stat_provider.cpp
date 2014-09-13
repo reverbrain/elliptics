@@ -249,21 +249,13 @@ void dnet_backend_command_stats_cleanup(struct dnet_backend_io *backend_io)
 }
 
 void dnet_backend_command_stats_update(struct dnet_node *node, struct dnet_backend_io *backend_io,
-		struct dnet_cmd *cmd, struct dnet_io_attr *io, int handled_in_cache, int err, long diff)
+		struct dnet_cmd *cmd, uint64_t size, int handled_in_cache, int err, long diff)
 {
-	uint64_t size = 0;
 	ioremap::monitor::command_stats *stats = (ioremap::monitor::command_stats *)backend_io->command_stats;
 
 	assert(stats != NULL);
 
 	(void) node;
 
-	// do not count error read size
-	// otherwise it leads to HUGE read traffic stats, although nothing was actually read
-	if (io) {
-		size = io->size;
-		if (cmd->cmd == DNET_CMD_READ && err < 0)
-			size = 0;
-	}
 	stats->command_counter(cmd->cmd, cmd->trans, err, handled_in_cache, size, diff);
 }
