@@ -1030,6 +1030,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	unsigned long long tid = cmd->trans;
 	struct dnet_io_attr *io = NULL;
 	struct timeval start, end;
+	uint64_t size = 0;
 
 	long diff;
 	int handled_in_cache = 0;
@@ -1070,7 +1071,15 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	gettimeofday(&end, NULL);
 
 	diff = DIFF(start, end);
-	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, io ? io->size : 0, diff);
+
+	// do not count error read size
+	// otherwise it leads to HUGE read traffic stats, although nothing was actually read
+	if (io) {
+		size = io->size;
+		if (cmd->cmd == DNET_CMD_READ && err < 0)
+			size = 0;
+	}
+	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, size, diff);
 
 	if (((cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_WRITE)) && io) {
 		char time_str[64];
