@@ -962,12 +962,6 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 			io = data;
 			dnet_convert_io_attr(io);
 
-			// do not count error read size
-			// otherwise it leads to HUGE read traffic stats, although nothing was actually read
-			iosize = io->size;
-			if (cmd->cmd == DNET_CMD_READ && err < 0)
-				iosize = 0;
-
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
 
@@ -1025,7 +1019,17 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 	gettimeofday(&end, NULL);
 	diff = DIFF(start, end);
 
-	dnet_backend_command_stats_update(n, backend, cmd, iosize, *handled_in_cache, err, diff);
+
+	if (io) {
+		iosize = io->size;
+
+		// do not count error read size
+		// otherwise it leads to HUGE read traffic stats, although nothing was actually read
+		if (cmd->cmd == DNET_CMD_READ && err < 0)
+			iosize = 0;
+	}
+
+	dnet_backend_command_stats_update(n, cmd, iosize, *handled_in_cache, err, diff);
 	return err;
 }
 
@@ -1036,7 +1040,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	unsigned long long tid = cmd->trans;
 	struct dnet_io_attr *io = NULL;
 	struct timeval start, end;
-	uint64_t size = 0;
+	uint64_t iosize = 0;
 
 	long diff;
 	int handled_in_cache = 0;
@@ -1068,14 +1072,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 		err = dnet_process_cmd_with_backend_raw(backend, st, cmd, data, &handled_in_cache);
 	}
 
-	dnet_stat_inc(st->stat, cmd->cmd, err);
-	if (st->__join_state == DNET_JOIN)
-		dnet_counter_inc(n, cmd->cmd, err);
-	else
-		dnet_counter_inc(n, cmd->cmd + __DNET_CMD_MAX, err);
-
 	gettimeofday(&end, NULL);
-
 	diff = DIFF(start, end);
 
 	switch (cmd->cmd) {
@@ -1092,17 +1089,11 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 			// no need to convert IO attribute here, it is aloready converted in backend processing code
 			io = data;
 
-			// do not count error read size
-			// otherwise it leads to HUGE read traffic stats, although nothing was actually read
-			size = io->size;
-			if (cmd->cmd == DNET_CMD_READ && err < 0)
-				size = 0;
+
 			break;
 		default:
 			break;
 	}
-
-	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, size, diff);
 
 	if (((cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_WRITE)) && io) {
 		char time_str[64];
@@ -1110,6 +1101,12 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 		struct timeval io_tv;
 
 		/* io has been already set in the switch above */
+
+		// do not count error read size
+		// otherwise it leads to HUGE read traffic stats, although nothing was actually read
+		iosize = io->size;
+		if (cmd->cmd == DNET_CMD_READ && err < 0)
+			iosize = 0;
 
 		io_tv.tv_sec = io->timestamp.tsec;
 		io_tv.tv_usec = io->timestamp.tnsec / 1000;
@@ -1133,6 +1130,9 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 				tid, dnet_flags_dump_cflags(cmd->flags), diff, err);
 	}
 
+	// we must provide real error from the backend into statistics
+	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, iosize, diff);
+
 	err = dnet_send_ack(st, cmd, err, recursive);
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
@@ -1143,6 +1143,12 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	if (react_was_activated) {
 		react_deactivate();
 	}
+
+	dnet_stat_inc(st->stat, cmd->cmd, err);
+	if (st->__join_state == DNET_JOIN)
+		dnet_counter_inc(n, cmd->cmd, err);
+	else
+		dnet_counter_inc(n, cmd->cmd + __DNET_CMD_MAX, err);
 
 	return err;
 }
