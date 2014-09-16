@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.22
+Version:	2.26.3.23
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 16 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.23
+- stats: implemented per-backend command counters
+- log: returned back extended io command log
+- stats: only print commands which have non-zero counters
+- ioclient: added options to change backend status (enable, disable, ro, writable)
+- cache: slru destruction debug
+- stats: get rid of histograms
+
 * Wed Sep 10 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.22
 - net: Surround state->node_entry changes by state_lock
 
