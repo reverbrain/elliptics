@@ -269,6 +269,7 @@ int dnet_route_list::disable_backend(size_t backend_id)
 int dnet_route_list::on_reverse_lookup(dnet_net_state *st, dnet_cmd *cmd, void *data)
 {
 	react::action_guard action_guard(ACTION_DNET_CMD_REVERSE_LOOKUP);
+	std::lock_guard<std::mutex> lock_guard(m_mutex);
 	return dnet_cmd_reverse_lookup(st, cmd, data);
 }
 
@@ -280,6 +281,7 @@ int dnet_route_list::on_join(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 int dnet_route_list::join(dnet_net_state *st)
 {
+	std::lock_guard<std::mutex> lock_guard(m_mutex);
 	dnet_pthread_lock_guard guard(st->n->state_lock);
 
 	return dnet_state_join_nolock(st);
@@ -288,7 +290,6 @@ int dnet_route_list::join(dnet_net_state *st)
 int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct)
 {
 	using namespace ioremap::elliptics;
-	std::lock_guard<std::mutex> lock_guard(m_mutex);
 
 	size_t total_size = sizeof(dnet_addr_cmd) + m_node->addr_num * sizeof(dnet_addr) + sizeof(dnet_id_container);
 	size_t backends_count = 0;
@@ -355,6 +356,7 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64
 void dnet_route_list::send_update_to_states(dnet_cmd *cmd, size_t backend_id)
 {
 	dnet_net_state *state;
+	dnet_pthread_lock_guard guard(m_node->state_lock);
 
 	list_for_each_entry(state, &m_node->storage_state_list, storage_state_entry) {
 		if (!state->__ids_sent || state == m_node->st)
