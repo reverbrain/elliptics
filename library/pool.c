@@ -44,7 +44,7 @@ static char *dnet_work_io_mode_str(int mode)
 	return dnet_work_io_mode_string[mode];
 }
 
-static void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
+void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
 {
 	int i;
 	struct dnet_io_req *r, *tmp;
@@ -162,7 +162,7 @@ static void dnet_work_pool_place_cleanup(struct dnet_work_pool_place *pool)
 	pthread_cond_destroy(&pool->wait);
 }
 
-static int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n,
+int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n,
 	struct dnet_backend_io *io, int num, int mode, void *(* process)(void *))
 {
 	int err;
@@ -248,7 +248,6 @@ static int dnet_cmd_needs_backend(int command)
 	return 1;
 }
 
-static void *dnet_io_process(void *data_);
 void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 {
 	struct dnet_work_pool_place *place = NULL;
@@ -1000,7 +999,7 @@ static struct dnet_io_req *take_request(struct dnet_work_io *wio)
 	return NULL;
 }
 
-static void *dnet_io_process(void *data_)
+void *dnet_io_process(void *data_)
 {
 	struct dnet_work_io *wio = data_;
 	struct dnet_work_pool *pool = wio->pool;
@@ -1287,35 +1286,4 @@ void dnet_io_exit(struct dnet_node *n)
 
 	free(io);
 	n->io = NULL;
-}
-
-int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io, int io_thread_num, int nonblocking_io_thread_num)
-{
-	int err = 0;
-
-	err = dnet_work_pool_alloc(&io->pool.recv_pool, n, io, io_thread_num, DNET_WORK_IO_MODE_BLOCKING, dnet_io_process);
-	if (err) {
-		goto err_out_exit;
-	}
-	err = dnet_work_pool_alloc(&io->pool.recv_pool_nb, n, io, nonblocking_io_thread_num, DNET_WORK_IO_MODE_NONBLOCKING, dnet_io_process);
-	if (err) {
-		err = -ENOMEM;
-		goto err_out_free_recv_pool;
-	}
-
-	return 0;
-
-err_out_free_recv_pool:
-	n->need_exit = 1;
-	dnet_work_pool_cleanup(&io->pool.recv_pool);
-err_out_exit:
-	return err;
-}
-
-void dnet_backend_io_cleanup(struct dnet_node *n, struct dnet_backend_io *io)
-{
-	(void) n;
-
-	dnet_work_pool_cleanup(&io->pool.recv_pool);
-	dnet_work_pool_cleanup(&io->pool.recv_pool_nb);
 }

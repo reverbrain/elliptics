@@ -487,7 +487,7 @@ static int dnet_validate_route_list(const char *server_addr, dnet_node *node, st
 		}
 
 		dnet_log(node, DNET_LOG_DEBUG, "route-list: from: %s, node: %d, addr: %s",
-			dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr)), i / cnt->node_addr_num, rem_addr);
+			server_addr, i / cnt->node_addr_num, dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr)));
 	}
 
 err_out_exit:
@@ -544,8 +544,8 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 		goto err_out_exit;
 	}
 
-	for (size_t i = 0; i < states_num; i += cnt->node_addr_num) {
-		dnet_addr *addr = &cnt->addrs[i + st->idx];
+	for (size_t i = 0; i < states_num; ++i) {
+		dnet_addr *addr = &cnt->addrs[i * cnt->node_addr_num + st->idx];
 		memcpy(&addrs[i], addr, sizeof(dnet_addr));
 	}
 
@@ -560,6 +560,7 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 	pthread_mutex_lock(&state->lock);
 
 	if (!state->finished) {
+		atomic_inc(&state->route_list_count);
 		list_add(&sockets->entry, &state->sockets_queue);
 		added_to_queue = true;
 	}
@@ -569,8 +570,8 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 	if (added_to_queue) {
 		dnet_interrupt_epoll(*state);
 
-		dnet_log(node, DNET_LOG_INFO, "Trying to connect to additional %llu states of %llu original from route_list_recv, state: %s",
-			sockets_count, states_num, server_addr);
+		dnet_log(node, DNET_LOG_INFO, "Trying to connect to additional %llu states of %llu original from route_list_recv, state: %s, route_list_count: %lld",
+			sockets_count, states_num, server_addr, atomic_read(&state->route_list_count));
 	} else {
 		dnet_log(node, DNET_LOG_ERROR, "Failed to connect to additional %llu states of %llu original from route_list_recv, state: %s, state is already desotryed, adding to reconnect list",
 			sockets_count, states_num, server_addr);
@@ -687,6 +688,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		list_for_each_entry_safe(list, tmp, &local_queue, entry) {
 			dnet_socket_connect_new_sockets(state, list);
 
+			atomic_dec(&state.route_list_count);
 			dnet_log(state.node, DNET_LOG_NOTICE, "Received route-list reply, count: %lld, route_list_count: %lld",
 				list->sockets_count, atomic_read(&state.route_list_count));
 		}
@@ -1116,16 +1118,12 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_
 	pthread_mutex_lock(&state.lock);
 	state.finished = true;
 
-	list_splice_init(&state.sockets_list, &state.sockets_queue);
+	list_splice_init(&state.sockets_queue, &state.sockets_list);
 
 	pthread_mutex_unlock(&state.lock);
 
 err_out_put:
 	// Timeout! We need to close every socket where we have not connected yet.
-
-	if (original_list) {
-		list_add_tail(&original_list->entry, &state.sockets_list);
-	}
 
 	if (err == 0)
 		err = -ECONNREFUSED;
@@ -1145,6 +1143,8 @@ err_out_put:
 
 				dnet_log(state.node, DNET_LOG_ERROR, "Could not connect to %s because of timeout",
 					dnet_server_convert_dnet_addr(&socket->addr));
+
+				dnet_add_to_reconnect_list(state.node, socket->addr, -ETIMEDOUT, state.join);
 
 				continue;
 			}

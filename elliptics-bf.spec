@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.19
+Version:	2.26.3.23
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:	python-devel
 BuildRequires:	libcocaine-core2-devel >= 0.11.2.0
 BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
-BuildRequires:	eblob-devel >= 0.22.4
+BuildRequires:	eblob-devel >= 0.22.6
 BuildRequires:	react-devel >= 2.3.1
 BuildRequires:  libblackhole-devel >= 0.2.0-2
 BuildRequires:	libev-devel libtool-ltdl-devel
@@ -143,6 +143,31 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 16 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.23
+- stats: implemented per-backend command counters
+- log: returned back extended io command log
+- stats: only print commands which have non-zero counters
+- ioclient: added options to change backend status (enable, disable, ro, writable)
+- cache: slru destruction debug
+- stats: get rid of histograms
+
+* Wed Sep 10 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.22
+- net: Surround state->node_entry changes by state_lock
+
+* Wed Sep 10 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.21
+- net: Use list_splice_init correctly
+- monitor: compress returned data via both http and elliptics protocols
+
+* Tue Sep 09 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.20
+- monitor: compress every possible json reply from server to client including error jsons
+- monitor: static function in headers must be inlined
+- net: Fixed race condition of route-list counter
+- net: Fixed parsing of route list for dual stack
+- server: Set not-null address for accepting state
+- net: Fixed debug output for route lists
+- library: Added session::request_single_cmd
+- trans: Fixed trans_id at transactions' destruction
+
 * Tue Sep 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.19
 - Pytest: added checking requesting all categories.
 - monitor: add 'group' to 'backend->config' only if it was requested

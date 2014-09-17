@@ -19,6 +19,7 @@
 
 #include "monitor.h"
 #include "monitor.hpp"
+#include "compress.hpp"
 
 #include <exception>
 
@@ -161,7 +162,7 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	struct dnet_node *n = orig->n;
 	struct dnet_monitor_stat_request *req = static_cast<struct dnet_monitor_stat_request *>(data);
 	dnet_convert_monitor_stat_request(req);
-	static const std::string disabled_reply = "{\"monitor_status\":\"disabled\"}";
+	static const std::string disabled_reply = ioremap::monitor::compress("{\"monitor_status\":\"disabled\"}");
 
 	dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, categories: %lx, monitor: %p",
 		dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), req->categories, n->monitor);
@@ -174,7 +175,7 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 		auto json = real_monitor->get_statistics().report(req->categories);
 		return dnet_send_reply(orig, cmd, &*json.begin(), json.size(), 0);
 	} catch(std::exception &e) {
-		static const std::string rep = "{\"monitor_status\":\"failed: " + std::string(e.what()) + "\"}";
+		const std::string rep = ioremap::monitor::compress("{\"monitor_status\":\"failed: " + std::string(e.what()) + "\"}");
 		dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: failed to generate json: %s", e.what());
 		return dnet_send_reply(orig, cmd, &*rep.begin(), rep.size(), 0);
 	}

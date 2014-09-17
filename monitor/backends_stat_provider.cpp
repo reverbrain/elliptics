@@ -166,6 +166,12 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 	if (status.state == DNET_BACKEND_ENABLED && node->io) {
 		const struct dnet_backend_io & backend = node->io->backends[backend_id];
 
+		if (categories & DNET_MONITOR_COMMANDS) {
+			const command_stats *stats = (command_stats *)(backend.command_stats);
+			rapidjson::Value commands_value(rapidjson::kObjectType);
+			stat_value.AddMember("commands", stats->commands_report(NULL, commands_value, allocator), allocator);
+		}
+
 		if (categories & DNET_MONITOR_BACKEND) {
 			fill_backend_backend(stat_value, allocator, backend);
 		}
@@ -225,3 +231,37 @@ std::string backends_stat_provider::json(uint64_t categories) const {
 }
 
 }} /* namespace ioremap::monitor */
+
+#include <fstream>
+
+int dnet_backend_command_stats_init(struct dnet_backend_io *backend_io)
+{
+	int err = 0;
+
+	try {
+		backend_io->command_stats = (void *)(new ioremap::monitor::command_stats());
+	} catch (...) {
+		backend_io->command_stats = NULL;
+		err = -ENOMEM;
+	}
+
+	return err;
+}
+
+void dnet_backend_command_stats_cleanup(struct dnet_backend_io *backend_io)
+{
+	delete (ioremap::monitor::command_stats *)backend_io->command_stats;
+	backend_io->command_stats = NULL;
+}
+
+void dnet_backend_command_stats_update(struct dnet_node *node, struct dnet_backend_io *backend_io,
+		struct dnet_cmd *cmd, uint64_t size, int handled_in_cache, int err, long diff)
+{
+	ioremap::monitor::command_stats *stats = (ioremap::monitor::command_stats *)backend_io->command_stats;
+
+	assert(stats != NULL);
+
+	(void) node;
+
+	stats->command_counter(cmd->cmd, cmd->trans, err, handled_in_cache, size, diff);
+}

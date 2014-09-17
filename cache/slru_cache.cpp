@@ -40,9 +40,12 @@ slru_cache_t::slru_cache_t(struct dnet_backend_io *backend, struct dnet_node *n,
 
 slru_cache_t::~slru_cache_t() {
 	react_start_action(ACTION_CACHE_DESTRUCT);
+	dnet_log(m_node, DNET_LOG_NOTICE, "cache: disable: backend: %zu: destructing SLRU cache\n", m_backend->backend_id);
 	m_lifecheck.join();
+	dnet_log(m_node, DNET_LOG_NOTICE, "cache: disable: backend: %zu: clearing\n", m_backend->backend_id);
 	clear();
 	react_stop_action(ACTION_CACHE_DESTRUCT);
+	dnet_log(m_node, DNET_LOG_NOTICE, "cache: disable: backend: %zu: destructed\n", m_backend->backend_id);
 }
 
 int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {

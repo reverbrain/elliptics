@@ -29,13 +29,10 @@
 #include <sstream>
 #include <thread>
 
-#include <boost/array.hpp>
-
 #include "rapidjson/document.h"
 
 #include "../library/elliptics.h"
 
-#include "histogram.hpp"
 #include "monitor.h"
 
 namespace ioremap { namespace monitor {
@@ -112,17 +109,33 @@ private:
 struct base_counter {
 	uint64_t successes;
 	uint64_t failures;
+
+	bool has_data() const {
+		return successes != 0 || failures != 0;
+	}
+
+	base_counter() : successes(0), failures(0) {}
 };
 
 struct ext_counter {
 	base_counter	counter;
 	uint64_t		size;
 	uint64_t		time;
+
+	bool has_data() const {
+		return size != 0 || time != 0 || counter.has_data();
+	}
+
+	ext_counter() : size(0), time(0) {}
 };
 
 struct source_counter {
 	ext_counter	outside;
 	ext_counter	internal;
+
+	bool has_data() const {
+		return outside.has_data() || internal.has_data();
+	}
 };
 
 /*!
@@ -133,49 +146,57 @@ struct source_counter {
 struct command_counters {
 	source_counter	cache;
 	source_counter	disk;
+
+	bool has_data() const {
+		return cache.has_data() || disk.has_data();
+	}
 };
 
 /*!
  * \internal
  *
- * Commands histograms which consists of 4 histograms (size vs time)
- * for \a cache, \a disk, \a cache_internal and \a disk_internal
+ * Command (read, write and so on) counters.
+ * This structure can be embedded into each backend and also into @statistics class
+ * to maintain global command counters.
+ *
  */
-struct command_histograms {
-	command_histograms(const std::vector<std::pair<uint64_t, std::string>> &xs,
-	                   const std::vector<std::pair<uint64_t, std::string>> &ys)
-	: cache(xs, ys)
-	, cache_internal(xs, ys)
-	, disk(xs, ys)
-	, disk_internal(xs, ys)
-	{}
+class command_stats {
+public:
+	command_stats();
+
+	/*!
+	 * Adds executed command properties to different command statistics
+	 * \a cmd - identifier of the command
+	 * \a trans - number of transaction
+	 * \a err - error code
+	 * \a cache - flag which shows was the command executed by cache
+	 * \a size - size of data that takes a part in command execution
+	 * \a time - time spended on command execution
+	 */
+	void command_counter(const int cmd, const int trans, const int err, const int cache,
+	                     const uint64_t size, const unsigned long time);
+
+	/*!
+	 * Fills \a a stat_value by commands statistics and returns it
+	 * \a allocator - document allocator that is required by rapidjson
+	 */
+	rapidjson::Value& commands_report(dnet_node *node, rapidjson::Value &stat_value,
+	                                  rapidjson::Document::AllocatorType &allocator) const;
+
+private:
+	/*!
+	 * \internal
+	 *
+	 * Lock for controlling access to commands statistics
+	 */
+	mutable std::mutex m_cmd_stats_mutex;
 
 	/*!
 	 * \internal
 	 *
-	 * Hisogram size vs time of commands executed in cache
+	 * Commands statistics
 	 */
-	histogram	cache;
-	/*!
-	 * \internal
-	 *
-	 * Hisogram size vs time of commands executed in cache
-	 * which wasn't genereted by client
-	 */
-	histogram	cache_internal;
-	/*!
-	 * \internal
-	 *
-	 * Hisogram size vs time of commands executed in disk
-	 */
-	histogram	disk;
-	/*!
-	 * \internal
-	 *
-	 * Hisogram size vs time of commands executed in disk
-	 * which wasn't genereted by client
-	 */
-	histogram	disk_internal;
+	std::vector<command_counters> m_cmd_stats;
 };
 
 /*!
@@ -215,8 +236,8 @@ public:
 	 * \a size - size of data that takes a part in command execution
 	 * \a time - time spended on command execution
 	 */
-	void command_counter(int cmd, const int trans, const int err, const int cache,
-	                     const uint32_t size, const unsigned long time);
+	void command_counter(const int cmd, const int trans, const int err, const int cache,
+	                     const uint64_t size, const unsigned long time);
 
 	/*!
 	 * \internal
@@ -227,24 +248,6 @@ public:
 	void add_provider(stat_provider *stat, const std::string &name);
 	void remove_provider(const std::string &name);
 private:
-	/*!
-	 * \internal
-	 *
-	 * Fills \a a stat_value by commands statistics and returns it
-	 * \a allocator - document allocator that is required by rapidjson
-	 */
-	rapidjson::Value& commands_report(rapidjson::Value &stat_value,
-	                                  rapidjson::Document::AllocatorType &allocator);
-
-	/*!
-	 * \internal
-	 *
-	 * Fills \a stat_value by commands histograms statistics and returns it
-	 * \a allocator - document allocator that is required by rapidjson
-	 */
-	rapidjson::Value& histogram_report(rapidjson::Value &stat_value,
-	                                   rapidjson::Document::AllocatorType &allocator);
-
 	/*!
 	 * \internal
 	 * Fills \a stat_value by usefull vm statistics and returns it
@@ -262,67 +265,31 @@ private:
 	/*!
 	 * \internal
 	 *
-	 * Lock for controlling access to commands statistics
+	 * Global command statistics counters
 	 */
-	mutable std::mutex				m_cmd_stats_mutex;
-	/*!
-	 * \internal
-	 *
-	 * Commands statistics
-	 */
-	boost::array<command_counters, __DNET_CMD_MAX> m_cmd_stats;
+	command_stats m_command_stats;
 
 	/*!
 	 * \internal
 	 *
 	 * Lock for controlling access to \a m_cmd_info_previous
 	 */
-	mutable std::mutex				m_cmd_info_previous_mutex;
+	std::mutex m_cmd_info_previous_mutex;
 
 	/*!
 	 * \internal
 	 *
 	 * Reference to monitor that created the statistics
 	 */
-	monitor							&m_monitor;
-
-	/*!
-	 * \internal
-	 *
-	 * Lock for controlling access to histograms
-	 */
-	mutable std::mutex				m_histograms_mutex;
-	/*!
-	 * \internal
-	 *
-	 * Histograms for read command
-	 */
-	command_histograms				m_read_histograms;
-	/*!
-	 * \internal
-	 *
-	 * Histograms for write command
-	 */
-	command_histograms				m_write_histograms;
-	/*!
-	 * \internal
-	 *
-	 * Histograms for index update command
-	 */
-	command_histograms				m_indx_update_histograms;
-	/*!
-	 * \internal
-	 *
-	 * Histograms for index update internal command
-	 */
-	command_histograms				m_indx_internal_histograms;
+	monitor &m_monitor;
 
 	/*!
 	 * \internal
 	 *
 	 * Lock for controlling access to vector of external statistics provider
 	 */
-	mutable std::mutex				m_provider_mutex;
+	std::mutex m_provider_mutex;
+
 	std::vector<std::pair<std::unique_ptr<stat_provider>, std::string>>	m_stat_providers;
 };
 

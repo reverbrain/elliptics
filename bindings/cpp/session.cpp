@@ -1419,6 +1419,7 @@ async_write_result session::write_cache(const key &id, const argument_data &file
 	return write_data(ctl);
 }
 
+// TODO: Remove this method in elliptics-2.27
 std::string session::lookup_address(const key &id, int group_id)
 {
 	char buf[128];
@@ -1668,6 +1669,7 @@ struct quorum_lookup_aggregator_handler
 		}
 
 		assert(false);
+		exit(-22);
 	}
 
 	void complete_if_no_works() {

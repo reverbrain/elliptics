@@ -1,3 +1,40 @@
+elliptics (2.26.3.23) unstable; urgency=low
+
+  * stats: implemented per-backend command counters
+  * log: returned back extended io command log
+  * stats: only print commands which have non-zero counters
+  * ioclient: added options to change backend status (enable, disable, ro, writable)
+  * cache: slru destruction debug
+  * stats: get rid of histograms
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 16 Sep 2014 18:52:08 +0400
+
+elliptics (2.26.3.22) unstable; urgency=low
+
+  * net: Surround state->node_entry changes by state_lock
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 10 Sep 2014 21:20:24 +0400
+
+elliptics (2.26.3.21) unstable; urgency=low
+
+  * net: Use list_splice_init correctly
+  * monitor: compress returned data via both http and elliptics protocols
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 10 Sep 2014 20:13:18 +0400
+
+elliptics (2.26.3.20) unstable; urgency=low
+
+  * monitor: compress every possible json reply from server to client including error jsons
+  * monitor: static function in headers must be inlined
+  * net: Fixed race condition of route-list counter
+  * net: Fixed parsing of route list for dual stack
+  * server: Set not-null address for accepting state
+  * net: Fixed debug output for route lists
+  * library: Added session::request_single_cmd
+  * trans: Fixed trans_id at transactions' destruction
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Sep 2014 00:28:16 +0400
+
 elliptics (2.26.3.19) unstable; urgency=low
 
   * Pytest: added checking requesting all categories.

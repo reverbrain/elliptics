@@ -131,6 +131,49 @@ err_out_exit:
 	return NULL;
 }
 
+static int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io, int io_thread_num, int nonblocking_io_thread_num)
+{
+	int err;
+
+	err = dnet_backend_command_stats_init(io);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "dnet_backend_io_init: backend: %zu, failed to allocate command stat structure: %d",
+				io->backend_id, err);
+		goto err_out_exit;
+	}
+
+	err = dnet_work_pool_alloc(&io->pool.recv_pool, n, io, io_thread_num, DNET_WORK_IO_MODE_BLOCKING, dnet_io_process);
+	if (err) {
+		goto err_out_command_stats_cleanup;
+	}
+	err = dnet_work_pool_alloc(&io->pool.recv_pool_nb, n, io, nonblocking_io_thread_num, DNET_WORK_IO_MODE_NONBLOCKING, dnet_io_process);
+	if (err) {
+		err = -ENOMEM;
+		goto err_out_free_recv_pool;
+	}
+
+	return 0;
+
+err_out_free_recv_pool:
+	n->need_exit = 1;
+	dnet_work_pool_cleanup(&io->pool.recv_pool);
+err_out_command_stats_cleanup:
+	dnet_backend_command_stats_cleanup(io);
+err_out_exit:
+	return err;
+}
+
+static void dnet_backend_io_cleanup(struct dnet_node *n, struct dnet_backend_io *io)
+{
+	(void) n;
+
+	dnet_work_pool_cleanup(&io->pool.recv_pool);
+	dnet_work_pool_cleanup(&io->pool.recv_pool_nb);
+	dnet_backend_command_stats_cleanup(io);
+
+	dnet_log(n, DNET_LOG_NOTICE, "dnet_backend_io_cleanup: backend: %zu", io->backend_id);
+}
+
 static const char *elapsed(const dnet_time &start)
 {
 	static __thread char buffer[64];
@@ -242,23 +285,23 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 		goto err_out_exit;
 	}
 
-	if (backend.cache_config) {
-		backend_io->cache = backend.cache = dnet_cache_init(node, backend_io, backend.cache_config.get());
-		if (!backend.cache) {
-			err = -ENOMEM;
-			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init cache, err: %d, elapsed: %s",
-				backend_id, err, elapsed(start));
-			goto err_out_backend_cleanup;
-		}
-	}
-
 	backend_io->cb = &backend.config.cb;
 
 	err = dnet_backend_io_init(node, backend_io, backend.io_thread_num, backend.nonblocking_io_thread_num);
 	if (err) {
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init io pool, err: %d, elapsed: %s",
 			backend_id, err, elapsed(start));
-		goto err_out_cache_cleanup;
+		goto err_out_backend_cleanup;
+	}
+
+	if (backend.cache_config) {
+		backend_io->cache = backend.cache = dnet_cache_init(node, backend_io, backend.cache_config.get());
+		if (!backend.cache) {
+			err = -ENOMEM;
+			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to init cache, err: %d, elapsed: %s",
+				backend_id, err, elapsed(start));
+			goto err_out_backend_io_cleanup;
+		}
 	}
 
 	ids_num = 0;
@@ -267,9 +310,9 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 	free(ids);
 
 	if (err) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to add backend to route list, err: %d, elapsed: %s",
-			backend_id, err, elapsed(start));
-		goto err_out_backend_io_cleanup;
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, failed to add backend to route list, "
+				"err: %d, elapsed: %s", backend_id, err, elapsed(start));
+		goto err_out_cache_cleanup;
 	}
 
 	dnet_log(node, DNET_LOG_INFO, "backend_init: backend: %zu, initialized, elapsed: %s", backend_id, elapsed(start));
@@ -283,16 +326,16 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 	return 0;
 
 	dnet_route_list_disable_backend(node->route, backend_id);
-err_out_backend_io_cleanup:
-	backend_io->need_exit = 1;
-	dnet_backend_io_cleanup(node, backend_io);
-	node->io->backends[backend_id].cb = NULL;
 err_out_cache_cleanup:
 	if (backend.cache) {
 		dnet_cache_cleanup(backend.cache);
 		backend.cache = NULL;
 		backend_io->cache = NULL;
 	}
+err_out_backend_io_cleanup:
+	backend_io->need_exit = 1;
+	dnet_backend_io_cleanup(node, backend_io);
+	node->io->backends[backend_id].cb = NULL;
 err_out_backend_cleanup:
 	backend.config.cleanup(&backend.config);
 err_out_exit:
@@ -317,7 +360,8 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 		std::lock_guard<std::mutex> guard(*backend.state_mutex);
 		*state = backend.state;
 		if (backend.state != DNET_BACKEND_ENABLED) {
-			dnet_log(node, DNET_LOG_ERROR, "backend_cleanup: backend: %zu, trying to destroy not activated backend", backend_id);
+			dnet_log(node, DNET_LOG_ERROR, "backend_cleanup: backend: %zu, trying to destroy not activated backend",
+				backend_id);
 			if (*state == DNET_BACKEND_DISABLED)
 				return -EALREADY;
 			else if (*state == DNET_BACKEND_DEACTIVATING)
@@ -330,20 +374,28 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 
 	dnet_log(node, DNET_LOG_INFO, "backend_cleanup: backend: %zu, destroying", backend_id);
 
-	dnet_backend_io *backend_io = node->io ? &node->io->backends[backend_id] : NULL;
-	if (backend_io)
-		backend_io->need_exit = 1;
-
 	if (node->route)
 		dnet_route_list_disable_backend(node->route, backend_id);
 
-	if (backend_io)
-		dnet_backend_io_cleanup(node, backend_io);
+	dnet_backend_io *backend_io = node->io ? &node->io->backends[backend_id] : NULL;
 
-	dnet_cache_cleanup(backend.cache);
+	// set @need_exit to true to force cache lifecheck thread to exit and slru cacge to sync all elements to backend
+	// this also leads to IO threads to stop, but since we already removed itself from route table,
+	// and cache syncs data to backend either in lifecheck thread or in destructor context,
+	// it is safe to set @need_exit early
 	if (backend_io)
-		backend_io->cb = NULL;
+		backend_io->need_exit = 1;
+
+	dnet_log(node, DNET_LOG_INFO, "backend_cleanup: backend: %zu: cleaning cache", backend_id);
+	dnet_cache_cleanup(backend.cache);
 	backend.cache = NULL;
+
+	dnet_log(node, DNET_LOG_INFO, "backend_cleanup: backend: %zu: cleaning io: %p", backend_id, backend_io);
+	if (backend_io) {
+		dnet_backend_io_cleanup(node, backend_io);
+		backend_io->cb = NULL;
+	}
+
 	backend.config.cleanup(&backend.config);
 	memset(&backend.config.cb, 0, sizeof(backend.config.cb));
 

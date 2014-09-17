@@ -4,13 +4,16 @@ include /usr/share/cdbs/1/rules/debhelper.mk
 include /usr/share/cdbs/1/class/cmake.mk
 
 ELLIPTICS_VERSION := "$(shell dpkg-parsechangelog | sed -n -r -e 's/^Version: ([^.]+\.[^.]+\.[^.]).*/\1/p')"
+ELLIPTICS_MAJOR := $(shell echo $(ELLIPTICS_VERSION)|cut -f1 -d.)
+ELLIPTICS_MINOR := $(shell echo $(ELLIPTICS_VERSION)|cut -f2 -d.)
+ELLIPTICS_NEXT_VERSION := "$(ELLIPTICS_MAJOR).$(shell echo $$(( $(ELLIPTICS_MINOR) + 1 )) )"
 PYTHON_LIB_PATH := "$(shell python -c 'from distutils import sysconfig; print sysconfig.get_python_lib(),')"
 
 DEB_CMAKE_EXTRA_FLAGS := -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 DEB_DH_STRIP_ARGS := --dbg-package=elliptics-dbg
-DEB_DH_MAKESHLIBS_ARGS_elliptics := -V "elliptics (>= $(ELLIPTICS_VERSION))"
-DEB_DH_MAKESHLIBS_ARGS_elliptics-client := -V "elliptics-client (>= $(ELLIPTICS_VERSION))"
+DEB_DH_MAKESHLIBS_ARGS_elliptics := -V "elliptics (>= $(ELLIPTICS_VERSION)), elliptics (<< $(ELLIPTICS_NEXT_VERSION))"
+DEB_DH_MAKESHLIBS_ARGS_elliptics-client := -V "elliptics-client (>= $(ELLIPTICS_VERSION)), elliptics-client (<< $(ELLIPTICS_NEXT_VERSION))"
 DEB_COMPRESS_EXCLUDE := .conf
 DEB_MAKE_CHECK_TARGET=test
 

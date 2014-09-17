@@ -67,6 +67,8 @@ static void dnet_usage(char *p)
 			" -d request_string    - defragmentation request: 'start' - start defragmentation, 'status' - request current status\n"
 			" -i flags             - IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h\n"
 			" -H                   - do not hash id, use it as is\n"
+			" -b backend_id        - operate with given backend ID, it is needed for defragmentation request or backend status update\n"
+			" -B status            - change backend status, possible options are: enable, disable, enable_write, disable_write, status (default)\n"
 			" -h                   - this help\n"
 			" ...                  - every parameter can be repeated multiple times, in this case the last one will be used\n"
 			, p);
@@ -104,13 +106,14 @@ int main(int argc, char *argv[])
 	std::vector<int> groups;
 	uint64_t cflags = 0;
 	uint64_t ioflags = 0;
-	char *defrag = NULL;
+	char *defrag_status_str = NULL;
 	sigset_t mask;
 	char *ns = NULL;
 	int nsize = 0;
 	std::string as_is_key;
 	int exec_src_key = -1;
 	int backend_id = -1;
+	char *backend_status_str = NULL;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -126,13 +129,13 @@ int main(int argc, char *argv[])
 	cfg.wait_timeout = 60;
 	dnet_log_level log_level = DNET_LOG_ERROR;
 
-	while ((ch = getopt(argc, argv, "i:d:C:A:f:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:k:I:r:W:R:D:hHb:")) != -1) {
+	while ((ch = getopt(argc, argv, "i:d:C:A:f:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:k:I:r:W:R:D:hHb:B:")) != -1) {
 		switch (ch) {
 			case 'i':
 				ioflags = strtoull(optarg, NULL, 0);
 				break;
 			case 'd':
-				defrag = optarg;
+				defrag_status_str = optarg;
 				break;
 			case 'C':
 				cflags = strtoull(optarg, NULL, 0);
@@ -234,6 +237,9 @@ int main(int argc, char *argv[])
 			case 'b':
 				backend_id = atoi(optarg);
 				break;
+			case 'B':
+				backend_status_str = optarg;
+				break;
 			case 'h':
 			default:
 				dnet_usage(argv[0]);
@@ -247,7 +253,7 @@ int main(int argc, char *argv[])
 		/*
 		 * Only request stats or start defrag on the single node
 		 */
-		if (single_node_stat && defrag) {
+		if (single_node_stat && defrag_status_str) {
 			remote_flags = DNET_CFG_NO_ROUTE_LIST;
 			cfg.flags |= DNET_CFG_NO_ROUTE_LIST;
 		}
@@ -287,22 +293,40 @@ int main(int argc, char *argv[])
 		s.set_groups(groups);
 		s.set_namespace(ns, nsize);
 
-		if (defrag) {
-			const bool request_status = !strcmp(defrag, "status");
-
-			if (!request_status && backend_id < 0) {
+		if (defrag_status_str || backend_status_str) {
+			if (backend_id < 0) {
 				fprintf(stderr, "You must specify backend id (-b)\n");
 				return -EINVAL;
 			}
+
+			std::string defrag_status, backend_status;
+			if (defrag_status_str)
+				defrag_status.assign(defrag_status_str);
+			else
+				backend_status.assign(backend_status_str);
 
 			session sess = s.clone();
 			sess.set_exceptions_policy(session::no_exceptions);
 
 			async_backend_status_result result;
-			if (request_status)
-				result = sess.request_backends_status(ra);
-			else
+
+			if (defrag_status == "start") {
 				result = sess.start_defrag(ra, backend_id);
+			} else if ((defrag_status == "status") || (backend_status == "status")) {
+				result = sess.request_backends_status(ra);
+			} else if (backend_status == "enable") {
+				result = sess.enable_backend(ra, backend_id);
+			} else if (backend_status == "disable") {
+				result = sess.disable_backend(ra, backend_id);
+			} else if (backend_status == "enable_write") {
+				result = sess.make_writable(ra, backend_id);
+			} else if (backend_status == "disable_write") {
+				result = sess.make_readonly(ra, backend_id);
+			} else {
+				fprintf(stderr, "Invalid %s status '%s'\n", defrag_status_str ? "defrag" : "backend",
+						defrag_status_str ? defrag_status_str : backend_status_str);
+				return -EINVAL;
+			}
 
 			result.wait();
 
@@ -314,12 +338,12 @@ int main(int argc, char *argv[])
 				for (size_t i = 0; i < entry.count(); ++i) {
 					dnet_backend_status *status = entry.backend(i);
 					std::cout << "backend: " << status->backend_id << " at " << dnet_server_convert_dnet_addr(entry.address()) << std::endl;
-					std::cout << "backend state: " << dnet_backend_state_string(status->state) << std::endl;
-					std::cout << "defrag  state: " << dnet_backend_defrag_state_string(status->defrag_state) << std::endl;
+					std::cout << "  backend state: " << dnet_backend_state_string(status->state) << std::endl;
+					std::cout << "  defrag  state: " << dnet_backend_defrag_state_string(status->defrag_state) << std::endl;
 					if (dnet_time_is_empty(&status->last_start)) {
-						std::cout << "has never been started" << std::endl;
+						std::cout << "  backend has never been started" << std::endl;
 					} else {
-						std::cout << "last start: " << dnet_print_time(&status->last_start) << ", err: " << status->last_start_err << std::endl;
+						std::cout << "  backend last start: " << dnet_print_time(&status->last_start) << ", err: " << status->last_start_err << std::endl;
 					}
 				}
 			} else {

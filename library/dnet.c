@@ -897,12 +897,17 @@ static int dnet_process_cmd_without_backend_raw(struct dnet_net_state *st, struc
 	return err;
 }
 
-static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int *handled_in_cache)
+static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, struct dnet_net_state *st,
+		struct dnet_cmd *cmd, void *data, int *handled_in_cache)
 {
 	int err = 0;
-	unsigned long long size = cmd->size;
 	struct dnet_node *n = st->n;
 	struct dnet_io_attr *io = NULL;
+	uint64_t iosize = 0;
+	long diff;
+	struct timeval start, end;
+
+	gettimeofday(&start, NULL);
 
 	switch (cmd->cmd) {
 		case DNET_CMD_ITERATOR:
@@ -948,9 +953,9 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 			}
 
 			io = NULL;
-			if (size < sizeof(struct dnet_io_attr)) {
-				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd: %u, rest_size: %llu",
-					dnet_dump_id(&cmd->id), cmd->cmd, size);
+			if (cmd->size < sizeof(struct dnet_io_attr)) {
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd: %u, cmd.size: %llu",
+					dnet_dump_id(&cmd->id), cmd->cmd, (unsigned long long)cmd->size);
 				err = -EINVAL;
 				break;
 			}
@@ -990,16 +995,16 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 				}
 			}
 
-			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command
+			/* Remove DNET_FLAGS_NEED_ACK flags for READ and WRITE commands
 			   to eliminate double reply packets
-			   (the first one with dnet_file_info structure,
-			   the second to destroy transaction on client side) */
+			   (the first one with dnet_file_info structure or data has been read,
+			   the second to destroy transaction on client side, i.e. packet without DNET_FLAGS_MORE bit) */
 			if ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ)) {
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
 			err = backend->cb->command_handler(st, backend->cb->command_private, cmd, data);
 
-			/* If there was error in WRITE command - send empty reply
+			/* If there was error in READ or WRITE command - send empty reply
 			   to notify client with error code and destroy transaction */
 			if (err && ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ))) {
 				cmd->flags |= DNET_FLAGS_NEED_ACK;
@@ -1011,6 +1016,20 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 			break;
 	}
 
+	gettimeofday(&end, NULL);
+	diff = DIFF(start, end);
+
+
+	if (io) {
+		iosize = io->size;
+
+		// do not count error read size
+		// otherwise it leads to HUGE read traffic stats, although nothing was actually read
+		if (cmd->cmd == DNET_CMD_READ && err < 0)
+			iosize = 0;
+	}
+
+	dnet_backend_command_stats_update(n, backend, cmd, iosize, *handled_in_cache, err, diff);
 	return err;
 }
 
@@ -1021,8 +1040,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	unsigned long long tid = cmd->trans;
 	struct dnet_io_attr *io = NULL;
 	struct timeval start, end;
-
-#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
+	uint64_t iosize = 0;
 
 	long diff;
 	int handled_in_cache = 0;
@@ -1054,16 +1072,28 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 		err = dnet_process_cmd_with_backend_raw(backend, st, cmd, data, &handled_in_cache);
 	}
 
-	dnet_stat_inc(st->stat, cmd->cmd, err);
-	if (st->__join_state == DNET_JOIN)
-		dnet_counter_inc(n, cmd->cmd, err);
-	else
-		dnet_counter_inc(n, cmd->cmd + __DNET_CMD_MAX, err);
-
 	gettimeofday(&end, NULL);
-
 	diff = DIFF(start, end);
-	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, io ? io->size : 0, diff);
+
+	switch (cmd->cmd) {
+		case DNET_CMD_READ:
+		case DNET_CMD_WRITE:
+		case DNET_CMD_DEL:
+			if (cmd->size < sizeof(struct dnet_io_attr)) {
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd: %u, cmd.size: %llu",
+					dnet_dump_id(&cmd->id), cmd->cmd, (unsigned long long)cmd->size);
+				err = -EINVAL;
+				break;
+			}
+
+			// no need to convert IO attribute here, it is aloready converted in backend processing code
+			io = data;
+
+
+			break;
+		default:
+			break;
+	}
 
 	if (((cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_WRITE)) && io) {
 		char time_str[64];
@@ -1071,6 +1101,12 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 		struct timeval io_tv;
 
 		/* io has been already set in the switch above */
+
+		// do not count error read size
+		// otherwise it leads to HUGE read traffic stats, although nothing was actually read
+		iosize = io->size;
+		if (cmd->cmd == DNET_CMD_READ && err < 0)
+			iosize = 0;
 
 		io_tv.tv_sec = io->timestamp.tsec;
 		io_tv.tv_usec = io->timestamp.tnsec / 1000;
@@ -1094,6 +1130,9 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 				tid, dnet_flags_dump_cflags(cmd->flags), diff, err);
 	}
 
+	// we must provide real error from the backend into statistics
+	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, iosize, diff);
+
 	err = dnet_send_ack(st, cmd, err, recursive);
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
@@ -1104,6 +1143,12 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	if (react_was_activated) {
 		react_deactivate();
 	}
+
+	dnet_stat_inc(st->stat, cmd->cmd, err);
+	if (st->__join_state == DNET_JOIN)
+		dnet_counter_inc(n, cmd->cmd, err);
+	else
+		dnet_counter_inc(n, cmd->cmd + __DNET_CMD_MAX, err);
 
 	return err;
 }
@@ -1177,8 +1222,6 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 		err = dnet_send_fd(st, c, hsize, fd, offset, rio->size, on_exit);
 
 	gettimeofday(&send_tv, NULL);
-
-#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
 
 	csum_time = DIFF(start_tv, csum_tv);
 	send_time = DIFF(csum_tv, send_tv);

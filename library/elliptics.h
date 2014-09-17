@@ -478,6 +478,10 @@ struct dnet_work_pool_place
 	struct dnet_work_pool	*pool;
 };
 
+void dnet_work_pool_cleanup(struct dnet_work_pool_place *place);
+int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n,
+	struct dnet_backend_io *io, int num, int mode, void *(* process)(void *));
+
 struct dnet_io_pool
 {
 	struct dnet_work_pool_place	recv_pool;
@@ -492,7 +496,13 @@ struct dnet_backend_io
 	struct dnet_io_pool		pool;
 	struct dnet_backend_callbacks	*cb;
 	void				*cache;
+	void				*command_stats;
 };
+
+int dnet_backend_command_stats_init(struct dnet_backend_io *backend_io);
+void dnet_backend_command_stats_cleanup(struct dnet_backend_io *backend_io);
+void dnet_backend_command_stats_update(struct dnet_node *node, struct dnet_backend_io *backend_io,
+		struct dnet_cmd *cmd, uint64_t size, int handled_in_cache, int err, long diff);
 
 struct dnet_io {
 	int			need_exit;
@@ -517,9 +527,8 @@ struct dnet_io {
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
 int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev);
-int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io, int io_thread_num, int nonblocking_io_thread_num);
-void dnet_backend_io_cleanup(struct dnet_node *n, struct dnet_backend_io *io);
 int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg);
+void *dnet_io_process(void *data_);
 int dnet_server_io_init(struct dnet_node *n);
 void dnet_io_exit(struct dnet_node *n);
 
