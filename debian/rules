@@ -5,8 +5,8 @@ include /usr/share/cdbs/1/class/cmake.mk
 
 ELLIPTICS_VERSION := "$(shell dpkg-parsechangelog | sed -n -r -e 's/^Version: ([^.]+\.[^.]+\.[^.]).*/\1/p')"
 ELLIPTICS_MAJOR := $(shell echo $(ELLIPTICS_VERSION)|cut -f1 -d.)
-ELLIPTICS_NINOR := $(shell echo $(ELLIPTICS_VERSION)|cut -f2 -d.)
-ELLIPTICS_NEXT_VERSION := "$(ELLIPTICS_MAJOR).$(shell echo $$(( $(ELLIPTICS_NINOR) + 1 )) )"
+ELLIPTICS_MINOR := $(shell echo $(ELLIPTICS_VERSION)|cut -f2 -d.)
+ELLIPTICS_NEXT_VERSION := "$(ELLIPTICS_MAJOR).$(shell echo $$(( $(ELLIPTICS_MINOR) + 1 )) )"
 PYTHON_LIB_PATH := "$(shell python -c 'from distutils import sysconfig; print sysconfig.get_python_lib(),')"
 
 DEB_CMAKE_EXTRA_FLAGS := -DCMAKE_BUILD_TYPE=RelWithDebInfo
