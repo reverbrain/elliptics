@@ -964,15 +964,16 @@ err_out:
 	return err;
 }
 
-int dnet_state_move_to_dht(struct dnet_net_state *st, struct dnet_addr *addr)
+int dnet_state_move_to_dht(struct dnet_net_state *st, struct dnet_addr *addrs, int addrs_count)
 {
 	struct dnet_net_state *other;
 	struct dnet_node *n = st->n;
+	int err = 0;
 
 	pthread_mutex_lock(&n->state_lock);
 
 	list_for_each_entry(other, &st->n->dht_state_list, node_entry) {
-		if (dnet_addr_equal(&other->addr, addr)) {
+		if (dnet_addr_equal(other->addrs, addrs)) {
 			pthread_mutex_unlock(&n->state_lock);
 
 			dnet_state_reset(st, -EEXIST);
@@ -981,19 +982,27 @@ int dnet_state_move_to_dht(struct dnet_net_state *st, struct dnet_addr *addr)
 		}
 	}
 
-	list_move_tail(&st->node_entry, &st->n->dht_state_list);
-	list_move_tail(&st->storage_state_entry, &st->n->storage_state_list);
-	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
+	memcpy(&st->addr, &addrs[st->idx], sizeof(struct dnet_addr));
+	err = dnet_copy_addrs_nolock(st, addrs, addrs_count);
+
+	if (!err) {
+		list_move_tail(&st->node_entry, &st->n->dht_state_list);
+		list_move_tail(&st->storage_state_entry, &st->n->storage_state_list);
+	}
 
 	pthread_mutex_unlock(&n->state_lock);
 
-	return 0;
+	if (err) {
+		dnet_state_reset(st, err);
+	}
+
+	return err;
 }
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_backend_ids **backends, int backends_count,
 		struct dnet_addr *addr, int s, int *errp, int join, int server_node, int idx,
-		int accepting_state)
+		int accepting_state, struct dnet_addr *addrs, int addrs_count)
 {
 	int err = -ENOMEM, i;
 	struct dnet_net_state *st;
@@ -1084,7 +1093,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	dnet_state_get(st);
 
 	if (server_node) {
-		err = dnet_state_move_to_dht(st, addr);
+		err = dnet_state_move_to_dht(st, addrs, addrs_count);
 		if (err)
 			goto err_out_send_destroy;
 
@@ -1094,11 +1103,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 				goto err_out_send_destroy;
 		}
 
-		if (accepting_state) {
-			err = dnet_copy_addrs(st, n->addrs, n->addr_num);
-			if (err)
-				goto err_out_send_destroy;
-		} else if (st->__join_state == DNET_JOIN) {
+		if (!accepting_state && st->__join_state == DNET_JOIN) {
 			err = dnet_state_join(st);
 
 			err = dnet_auth_send(st);

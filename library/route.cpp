@@ -47,6 +47,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_addr laddr;
 	char client_addr[128], server_addr[128];
 	int i, err, idx;
+	bool state_already_reseted = false;
 	uint32_t j;
 	struct dnet_id_container *id_container;
 	struct dnet_backend_ids **backends;
@@ -121,13 +122,12 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		}
 	}
 
-	err = dnet_state_move_to_dht(st, &cnt->addrs[idx]);
-	if (err)
+	err = dnet_state_move_to_dht(st, cnt->addrs, cnt->addr_num);
+	if (err) {
+		// dnet_state_move_to_dht internally resets the state, no need to reset it second time
+		state_already_reseted = true;
 		goto err_out_free;
-
-	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
-	if (err)
-		goto err_out_move_back;
+	}
 
 	dnet_state_set_server_prio(st);
 
@@ -137,6 +137,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			pthread_mutex_lock(&n->state_lock);
 			dnet_idc_destroy_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);
+
 			goto err_out_move_back;
 		}
 	}
@@ -156,6 +157,10 @@ err_out_move_back:
 err_out_free:
 	free(backends);
 err_out_exit:
+	// JOIN is critical command, if it fails we have to reset the connection
+	if (err && !state_already_reseted)
+		dnet_state_reset(st, err);
+
 	return err;
 }
 
@@ -170,6 +175,8 @@ static int dnet_state_join_nolock(struct dnet_net_state *st)
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send join request to %s.",
 			dnet_dump_id(&id), dnet_server_convert_dnet_addr(&st->addr));
+		// JOIN is critical command
+		dnet_state_reset(st, err);
 		goto err_out_exit;
 	}
 
