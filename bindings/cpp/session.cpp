@@ -1668,6 +1668,7 @@ struct quorum_lookup_aggregator_handler
 		}
 
 		assert(false);
+		exit(-22);
 	}
 
 	void complete_if_no_works() {
