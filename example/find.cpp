@@ -60,6 +60,7 @@ void finder::parse_lookup(const sync_generic_result &ret)
 		if (data.size()) {
 			struct dnet_file_info *info = NULL;
 			char addr_str[128] = "no-address";
+			int backend_id = cmd->backend_id;
 
 			if (data.size() >= sizeof(struct dnet_addr)) {
 				struct dnet_addr *addr = data.data<struct dnet_addr>();
@@ -76,13 +77,24 @@ void finder::parse_lookup(const sync_generic_result &ret)
 			std::string route_addr = "failed to get route table";
 
 			try {
-				route_addr = lookup_address(cmd->id, cmd->id.group_id);
-			} catch (const std::exception &e) {
+				int tmp_backend_id = 0;
+				dnet_net_state *st = dnet_state_get_first_with_backend(get_native_node(), &cmd->id, &tmp_backend_id);
+
+				if (st) {
+					dnet_addr addr = *dnet_state_addr(st);
+					dnet_state_put(st);
+
+					std::string tmp = dnet_server_convert_dnet_addr(&addr);
+					tmp += ", backend: ";
+					tmp += std::to_string(static_cast<long long int>(tmp_backend_id));
+					std::swap(route_addr, tmp);
+				}
+			} catch (const std::exception &) {
 			}
 
 			if (!info) {
-				printf("%s: FIND object: %s: should live at: %s\n",
-					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
+				printf("%s: FIND object: %s, backend: %d: should live at: %s\n",
+					dnet_dump_id(&cmd->id), addr_str, backend_id, route_addr.c_str());
 			} else {
 				char tstr[64];
 				struct tm tm;
@@ -90,9 +102,9 @@ void finder::parse_lookup(const sync_generic_result &ret)
 				localtime_r((time_t *)&info->mtime.tsec, &tm);
 				strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
 
-				printf("%s: FIND-OK object: %s: should live at: %s, "
+				printf("%s: FIND-OK object: %s, backend: %d, should live at: %s, "
 						"offset: %llu, size: %llu, mtime: %s, path: %s\n",
-					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
+					dnet_dump_id(&cmd->id), addr_str, backend_id, route_addr.c_str(),
 					(unsigned long long)info->offset, (unsigned long long)info->size,
 					tstr, (char *)(info + 1));
 			}
