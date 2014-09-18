@@ -1029,8 +1029,8 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	long diff;
 	int handled_in_cache = 0;
 
-	HANDY_TIMER_SCOPE(recursive ? "io_pool.process_cmd.recursive" : "io_pool.process_cmd", dnet_get_id());
-	FORMATTED(HANDY_TIMER_SCOPE, ("io_pool.process_cmd.%s%s", dnet_cmd_string(cmd->cmd), recursive ? ".recursive" : ""), dnet_get_id());
+	HANDY_TIMER_SCOPE(recursive ? "io_pool.process_cmd.recursive" : "io_pool.process_cmd");
+	FORMATTED(HANDY_TIMER_SCOPE, ("io_pool.process_cmd.%s%s", dnet_cmd_string(cmd->cmd), recursive ? ".recursive" : ""));
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
 		dnet_oplock(n, &cmd->id);

@@ -45,10 +45,12 @@ monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 {
 #if defined(HAVE_HANDYSTATS) && !defined(HANDYSTATS_DISABLE)
 	if (cfg->handystats_config != nullptr) {
-		BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, config file '%s'", cfg->handystats_config);
-		//TODO: add configuration error logging when handystats will
-		// allow to get them
-		HANDY_CONFIG_FILE(cfg->handystats_config);
+		//TODO: add parse/configuration errors logging when handystats will allow to get them
+		if (HANDY_CONFIG_FILE(cfg->handystats_config)) {
+			BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, config file '%s'", cfg->handystats_config);
+		} else {
+			BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: initializing stats subsystem, error parsing config file '%s', using defaults", cfg->handystats_config);
+		}
 	} else {
 		BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, no config file specified, using defaults");
 	}

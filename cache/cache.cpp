@@ -209,7 +209,7 @@ int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st
 	cache_manager *cache = (cache_manager *)backend->cache;
 	std::shared_ptr<raw_data_t> d;
 
-	FORMATTED(HANDY_TIMER_SCOPE, ("cache.%s", dnet_cmd_string(cmd->cmd)), dnet_get_id());
+	FORMATTED(HANDY_TIMER_SCOPE, ("cache.%s", dnet_cmd_string(cmd->cmd)));
 
 	try {
 		switch (cmd->cmd) {

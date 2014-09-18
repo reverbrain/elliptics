@@ -31,7 +31,7 @@
 //
 #ifdef DETAILED_CACHE_STATS
 	#define METRIC_PREFIX(name) "slru_cache." name
-	#define TIMER_SCOPE(name) HANDY_TIMER_SCOPE(METRIC_PREFIX(name), dnet_get_id())
+	#define TIMER_SCOPE(name) HANDY_TIMER_SCOPE(METRIC_PREFIX(name))
 	#define TIMER_START(name) HANDY_TIMER_START(METRIC_PREFIX(name), dnet_get_id())
 	#define TIMER_STOP(name) HANDY_TIMER_STOP(METRIC_PREFIX(name), dnet_get_id())
 #else
@@ -646,7 +646,7 @@ void slru_cache_t::erase_element(data_t *obj) {
 }
 
 void slru_cache_t::sync_element(const dnet_id &raw, bool after_append, const std::vector<char> &data, uint64_t user_flags, const dnet_time &timestamp) {
-	HANDY_TIMER_SCOPE("slru_cache.sync_element", dnet_get_id());
+	HANDY_TIMER_SCOPE("slru_cache.sync_element");
 
 	local_session sess(m_backend, m_node);
 	sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | (after_append ? DNET_IO_FLAGS_APPEND : 0));

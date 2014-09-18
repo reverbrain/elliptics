@@ -748,7 +748,7 @@ int blob_defrag_start(void *priv)
 
 static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
-	FORMATTED(HANDY_TIMER_SCOPE, ("eblob_backend.process_cmd.%s", dnet_cmd_string(cmd->cmd)), dnet_get_id());
+	FORMATTED(HANDY_TIMER_SCOPE, ("eblob_backend.process_cmd.%s", dnet_cmd_string(cmd->cmd)));
 
 	int err;
 	struct eblob_backend_config *c = priv;
