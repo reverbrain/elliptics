@@ -1,3 +1,11 @@
+elliptics (2.26.3.25) unstable; urgency=low
+
+  * net: setup state epoll_fd before sending AUTH
+  * Python: added comments to route.py
+  * Python: speeded up elliptics.RouteList initialization
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 18 Sep 2014 22:28:52 +0400
+
 elliptics (2.26.3.24) unstable; urgency=low
 
   * route: fixed deadlock in routes.cpp

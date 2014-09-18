@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.24
+Version:	2.26.3.25
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.25
+- net: setup state epoll_fd before sending AUTH
+- Python: added comments to route.py
+- Python: speeded up elliptics.RouteList initialization
+
 * Thu Sep 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.24
 - route: fixed deadlock in routes.cpp
 - Block dependency from next major version of elliptics
