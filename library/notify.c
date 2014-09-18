@@ -59,7 +59,7 @@ static unsigned int dnet_notify_hash(struct dnet_id *id, unsigned int hash_size)
 
 int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
-	HANDY_TIMER_SCOPE("io_pool.notify.update");
+	HANDY_TIMER_SCOPE("io.notify.update");
 
 	struct dnet_node *n = st->n;
 	unsigned int hash = dnet_notify_hash(&cmd->id, n->notify_hash_size);
@@ -94,7 +94,7 @@ static void dnet_notify_entry_destroy(struct dnet_notify_entry *e)
 
 int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
-	HANDY_TIMER_SCOPE("io_pool.notify.add");
+	HANDY_TIMER_SCOPE("io.notify.add");
 
 	struct dnet_node *n = st->n;
 	struct dnet_notify_entry *e;

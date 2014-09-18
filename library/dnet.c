@@ -1029,10 +1029,11 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	long diff;
 	int handled_in_cache = 0;
 
-	HANDY_TIMER_SCOPE(recursive ? "io_pool.process_cmd.recursive" : "io_pool.process_cmd");
-	FORMATTED(HANDY_TIMER_SCOPE, ("io_pool.process_cmd.%s%s", dnet_cmd_string(cmd->cmd), recursive ? ".recursive" : ""));
+	HANDY_TIMER_SCOPE(recursive ? "io.cmd_recursive" : "io.cmd");
+	FORMATTED(HANDY_TIMER_SCOPE, ("io.cmd%s.%s", (recursive ? "_recursive" : ""), dnet_cmd_string(cmd->cmd)));
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
+		FORMATTED(HANDY_TIMER_SCOPE, ("io.cmd.%s.lock_time", dnet_cmd_string(cmd->cmd)));
 		dnet_oplock(n, &cmd->id);
 	}
 

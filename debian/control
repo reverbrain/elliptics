@@ -39,7 +39,7 @@ Description: Distributed hash table storage
 
 Package: elliptics-client
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, msgpack-python | python-msgpack
+Depends: ${shlibs:Depends}, ${misc:Depends}, msgpack-python | python-msgpack, handystats (>= 1.9.8)
 Replaces: elliptics-2.10
 Description: Distributed hash table storage (client library)
  Elliptics network is a fault tolerant distributed hash table object storage.

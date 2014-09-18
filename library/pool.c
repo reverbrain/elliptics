@@ -2,17 +2,17 @@
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
  * This file is part of Elliptics.
- * 
+ *
  * Elliptics is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -29,6 +29,7 @@
 #include "elliptics.h"
 #include "elliptics/interface.h"
 #include "../monitor/monitor.h"
+#include "../monitor/measure_points.h"
 
 static char *dnet_work_io_mode_string[] = {
 	[DNET_WORK_IO_MODE_BLOCKING] = "BLOCKING",
@@ -215,21 +216,6 @@ err_out_exit:
 	return err;
 }
 
-/* As an example (with hardcoded loglevel and one second interval) */
-static inline void list_stat_log(struct list_stat *st, struct dnet_node *node, const char *list_name, int nonblocking) {
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-
-	if ((tv.tv_sec - st->time_base.tv_sec) >= 1) {
-		double elapsed_seconds = (double)(tv.tv_sec - st->time_base.tv_sec) * 1000000 + (tv.tv_usec - st->time_base.tv_usec);
-		elapsed_seconds /= 1000000;
-		dnet_log(node, DNET_LOG_INFO, "%s report: elapsed: %.3f s, current size: %ld, min: %ld, max: %ld, volume: %ld, noneblocking: %d",
-			list_name, elapsed_seconds, st->list_size, st->min_list_size, st->max_list_size, st->volume, nonblocking);
-
-		list_stat_reset(st, &tv);
-	}
-}
-
 // Keep this enums in sync with enums from dnet_process_cmd_without_backend_raw
 static int dnet_cmd_needs_backend(int command)
 {
@@ -248,6 +234,20 @@ static int dnet_cmd_needs_backend(int command)
 	return 1;
 }
 
+static inline void make_thread_stat_id(char *buffer, int size, struct dnet_work_pool *pool)
+{
+	/* Could have used dnet_work_io_mode_str() to get string name
+	 for the pool's mode, but for statistic lowercase names works better and
+	 dnet_work_io_mode_str() provides mode names in uppercase.
+	*/
+	const char *mode_marker = ((pool->mode == DNET_WORK_IO_MODE_BLOCKING) ? "blocking" : "nonblocking");
+	if (pool->io) {
+		snprintf(buffer, size - 1, "%zu.%s", pool->io->backend_id, mode_marker);
+	} else {
+		snprintf(buffer, size - 1, "sys.%s", mode_marker);
+	}
+}
+
 void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 {
 	struct dnet_work_pool_place *place = NULL;
@@ -257,6 +257,7 @@ void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	struct dnet_cmd *cmd = r->header;
 	int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
 	ssize_t backend_id = -1;
+	char thread_stat_id[255];
 
 	if (cmd->size > 0) {
 		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d",
@@ -311,6 +312,8 @@ void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 
 	pool = place->pool;
 
+	make_thread_stat_id(thread_stat_id, sizeof(thread_stat_id), pool);
+
 	// If we are processing the command we should update cmd->backend_id to actual one
 	if (!(cmd->flags & DNET_FLAGS_REPLY)) {
 		if (pool->io)
@@ -328,12 +331,15 @@ void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 
 	list_add_tail(&r->req_entry, &pool->list);
 	list_stat_size_increase(&pool->list_stats, 1);
-	list_stat_log(&pool->list_stats, r->st->n, "input io queue", nonblocking);
 
 	pthread_mutex_unlock(&pool->lock);
 	pthread_cond_signal(&pool->wait);
 
 	pthread_mutex_unlock(&place->lock);
+
+	FORMATTED(HANDY_TIMER_START, ("pool.%s.queue.wait_time", thread_stat_id), (uint64_t)&r->req_entry);
+	FORMATTED(HANDY_COUNTER_INCREMENT, ("pool.%s.queue.size", thread_stat_id), 1);
+	HANDY_COUNTER_INCREMENT("io.input.queue.size", 1);
 }
 
 
@@ -635,6 +641,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			pthread_mutex_lock(&st->n->io->full_lock);
 			list_stat_size_decrease(&st->n->io->output_stats, 1);
 			pthread_mutex_unlock(&st->n->io->full_lock);
+			HANDY_COUNTER_DECREMENT("io.output.queue.size", 1);
 
 			if (atomic_read(&st->send_queue_size) > 0)
 				if (atomic_dec(&st->send_queue_size) == DNET_SEND_WATERMARK_LOW) {
@@ -677,6 +684,7 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 		pthread_mutex_lock(&st->n->io->full_lock);
 		list_stat_size_increase(&st->n->io->output_stats, 1);
 		pthread_mutex_unlock(&st->n->io->full_lock);
+		HANDY_COUNTER_INCREMENT("io.output.queue.size", 1);
 
 		ev.data.ptr = &st->write_data;
 	} else {
@@ -1014,14 +1022,19 @@ void *dnet_io_process(void *data_)
 	int err;
 	struct dnet_cmd *cmd;
 	int nonblocking = (pool->mode == DNET_WORK_IO_MODE_NONBLOCKING);
+	char thread_stat_id[255];
 
-	if (pool->io)
+	if (pool->io) {
 		dnet_set_name("dnet_%sio_%zu", nonblocking ? "nb_" : "", pool->io->backend_id);
-	else
+	} else {
 		dnet_set_name("dnet_%sio", nonblocking ? "nb_" : "");
+	}
+
+	make_thread_stat_id(thread_stat_id, sizeof(thread_stat_id), pool);
 
 	dnet_log(n, DNET_LOG_NOTICE, "started io thread: #%d, nonblocking: %d, backend: %zd",
 		wio->thread_index, nonblocking, pool->io ? (ssize_t)pool->io->backend_id : -1);
+
 
 	while (!n->need_exit && (!pool->io || !pool->io->need_exit)) {
 		r = NULL;
@@ -1069,6 +1082,13 @@ void *dnet_io_process(void *data_)
 		if (!r || err)
 			continue;
 
+		HANDY_COUNTER_DECREMENT("io.input.queue.size", 1);
+
+		FORMATTED(HANDY_COUNTER_DECREMENT, ("pool.%s.queue.size", thread_stat_id), 1);
+		FORMATTED(HANDY_TIMER_STOP, ("pool.%s.queue.wait_time", thread_stat_id), (uint64_t)r);
+
+		FORMATTED(HANDY_COUNTER_INCREMENT, ("pool.%s.active_threads", thread_stat_id), 1);
+
 		st = r->st;
 		cmd = r->header;
 
@@ -1087,6 +1107,8 @@ void *dnet_io_process(void *data_)
 
 		dnet_io_req_free(r);
 		dnet_state_put(st);
+
+		FORMATTED(HANDY_COUNTER_DECREMENT, ("pool.%s.active_threads", thread_stat_id), 1);
 	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "finished io thread: #%d, nonblocking: %d, backend: %zd",
