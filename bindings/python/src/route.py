@@ -178,17 +178,19 @@ class RouteList(object):
         routes_dict = dict()
         sorted_routes = []
 
+        # splits all routes between groups
         for r in routes:
             if r.id.group_id in routes_dict:
                 routes_dict[r.id.group_id].append(Route(r.id, r.address, r.backend_id))
             else:
                 routes_dict[r.id.group_id] = [Route(r.id, r.address, r.backend_id)]
 
-        # Merge adj. ids for same address
+        # merges adj. ids for same address
         smallest_id = [0] * 64
         biggest_id = [255] * 64
         merged_routes = []
         for group in routes_dict:
+            # sorts routes inside one group
             group_routes = sorted(routes_dict[group], key=lambda route: route.id)
             last = (group_routes[-1].address,
                     group_routes[-1].backend_id)
