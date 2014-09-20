@@ -291,7 +291,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			char time_str[64];
 			double old_weight = st->weight;
 
-			if (st && (t->cmd.status == 0) && !(local_io->flags & DNET_IO_FLAGS_CACHE)) {
+			if (st && (t->cmd.status == 0) && !(local_io->flags & DNET_IO_FLAGS_CACHE) && local_io->size) {
 				double norm = (double)diff / (double)local_io->size;
 
 				st->weight = 1.0 / ((1.0 / st->weight + norm) / 2.0);

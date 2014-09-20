@@ -864,7 +864,7 @@ static int dnet_weight_get_winner(struct dnet_weight *w, int num)
 	 * This simple algorithm increases all weights until they sum up
 	 * to the large enough range.
 	 */
-	while (sum < 1000) {
+	while (sum && sum < 1000) {
 		double mult = 10.0;
 
 		sum *= mult;
