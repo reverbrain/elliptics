@@ -8,6 +8,9 @@ def print_result(data):
     print(json.dumps(data, indent=4))
 
 def add_node_options(parser):
+    '''
+    Common command line parser for all commands
+    '''
     from optparse import OptionGroup
 
     group = OptionGroup(parser, "Connection options",
@@ -28,6 +31,9 @@ def add_node_options(parser):
 
 
 def create_session(parser, options, single_remote=False):
+    '''
+    Method for initializing node, session and adding remotes by @options and @single_remote
+    '''
     if single_remote and len(options.remote) != 1:
         parser.error("Please specify exactly one remote address")
     elif not options.remote:
@@ -71,6 +77,9 @@ def create_session(parser, options, single_remote=False):
 
 
 def print_backend_result(result):
+    '''
+    Pretty printer for backend status
+    '''
     print_result({
         'backends': [
             {
@@ -86,6 +95,13 @@ def print_backend_result(result):
 
 
 def process_backend_control(options, session, address, method):
+    '''
+    Common handler for backend commands called by:
+    dnet_client backend enable ...
+    or
+    dnet_client backend disable ...
+    etc.
+    '''
     assert isinstance(session, elliptics.Session)
 
     result = method(session, address, options.backend_id)
@@ -93,6 +109,10 @@ def process_backend_control(options, session, address, method):
 
 
 def process_backend_status(options, session, address):
+    '''
+    Handler for backend status command called by:
+    dnet_client backend status -r `hostname -f`:1025:2
+    '''
     assert isinstance(session, elliptics.Session)
 
     result = session.request_backends_status(address)
@@ -100,6 +120,10 @@ def process_backend_status(options, session, address):
 
 
 def process_backend():
+    '''
+    Basic handler for all backend commands called by:
+    dnet_client backend
+    '''
     from optparse import OptionParser
 
     actions = {
@@ -135,6 +159,12 @@ def process_backend():
     actions[action](options, session, elliptics.Address.from_host_port_family(options.remote[0]))
 
 def process_monitor_control(options, session, method):
+    '''
+    Common handler for monitor commands called by:
+    dnet_client monitor all     //for requesting monitor statistics from all cluster
+    or
+    dnet_client monitor one     // for requesting monitor statistics only from specified by -r/-remote node
+    '''
     import json
     assert isinstance(session, elliptics.Session)
     categories = elliptics.monitor_stat_categories.all if options.categories == -1 else options.categories
@@ -145,6 +175,10 @@ def process_monitor_control(options, session, method):
     print json.dumps(output, sort_keys=True, indent=4, separators=(',', ': '))
 
 def process_monitor():
+    '''
+    Basic handler for all monitor commands called by:
+    dnet_client monitor
+    '''
     from optparse import OptionParser
     from functools import partial
 
