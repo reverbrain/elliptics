@@ -177,36 +177,43 @@ def scope():
 class TestRecovery:
     '''
     Turns off all backends from all node except one.
-    Makes few writes in the backend group. Checks writed data availability.
+    Makes few writes in the backend group. Checks written data availability.
     Turns on one backend from the same node and the same group
     Runs dnet_recovery merge with --one-node and --backend-id.
-    Checks writed data availability.
+    Checks written data availability.
     Turns on all backends from the same group from all node.
     Runs dnet_recovery merge without --one-node and without --backend-id.
-    Checks writed data availability.
+    Checks written data availability.
     Turns on one backend from other node and from one second group.
     Runs dnet_recovery dc with --one-node and with --backend-id.
-    Checks writed data availability in both groups.
+    Checks written data availability in both groups.
     Turns on all nodes from on second group.
     Runs dnet_recovery dc without --one-node and without --backend-id.
-    Checks writed data availability in both groups.
+    Checks written data availability in both groups.
     Turns on third group nodes.
     Writes new data on the same keys.
     Runs dnet_recovery without --one-node and without --backend-id.
-    Checks writed data availability in all groups.
+    Checks written data availability in all groups.
     Runs defragmentation on all backends from all group.
-    Checks writed data availability in all groups.
+    Checks written data availability in all groups.
     '''
     namespace = "TestRecovery"
     count = 1024
+    # keys which will be written, readed, recovered and checked by recovery tests
     keys = map('{0}'.format, range(count))
+    # at first steps datas of all keys written to first and second group would be equal to key
     datas = keys
+    # to make it simplier all keys from first and second group will be have similar timestamp
     timestamp = elliptics.Time.now()
+    # this data will be written to the third group
     datas2 = map('{0}.{0}'.format, keys)
+    # this timestamp will be used for writing data to the third group
     timestamp2 = elliptics.Time(timestamp.tsec + 3600, timestamp.tnsec)
     corrupted_key = 'corrupted_test.key'
     corrupted_data = 'corrupted_test.data'
+    # timestamp of corrupted_key from first group
     corrupted_timestamp = elliptics.Time.now()
+    # timestamp of corrupted_key from second group which should be recovered to first and third group
     corrupted_timestamp2 = elliptics.Time(corrupted_timestamp.tsec + 3600, corrupted_timestamp.tnsec)
 
     def test_disable_backends(self, scope, server, simple_node):
