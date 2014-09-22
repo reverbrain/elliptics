@@ -335,8 +335,8 @@ class Iterator(object):
             else:
                 yield results[0]
         except Exception as e:
-            self.log.error("Iteration failed: {0}, traceback: {1}"
-                           .format(repr(e), traceback.format_exc()))
+            self.log.error("Iteration on node: {0}/{1} failed: {2}, traceback: {3}"
+                           .format(address, backend_id, repr(e), traceback.format_exc()))
             yield None
 
 
@@ -370,6 +370,11 @@ class Iterator(object):
             stats.set_counter('filtered_keys', filtered_keys)
             stats.set_counter('iterated_keys', iterated_keys)
             stats.set_counter('total_keys', total_keys)
+
+        if result is None:
+            stats.set_counter('iterations', -1)
+        else:
+            stats.set_counter('iterations', 1)
 
         return result, result_len
 

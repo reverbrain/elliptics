@@ -68,6 +68,8 @@ def iterate_node(arg):
             stats=stats,
             leave_file=True,
             separately=True)
+        if results is None or results_len == 0:
+            return None
 
     except Exception as e:
         log.error("Iteration failed for node {0}/{1}: {2}, traceback: {3}"
@@ -93,7 +95,7 @@ def transpose_results(results):
     result_tree = dict()
 
     # for each address iterator results
-    for res_dict in results:
+    for res_dict in (r for r in results if r is not None):
         # for each range
         for range_id, filepath, address, backend_id, group_id in res_dict:
             # if it first time with this range

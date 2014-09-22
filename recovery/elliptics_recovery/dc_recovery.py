@@ -59,6 +59,7 @@ class KeyRecover(object):
         self.same_groups = [k.group_id for k in self.key_infos if (k.timestamp, k.size) == (self.key_infos[0].timestamp, self.key_infos[0].size)]
         self.key_infos = [k for k in self.key_infos if k.group_id not in self.same_groups]
         self.diff_groups += [k.group_id for k in self.key_infos]
+        self.diff_groups = list(set(self.diff_groups).difference(self.same_groups))
         if not self.diff_groups and not self.missed_groups:
             log.debug("Key: {0} already up-to-date in all groups: {1}".format(self.key, self.same_groups))
             self.stop(False)
