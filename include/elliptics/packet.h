@@ -102,7 +102,8 @@ enum dnet_backend_command {
 };
 
 enum dnet_backend_state {
-	DNET_BACKEND_DISABLED,
+	DNET_BACKEND_UNITIALIZED = -1,
+	DNET_BACKEND_DISABLED = 0,
 	DNET_BACKEND_ENABLED,
 	DNET_BACKEND_ACTIVATING,
 	DNET_BACKEND_DEACTIVATING,
@@ -691,7 +692,7 @@ static inline int dnet_time_is_empty(struct dnet_time *t)
 struct dnet_backend_status
 {
 	uint32_t backend_id;
-	uint32_t state;
+	int32_t state;
 	uint32_t defrag_state;
 	struct dnet_time last_start;
 	int32_t last_start_err;

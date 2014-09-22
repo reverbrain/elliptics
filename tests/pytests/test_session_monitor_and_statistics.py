@@ -37,7 +37,6 @@ class MonitorStatsChecker:
             elliptics.core.monitor_stat_categories.cache            : self.__check_cache_stat,
             elliptics.core.monitor_stat_categories.io               : self.__check_io_stat,
             elliptics.core.monitor_stat_categories.commands         : self.__check_commands_stat,
-            elliptics.core.monitor_stat_categories.io_histograms    : self.__check_io_histograms_stat,
             elliptics.core.monitor_stat_categories.backend          : self.__check_backend_stat,
             elliptics.core.monitor_stat_categories.procfs           : self.__check_procfs_stat}
         self.address = address

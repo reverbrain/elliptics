@@ -317,6 +317,7 @@ void parse_backends(config_data *data, const config &backends)
 
 		dnet_backend_info &info = backends_info[backend_id];
 		info.enable_at_start = backend.at<bool>("enable", true);
+		info.state = DNET_BACKEND_DISABLED;
 		info.history = backend.at("history", std::string());
 
 		if (info.enable_at_start) {
