@@ -63,7 +63,7 @@ set_target_properties(dnet_backends_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_backends_test ${TEST_LIBRARIES})
 
 
-set(PYTESTS_FLAGS "-l" "-x")
+set(PYTESTS_FLAGS "-l" "-x" "--timeout=300" "--durations=10")
 if(NOT WITH_COCAINE)
     list(APPEND PYTESTS_FLAGS "--without-cocaine")
 endif()
@@ -119,8 +119,9 @@ add_custom_command(TARGET test
     COMMAND virtualenv -p "${PYTHON_EXECUTABLE}" . &&
         . bin/activate &&
         pip install pytest &&
+        pip install pytest-timeout &&
         export LD_LIBRARY_PATH=.:.. &&
-        ${TEST_ENV} py.test -x --durations=10 ${CMAKE_CURRENT_SOURCE_DIR}/pytests ${PYTESTS_FLAGS}
+        ${TEST_ENV} py.test ${PYTESTS_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/pytests
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
