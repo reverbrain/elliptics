@@ -47,6 +47,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_addr laddr;
 	char client_addr[128], server_addr[128];
 	int i, err, idx;
+	bool state_already_reseted = false;
 	uint32_t j;
 	struct dnet_id_container *id_container;
 	struct dnet_backend_ids **backends;
@@ -121,13 +122,12 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		}
 	}
 
-	err = dnet_state_move_to_dht(st, &cnt->addrs[idx]);
-	if (err)
+	err = dnet_state_move_to_dht(st, cnt->addrs, cnt->addr_num);
+	if (err) {
+		// dnet_state_move_to_dht internally resets the state, no need to reset it second time
+		state_already_reseted = true;
 		goto err_out_free;
-
-	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
-	if (err)
-		goto err_out_move_back;
+	}
 
 	dnet_state_set_server_prio(st);
 
@@ -137,6 +137,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			pthread_mutex_lock(&n->state_lock);
 			dnet_idc_destroy_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);
+
 			goto err_out_move_back;
 		}
 	}
@@ -156,6 +157,10 @@ err_out_move_back:
 err_out_free:
 	free(backends);
 err_out_exit:
+	// JOIN is critical command, if it fails we have to reset the connection
+	if (err && !state_already_reseted)
+		dnet_state_reset(st, err);
+
 	return err;
 }
 
@@ -170,6 +175,8 @@ static int dnet_state_join_nolock(struct dnet_net_state *st)
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send join request to %s.",
 			dnet_dump_id(&id), dnet_server_convert_dnet_addr(&st->addr));
+		// JOIN is critical command
+		dnet_state_reset(st, err);
 		goto err_out_exit;
 	}
 
@@ -269,6 +276,7 @@ int dnet_route_list::disable_backend(size_t backend_id)
 int dnet_route_list::on_reverse_lookup(dnet_net_state *st, dnet_cmd *cmd, void *data)
 {
 	react::action_guard action_guard(ACTION_DNET_CMD_REVERSE_LOOKUP);
+	std::lock_guard<std::mutex> lock_guard(m_mutex);
 	return dnet_cmd_reverse_lookup(st, cmd, data);
 }
 
@@ -280,6 +288,7 @@ int dnet_route_list::on_join(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 int dnet_route_list::join(dnet_net_state *st)
 {
+	std::lock_guard<std::mutex> lock_guard(m_mutex);
 	dnet_pthread_lock_guard guard(st->n->state_lock);
 
 	return dnet_state_join_nolock(st);
@@ -288,7 +297,6 @@ int dnet_route_list::join(dnet_net_state *st)
 int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct)
 {
 	using namespace ioremap::elliptics;
-	std::lock_guard<std::mutex> lock_guard(m_mutex);
 
 	size_t total_size = sizeof(dnet_addr_cmd) + m_node->addr_num * sizeof(dnet_addr) + sizeof(dnet_id_container);
 	size_t backends_count = 0;
@@ -355,6 +363,7 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64
 void dnet_route_list::send_update_to_states(dnet_cmd *cmd, size_t backend_id)
 {
 	dnet_net_state *state;
+	dnet_pthread_lock_guard guard(m_node->state_lock);
 
 	list_for_each_entry(state, &m_node->storage_state_list, storage_state_entry) {
 		if (!state->__ids_sent || state == m_node->st)

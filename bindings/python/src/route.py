@@ -175,18 +175,23 @@ class RouteList(object):
         It slightly mangles route list by explicitly inserting start and end of
         hash-ring and also merging adj. routes for the same into one.
         """
+        routes_dict = dict()
         sorted_routes = []
 
-        # First pass - sort ids and construct addresses from text routes
-        for route in sorted(routes, key=lambda route: route.id):
-            sorted_routes.append(Route(route.id, route.address, route.backend_id))
+        # splits all routes between groups
+        for r in routes:
+            if r.id.group_id in routes_dict:
+                routes_dict[r.id.group_id].append(Route(r.id, r.address, r.backend_id))
+            else:
+                routes_dict[r.id.group_id] = [Route(r.id, r.address, r.backend_id)]
 
-        # Merge adj. ids for same address
+        # merges adj. ids for same address
         smallest_id = [0] * 64
         biggest_id = [255] * 64
         merged_routes = []
-        for group in cls(sorted_routes).groups():
-            group_routes = cls(sorted_routes).filter_by_group(group).routes
+        for group in routes_dict:
+            # sorts routes inside one group
+            group_routes = sorted(routes_dict[group], key=lambda route: route.id)
             last = (group_routes[-1].address,
                     group_routes[-1].backend_id)
 
@@ -204,7 +209,7 @@ class RouteList(object):
             merged_routes.extend(group_routes)
 
         # Sort results by key
-        merged_routes.sort(key=itemgetter(0))
+        merged_routes.sort(key=lambda route: route.id)
 
         # Return RouteList from sorted and merged routes
         return cls(merged_routes)

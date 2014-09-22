@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.23
+Version:	2.26.3.25
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,22 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.25
+- net: setup state epoll_fd before sending AUTH
+- Python: added comments to route.py
+- Python: speeded up elliptics.RouteList initialization
+
+* Thu Sep 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.24
+- route: fixed deadlock in routes.cpp
+- Block dependency from next major version of elliptics
+- stats: provide backend directly from cmd processing, do not try to find it using cmd->backend_id
+- session: roughly exit on 'impossible' condition
+- stat: do not dereference incorrect (negative or too large) backend_id
+- route: Reset state if JOIN fails by any reason	b0a8c47
+- library: Use copy addresses at state_move_to_dht
+- Build-Deps: blackhole-dev (>= 0.2.1-1)
+- find: Add backend_id to dnet_find output
+
 * Tue Sep 16 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.23
 - stats: implemented per-backend command counters
 - log: returned back extended io command log
