@@ -303,7 +303,11 @@ def get_routes(options):
     logger = elliptics.Logger(options.log,
                               int(options.log_level))
     node = elliptics.Node(logger)
-    node.add_remotes(elliptics.Address.from_host_port_family(options.remote))
+    try:
+        address = elliptics.Address.from_host_port_family(options.remote)
+    except:
+        raise ValueError("Can't parse host:port:family: '{0}'".format(options.remote))
+    node.add_remotes(address)
 
     session = elliptics.Session(node)
 
@@ -402,6 +406,9 @@ if __name__ == '__main__':
                       help='Prints actial nodes statistics')
 
     (options, args) = parser.parse_args()
+
+    if options.remote is None:
+        raise ValueError("You must specify remote address by -r/--remote")
 
     try:
         fh = logging.FileHandler(options.log)
