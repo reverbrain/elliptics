@@ -194,6 +194,10 @@ class TestRecovery:
     Writes new data on the same keys.
     Runs dnet_recovery without --one-node and without --backend-id.
     Checks written data availability in all groups.
+    Writes one key with different data and incremental timestamp to 1,2,3 groups.
+    Corrupts record at 3d group.
+    Run dnet_recovery for all groups (1,2,3).
+    Checks that all groups have the key with the same data and timestamp that was written to the second group.
     Runs defragmentation on all backends from all group.
     Checks written data availability in all groups.
     '''
@@ -284,7 +288,6 @@ class TestRecovery:
         r = enable_backend(scope, session, group, address, backend)
         check_backend_status(r.get(), backend, state=1)
         wait_backends_in_route(session, ((address, backend),))
-
 
     def test_merge_two_backends(self, scope, server, simple_node):
         '''
@@ -457,7 +460,7 @@ class TestRecovery:
 
     def test_write_and_corrupt_data(self, scope, server, simple_node):
         '''
-        Writes one by one the key with different data to three groups and corrupts data in the last group
+        Writes one by one the key with different data and incremental timestamp to groups 1, 2, 3 and corrupts data in the group #3.
         '''
         session = make_session(node=simple_node,
                                test_name='TestRecovery.test_write_and_corrupt_data',
@@ -492,6 +495,9 @@ class TestRecovery:
     def test_dc_corrupted_data(self, scope, server, simple_node):
         '''
         Runs dc recovery and checks that second version of data is recovered to all groups.
+        This test checks that dc recovery correctly handles corrupted key on his way:
+        Group #3 which key was corrupted has a newest timestamp and recovery tries to used it at first.
+        But read fails and recovery switchs to the group #2 and recovers data from this group to groups #1 and #3.
         '''
         session = make_session(node=simple_node,
                                test_name='TestRecovery.test_dc_corrupted_data',
@@ -510,7 +516,6 @@ class TestRecovery:
         for group in (scope.test_group, scope.test_group2, scope.test_group3):
             session.groups = [group]
             check_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.2'], self.corrupted_timestamp2)
-
 
     def test_defragmentation(self, scope, server, simple_node):
         '''
