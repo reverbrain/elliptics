@@ -563,6 +563,8 @@ static int dnet_file_config_init(struct dnet_config_backend *b)
 	int err;
 
 	r->blog = b->log;
+	if (!r->bit_num)
+		r->bit_num = 16;
 
 	b->cb.command_private = r;
 
