@@ -1148,8 +1148,14 @@ err_out_put:
 		free(list);
 	}
 
-	if (state.succeed_count)
+	if (state.succeed_count) {
 		err = state.succeed_count;
+	} else if (err >= 0) {
+		// this may happen when we have only one socket to connect and connect failed
+		// epoll will return positive number (1), but @dnet_process_socket() will fail it,
+		// yet error is not reset
+		err = -ECONNREFUSED;
+	}
 
 	dnet_connect_state_put(&state);
 
