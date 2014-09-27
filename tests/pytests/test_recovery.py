@@ -88,13 +88,15 @@ def write_data(scope, session, keys, datas):
     for r in res:
         r.wait()
 
-def check_data(scope, session, keys, datas):
+def check_data(scope, session, keys, datas, timestamp):
     '''
     Reads @keys from the session. Reads all keys async at once and waits/checks results at the end.
     '''
-    res = map(session.read_data, keys)
-    res = map(lambda x: x.get()[0].data, res)
-    assert res == datas
+    results = map(session.read_data, keys)
+    results = map(lambda x: x.get()[0], results)
+    assert [x.data for x in results] == datas
+    timestamps = [x.timestamp for x in results]
+    assert all(x == timestamp for x in timestamps)
 
 def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log_file, tmp_dir):
     '''
@@ -175,31 +177,48 @@ def scope():
 class TestRecovery:
     '''
     Turns off all backends from all node except one.
-    Makes few writes in the backend group. Checks writed data availability.
+    Makes few writes in the backend group. Checks written data availability.
     Turns on one backend from the same node and the same group
     Runs dnet_recovery merge with --one-node and --backend-id.
-    Checks writed data availability.
+    Checks written data availability.
     Turns on all backends from the same group from all node.
     Runs dnet_recovery merge without --one-node and without --backend-id.
-    Checks writed data availability.
+    Checks written data availability.
     Turns on one backend from other node and from one second group.
     Runs dnet_recovery dc with --one-node and with --backend-id.
-    Checks writed data availability in both groups.
+    Checks written data availability in both groups.
     Turns on all nodes from on second group.
     Runs dnet_recovery dc without --one-node and without --backend-id.
-    Checks writed data availability in both groups.
+    Checks written data availability in both groups.
     Turns on third group nodes.
     Writes new data on the same keys.
     Runs dnet_recovery without --one-node and without --backend-id.
-    Checks writed data availability in all groups.
+    Checks written data availability in all groups.
+    Writes one key with different data and incremental timestamp to 1,2,3 groups.
+    Corrupts record at 3d group.
+    Run dnet_recovery for all groups (1,2,3).
+    Checks that all groups have the key with the same data and timestamp that was written to the second group.
     Runs defragmentation on all backends from all group.
-    Checks writed data availability in all groups.
+    Checks written data availability in all groups.
     '''
     namespace = "TestRecovery"
     count = 1024
+    # keys which will be written, readed, recovered and checked by recovery tests
     keys = map('{0}'.format, range(count))
+    # at first steps datas of all keys written to first and second group would be equal to key
     datas = keys
+    # to make it simplier all keys from first and second group will be have similar timestamp
+    timestamp = elliptics.Time.now()
+    # this data will be written to the third group
     datas2 = map('{0}.{0}'.format, keys)
+    # this timestamp will be used for writing data to the third group
+    timestamp2 = elliptics.Time(timestamp.tsec + 3600, timestamp.tnsec)
+    corrupted_key = 'corrupted_test.key'
+    corrupted_data = 'corrupted_test.data'
+    # timestamp of corrupted_key from first group
+    corrupted_timestamp = elliptics.Time.now()
+    # timestamp of corrupted_key from second group which should be recovered to first and third group
+    corrupted_timestamp2 = elliptics.Time(corrupted_timestamp.tsec + 3600, corrupted_timestamp.tnsec)
 
     def test_disable_backends(self, scope, server, simple_node):
         '''
@@ -252,9 +271,10 @@ class TestRecovery:
                                test_name='TestRecovery.test_prepare_data',
                                test_namespace=self.namespace)
         session.groups = [scope.test_group]
+        session.timestamp = self.timestamp
 
         write_data(scope, session, self.keys, self.datas)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
     def test_enable_group_one_backend(self, scope, server, simple_node):
         '''
@@ -268,7 +288,6 @@ class TestRecovery:
         r = enable_backend(scope, session, group, address, backend)
         check_backend_status(r.get(), backend, state=1)
         wait_backends_in_route(session, ((address, backend),))
-
 
     def test_merge_two_backends(self, scope, server, simple_node):
         '''
@@ -290,7 +309,7 @@ class TestRecovery:
                  tmp_dir='merge_2_backends')
 
         session.groups = (scope.test_group,)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
     def test_enable_all_group_backends(self, scope, server, simple_node):
         '''
@@ -321,7 +340,7 @@ class TestRecovery:
                  tmp_dir='merge_one_group')
 
         session.groups = (scope.test_group,)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
     def test_enable_second_group_one_backend(self, scope, server, simple_node):
         '''
@@ -358,7 +377,7 @@ class TestRecovery:
                  tmp_dir='dc_one_backend')
 
         session.groups = (scope.test_group2,)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
     def test_enable_all_second_group_backends(self, scope, server, simple_node):
         '''
@@ -389,10 +408,10 @@ class TestRecovery:
                  tmp_dir='dc_two_groups')
 
         session.groups = (scope.test_group,)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
         session.groups = (scope.test_group2,)
-        check_data(scope, session, self.keys, self.datas)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
 
     def test_enable_all_third_group_backends(self, scope, server, simple_node):
         '''
@@ -411,10 +430,10 @@ class TestRecovery:
                                test_name='TestRecovery.test_write_data_to_third_group',
                                test_namespace=self.namespace)
         session.groups = [scope.test_group3]
-
+        session.timestamp = self.timestamp2
 
         write_data(scope, session, self.keys, self.datas2)
-        check_data(scope, session, self.keys, self.datas2)
+        check_data(scope, session, self.keys, self.datas2, self.timestamp2)
 
     def test_dc_three_groups(self, scope, server, simple_node):
         '''
@@ -435,14 +454,68 @@ class TestRecovery:
                  log_file='dc_three_groups.log',
                  tmp_dir='dc_three_groups')
 
-        session.groups = (scope.test_group,)
-        check_data(scope, session, self.keys, self.datas2)
+        for group in (scope.test_group, scope.test_group2, scope.test_group3):
+            session.groups = [group]
+            check_data(scope, session, self.keys, self.datas2, self.timestamp2)
 
-        session.groups = (scope.test_group2,)
-        check_data(scope, session, self.keys, self.datas2)
+    def test_write_and_corrupt_data(self, scope, server, simple_node):
+        '''
+        Writes one by one the key with different data and incremental timestamp to groups 1, 2, 3 and corrupts data in the group #3.
+        '''
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_write_and_corrupt_data',
+                               test_namespace=self.namespace)
 
-        session.groups = (scope.test_group3,)
-        check_data(scope, session, self.keys, self.datas2)
+        timestamp3 = elliptics.Time(self.corrupted_timestamp.tsec + 7200, self.corrupted_timestamp.tnsec)
+
+        session.groups = [scope.test_group]
+        session.timestamp = self.corrupted_timestamp
+        write_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.1'])
+        check_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.1'], self.corrupted_timestamp)
+
+        session.groups = [scope.test_group2]
+        session.timestamp = self.corrupted_timestamp2
+        write_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.2'])
+        check_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.2'], self.corrupted_timestamp2)
+
+        session.groups = [scope.test_group3]
+        session.timestamp = timestamp3
+        write_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.3'])
+        check_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.3'], timestamp3)
+
+        res = session.lookup(self.corrupted_key).get()[0]
+
+        with open(res.filepath, 'r+b') as f:
+            f.seek(res.offset, 0)
+            tmp = '123' + f.read()[3:]
+            f.seek(res.offset, 0)
+            f.write(tmp)
+            f.flush()
+
+    def test_dc_corrupted_data(self, scope, server, simple_node):
+        '''
+        Runs dc recovery and checks that second version of data is recovered to all groups.
+        This test checks that dc recovery correctly handles corrupted key on his way:
+        Group #3 which key was corrupted has a newest timestamp and recovery tries to used it at first.
+        But read fails and recovery switchs to the group #2 and recovers data from this group to groups #1 and #3.
+        '''
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_dc_corrupted_data',
+                               test_namespace=self.namespace)
+
+        recovery(one_node=False,
+                 remotes=map(elliptics.Address.from_host_port_family, server.remotes),
+                 backend_id=None,
+                 address=scope.test_address2,
+                 groups=(scope.test_group, scope.test_group2, scope.test_group3),
+                 session=session.clone(),
+                 rtype=RECOVERY.DC,
+                 log_file='dc_corrupted_data.log',
+                 tmp_dir='dc_corrupted_data')
+
+        for group in (scope.test_group, scope.test_group2, scope.test_group3):
+            session.groups = [group]
+            check_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.2'], self.corrupted_timestamp2)
 
     def test_defragmentation(self, scope, server, simple_node):
         '''
@@ -479,14 +552,9 @@ class TestRecovery:
                     cnt += r.defrag_state
             print "In defragmentation:", cnt
 
-        session.groups = (scope.test_group,)
-        check_data(scope, session, self.keys, self.datas2)
-
-        session.groups = (scope.test_group2,)
-        check_data(scope, session, self.keys, self.datas2)
-
-        session.groups = (scope.test_group3,)
-        check_data(scope, session, self.keys, self.datas2)
+        for group in (scope.test_group, scope.test_group2, scope.test_group3):
+            session.groups = [group]
+            check_data(scope, session, self.keys, self.datas2, self.timestamp2)
 
     def test_enable_rest_backends(self, scope, server, simple_node):
         '''

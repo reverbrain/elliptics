@@ -1775,7 +1775,7 @@ async_monitor_stat_result session::monitor_stat(uint64_t categories)
 
 	transport_control control;
 	control.set_command(DNET_CMD_MONITOR_STAT);
-	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
+	control.set_cflags(DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
 	control.set_data(&request, sizeof(request));
 
 	session sess = clean_clone();
@@ -1791,7 +1791,7 @@ async_monitor_stat_result session::monitor_stat(const address &addr, uint64_t ca
 
 	transport_control control;
 	control.set_command(DNET_CMD_MONITOR_STAT);
-	control.set_cflags(DNET_ATTR_CNTR_GLOBAL | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
+	control.set_cflags(DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK);
 	control.set_data(&request, sizeof(request));
 
 	session sess = clean_clone();

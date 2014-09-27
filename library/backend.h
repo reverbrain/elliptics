@@ -59,7 +59,7 @@ struct dnet_backend_info
 	dnet_backend_info(dnet_logger &logger, uint32_t backend_id) :
 		log(new dnet_logger(logger, make_attributes(backend_id))),
 		group(0), cache(NULL), enable_at_start(false),
-		state_mutex(new std::mutex), state(DNET_BACKEND_DISABLED),
+		state_mutex(new std::mutex), state(DNET_BACKEND_UNITIALIZED),
 		io_thread_num(0), nonblocking_io_thread_num(0)
 	{
 		dnet_empty_time(&last_start);
@@ -144,8 +144,8 @@ extern "C" {
 typedef struct dnet_backend_info_list_t dnet_backend_info_list;
 #endif // __cplusplus
 
-int dnet_backend_init(struct dnet_node *n, size_t backend_id, unsigned *state);
-int dnet_backend_cleanup(struct dnet_node *n, size_t backend_id, unsigned *state);
+int dnet_backend_init(struct dnet_node *n, size_t backend_id, int *state);
+int dnet_backend_cleanup(struct dnet_node *n, size_t backend_id, int *state);
 
 int dnet_backend_init_all(struct dnet_node *n);
 void dnet_backend_cleanup_all(struct dnet_node *n);

@@ -220,13 +220,15 @@ std::string statistics::report(uint64_t categories)
 	report.SetObject();
 	auto &allocator = report.GetAllocator();
 
-	struct timeval time;
-	gettimeofday(&time, NULL);
+	dnet_time time;
+	dnet_current_time(&time);
 
 	rapidjson::Value timestamp(rapidjson::kObjectType);
-	timestamp.AddMember("tv_sec", time.tv_sec, allocator);
-	timestamp.AddMember("tv_usec", time.tv_usec, allocator);
+	timestamp.AddMember("tv_sec", time.tsec, allocator);
+	timestamp.AddMember("tv_usec", time.tnsec / 1000, allocator);
 	report.AddMember("timestamp", timestamp, allocator);
+	report.AddMember("string_timestamp", dnet_print_time(&time), allocator);
+
 	report.AddMember("monitor_status", "enabled", allocator);
 
 	if (categories & DNET_MONITOR_COMMANDS) {

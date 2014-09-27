@@ -233,7 +233,7 @@ class Recovery(object):
 
             if self.recovered_size == 0:
                 self.session.user_flags = results[0].user_flags
-                self.timestamp = results[0].timestamp
+                self.session.timestamp = results[0].timestamp
             self.stats.read += 1
             self.write_data = results[0].data
             self.total_size = results[0].io_attribute.total_size

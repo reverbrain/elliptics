@@ -96,7 +96,10 @@ void time_pickle::setstate(elliptics_time& time, bp::tuple state) {
 void init_elliptics_time() {
 
 	bp::class_<elliptics_time>("Time",
-			bp::init<uint64_t, uint64_t>(bp::args("tsec", "tnsec")))
+	    bp::init<uint64_t, uint64_t>(bp::args("tsec", "tnsec"),
+	        "__init__(tsec, tnsec)\n"
+	        "    Initializes time by the @tsec seconds and @tnsec nanoseconds\n\n"
+	        "    time = elliptics.Time(10, 200)"))
 		.add_property("tsec", &elliptics_time::get_tsec,
 		                      &elliptics_time::set_tsec)
 		.add_property("tnsec", &elliptics_time::get_tnsec,
