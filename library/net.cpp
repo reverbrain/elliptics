@@ -590,6 +590,7 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 err_out_free_addrs:
 	free(addrs);
 err_out_exit:
+	dnet_state_put(st);
 	return err;
 }
 
