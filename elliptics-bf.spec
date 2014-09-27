@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.25
+Version:	2.26.3.26
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,20 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Sep 28 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.26
+- net: put state in dnet_connect_route_list_complete
+- connect: add_remote() must always return error when failed to connect to any remote node
+- fs: set default directory-bit-numnber to 16, otherwise backend doesn't work if appropriate config option is not specified
+- balancer: print correct message if remote hasn't been specified
+- pytest: more comments
+- Pytest: set tests timeout to 300 sec
+- Pytests: added test for recovering corrupted data
+- Recovery: removed duplicates from list of groups with outdated data. Fixed crash after failed iteration.
+- Recovery: changed default logging level for dnet_recovery
+- Backends: added new backend state: DNET_BACKEND_UNITIALIZED for backends that have not been specified in config file.
+- 	Do not include status of unitialized backends to monitor statistics and backends status of unitialized backends to monitor statistics and backends status response.
+- Core: do not recalculate state weight after commands without data
+
 * Thu Sep 18 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.25
 - net: setup state epoll_fd before sending AUTH
 - Python: added comments to route.py
