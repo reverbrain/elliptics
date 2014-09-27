@@ -54,7 +54,8 @@
 			"sync": "-1",
 			"blob_flags": "158",
 			"blob_size": "10G",
-			"records_in_blob": "1000000"
+			"records_in_blob": "1000000",
+			"periodic_timeout": 15
 		}
 	]
 }

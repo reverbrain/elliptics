@@ -92,7 +92,7 @@ if __name__ == '__main__':
                       help="Lock file used for recovery [default: %default]")
     parser.add_option("-l", "--log", dest="elliptics_log", default='dnet_recovery.log', metavar="FILE",
                       help="Output log messages from library to file [default: %default]")
-    parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default="1",
+    parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default=elliptics.log_level.notice,
                       help="Elliptics client verbosity [default: %default]")
     parser.add_option("-n", "--nprocess", action="store", dest="nprocess", default="1",
                       help="Number of subprocesses [default: %default]")

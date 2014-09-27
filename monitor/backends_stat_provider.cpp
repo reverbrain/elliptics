@@ -110,14 +110,18 @@ static void fill_backend_status(rapidjson::Value &stat_value,
 
 	rapidjson::Value status_value(rapidjson::kObjectType);
 	status_value.AddMember("state", status.state, allocator);
+	status_value.AddMember("string_state", dnet_backend_state_string(status.state), allocator);
 	status_value.AddMember("defrag_state", status.defrag_state, allocator);
+	status_value.AddMember("string_defrag_state", dnet_backend_defrag_state_string(status.defrag_state), allocator);
 
 	rapidjson::Value last_start(rapidjson::kObjectType);
 	last_start.AddMember("tv_sec", status.last_start.tsec, allocator);
 	last_start.AddMember("tv_usec", status.last_start.tnsec / 1000, allocator);
 	status_value.AddMember("last_start", last_start, allocator);
+
+	status_value.AddMember("string_last_time", dnet_print_time(&status.last_start), allocator);
 	status_value.AddMember("last_start_err", status.last_start_err, allocator);
-	status_value.AddMember("read_only", status.read_only, allocator);
+	status_value.AddMember("read_only", status.read_only == 1, allocator);
 
 	stat_value.AddMember("status", status_value, allocator);
 }
@@ -188,6 +192,11 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 	return stat_value;
 }
 
+static bool backend_check_state(struct dnet_node *node, size_t backend_id) {
+	std::lock_guard<std::mutex> guard(*node->config_data->backends->backends[backend_id].state_mutex);
+	return node->config_data->backends->backends[backend_id].state != DNET_BACKEND_UNITIALIZED;
+}
+
 /*
  * Fills all section of all backends
  */
@@ -197,6 +206,8 @@ static void backends_stats_json(uint64_t categories,
                                 struct dnet_node *node) {
 	const auto &backends = node->config_data->backends->backends;
 	for (size_t i = 0; i < backends.size(); ++i) {
+		if (!backend_check_state(node, i))
+			continue;
 		rapidjson::Value backend_stat(rapidjson::kObjectType);
 		stat_value.AddMember(std::to_string(static_cast<unsigned long long>(i)).c_str(),
 		                     allocator,

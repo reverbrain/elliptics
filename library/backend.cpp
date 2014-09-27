@@ -188,7 +188,7 @@ static const char *elapsed(const dnet_time &start)
 	return buffer;
 }
 
-int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state)
+int dnet_backend_init(struct dnet_node *node, size_t backend_id, int *state)
 {
 	int ids_num;
 	struct dnet_raw_id *ids;
@@ -209,13 +209,17 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, unsigned *state
 		if (backend.state != DNET_BACKEND_DISABLED) {
 			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, trying to activate not disabled backend, elapsed: %s",
 				backend_id, elapsed(start));
-			if (*state == DNET_BACKEND_ENABLED)
-				return -EALREADY;
-			else if (*state == DNET_BACKEND_ACTIVATING)
-				return -EINPROGRESS;
-			else /*if (*state == DNET_BACKEND_DEACTIVATING)*/
-				return -EAGAIN;
-			return -EINVAL;
+			switch (*state) {
+				case DNET_BACKEND_ENABLED:
+					return -EALREADY;
+				case DNET_BACKEND_ACTIVATING:
+					return -EINPROGRESS;
+				case DNET_BACKEND_DEACTIVATING:
+					return -EAGAIN;
+				case DNET_BACKEND_UNITIALIZED:
+				default:
+					return -EINVAL;
+			}
 		}
 		backend.state = DNET_BACKEND_ACTIVATING;
 	}
@@ -348,7 +352,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *state)
+int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, int *state)
 {
 	if (backend_id >= node->config_data->backends->backends.size()) {
 		return -EINVAL;
@@ -362,12 +366,17 @@ int dnet_backend_cleanup(struct dnet_node *node, size_t backend_id, unsigned *st
 		if (backend.state != DNET_BACKEND_ENABLED) {
 			dnet_log(node, DNET_LOG_ERROR, "backend_cleanup: backend: %zu, trying to destroy not activated backend",
 				backend_id);
-			if (*state == DNET_BACKEND_DISABLED)
-				return -EALREADY;
-			else if (*state == DNET_BACKEND_DEACTIVATING)
-				return -EINPROGRESS;
-			else /*if (*state == DNET_BACKEND_ACTIVATING)*/
-				return -EAGAIN;
+			switch (*state) {
+				case DNET_BACKEND_DISABLED:
+					return -EALREADY;
+				case DNET_BACKEND_DEACTIVATING:
+					return -EINPROGRESS;
+				case DNET_BACKEND_ACTIVATING:
+					return -EAGAIN;
+				case DNET_BACKEND_UNITIALIZED:
+				default:
+					return -EINVAL;
+			}
 		}
 		backend.state = DNET_BACKEND_DEACTIVATING;
 	}
@@ -413,7 +422,7 @@ int dnet_backend_init_all(struct dnet_node *node)
 {
 	int err = 1;
 	bool all_ok = true;
-	unsigned state = DNET_BACKEND_ENABLED;
+	int state = DNET_BACKEND_ENABLED;
 
 	auto &backends = node->config_data->backends->backends;
 
@@ -474,7 +483,7 @@ int dnet_backend_init_all(struct dnet_node *node)
 
 void dnet_backend_cleanup_all(struct dnet_node *node)
 {
-	unsigned state = DNET_BACKEND_ENABLED;
+	int state = DNET_BACKEND_ENABLED;
 
 	auto &backends = node->config_data->backends->backends;
 	for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
@@ -598,7 +607,7 @@ static int dnet_cmd_backend_control_dangerous(struct dnet_net_state *st, struct 
 	const dnet_backend_info &backend = backends[control->backend_id];
 	dnet_backend_io &io = node->io->backends[control->backend_id];
 
-	unsigned state = DNET_BACKEND_DISABLED;
+	int state = DNET_BACKEND_DISABLED;
 	const dnet_backend_callbacks &cb = backend.config.cb;
 
 	int err = -ENOTSUP;
@@ -704,10 +713,16 @@ int dnet_cmd_backend_status(struct dnet_net_state *st, struct dnet_cmd *cmd, voi
 
 	list->backends_count = backends.size();
 
+	size_t j = 0;
+
 	for (size_t i = 0; i < backends.size(); ++i) {
-		dnet_backend_status &status = list->backends[i];
+		dnet_backend_status &status = list->backends[j];
 		backend_fill_status(st->n, &status, i);
+		if (status.state != DNET_BACKEND_UNITIALIZED)
+			++j;
 	}
+
+	list->backends_count = j;
 
 	cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 
