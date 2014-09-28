@@ -321,6 +321,8 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	struct eblob_write_control wc;
 	struct eblob_key key;
 	struct dnet_ext_list elist;
+	struct stat st;
+	int64_t size;
 	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
@@ -335,11 +337,21 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	err = open(file, O_RDONLY | O_CLOEXEC);
 	if (err < 0) {
 		err = -errno;
-		dnet_backend_log(r->blog, DNET_LOG_ERROR, "%s: FILE: %s: info-stat-open-csum: %d: %s.",
+		dnet_backend_log(r->blog, DNET_LOG_ERROR, "%s: FILE: %s: info-stat-open: %d: %s.",
 			dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		goto err_out_exit;
 	}
 	fd = err;
+
+	err = fstat(fd, &st);
+	if (err < 0) {
+		err = -errno;
+		dnet_backend_log(r->blog, DNET_LOG_ERROR, "%s: FILE: %s: info-stat-stat: %d: %s.",
+			dnet_dump_id(&cmd->id), file, err, strerror(-err));
+		goto err_out_close;
+	}
+	size = st.st_size;
+
 
 	err = eblob_read_return(r->meta, &key, EBLOB_READ_NOCSUM, &wc);
 
@@ -350,6 +362,8 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	if (err) {
 		dnet_backend_log(r->blog, DNET_LOG_ERROR, "%s: FILE: %s: meta-read-return: %d: %s.",
 			dnet_dump_id(&cmd->id), file, err, strerror(-err));
+		elist.timestamp.tsec = st.st_mtime;
+		elist.timestamp.tnsec = 0;
 	} else {
 		struct dnet_ext_list_hdr ehdr;
 
@@ -363,7 +377,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 		}
 	}
 
-	err = dnet_send_file_info_ts(state, cmd, fd, 0, -1, &elist.timestamp);
+	err = dnet_send_file_info_ts(state, cmd, fd, 0, size, &elist.timestamp);
 	if (err)
 		goto err_out_close;
 	
