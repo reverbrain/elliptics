@@ -371,17 +371,25 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	guard.unlock();
 
 	react_start_action(ACTION_CACHE_LOCAL_LOOKUP);
+
+	// go check object on disk
 	local_session sess(m_backend, m_node);
 	cmd->flags |= DNET_FLAGS_NOCACHE;
 	ioremap::elliptics::data_pointer data = sess.lookup(*cmd, &err);
 	cmd->flags &= ~DNET_FLAGS_NOCACHE;
+
 	react_stop_action(ACTION_CACHE_LOCAL_LOOKUP);
+
+	cmd->flags &= ~(DNET_FLAGS_MORE | DNET_FLAGS_NEED_ACK);
 
 	if (err) {
 		if (!it) {
+			// there is no object neither in cache nor on disk,
+			// we want client to notify about that, send him ACK
+			cmd->flags |= DNET_FLAGS_NEED_ACK;
 			return err;
 		}
-		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+
 		// zero size means 'we didn't find key on disk', but yet it exists in cache
 		// lookup by its nature is 'show me what is on disk' command
 		return dnet_send_file_info_ts_without_fd(st, cmd, NULL, 0, &timestamp);
@@ -392,7 +400,6 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 		info->mtime = timestamp;
 	}
 
-	cmd->flags &= ~(DNET_FLAGS_MORE | DNET_FLAGS_NEED_ACK);
 	return dnet_send_reply(st, cmd, data.data(), data.size(), 0);
 }
 

@@ -315,8 +315,8 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsign
 	if (size)
 		memcpy(data, odata, size);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: %s",
-		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s (%p): trans: %lld, size: %u, cflags: %s",
+		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_state_dump_addr(st), st,
 		(unsigned long long)c->trans,
 		size, dnet_flags_dump_cflags(c->flags));
 
@@ -999,14 +999,14 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 			   to eliminate double reply packets
 			   (the first one with dnet_file_info structure or data has been read,
 			   the second to destroy transaction on client side, i.e. packet without DNET_FLAGS_MORE bit) */
-			if ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ)) {
+			if ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_LOOKUP)) {
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
 			err = backend->cb->command_handler(st, backend->cb->command_private, cmd, data);
 
 			/* If there was error in READ or WRITE command - send empty reply
 			   to notify client with error code and destroy transaction */
-			if (err && ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ))) {
+			if (err && ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_LOOKUP))) {
 				cmd->flags |= DNET_FLAGS_NEED_ACK;
 			}
 
