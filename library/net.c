@@ -505,10 +505,15 @@ static int dnet_trans_complete_forward(struct dnet_addr *addr __unused, struct d
 	return err;
 }
 
-static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
+static int dnet_trans_forward(struct dnet_io_req *r,
 		struct dnet_net_state *orig, struct dnet_net_state *forward)
 {
 	struct dnet_cmd *cmd = r->header;
+	struct dnet_trans *t;
+
+	t = dnet_trans_alloc(orig->n, 0);
+	if (!t)
+		return -ENOMEM;
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
@@ -597,12 +602,12 @@ static int dnet_process_control(struct dnet_net_state *st, struct dnet_cmd *cmd,
 int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_io_req *r)
 {
 	int err = 0;
-	struct dnet_trans *t = NULL;
 	struct dnet_node *n = st->n;
 	struct dnet_net_state *forward_state = NULL;
 	struct dnet_cmd *cmd = r->header;
 
 	if (cmd->flags & DNET_FLAGS_REPLY) {
+		struct dnet_trans *t = NULL;
 		uint64_t tid = cmd->trans;
 		uint64_t flags = cmd->flags;
 
@@ -674,7 +679,6 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 		goto out;
 	}
 
-#if 1
 	if (!(cmd->flags & DNET_FLAGS_DIRECT)) {
 		forward_state = dnet_state_get_first(n, &cmd->id);
 	}
@@ -683,40 +687,25 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 		dnet_state_put(forward_state);
 
 		err = dnet_process_cmd_raw(backend, st, cmd, r->data, 0);
-		goto out;
+	} else {
+		if (!forward_state) {
+			err = -ENXIO;
+			goto err_out_put_forward;
+		}
+
+		err = dnet_trans_forward(r, st, forward_state);
+		if (err)
+			goto err_out_put_forward;
+
+		dnet_state_put(forward_state);
 	}
 
-	if (!forward_state) {
-		err = -ENXIO;
-		goto err_out_put_forward;
-	}
-
-	t = dnet_trans_alloc(st->n, 0);
-	if (!t) {
-		err = -ENOMEM;
-		goto err_out_put_forward;
-	}
-
-	err = dnet_trans_forward(t, r, st, forward_state);
-	if (err)
-		goto err_out_destroy;
-
-	dnet_state_put(forward_state);
-#else
-	err = dnet_process_cmd_raw(st, cmd, r->data);
-#endif
 out:
 	return err;
 
-err_out_destroy:
-	dnet_trans_put(t);
 err_out_put_forward:
 	dnet_state_put(forward_state);
 err_out_exit:
-	if (t)
-		dnet_log(n, DNET_LOG_ERROR, "%s: error during received transaction processing: trans %llu, reply: %d, error: %d.",
-			dnet_dump_id(&t->cmd.id), (unsigned long long)t->cmd.trans,
-			!!(t->cmd.flags & DNET_FLAGS_REPLY), err);
 	return err;
 }
 
