@@ -525,13 +525,16 @@ static void dnet_file_db_cleanup(struct file_backend_root *r)
 	eblob_cleanup(r->meta);
 }
 
-static int dnet_file_db_init(struct file_backend_root *r, const char *path)
+static int dnet_file_db_init(struct file_backend_root *r)
 {
 	static char meta_path[PATH_MAX];
 	struct eblob_config ecfg;
 	int err = 0;
 
-	snprintf(meta_path, sizeof(meta_path), "%s/meta", path);
+	snprintf(meta_path, sizeof(meta_path), "%s/history", r->root);
+	mkdir(meta_path, 0755);
+
+	snprintf(meta_path, sizeof(meta_path), "%s/history/meta", r->root);
 
 	memset(&ecfg, 0, sizeof(ecfg));
 	ecfg.file = meta_path;
@@ -587,8 +590,7 @@ static int dnet_file_config_init(struct dnet_config_backend *b)
 
 	b->cb.backend_cleanup = file_backend_cleanup;
 
-	mkdir("history", 0755);
-	err = dnet_file_db_init(r, "history");
+	err = dnet_file_db_init(r);
 	if (err)
 		return err;
 
