@@ -247,17 +247,18 @@ def main(ctx):
     ctx.monitor.stats.timer('main', 'combine_and_dump')
     log.info("Dumping keys")
     total_keys = 0
-    with open(ctx.merged_filename, 'w') as m_file, open(dump_filename, 'w') as d_file:
-        for res in (r for r in results if r):
-            with open(res, 'r') as r_file:
-                while 1:
-                    try:
-                        key_data = pickle.load(r_file)
-                        pickle.dump(key_data, m_file)
-                        d_file.write('{0}\n'.format(key_data[0]))
-                        total_keys += 1
-                    except:
-                        break
+    with open(ctx.merged_filename, 'w') as m_file:
+        with open(dump_filename, 'w') as d_file:
+            for res in (r for r in results if r):
+                with open(res, 'r') as r_file:
+                    while 1:
+                        try:
+                            key_data = pickle.load(r_file)
+                            pickle.dump(key_data, m_file)
+                            d_file.write('{0}\n'.format(key_data[0]))
+                            total_keys += 1
+                        except:
+                            break
     ctx.monitor.stats.counter('found keys', total_keys)
     log.info("Dumped %d keys in file: %s", total_keys, dump_filename)
 
