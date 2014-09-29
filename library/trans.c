@@ -312,13 +312,14 @@ void dnet_trans_destroy(struct dnet_trans *t)
 				old_weight, st->weight);
 		}
 
-		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, stall: %d, "
+		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s/%d, stall: %d, "
 				"time: %ld, started: %s.%06lu, cached status: %d%s",
 			dnet_dump_id(&t->cmd.id),
 			dnet_cmd_string(t->command),
 			(unsigned long long)t->trans,
 			!!(t->cmd.flags & DNET_FLAGS_REPLY),
-			dnet_state_dump_addr(t->st), t->st->stall,
+			dnet_state_dump_addr(t->st), t->cmd.backend_id,
+			t->st->stall,
 			diff,
 			str, t->start.tv_usec,
 			t->cmd.status, io_buf);
