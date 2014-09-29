@@ -35,7 +35,6 @@ import traceback
 
 from ..etime import Time
 from ..utils.misc import elliptics_create_node, worker_init, RecoverStat, LookupDirect, RemoveDirect
-from ..utils.misc import dump_keys
 from ..route import RouteList
 from ..iterator import Iterator
 from ..range import IdRange
@@ -427,7 +426,9 @@ def process_node_backend(address, backend_id, group, ranges):
     stats.timer('process', 'dump_keys')
     dump_path = os.path.join(ctx.tmp_dir, 'dump_{0}'.format(address))
     log.debug("Dump iterated keys to file: {0}".format(dump_path))
-    dump_keys((r.key for r in results), dump_path)
+    with open(dump_path, 'w') as dump_f:
+        for r in results:
+            dump_f.write('{0}\n'.format(r.key))
 
     stats.timer('process', 'recover')
     ret = recover(ctx, address, backend_id, group, node, results, stats)

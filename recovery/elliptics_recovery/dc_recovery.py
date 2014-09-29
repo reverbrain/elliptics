@@ -89,8 +89,8 @@ class KeyRecover(object):
             else:
                 #first read should be at least INDEX_MAGIC_NUMBER_LENGTH bytes
                 size = min(self.total_size, max(size, INDEX_MAGIC_NUMBER_LENGTH))
-            self.read_result = self.read_session.read_data(self.key)
-            self.read_result.connect(self.onread)
+            read_result = self.read_session.read_data(self.key)
+            read_result.connect(self.onread)
         except Exception as e:
             log.error("Read key: {0} by offset: {1} and size: {2} raised exception: {3}, traceback: {4}"
                       .format(self.key, self.recovered_size, size, repr(e), traceback.format_exc()))
@@ -103,8 +103,7 @@ class KeyRecover(object):
                 write_groups = merge_groups + self.missed_groups
                 log.debug("Merging index shard: {0} from groups: {1} and writting it to groups: {2}"
                           .format(repr(self.key), merge_groups, write_groups))
-                self.write_result = self.write_session.merge_indexes(self.key, merge_groups, write_groups)
-                self.write_result.connect(self.onwrite)
+                write_result = self.write_session.merge_indexes(self.key, merge_groups, write_groups)
             else:
                 log.debug("Writing key: {0} to groups: {1}"
                           .format(repr(self.key), self.diff_groups + self.missed_groups))
@@ -116,29 +115,28 @@ class KeyRecover(object):
                         params['psize'] = self.total_size
                         log.debug("Write_prepare key: {0} to groups: {1}, remote_offset: {2}, write_size: {3}, prepare_size: {4}"
                                   .format(params['key'], self.write_session.groups, params['remote_offset'], len(params['data']), params['psize']))
-                        self.write_result = self.write_session.write_prepare(**params)
+                        write_result = self.write_session.write_prepare(**params)
                     elif self.recovered_size + len(params['data']) < self.total_size:
                         log.debug("Write_plain key: {0} to groups: {1}, remote_offset: {2}, write_size: {3}, total_size: {4}"
                                   .format(params['key'], self.write_session.groups, params['remote_offset'], len(params['data']), self.total_size))
-                        self.write_result = self.write_session.write_plain(**params)
+                        write_result = self.write_session.write_plain(**params)
                     else:
                         params['csize'] = self.total_size
                         log.debug("Write_commit key: {0} to groups: {1}, remote_offset: {2}, write_size: {3}, commit_size: {4}"
                                   .format(params['key'], self.write_session.groups, params['remote_offset'], len(params['data']), params['csize']))
-                        self.write_result = self.write_session.write_commit(**params)
+                        write_result = self.write_session.write_commit(**params)
                 else:
                     params['offset'] = params.pop('remote_offset')
                     log.debug("Write_data key: {0} to groups: {1}, offset: {2}, write_size: {3}, total_size: {4}"
                               .format(params['key'], self.write_session.groups, params['offset'], len(params['data']), self.total_size))
-                    self.write_result = self.write_session.write_data(**params)
-                self.write_result.connect(self.onwrite)
+                    write_result = self.write_session.write_data(**params)
+            write_result.connect(self.onwrite)
         except Exception as e:
             log.error("Writing key: {0} raised exception: {1}, traceback: {2}"
                       .format(self.key, repr(e), traceback.format_exc()))
             self.stop(False)
 
     def onread(self, results, error):
-        self.read_result = None
         try:
             if error.code:
                 log.error("Failed to read key: {0} from groups: {1}: {2}".format(self.key, self.same_groups, error))
@@ -147,6 +145,7 @@ class KeyRecover(object):
                     self.attempt += len(self.read_session.groups)
                     log.debug("Read has been timed out. Try to reread key: {0} from groups: {1}, attempt: {2}/{3}"
                               .format(self.key, self.same_groups, self.attempt, self.ctx.attempts))
+                    self.read()
                 elif len(self.key_infos) > 1:
                     self.stats.read_failed += len(self.read_session.groups)
                     self.diff_groups += self.read_session.groups
@@ -154,7 +153,7 @@ class KeyRecover(object):
                 else:
                     log.error("Failed to read key: {0} from any available group. This key couldn't be recovered now.")
                     self.stop(False)
-                    return
+                return
 
             self.stats.read += 1
             self.stats.read_bytes += results[-1].size
@@ -262,6 +261,7 @@ def iterate_key(filepath, groups):
 
 
 def recover(ctx):
+    from itertools import islice
     ret = True
     stats = ctx.monitor.stats['recover']
 
@@ -276,18 +276,29 @@ def recover(ctx):
                                  io_thread_num=1,
                                  remotes=ctx.remotes)
 
-    for batch_id, batch in groupby(enumerate(it),
-                                   key=lambda x: x[0] / ctx.batch_size):
+    while 1:
+        batch = tuple(islice(it, ctx.batch_size))
+        if not batch:
+            break
         recovers = []
         rs = RecoverStat()
-        for _, val in batch:
+        for val in batch:
             rec = KeyRecover(ctx, *val, node=node)
             recovers.append(rec)
+        successes, failures = 0, 0
         for r in recovers:
             r.wait()
             ret &= r.succeeded()
             rs += r.stats
+            if r.succeeded():
+                successes += 1
+            else:
+                failures += 1
         rs.apply(stats)
+        stats.counter('recovered_keys', successes)
+        ctx.monitor.stats.counter('recovered_keys', successes)
+        stats.counter('recovered_keys', -failures)
+        ctx.monitor.stats.counter('recovered_keys', -failures)
     stats.timer('recover', 'finished')
     return ret
 

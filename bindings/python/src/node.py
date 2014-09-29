@@ -61,4 +61,4 @@ class Node(Node):
         elif hasattr(remotes, '__iter__'):
             super(Node, self).add_remotes(map(convert, remotes))
         else:
-            raise ValueError("Couldn't convert {0} to elliptics.Address".format(repr(address)))
+            raise ValueError("Couldn't convert {0} to elliptics.Address".format(repr(remotes)))

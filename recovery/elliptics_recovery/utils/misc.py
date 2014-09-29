@@ -56,7 +56,7 @@ def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_time
     """
     Connects to elliptics cloud
     """
-    log.info("Creating node using: {0}, wait_timeout: {1}, remotes: {2}".format(address, wait_timeout, remotes))
+    log.debug("Creating node using: {0}, wait_timeout: {1}, remotes: {2}".format(address, wait_timeout, remotes))
     cfg = elliptics.Config()
     cfg.config.wait_timeout = wait_timeout
     cfg.config.check_timeout = check_timeout
@@ -66,7 +66,7 @@ def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_time
     cfg.config.net_thread_num = net_thread_num
     node = elliptics.Node(elog, cfg)
     node.add_remotes([address] + remotes)
-    log.info("Created node: {0}".format(node))
+    log.debug("Created node: {0}".format(node))
     return node
 
 def elliptics_create_session(node=None, group=None, cflags=elliptics.command_flags.default):
@@ -148,28 +148,28 @@ class RecoverStat(object):
         if self.merged_indexes:
             stats.counter("merged_indexes", self.merged_indexes)
 
-    def __add__(a, b):
+    def __add__(self, b):
         ret = RecoverStat()
-        ret.skipped = a.skipped + b.skipped
-        ret.lookup = a.lookup + b.lookup
-        ret.lookup_failed = a.lookup_failed + b.lookup_failed
-        ret.lookup_retries = a.lookup_retries + b.lookup_retries
-        ret.read = a.read + b.read
-        ret.read_failed = a.read_failed + b.read_failed
-        ret.read_retries = a.read_retries + b.read_retries
-        ret.read_bytes = a.read_bytes + b.read_bytes
-        ret.write = a.write + b.write
-        ret.write_failed = a.write_failed + b.write_failed
-        ret.write_retries = a.write_retries + b.write_retries
-        ret.written_bytes = a.written_bytes + b.written_bytes
-        ret.remove = a.remove + b.remove
-        ret.remove_failed = a.remove_failed + b.remove_failed
-        ret.remove_retries = a.remove_retries + b.remove_retries
-        ret.removed_bytes = a.removed_bytes + b.removed_bytes
-        ret.remove_old = a.remove_old + b.remove_old
-        ret.remove_old_failed = a.remove_old_failed + b.remove_old_failed
-        ret.remove_old_bytes = a.remove_old_bytes + b.remove_old_bytes
-        ret.merged_indexes = a.merged_indexes + b.merged_indexes
+        ret.skipped = self.skipped + b.skipped
+        ret.lookup = self.lookup + b.lookup
+        ret.lookup_failed = self.lookup_failed + b.lookup_failed
+        ret.lookup_retries = self.lookup_retries + b.lookup_retries
+        ret.read = self.read + b.read
+        ret.read_failed = self.read_failed + b.read_failed
+        ret.read_retries = self.read_retries + b.read_retries
+        ret.read_bytes = self.read_bytes + b.read_bytes
+        ret.write = self.write + b.write
+        ret.write_failed = self.write_failed + b.write_failed
+        ret.write_retries = self.write_retries + b.write_retries
+        ret.written_bytes = self.written_bytes + b.written_bytes
+        ret.remove = self.remove + b.remove
+        ret.remove_failed = self.remove_failed + b.remove_failed
+        ret.remove_retries = self.remove_retries + b.remove_retries
+        ret.removed_bytes = self.removed_bytes + b.removed_bytes
+        ret.remove_old = self.remove_old + b.remove_old
+        ret.remove_old_failed = self.remove_old_failed + b.remove_old_failed
+        ret.remove_old_bytes = self.remove_old_bytes + b.remove_old_bytes
+        ret.merged_indexes = self.merged_indexes + b.merged_indexes
         return ret
 
 # base class for direct operations with id from address in group
@@ -271,11 +271,3 @@ class RemoveDirect(DirectOperation):
                       .format(repr(e), traceback.format_exc()))
             self.result = False
             self.callback(False, self.stats)
-
-def dump_keys(keys, filapath):
-    '''
-    Saves keys to filepath
-    '''
-    with open(filapath, 'w') as dump:
-        for key in keys:
-            dump.write("{0}\n".format(key))

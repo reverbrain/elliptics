@@ -176,7 +176,6 @@ class RouteList(object):
         hash-ring and also merging adj. routes for the same into one.
         """
         routes_dict = dict()
-        sorted_routes = []
 
         # splits all routes between groups
         for r in routes:
@@ -389,19 +388,16 @@ class RouteList(object):
         perc = {}
         for group in self.groups():
             routes = self.filter_by_group(group)
-            prev = None
             perc[group] = {}
-            for r in routes:
-                if prev:
-                    amount = int(str(r.id), 16) - int(str(prev.id), 16)
-                    if prev.address not in perc[group]:
-                        perc[group][prev.address] = {prev.backend_id: amount}
-                    elif prev.backend_id not in perc[group][prev.address]:
-                        perc[group][prev.address][prev.backend_id] = amount
-                    else:
-                        perc[group][prev.address][prev.backend_id] += amount
-
-                prev = r
+            for i, r in enumerate(routes[1:]):
+                prev = routes[i]
+                amount = int(str(r.id), 16) - int(str(prev.id), 16)
+                if prev.address not in perc[group]:
+                    perc[group][prev.address] = {prev.backend_id: amount}
+                elif prev.backend_id not in perc[group][prev.address]:
+                    perc[group][prev.address][prev.backend_id] = amount
+                else:
+                    perc[group][prev.address][prev.backend_id] += amount
 
         max = int(str(Id([255] * 64, 0)), 16)
 
