@@ -16,7 +16,7 @@
 
 import logging
 from multiprocessing import Pool
-from ..utils.misc import worker_init, elliptics_create_node, dump_keys
+from ..utils.misc import worker_init, elliptics_create_node
 from ..range import IdRange
 from ..etime import Time
 from ..iterator import Iterator, MergeData, KeyInfo, IteratorResult
@@ -37,7 +37,7 @@ def iterate_node(arg):
     stats_name = 'iterate_{0}/{1}'.format(address, backend_id)
     stats = ctx.monitor.stats[stats_name]
     stats.timer('process', 'started')
-    log.info("Running iterator")
+    log.info("Running iterator on node: {0}/{1}".format(address, backend_id))
     log.debug("Ranges:")
     for range in ranges:
         log.debug(repr(range))
@@ -124,8 +124,6 @@ def merge_results(arg):
         for r in results]
     filename = os.path.join(ctx.tmp_dir, 'merge_{0}'.format(range_id))
     with open(filename, 'w') as f:
-        pickler = pickle.Pickler(f)
-
         heap = []
 
         for d in results:
@@ -150,7 +148,7 @@ def merge_results(arg):
                                            heap[0].value.size,
                                            heap[0].value.user_flags))
                 same_datas.append(heapq.heappop(heap))
-            pickler.dump(key_data)
+            pickle.dump(key_data, f)
             for i in same_datas:
                 try:
                     i.next()
@@ -199,15 +197,6 @@ def get_ranges(ctx):
 
     return address_range
 
-def merged_file_keys(filepath):
-    with open(filepath, 'r') as input_file:
-        try:
-            unpickler = pickle.Unpickler(input_file)
-            while True:
-                yield unpickler.load()[0]
-        except:
-            pass
-
 def main(ctx):
     global g_ctx
     g_ctx = ctx
@@ -227,8 +216,9 @@ def main(ctx):
     results = None
 
     try:
-        results = pool.map(iterate_node,
-                           ((addr[0], addr[1], ranges[addr], ) for addr in ranges))
+        ctx.monitor.stats.timer('main', 'iterating')
+        log.info("Start iterating {0} nodes in the pool".format(len(ranges)))
+        results = pool.map(iterate_node, ((addr[0], addr[1], ranges[addr], ) for addr in ranges))
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
         pool.terminate()
@@ -237,10 +227,12 @@ def main(ctx):
         return False
 
     ctx.monitor.stats.timer('main', 'transpose')
+    log.info("Transposing iteration results")
     results = transpose_results(results)
     ctx.monitor.stats.timer('main', 'merge')
 
     try:
+        log.info("Merging iteration results from different nodes")
         results = pool.map(merge_results, (x for x in results.items()))
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
@@ -250,25 +242,33 @@ def main(ctx):
         return False
 
     ctx.merged_filename = os.path.join(ctx.tmp_dir, 'merged_result')
+    dump_filename = os.path.join(ctx.tmp_dir, 'dump')
 
-    with open(ctx.merged_filename, 'w') as m_file:
-        for res in results:
-            if res:
-                with open(res, 'r') as r_file:
-                    m_file.write(r_file.read())
+    ctx.monitor.stats.timer('main', 'combine_and_dump')
+    log.info("Dumping keys")
+    total_keys = 0
+    with open(ctx.merged_filename, 'w') as m_file, open(dump_filename, 'w') as d_file:
+        for res in (r for r in results if r):
+            with open(res, 'r') as r_file:
+                while 1:
+                    try:
+                        key_data = pickle.load(r_file)
+                        pickle.dump(key_data, m_file)
+                        d_file.write('{0}\n'.format(key_data[0]))
+                        total_keys += 1
+                    except:
+                        break
+    ctx.monitor.stats.counter('found keys', total_keys)
+    log.info("Dumped %d keys in file: %s", total_keys, dump_filename)
 
-    ctx.monitor.stats.timer('main', 'dump_keys')
-    dump_path = os.path.join(ctx.tmp_dir, 'dump')
-    log.debug("Dump iterated keys to file: {0}".format(dump_path))
-    dump_keys(merged_file_keys(ctx.merged_filename), dump_path)
-
-    ctx.monitor.stats.timer('main', 'recover')
-    log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir:%s",
+    log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir: %s",
               ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
+    ctx.monitor.stats.timer('main', 'recover')
 
     if ctx.dry_run:
         return ret
 
+    log.info("Start recovering")
     if ctx.custom_recover == '':
         from ..dc_recovery import recover
         ret &= recover(ctx)
@@ -297,10 +297,8 @@ def lookup_keys(ctx):
                                  remotes=ctx.remotes)
     session = elliptics.Session(node)
     filename = os.path.join(ctx.tmp_dir, 'merged_result')
-    merged_f = open(filename, 'w')
-    pickler = pickle.Pickler(merged_f)
-    with open(ctx.dump_file, 'r') as dump:
-        for str_id in dump:
+    with open(filename, 'w') as merged_f, open(ctx.dump_file, 'r') as dump_f:
+        for str_id in dump_f:
             id = elliptics.Id(str_id)
             lookups = []
             for g in ctx.groups:
@@ -323,7 +321,7 @@ def lookup_keys(ctx):
                     stats.counter("lookups", -1)
             if len(key_infos) > 0:
                 key_data = (id, key_infos)
-                pickler.dump(key_data)
+                pickle.dump(key_data, merged_f)
                 stats.counter("lookups", len(key_infos))
             else:
                 log.error("Key: {0} is missing in all specified groups: {1}. It won't be recovered."

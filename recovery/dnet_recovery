@@ -41,7 +41,6 @@ from elliptics_recovery.monitor import Monitor
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
 import elliptics
-from elliptics import Address
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -70,65 +69,10 @@ def cleanup(path):
             continue
         for prefix in TMP_FILE_PREFIXES:
             if file_name.startswith(prefix):
-                log.warning("Cleanup: removing stale file: {0}".format(file_name))
+                log.debug("Cleanup: removing stale file: {0}".format(file_name))
                 os.unlink(file_name)
 
-if __name__ == '__main__':
-    from elliptics_recovery.ctx import Ctx
-    from optparse import OptionParser
-
-    parser = OptionParser()
-    parser.usage = "%prog [options] TYPE"
-    parser.description = __doc__
-    parser.add_option("-b", "--batch-size", action="store", dest="batch_size", default="1024",
-                      help="Number of keys in read_bulk/write_bulk batch [default: %default]")
-    parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
-                      help="Enable debug output [default: %default]")
-    parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/dnet_recovery_%TYPE%', metavar="DIR",
-                      help="Temporary directory for iterators' results [default: %default]")
-    parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default=None,
-                      help="Comma separated list of groups [default: all]")
-    parser.add_option("-k", "--lock", dest="lock", default='dnet_recovery.lock', metavar="LOCKFILE",
-                      help="Lock file used for recovery [default: %default]")
-    parser.add_option("-l", "--log", dest="elliptics_log", default='dnet_recovery.log', metavar="FILE",
-                      help="Output log messages from library to file [default: %default]")
-    parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default=elliptics.log_level.notice,
-                      help="Elliptics client verbosity [default: %default]")
-    parser.add_option("-n", "--nprocess", action="store", dest="nprocess", default="1",
-                      help="Number of subprocesses [default: %default]")
-    parser.add_option("-N", "--dry-run", action="store_true", dest="dry_run", default=False,
-                      help="Enable test mode: only count diffs without recovering [default: %default]")
-    parser.add_option("-r", "--remote", action="append", dest="remotes", default=[],
-                      help="Elliptics node address")
-    parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
-                      help="Statistics output format: {0} [default: %default]".format("/".join(ALLOWED_STATS)))
-    parser.add_option("-S", "--safe", action="store_true", dest="safe", default=False,
-                      help="Do not remove recovered keys after merge [default: %default]")
-    parser.add_option("-t", "--time", action="store", dest="timestamp", default="0",
-                      help="Recover keys modified since `time`. "
-                           "Can be specified as timestamp or as time difference"
-                           "e.g.: `1368940603`, `12h`, `1d`, or `4w` [default: %default]")
-    parser.add_option("-e", "--no-exit", action="store_true", dest="no_exit", default=False,
-                      help="Will be waiting for user input at the finish.")
-    parser.add_option("-m", "--monitor-port", action="store", dest="monitor_port", default=0,
-                      help="Enable remote monitoring on provided port [default: disabled]")
-    parser.add_option("-w", "--wait-timeout", action="store", dest="wait_timeout", default="3600",
-                      help="[Wait timeout for elliptics operations default: %default]")
-    parser.add_option("-a", "--attemps", action="store", dest="attempts", default=1,
-                      help="Number of attempts to recover one key")
-    parser.add_option("-o", "--one-node", action="store", dest="one_node", default=None,
-                      help="Elliptics node address that should be iterated/recovered [default: %default]")
-    parser.add_option("-c", "--chunk-size", action='store', dest='chunk_size', default=1024 * 1024,
-                      help="Size of chunk by which all object will be read and recovered [default: %default]")
-    parser.add_option("-C", "--custom-recover", action="store", dest="custom_recover", default="",
-                      help="Sets custom recover app which accepts file path and returns file path to filtered keys")
-    parser.add_option("-f", '--dump-file', action='store', dest='dump_file', default='',
-                      help='Sets dump file which contains hex ids of object that should be recovered')
-    parser.add_option('-i', '--backend-id', action='store', dest='backend_id', default=None,
-                      help='Specifies backend data on which should be recovered. IT WORKS ONLY WITH --one-node')
-
-    (options, args) = parser.parse_args()
-
+def main(options, args):
     if len(args) > 1:
         raise ValueError("Too many arguments passed: {0}, expected: 1".format(len(args)))
     elif len(args) == 0:
@@ -176,7 +120,6 @@ if __name__ == '__main__':
         ctx.log_file = os.path.join(ctx.tmp_dir, options.elliptics_log)
         ctx.log_level = int(options.elliptics_log_level)
 
-        ch.setLevel(logging.WARNING)
         if options.debug:
             ch.setLevel(logging.DEBUG)
 
@@ -209,7 +152,7 @@ if __name__ == '__main__':
     ctx.remotes = []
     for remote in options.remotes:
         try:
-            ctx.remotes.append(Address.from_host_port_family(remote))
+            ctx.remotes.append(elliptics.Address.from_host_port_family(remote))
         except Exception as e:
             raise ValueError("Can't parse host:port:family: '{0}': {1}, traceback: {2}"
                              .format(remote, repr(e), traceback.format_exc()))
@@ -218,7 +161,7 @@ if __name__ == '__main__':
     # if one_node mode is on then use his address as a main otherwise use first from remotes
     if ctx.one_node:
         try:
-            ctx.address = Address.from_host_port_family(options.one_node)
+            ctx.address = elliptics.Address.from_host_port_family(options.one_node)
         except Exception as e:
             raise ValueError("Can't parse host:port:family: '{0}': {1}, traceback: {2}"
                              .format(remote, repr(e), traceback.format_exc()))
@@ -316,7 +259,7 @@ if __name__ == '__main__':
 
     log.debug("Using following context:\n{0}".format(ctx))
 
-    log.info("Setting up elliptics client")
+    log.debug("Setting up elliptics client")
 
     log.debug("Creating logger")
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
@@ -330,7 +273,7 @@ if __name__ == '__main__':
     log.debug("Creating session for: {0}".format(ctx.address))
     session = elliptics_create_session(node=node, group=0)
 
-    log.info("Parsing routing table")
+    log.debug("Parsing routing table")
     ctx.routes = RouteList.from_session(session)
     log.debug("Parsed routing table:\n{0}".format(ctx.routes))
     if not ctx.routes:
@@ -343,17 +286,20 @@ if __name__ == '__main__':
 
     if recovery_type == TYPE_MERGE:
         if ctx.dump_file:
-            from elliptics_recovery.types.merge import dump_main as main
+            from elliptics_recovery.types.merge import dump_main
+            result = dump_main(ctx)
         else:
             from elliptics_recovery.types.merge import main
+            result = main(ctx)
     elif recovery_type == TYPE_DC:
         if ctx.dump_file:
-            from elliptics_recovery.types.dc import dump_main as main
+            from elliptics_recovery.types.dc import dump_main
+            result = dump_main(ctx)
         else:
             from elliptics_recovery.types.dc import main
+            result = main(ctx)
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
-    result = main(ctx)
 
     ctx.monitor.shutdown()
     ctx.monitor.update()
@@ -367,4 +313,60 @@ if __name__ == '__main__':
 
     rc = int(not result)
     log.info("Finished with rc: {0}".format(rc))
-    exit(rc)
+    return rc
+
+if __name__ == '__main__':
+    from elliptics_recovery.ctx import Ctx
+    from optparse import OptionParser
+
+    parser = OptionParser()
+    parser.usage = "%prog [options] TYPE"
+    parser.description = __doc__
+    parser.add_option("-b", "--batch-size", action="store", dest="batch_size", default="1024",
+                      help="Number of keys in read_bulk/write_bulk batch [default: %default]")
+    parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
+                      help="Enable debug output [default: %default]")
+    parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/dnet_recovery_%TYPE%', metavar="DIR",
+                      help="Temporary directory for iterators' results [default: %default]")
+    parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default=None,
+                      help="Comma separated list of groups [default: all]")
+    parser.add_option("-k", "--lock", dest="lock", default='dnet_recovery.lock', metavar="LOCKFILE",
+                      help="Lock file used for recovery [default: %default]")
+    parser.add_option("-l", "--log", dest="elliptics_log", default='dnet_recovery.log', metavar="FILE",
+                      help="Output log messages from library to file [default: %default]")
+    parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default=elliptics.log_level.notice,
+                      help="Elliptics client verbosity [default: %default]")
+    parser.add_option("-n", "--nprocess", action="store", dest="nprocess", default="1",
+                      help="Number of subprocesses [default: %default]")
+    parser.add_option("-N", "--dry-run", action="store_true", dest="dry_run", default=False,
+                      help="Enable test mode: only count diffs without recovering [default: %default]")
+    parser.add_option("-r", "--remote", action="append", dest="remotes", default=[],
+                      help="Elliptics node address")
+    parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
+                      help="Statistics output format: {0} [default: %default]".format("/".join(ALLOWED_STATS)))
+    parser.add_option("-S", "--safe", action="store_true", dest="safe", default=False,
+                      help="Do not remove recovered keys after merge [default: %default]")
+    parser.add_option("-t", "--time", action="store", dest="timestamp", default="0",
+                      help="Recover keys modified since `time`. "
+                           "Can be specified as timestamp or as time difference"
+                           "e.g.: `1368940603`, `12h`, `1d`, or `4w` [default: %default]")
+    parser.add_option("-e", "--no-exit", action="store_true", dest="no_exit", default=False,
+                      help="Will be waiting for user input at the finish.")
+    parser.add_option("-m", "--monitor-port", action="store", dest="monitor_port", default=0,
+                      help="Enable remote monitoring on provided port [default: disabled]")
+    parser.add_option("-w", "--wait-timeout", action="store", dest="wait_timeout", default="3600",
+                      help="[Wait timeout for elliptics operations default: %default]")
+    parser.add_option("-a", "--attemps", action="store", dest="attempts", default=1,
+                      help="Number of attempts to recover one key")
+    parser.add_option("-o", "--one-node", action="store", dest="one_node", default=None,
+                      help="Elliptics node address that should be iterated/recovered [default: %default]")
+    parser.add_option("-c", "--chunk-size", action='store', dest='chunk_size', default=1024 * 1024,
+                      help="Size of chunk by which all object will be read and recovered [default: %default]")
+    parser.add_option("-C", "--custom-recover", action="store", dest="custom_recover", default="",
+                      help="Sets custom recover app which accepts file path and returns file path to filtered keys")
+    parser.add_option("-f", '--dump-file', action='store', dest='dump_file', default='',
+                      help='Sets dump file which contains hex ids of object that should be recovered')
+    parser.add_option('-i', '--backend-id', action='store', dest='backend_id', default=None,
+                      help='Specifies backend data on which should be recovered. IT WORKS ONLY WITH --one-node')
+
+    exit(main(*parser.parse_args()))

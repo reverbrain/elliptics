@@ -84,15 +84,19 @@ def write_data(scope, session, keys, datas):
     '''
     Writes @key to the @session. Writes all keys async at once and waits/checks results at the end.
     '''
-    res = map(lambda (i, x): session.write_data(x, datas[i]), enumerate(keys))
-    for r in res:
+    results = []
+    for i, k in enumerate(keys):
+        results.append(session.write_data(k, datas[i]))
+    for r in results:
         r.wait()
 
 def check_data(scope, session, keys, datas, timestamp):
     '''
     Reads @keys from the session. Reads all keys async at once and waits/checks results at the end.
     '''
-    results = map(session.read_data, keys)
+    results = []
+    for k in keys:
+        results.append(session.read_data(k))
     results = map(lambda x: x.get()[0], results)
     assert [x.data for x in results] == datas
     timestamps = [x.timestamp for x in results]
@@ -413,6 +417,7 @@ class TestRecovery:
         session.groups = (scope.test_group2,)
         check_data(scope, session, self.keys, self.datas, self.timestamp)
 
+
     def test_enable_all_third_group_backends(self, scope, server, simple_node):
         '''
         Enables all backends from all node from third group.
@@ -457,6 +462,7 @@ class TestRecovery:
         for group in (scope.test_group, scope.test_group2, scope.test_group3):
             session.groups = [group]
             check_data(scope, session, self.keys, self.datas2, self.timestamp2)
+
 
     def test_write_and_corrupt_data(self, scope, server, simple_node):
         '''
@@ -516,6 +522,7 @@ class TestRecovery:
         for group in (scope.test_group, scope.test_group2, scope.test_group3):
             session.groups = [group]
             check_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.2'], self.corrupted_timestamp2)
+
 
     def test_defragmentation(self, scope, server, simple_node):
         '''
