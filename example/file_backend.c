@@ -214,8 +214,9 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 		goto err_out_remove;
 	}
 
-	dnet_backend_log(r->blog, DNET_LOG_INFO, "%s: FILE: %s: WRITE: Ok: offset: %llu, size: %llu.",
-			dnet_dump_id(&cmd->id), dir, (unsigned long long)io->offset, (unsigned long long)io->size);
+	dnet_backend_log(r->blog, DNET_LOG_INFO, "%s: FILE: %s: WRITE: Ok: offset: %llu, size: %llu, ts: %lld.",
+			dnet_dump_id(&cmd->id), dir, (unsigned long long)io->offset, (unsigned long long)io->size,
+			(unsigned long long)elist.timestamp.tsec);
 
 	if (io->flags & DNET_IO_FLAGS_WRITE_NO_FILE_INFO) {
 		cmd->flags |= DNET_FLAGS_NEED_ACK;
@@ -359,15 +360,16 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 		err = -ERANGE;
 	}
 
+	elist.timestamp.tsec = st.st_mtime;
+	elist.timestamp.tnsec = 0;
+
 	if (err) {
 		dnet_backend_log(r->blog, DNET_LOG_ERROR, "%s: FILE: %s: meta-read-return: %d: %s.",
 			dnet_dump_id(&cmd->id), file, err, strerror(-err));
-		elist.timestamp.tsec = st.st_mtime;
-		elist.timestamp.tnsec = 0;
 	} else {
 		struct dnet_ext_list_hdr ehdr;
 
-		err = dnet_ext_hdr_read(&ehdr, wc.data_fd, wc.offset);
+		err = dnet_ext_hdr_read(&ehdr, wc.data_fd, wc.data_offset);
 
 		if (err) {
 			dnet_backend_log(r->blog, DNET_LOG_ERROR, "%s: FILE: %s: meta-read-hdr: %d: %s.",
