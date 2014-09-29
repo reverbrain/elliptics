@@ -305,32 +305,35 @@ class MonitorStatsChecker:
         procfs = self.json_stat['procfs']
 
         vm = procfs['vm']
-        assert len(vm['la']) == 3
-        assert all(x >= 0 for x in vm['la'])
-        assert 0 <= vm['active'] <= vm['total']
-        assert 0 <= vm['inactive'] <= vm['total']
-        assert 0 <= vm['free'] <= vm['total']
-        assert 0 <= vm['cached'] <= vm['total']
-        assert 0 <= vm['buffers'] <= vm['total']
+        if vm['error'] == 0:
+            assert len(vm['la']) == 3
+            assert all(x >= 0 for x in vm['la'])
+            assert 0 <= vm['active'] <= vm['total']
+            assert 0 <= vm['inactive'] <= vm['total']
+            assert 0 <= vm['free'] <= vm['total']
+            assert 0 <= vm['cached'] <= vm['total']
+            assert 0 <= vm['buffers'] <= vm['total']
 
         io = procfs['io']
-        assert io['rchar'] >= 0
-        assert io['wchar'] >= 0
-        assert io['syscr'] >= 0
-        assert io['syscw'] >= 0
-        assert io['read_bytes'] >= 0
-        assert io['write_bytes'] >= 0
-        assert io['cancelled_write_bytes'] >= 0
+        if io['error'] == 0:
+            assert io['rchar'] >= 0
+            assert io['wchar'] >= 0
+            assert io['syscr'] >= 0
+            assert io['syscw'] >= 0
+            assert io['read_bytes'] >= 0
+            assert io['write_bytes'] >= 0
+            assert io['cancelled_write_bytes'] >= 0
 
         stat = procfs['stat']
-        assert stat['threads_num'] >= 1
-        assert 0 <= stat['rss'] <= stat['rsslim']
-        assert stat['vsize'] >= 0
-        assert stat['msize'] >= 0
-        assert stat['mresident'] >= 0
-        assert stat['mshare'] >= 0
-        assert stat['mcode'] >= 0
-        assert stat['mdata'] >= 0
+        if stat['error'] == 0:
+            assert stat['threads_num'] >= 1
+            assert 0 <= stat['rss'] <= stat['rsslim']
+            assert stat['vsize'] >= 0
+            assert stat['msize'] >= 0
+            assert stat['mresident'] >= 0
+            assert stat['mshare'] >= 0
+            assert stat['mcode'] >= 0
+            assert stat['mdata'] >= 0
 
 def categories_combination():
     '''generates different combination of elliptics.monitor_stat_categories for future use'''
