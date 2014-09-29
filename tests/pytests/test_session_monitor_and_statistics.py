@@ -278,14 +278,14 @@ class MonitorStatsChecker:
             vfs = backend['vfs']
             assert vfs['bsize'] > 0
             assert vfs['frsize'] > 0
-            assert vfs['blocks'] > 0
-            assert vfs['bfree'] > 0
-            assert vfs['bavail'] > 0
+            assert vfs['blocks'] >= 0
+            assert vfs['bfree'] >= 0
+            assert vfs['bavail'] >= 0
             assert vfs['files'] > 0
-            assert vfs['ffree'] > 0
-            assert vfs['favail'] > 0
-            assert vfs['fsid'] > 0
-            assert vfs['flag'] > 0
+            assert vfs['ffree'] >= 0
+            assert vfs['favail'] >= 0
+            assert vfs['fsid'] >= 0
+            assert vfs['flag'] >= 0
             assert vfs['namemax'] > 0
 
             dstat = backend['dstat']
