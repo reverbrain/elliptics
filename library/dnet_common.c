@@ -1594,6 +1594,8 @@ int dnet_get_vm_stat(dnet_logger *l, struct dnet_vm_stat *st) {
 	float la[3];
 	unsigned long long stub;
 
+	memset(st, 0, sizeof(struct dnet_vm_stat));
+
 	f = fopen("/proc/loadavg", "r");
 	if (!f) {
 		err = -errno;
@@ -1653,6 +1655,8 @@ int dnet_get_vm_stat(dnet_logger *l, struct dnet_vm_stat *st) {
 	long page_size = 0;
 	size_t sz = sizeof(la);
 
+	memset(st, 0, sizeof(struct dnet_vm_stat));
+
 	err = sysctlbyname("vm.loadavg", &la, &sz, NULL, 0);
 	if (err) {
 		err = -errno;
@@ -1692,7 +1696,8 @@ int dnet_get_vm_stat(dnet_logger *l, struct dnet_vm_stat *st) {
 	return 0;
 }
 #else
-int dnet_get_vm_stat(dnet_logger *l __unused, struct dnet_vm_stat *st __unused) {
+int dnet_get_vm_stat(dnet_logger *l __unused, struct dnet_vm_stat *st) {
+	memset(st, 0, sizeof(struct dnet_vm_stat));
 	return 0;
 }
 #endif

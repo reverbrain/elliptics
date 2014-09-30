@@ -247,17 +247,18 @@ def main(ctx):
     ctx.monitor.stats.timer('main', 'combine_and_dump')
     log.info("Dumping keys")
     total_keys = 0
-    with open(ctx.merged_filename, 'w') as m_file, open(dump_filename, 'w') as d_file:
-        for res in (r for r in results if r):
-            with open(res, 'r') as r_file:
-                while 1:
-                    try:
-                        key_data = pickle.load(r_file)
-                        pickle.dump(key_data, m_file)
-                        d_file.write('{0}\n'.format(key_data[0]))
-                        total_keys += 1
-                    except:
-                        break
+    with open(ctx.merged_filename, 'w') as m_file:
+        with open(dump_filename, 'w') as d_file:
+            for res in (r for r in results if r):
+                with open(res, 'r') as r_file:
+                    while 1:
+                        try:
+                            key_data = pickle.load(r_file)
+                            pickle.dump(key_data, m_file)
+                            d_file.write('{0}\n'.format(key_data[0]))
+                            total_keys += 1
+                        except:
+                            break
     ctx.monitor.stats.counter('found keys', total_keys)
     log.info("Dumped %d keys in file: %s", total_keys, dump_filename)
 
@@ -297,35 +298,36 @@ def lookup_keys(ctx):
                                  remotes=ctx.remotes)
     session = elliptics.Session(node)
     filename = os.path.join(ctx.tmp_dir, 'merged_result')
-    with open(filename, 'w') as merged_f, open(ctx.dump_file, 'r') as dump_f:
-        for str_id in dump_f:
-            id = elliptics.Id(str_id)
-            lookups = []
-            for g in ctx.groups:
-                session.groups = [g]
-                lookups.append(session.read_data(id, size=1))
-            key_infos = []
+    with open(filename, 'w') as merged_f:
+        with open(ctx.dump_file, 'r') as dump_f:
+            for str_id in dump_f:
+                id = elliptics.Id(str_id)
+                lookups = []
+                for g in ctx.groups:
+                    session.groups = [g]
+                    lookups.append(session.read_data(id, size=1))
+                key_infos = []
 
-            for i, l in enumerate(lookups):
-                try:
-                    result = l.get()[0]
-                    address = result.address
-                    key_infos.append(KeyInfo(address,
-                                             ctx.groups[i],
-                                             result.timestamp,
-                                             result.size,
-                                             result.user_flags))
-                except Exception, e:
-                    log.error("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"
-                              .format(id, ctx.groups[i], repr(e), traceback.format_exc()))
-                    stats.counter("lookups", -1)
-            if len(key_infos) > 0:
-                key_data = (id, key_infos)
-                pickle.dump(key_data, merged_f)
-                stats.counter("lookups", len(key_infos))
-            else:
-                log.error("Key: {0} is missing in all specified groups: {1}. It won't be recovered."
-                          .format(id, ctx.groups))
+                for i, l in enumerate(lookups):
+                    try:
+                        result = l.get()[0]
+                        address = result.address
+                        key_infos.append(KeyInfo(address,
+                                                 ctx.groups[i],
+                                                 result.timestamp,
+                                                 result.size,
+                                                 result.user_flags))
+                    except Exception, e:
+                        log.error("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"
+                                  .format(id, ctx.groups[i], repr(e), traceback.format_exc()))
+                        stats.counter("lookups", -1)
+                if len(key_infos) > 0:
+                    key_data = (id, key_infos)
+                    pickle.dump(key_data, merged_f)
+                    stats.counter("lookups", len(key_infos))
+                else:
+                    log.error("Key: {0} is missing in all specified groups: {1}. It won't be recovered."
+                              .format(id, ctx.groups))
     stats.timer('process', 'finished')
     return filename
 

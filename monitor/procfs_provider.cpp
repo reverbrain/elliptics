@@ -117,24 +117,29 @@ procfs_provider::procfs_provider(struct dnet_node *node)
 static void fill_vm(dnet_node *node,
                     rapidjson::Value &stat_value,
                     rapidjson::Document::AllocatorType &allocator) {
-	dnet_vm_stat st;
-	if (dnet_get_vm_stat(node->log, &st))
-		return;
-
 	rapidjson::Value vm_value(rapidjson::kObjectType);
+	int err = 0;
+	dnet_vm_stat st;
 
-	rapidjson::Value la_value(rapidjson::kArrayType);
-	for (size_t i = 0; i < 3; ++i) {
-		la_value.PushBack(st.la[i], allocator);
-	}
-	vm_value.AddMember("la", la_value, allocator);
+	err = dnet_get_vm_stat(node->log, &st);
+	vm_value.AddMember("error", err, allocator);
 
-	vm_value.AddMember("total", st.vm_total, allocator);
-	vm_value.AddMember("active", st.vm_active, allocator);
-	vm_value.AddMember("inactive", st.vm_inactive, allocator);
-	vm_value.AddMember("free", st.vm_free, allocator);
-	vm_value.AddMember("cached", st.vm_cached, allocator);
-	vm_value.AddMember("buffers", st.vm_buffers, allocator);
+	if (!err) {
+		vm_value.AddMember("string_error", "", allocator);
+		rapidjson::Value la_value(rapidjson::kArrayType);
+		for (size_t i = 0; i < 3; ++i) {
+			la_value.PushBack(st.la[i], allocator);
+		}
+		vm_value.AddMember("la", la_value, allocator);
+
+		vm_value.AddMember("total", st.vm_total, allocator);
+		vm_value.AddMember("active", st.vm_active, allocator);
+		vm_value.AddMember("inactive", st.vm_inactive, allocator);
+		vm_value.AddMember("free", st.vm_free, allocator);
+		vm_value.AddMember("cached", st.vm_cached, allocator);
+		vm_value.AddMember("buffers", st.vm_buffers, allocator);
+	} else
+		vm_value.AddMember("string_error", strerror(-err), allocator);
 
 	stat_value.AddMember("vm", vm_value, allocator);
 }
@@ -142,19 +147,24 @@ static void fill_vm(dnet_node *node,
 static void fill_io(dnet_node *node,
                     rapidjson::Value &stat_value,
                     rapidjson::Document::AllocatorType &allocator) {
-	proc_io_stat st;
-	if (fill_proc_io_stat(node->log, st))
-		return;
-
 	rapidjson::Value io_stat(rapidjson::kObjectType);
+	int err = 0;
+	proc_io_stat st;
 
-	io_stat.AddMember("rchar", st.rchar, allocator);
-	io_stat.AddMember("wchar", st.wchar, allocator);
-	io_stat.AddMember("syscr", st.syscr, allocator);
-	io_stat.AddMember("syscw", st.syscw, allocator);
-	io_stat.AddMember("read_bytes", st.read_bytes, allocator);
-	io_stat.AddMember("write_bytes", st.write_bytes, allocator);
-	io_stat.AddMember("cancelled_write_bytes", st.cancelled_write_bytes, allocator);
+	err = fill_proc_io_stat(node->log, st);
+	io_stat.AddMember("error", err, allocator);
+
+	if (!err) {
+		io_stat.AddMember("string_error", "", allocator);
+		io_stat.AddMember("rchar", st.rchar, allocator);
+		io_stat.AddMember("wchar", st.wchar, allocator);
+		io_stat.AddMember("syscr", st.syscr, allocator);
+		io_stat.AddMember("syscw", st.syscw, allocator);
+		io_stat.AddMember("read_bytes", st.read_bytes, allocator);
+		io_stat.AddMember("write_bytes", st.write_bytes, allocator);
+		io_stat.AddMember("cancelled_write_bytes", st.cancelled_write_bytes, allocator);
+	} else
+		io_stat.AddMember("string_error", strerror(-err), allocator);
 
 	stat_value.AddMember("io", io_stat, allocator);
 }
@@ -163,20 +173,25 @@ static void fill_stat(dnet_node *node,
                       rapidjson::Value &stat_value,
                       rapidjson::Document::AllocatorType &allocator) {
 	rapidjson::Value stat_stat(rapidjson::kObjectType);
-
+	int err = 0;
 	proc_stat st;
-	if (fill_proc_stat(node->log, st))
-		return;
 
-	stat_stat.AddMember("threads_num", st.threads_num, allocator);
-	stat_stat.AddMember("rss", st.rss, allocator);
-	stat_stat.AddMember("vsize", st.vsize, allocator);
-	stat_stat.AddMember("rsslim", st.rsslim, allocator);
-	stat_stat.AddMember("msize", st.msize, allocator);
-	stat_stat.AddMember("mresident", st.mresident, allocator);
-	stat_stat.AddMember("mshare", st.mshare, allocator);
-	stat_stat.AddMember("mcode", st.mcode, allocator);
-	stat_stat.AddMember("mdata", st.mdata, allocator);
+	err = fill_proc_stat(node->log, st);
+	stat_stat.AddMember("error", err, allocator);
+
+	if (!err) {
+		stat_stat.AddMember("string_error", "", allocator);
+		stat_stat.AddMember("threads_num", st.threads_num, allocator);
+		stat_stat.AddMember("rss", st.rss, allocator);
+		stat_stat.AddMember("vsize", st.vsize, allocator);
+		stat_stat.AddMember("rsslim", st.rsslim, allocator);
+		stat_stat.AddMember("msize", st.msize, allocator);
+		stat_stat.AddMember("mresident", st.mresident, allocator);
+		stat_stat.AddMember("mshare", st.mshare, allocator);
+		stat_stat.AddMember("mcode", st.mcode, allocator);
+		stat_stat.AddMember("mdata", st.mdata, allocator);
+	} else
+		stat_stat.AddMember("string_error", strerror(-err), allocator);
 
 	stat_value.AddMember("stat", stat_stat, allocator);
 }
