@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.26
+Version:	2.26.3.27
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,21 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 30 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.27
+- recovery: added another one (last) fix for compatibility with python2.6 which doesn't support multiple open with one with
+- recovery: fixed multiple open at one with (python2.6)
+- Pytests: if procfs statistics: vm, io or stat; contain nonzero error - do not asserts internal statistics
+- monitor: added 'error' and 'string_error' to procfs statistics: vm, io and proc
+- file: fixed file_info timestamp reading
+- trans: when destructing transaction, write not only state, but also backend
+- monitor: clear dnet_vm_stat at dnet_get_vm_stat
+- Recovery: fixed circular references in dc recovery. Fixed static analysis and memory profiler warnings.
+- Pytests: fixed vfs statistics test - zero value for some metrics is valid.
+- file: fixed metadata blob initialization
+- lookup: there are 2 lookup stages: cache and disk, do not send ack if we succeeded searching for the key
+- forward: cleanup forward path, put transaction allocation into forward function
+- file: fixed lookup command and lookup timestamp for missed metadata
+
 * Sun Sep 28 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.26
 - net: put state in dnet_connect_route_list_complete
 - connect: add_remote() must always return error when failed to connect to any remote node

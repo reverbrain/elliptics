@@ -1,3 +1,21 @@
+elliptics (2.26.3.27) unstable; urgency=low
+
+  * recovery: added another one (last) fix for compatibility with python2.6 which doesn't support multiple open with one with
+  * recovery: fixed multiple open at one with (python2.6)
+  * Pytests: if procfs statistics: vm, io or stat; contain nonzero error - do not asserts internal statistics
+  * monitor: added 'error' and 'string_error' to procfs statistics: vm, io and proc
+  * file: fixed file_info timestamp reading
+  * trans: when destructing transaction, write not only state, but also backend
+  * monitor: clear dnet_vm_stat at dnet_get_vm_stat
+  * Recovery: fixed circular references in dc recovery. Fixed static analysis and memory profiler warnings.
+  * Pytests: fixed vfs statistics test - zero value for some metrics is valid.
+  * file: fixed metadata blob initialization
+  * lookup: there are 2 lookup stages: cache and disk, do not send ack if we succeeded searching for the key
+  * forward: cleanup forward path, put transaction allocation into forward function
+  * file: fixed lookup command and lookup timestamp for missed metadata
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 30 Sep 2014 19:04:27 +0400
+
 elliptics (2.26.3.26) unstable; urgency=low
 
   * net: put state in dnet_connect_route_list_complete
