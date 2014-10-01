@@ -158,7 +158,6 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 	memset(&status, 0, sizeof(status));
 
 	const auto &config_backend = node->config_data->backends->backends[backend_id];
-	std::lock_guard<std::mutex> guard(*config_backend.state_mutex);
 
 	stat_value.AddMember("backend_id", backend_id, allocator);
 	fill_backend_status(stat_value, allocator, node, status, backend_id);
@@ -192,8 +191,7 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 	return stat_value;
 }
 
-static bool backend_check_state(struct dnet_node *node, size_t backend_id) {
-	std::lock_guard<std::mutex> guard(*node->config_data->backends->backends[backend_id].state_mutex);
+static bool backend_check_state_nolock(struct dnet_node *node, size_t backend_id) {
 	return node->config_data->backends->backends[backend_id].state != DNET_BACKEND_UNITIALIZED;
 }
 
@@ -206,7 +204,8 @@ static void backends_stats_json(uint64_t categories,
                                 struct dnet_node *node) {
 	const auto &backends = node->config_data->backends->backends;
 	for (size_t i = 0; i < backends.size(); ++i) {
-		if (!backend_check_state(node, i))
+		std::lock_guard<std::mutex> guard(*node->config_data->backends->backends[i].state_mutex);
+		if (!backend_check_state_nolock(node, i))
 			continue;
 		rapidjson::Value backend_stat(rapidjson::kObjectType);
 		stat_value.AddMember(std::to_string(static_cast<unsigned long long>(i)).c_str(),
