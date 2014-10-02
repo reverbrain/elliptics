@@ -32,29 +32,25 @@ extern "C" {
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-static inline int64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint64_t record_size)
+static inline int64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint64_t *offset, uint64_t *size)
 {
-	uint64_t size = io->size;
+	io->total_size = *size;
 
-	if (record_size <= io->offset)
-		return 0;
-
-	if (!record_size && size)
-		return -E2BIG;
-
-	if (!size || size + io->offset >= record_size) {
-		if (!size)
-			size = record_size;
-
-		if (size + io->offset >= record_size) {
-			if (io->offset >= record_size)
-				size = 0;
-			else
-				size = record_size - io->offset;
+	if (io->offset) {
+		if (io->offset >= *size) {
+			return -E2BIG;
 		}
+
+		*offset += io->offset;
+		*size -= io->offset;
 	}
 
-	return size;
+	if (io->size != 0 && *size > io->size)
+		*size = io->size;
+	else
+		io->size = *size;
+
+	return 0;
 }
 
 static inline char *file_backend_get_dir(const unsigned char *id, uint64_t bit_num, char *dst)
