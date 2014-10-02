@@ -228,6 +228,11 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node.");
 
 	/*
+	 * Monitor uses all others, so it should be stopped at first.
+	 */
+	dnet_monitor_exit(n);
+
+	/*
 	 * Cache can be accessed from the io threads, so firstly stop them.
 	 * Cache uses backend to dump all ansynced data to the disk, so
 	 * backend must be destroyed the last.
@@ -250,8 +255,6 @@ void dnet_server_node_destroy(struct dnet_node *n)
 
 	if (n->config_data)
 		n->config_data->destroy_config_data(n->config_data);
-
-	dnet_monitor_exit(n);
 
 	free(n);
 }
