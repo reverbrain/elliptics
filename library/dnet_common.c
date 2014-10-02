@@ -637,6 +637,9 @@ int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 
 			if (!(ctl->cflags & DNET_FLAGS_DIRECT))
 				dnet_setup_id(&ctl->id, idc->group->group_id, idc->ids[0].raw.id);
+			if (ctl->cflags & DNET_FLAGS_DIRECT_BACKEND)
+				dnet_session_set_direct_backend(s, idc->backend_id);
+
 			dnet_request_cmd_single(s, st, ctl);
 			num++;
 		}
