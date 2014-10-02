@@ -23,7 +23,7 @@
 
 namespace ioremap { namespace elliptics {
 
-#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ < 5
+#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ < 6
 /*
  * GCC-4.4 doesn't have noexcept support yet
  */
