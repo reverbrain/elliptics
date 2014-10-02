@@ -467,7 +467,7 @@ int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl
 	return err;
 }
 
-void dnet_trans_clean_list(struct list_head *head)
+void dnet_trans_clean_list(struct list_head *head, int error)
 {
 	struct dnet_trans *t, *tmp;
 
@@ -476,7 +476,7 @@ void dnet_trans_clean_list(struct list_head *head)
 
 		t->cmd.size = 0;
 		t->cmd.flags &= ~DNET_FLAGS_REPLY;
-		t->cmd.status = -ETIMEDOUT;
+		t->cmd.status = error;
 
 		if (t->complete) {
 			dnet_node_set_trace_id(t->n->log, t->cmd.trace_id, t->cmd.flags & DNET_FLAGS_TRACE_BIT, -1);
@@ -586,7 +586,7 @@ static void dnet_check_all_states(struct dnet_node *n)
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	dnet_trans_clean_list(&head);
+	dnet_trans_clean_list(&head, -ETIMEDOUT);
 }
 
 static void *dnet_reconnect_process(void *data)

@@ -171,6 +171,11 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 			goto err_out_state_destroy;
 		}
 
+		// @dnet_state_create() returns state pointer which holds 2 references - one for originally created state
+		// and another for caller in case he wants to do something with the state. The first reference is owned
+		// by network thread given state was attached to, and it can already release it.
+		dnet_state_put(n->st);
+
 		err = dnet_backend_init_all(n);
 		if (err) {
 			dnet_log(n, DNET_LOG_ERROR, "failed to init backends: %s %d", strerror(-err), err);

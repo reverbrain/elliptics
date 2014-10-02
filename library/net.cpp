@@ -933,6 +933,8 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 			dnet_request_route_list(state, st);
 		}
 
+		// @dnet_net_state() returns state with 2 reference counters
+		dnet_state_put(st);
 		socket->state = finished;
 		break;
 	}

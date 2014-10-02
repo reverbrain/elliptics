@@ -774,7 +774,7 @@ void dnet_state_reset(struct dnet_net_state *st, int error)
 	dnet_state_reset_nolock_noclean(st, error, &head);
 	pthread_mutex_unlock(&st->n->state_lock);
 
-	dnet_trans_clean_list(&head);
+	dnet_trans_clean_list(&head, error);
 }
 
 
@@ -858,9 +858,11 @@ static int dnet_auth_complete(struct dnet_addr *addr, struct dnet_cmd *cmd, void
 			return 0;
 		}
 
-		dnet_log(n, DNET_LOG_ERROR, "%s: authentication request failed: %d", dnet_server_convert_dnet_addr(addr), cmd->status);
-
 		state = dnet_state_search_by_addr(n, addr);
+
+		dnet_log(n, DNET_LOG_ERROR, "%s: authentication request failed: %d, state to reset: %p",
+				dnet_server_convert_dnet_addr(addr), cmd->status, state);
+
 		if (state) {
 			state->__join_state = 0;
 			dnet_state_reset(state, -ECONNRESET);
@@ -1119,10 +1121,18 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		if (!err)
 			err = -ECONNRESET;
 	}
-	dnet_state_put(st);
 
-	if (err)
+	// do not release state if everything is ok
+	// library/net.cpp:907 will use state to request route table from remote node and so on
+	// but since state has been added into the route table it is not owned by 'creating' thread anymore,
+	// in particular connection can be reset, network thread will pick up reset epoll event and call
+	// dnet_state_reset() which will eventually kill state, while 'creating' thread is still using its pointer
+	//
+	// 'creating' thread must release state after it finished with it
+	if (err) {
+		dnet_state_put(st);
 		goto err_out_exit;
+	}
 
 	return st;
 

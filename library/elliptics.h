@@ -526,7 +526,6 @@ struct dnet_io {
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
-int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev);
 int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg);
 void *dnet_io_process(void *data_);
 int dnet_server_io_init(struct dnet_node *n);
@@ -852,7 +851,7 @@ void dnet_trans_remove_timer_nolock(struct dnet_net_state *st, struct dnet_trans
 
 void dnet_trans_remove(struct dnet_trans *t);
 
-void dnet_trans_clean_list(struct list_head *head);
+void dnet_trans_clean_list(struct list_head *head, int error);
 int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_head *head);
 int dnet_state_reset_nolock_noclean(struct dnet_net_state *st, int error, struct list_head *head);
 

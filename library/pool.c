@@ -576,6 +576,9 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 		goto err_out_exit;
 	}
 
+	// @dnet_net_state() returns state with 2 reference counters
+	dnet_state_put(st);
+
 	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d, server address: %s, idx: %d.",
 			dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), cs,
 			dnet_server_convert_dnet_addr_raw(&saddr, server_addr, sizeof(server_addr)), idx);
@@ -724,7 +727,7 @@ int dnet_schedule_recv(struct dnet_net_state *st)
 	return dnet_schedule_network_io(st, 0);
 }
 
-int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev)
+static int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev)
 {
 	int err = -ECONNRESET;
 
