@@ -25,6 +25,10 @@ from server import server
 import elliptics
 
 
+def write_cas_converter(x):
+    return '__' + x + '__'
+
+
 def check_write_results(results, number, data, session):
     assert len(results) == number
     for r in results:
@@ -208,9 +212,10 @@ class TestSession:
         check_write_results(results, len(session.groups), data2, session)
         checked_read(session, key, data2)
 
-        results = session.write_cas(key, lambda x: '__' + x + '__').get()
-        check_write_results(results, len(session.groups), '__' + data2 + '__', session)
-        checked_read(session, key, '__' + data2 + '__')
+        ndata = write_cas_converter(data2)
+        results = session.write_cas(key, write_cas_converter).get()
+        check_write_results(results, len(session.groups), ndata, session)
+        checked_read(session, key, ndata)
 
     def test_prepare_write_commit(self, server, simple_node):
         session = make_session(node=simple_node,
