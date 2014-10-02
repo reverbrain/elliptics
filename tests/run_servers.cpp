@@ -303,6 +303,7 @@ static int run_servers(const rapidjson::Value &doc)
 		return 1;
 	}
 
+	sleep(2);
 #ifdef HAVE_COCAINE
 	if (srw) {
 		const std::vector<int> groups(unique_groups.begin(), unique_groups.end());
@@ -323,6 +324,7 @@ static int run_servers(const rapidjson::Value &doc)
 			global_data.reset();
 			return 1;
 		}
+		sleep(2);
 		try {
 			session sess(*global_data->node);
 			sess.set_groups(groups);
