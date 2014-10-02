@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 
 		{
 			transport_control ctl(raw, DNET_CMD_LOOKUP,
-				DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK);
+				DNET_FLAGS_DIRECT | DNET_FLAGS_DIRECT_BACKEND | DNET_FLAGS_NEED_ACK);
 
 			sync_generic_result results = find.request_cmd(ctl);
 			find.parse_lookup(results);
