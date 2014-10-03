@@ -146,9 +146,11 @@ static void upload_application(int locator_port, const std::string &path)
 	{
 		buffer.clear();
 		msgpack::packer<msgpack::sbuffer> packer(buffer);
-		packer.pack_map(2);
+		packer.pack_map(3);
 		packer << std::string("type");
 		packer << std::string("binary");
+		packer << std::string("log-output");
+		packer << true;
 		packer << std::string("slave");
 		packer << app_name;
 	}
