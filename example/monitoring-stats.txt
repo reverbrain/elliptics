@@ -1,0 +1,57 @@
+## Measuring points
+
+io.cmd
+    time of commands, overall for entire command stream of the node
+
+io.cmd.{<any elliptics command type in upper case>}
+    time of commands for each type
+
+io.cmd.{<any elliptics command type in upper case>}.lock_time
+    time spent in id lock waiting, for each command type,
+    (this will be 0 for commands with DNET_FLAGS_NOLOCK flag set)
+
+io.cmd_recursive
+    time of commands that originate from other commands execution, overall for entire elliptics command stream
+    (right now only BULK_READ generate subcommands like that)
+
+io.cmd_recursive.READ
+    time of READs that originate from BULK_READ commands
+
+cache.{READ,WRITE,DEL}
+    time spent in cache layer, for listed command types
+
+eblob_backend.cmd.{READ,WRITE,LOOKUP,DEL,READ_RANGE,DEL_RANGE}
+    time spent in eblob backend layer, for listed command types
+
+io.notify.update
+    time of sending notification to registered target
+
+io.notify.{add,remove}
+    time of adding or removing notification target
+
+io.cmds
+    tracks all input commands that processed by this node
+    ("rate" is the most suitable statistic for this, same goes for io.forwards and io.replies)
+
+io.forwards
+    tracks all input commands that forwarded to other node
+
+io.replies
+    tracks all input commands that are really replies (has DNET_FLAGS_REPLY flag set)
+
+io.input.queue.size
+    tracks size of virtual input queue of the node
+    ("rate" or "interval-sum" statistics are suitable to assess command stream rate, same goes for io.output.queue.size)
+
+io.output.queue.size
+    tracks instant size of output queue of the node
+
+pool.{sys,<backend id>}.{blocking,nonblocking}.queue.size
+    tracks size of a pool's input queue
+    ("rate" or "interval-sum" statistics are suitable to assess command stream rate)
+
+pool.{sys,<backend id>}.{blocking,nonblocking}.queue.wait_time
+    time commands spent waiting in a pool's input queue
+
+pool.{sys,<backend id>}.{blocking,nonblocking}.active_threads
+    tracks pool's thread utilization (how many threads are actually working)
