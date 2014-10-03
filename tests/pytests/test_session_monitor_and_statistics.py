@@ -52,7 +52,7 @@ class MonitorStatsChecker:
         try:
             self.json_stat = entry.statistics
         except Exception as e:
-            with open("monitor.stat.json") as f:
+            with open("monitor.stat.json", "w") as f:
                 f.write(entry.__statistics__)
             raise e
 
