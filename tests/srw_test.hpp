@@ -117,7 +117,9 @@ static void upload_application(int locator_port, const std::string &path)
 	msgpack::sbuffer buffer;
 	{
 		msgpack::packer<msgpack::sbuffer> packer(buffer);
-		packer.pack_map(1);
+		packer.pack_map(2);
+		packer << std::string("log-output");
+		packer << true;
 		packer << std::string("isolate");
 		packer.pack_map(2);
 		packer << std::string("type");
@@ -143,14 +145,13 @@ static void upload_application(int locator_port, const std::string &path)
 		packer << 60;
 	}
 	std::string profile(buffer.data(), buffer.size());
+
 	{
 		buffer.clear();
 		msgpack::packer<msgpack::sbuffer> packer(buffer);
-		packer.pack_map(3);
+		packer.pack_map(2);
 		packer << std::string("type");
 		packer << std::string("binary");
-		packer << std::string("log-output");
-		packer << true;
 		packer << std::string("slave");
 		packer << app_name;
 	}
