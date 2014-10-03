@@ -1,0 +1,34 @@
+{
+    "statistics": {
+        "moving-interval": 1000,
+        "histogram-bins": 30,
+        "tags": ["moving-avg"]
+    },
+
+    "metrics": {
+        "counter": {
+            "values": {
+                "tags": ["moving-avg"]
+            },
+            "incr-deltas": {
+                "tags": ["moving-sum"]
+            },
+            "decr-deltas": {
+                "tags": ["moving-sum"]
+            },
+            "deltas": {
+                "tags": ["moving-sum"]
+            }
+        },
+        "timer": {
+            "idle-timeout": 60000,
+            "values": {
+                "tags": ["moving-avg", "quantile"]
+            }
+        }
+    },
+
+    "metrics-dump": {
+        "interval": 1000
+    }
+}
