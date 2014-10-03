@@ -7,24 +7,11 @@
 
     "metrics": {
         "counter": {
-            "values": {
-                "tags": ["moving-avg"]
-            },
-            "incr-deltas": {
-                "tags": ["moving-sum"]
-            },
-            "decr-deltas": {
-                "tags": ["moving-sum"]
-            },
-            "deltas": {
-                "tags": ["moving-sum"]
-            }
+            "tags": ["moving-avg", "rate"]
         },
         "timer": {
             "idle-timeout": 60000,
-            "values": {
-                "tags": ["moving-avg", "quantile"]
-            }
+            "tags": ["moving-avg", "quantile"]
         }
     },
 
