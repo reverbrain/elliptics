@@ -329,19 +329,21 @@ struct dnet_config
 	/* Number of shards to store indexes data */
 	int			indexes_shard_count;
 
+	/* Config values for srw backend */
 	struct srw_init_ctl	srw;
 
 	int			reserved_for_future_use_2[5];
-	int			*reserved_for_future_use_3[1];
+
+	/* Config file name for handystats library */
+	const char 	*handystats_config;
 
 	/*
 	 * Monitor socket port
 	 */
 	unsigned int		monitor_port;
 
-	/* Minimum timeout for call tree.
-	 * Only call tree with spent time >= this timeout will be presented at monitor statistics */
-	long			monitor_call_tree_timeout;
+	/* Unused. Will be removed at next major release */
+	long		__unused_1;
 
 	/* so that we do not change major version frequently */
 	int			reserved_for_future_use[8];

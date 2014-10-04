@@ -6,6 +6,7 @@
 #include "internal/strfunc.h"
 #include <cstdio>	// snprintf() or _sprintf_s()
 #include <new>		// placement new
+#include <cmath>       // isnan(double)
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -158,6 +159,9 @@ protected:
 
 	//! \todo Optimization with custom double-to-string converter.
 	void WriteDouble(double d) {
+		if (isnan(d)) {
+			d = 0;
+		}
 		char buffer[100];
 #if _MSC_VER
 		int ret = sprintf_s(buffer, sizeof(buffer), "%g", d);

@@ -2,17 +2,17 @@
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
  * This file is part of Elliptics.
- * 
+ *
  * Elliptics is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -35,7 +35,7 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "react/elliptics_react.h"
+#include "monitor/measure_points.h"
 
 struct dnet_notify_entry
 {
@@ -59,7 +59,7 @@ static unsigned int dnet_notify_hash(struct dnet_id *id, unsigned int hash_size)
 
 int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
-	react_start_action(ACTION_DNET_UPDATE_NOTIFY);
+	HANDY_TIMER_SCOPE("io.notify.update");
 
 	struct dnet_node *n = st->n;
 	unsigned int hash = dnet_notify_hash(&cmd->id, n->notify_hash_size);
@@ -83,7 +83,6 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd, void *da
 	}
 	pthread_rwlock_unlock(&b->notify_lock);
 
-	react_stop_action(ACTION_DNET_UPDATE_NOTIFY);
 	return 0;
 }
 
@@ -95,7 +94,7 @@ static void dnet_notify_entry_destroy(struct dnet_notify_entry *e)
 
 int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
-	react_start_action(ACTION_DNET_NOTIFY_ADD);
+	HANDY_TIMER_SCOPE("io.notify.add");
 
 	struct dnet_node *n = st->n;
 	struct dnet_notify_entry *e;
@@ -115,12 +114,13 @@ int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd)
 
 	dnet_log(n, DNET_LOG_INFO, "%s: added notification, hash: 0x%x.", dnet_dump_id(&cmd->id), hash);
 
-	react_stop_action(ACTION_DNET_NOTIFY_ADD);
 	return 0;
 }
 
 int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
+	HANDY_TIMER_SCOPE("io.notify.remove");
+
 	struct dnet_node *n = st->n;
 	struct dnet_notify_entry *e, *tmp;
 	unsigned int hash = dnet_notify_hash(&cmd->id, n->notify_hash_size);
@@ -137,7 +137,7 @@ int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd)
 
 		list_del(&e->notify_entry);
 		dnet_notify_entry_destroy(e);
-		
+
 		dnet_log(n, DNET_LOG_INFO, "%s: removed notification.", dnet_dump_id(&cmd->id));
 		break;
 	}

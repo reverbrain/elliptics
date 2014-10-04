@@ -91,11 +91,23 @@ if (HAVE_MODULE_BACKEND_SUPPORT)
     add_subdirectory(example/module_backend)
 endif()
 
-# Find react
-include(cmake/Modules/locate_library.cmake)
-locate_library(REACT "react/react.hpp" "react")
-include_directories(${REACT_INCLUDE_DIRS})
-link_directories(${REACT_LIBRARY_DIRS})
+# Handystats instrumentation
+option(WITH_STATS "Build with runtime statistics gathering" ON)
+
+if (WITH_STATS)
+    find_package(Handystats REQUIRED)
+    include_directories(${HANDYSTATS_INCLUDE_DIRS})
+    add_definitions(${HANDYSTATS_CFLAGS})
+else()
+    # Handystats symbols are spilled across many source files,
+    # so even if we do want to disable handystats instrumentation,
+    # handystats headers still needed to set macros to empty stubs.
+    find_package(Handystats)
+    if (HANDYSTATS_FOUND)
+        add_definitions(${HANDYSTATS_CFLAGS})
+        add_definitions("-DHANDYSTATS_DISABLE=1")
+    endif()
+endif()
 
 option(WITH_DOXYGEN "Generate documentation by Doxygen" ON)
 

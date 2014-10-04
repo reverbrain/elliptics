@@ -136,10 +136,6 @@ class MonitorStatsChecker:
         def check_queue(queue_json):
             '''checks queue statistics'''
             assert queue_json['current_size'] >= 0
-            assert queue_json['min'] >= 0
-            assert queue_json['max'] >= 0
-            assert queue_json['min'] <= queue_json['current_size'] <= queue_json['max']
-            assert queue_json['volume'] >= 0
         io = self.json_stat['io']
         check_queue(io['blocking'])
         check_queue(io['nonblocking'])

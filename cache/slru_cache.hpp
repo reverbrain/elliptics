@@ -18,11 +18,8 @@
 #define SLRU_CACHE_HPP
 
 #include "cache.hpp"
-#include "react/react.hpp"
 
 namespace ioremap { namespace cache {
-
-using namespace react;
 
 class slru_cache_t {
 public:

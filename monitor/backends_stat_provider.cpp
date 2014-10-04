@@ -57,10 +57,7 @@ static void fill_backend_backend(rapidjson::Value &stat_value,
 }
 
 static void dump_list_stats(rapidjson::Value &stat, list_stat &list_stats, rapidjson::Document::AllocatorType &allocator) {
-	stat.AddMember("current_size", list_stats.list_size, allocator)
-	    .AddMember("min", list_stats.min_list_size, allocator)
-	    .AddMember("max", list_stats.max_list_size, allocator)
-	    .AddMember("volume", list_stats.volume, allocator);
+	stat.AddMember("current_size", list_stats.list_size, allocator);
 }
 
 /*

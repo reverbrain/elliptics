@@ -49,6 +49,9 @@ set_target_properties(elliptics_client PROPERTIES
     LINKER_LANGUAGE CXX
     )
 target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT} ${Boost_THREAD_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_FILESYSTEM_LIBRARY})
+if (WITH_STATS)
+    target_link_libraries(elliptics_client ${HANDYSTATS_LIBRARY})
+endif()
 
 add_library(elliptics SHARED ${ELLIPTICS_SRCS})
 set_target_properties(elliptics PROPERTIES

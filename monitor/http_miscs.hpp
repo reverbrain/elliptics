@@ -33,37 +33,40 @@ const std::string ok = "HTTP/1.1 200 OK\r\n";
 }
 
 namespace content_strings {
-const std::string not_found = "<html>"
-	"<head><title>Not Found</title></head>"
-	"<body><h1>404 Not Found</h1></body>"
-	"</html>";
-const std::string bad_request = "<html>"
-	"<head><title>Bad Request</title></head>"
-	"<body><h1>400 Bad Request</h1></body>"
-	"</html>";
-const std::string list = "<html>"
-	"<body>"
-	"GET <a href='/list'>/list</a> - Retrieves a list of acceptable statistics<br/>"
-	"GET <a href='/all'>/all</a> - Retrieves all statistics from all submodules<br/>"
-	"GET <a href='/cache'>/cache</a> - Retrieves statistics about cache<br/>"
-	"GET <a href='/io'>/io</a> - Retrieves statistics about io statistics<br/>"
-	"GET <a href='/commands'>/commands</a> - Retrieves statistics about commands<br/>"
-	"GET <a href='/backend'>/backend</a> - Retrieves statistics about backend<br/>"
-	"GET <a href='/call_tree'>/call_tree</a> - Retrieves statistics about react call trees<br/>"
-	"GET <a href='/procfs'>/procfs</a> - Retrieves procfs statistics<br/>"
-	"</body>"
-	"</html>";
+const std::string not_found = "<html>\n"
+	"<head><title>Not Found</title></head>\n"
+	"<body><h1>404 Not Found</h1></body>\n"
+	"</html>\n";
+const std::string bad_request = "<html>\n"
+	"<head><title>Bad Request</title></head>\n"
+	"<body><h1>400 Bad Request</h1></body>\n"
+	"</html>\n";
+const std::string list = "<html>\n"
+	"<body>\n"
+	"GET <a href='/list'>/list</a> - Retrieves a list of acceptable statistics<br/>\n"
+	"GET <a href='/all'>/all</a> - Retrieves all statistics from all submodules<br/>\n"
+	"GET <a href='/cache'>/cache</a> - Retrieves statistics about cache<br/>\n"
+	"GET <a href='/io'>/io</a> - Retrieves statistics about io statistics<br/>\n"
+	"GET <a href='/commands'>/commands</a> - Retrieves statistics about commands<br/>\n"
+	"GET <a href='/io_histograms'>/io_histograms</a> - Retrieves statistics about io histograms<br/>\n"
+	"GET <a href='/backend'>/backend</a> - Retrieves statistics about backend<br/>\n"
+	"GET <a href='/stats'>/stats</a> - Retrieves in-process runtime statistics<br/>\n"
+	"GET <a href='/procfs'>/procfs</a> - Retrieves system statistics about process<br/>\n"
+	"</body>\n"
+	"</html>\n";
 }
 
 const std::string categories_url = "/?categories=";
 
-const std::map<std::string, uint64_t> handlers = {{"/all", DNET_MONITOR_ALL},
+const std::map<std::string, uint64_t> handlers = {
+	{"/all", DNET_MONITOR_ALL},
 	{"/cache", DNET_MONITOR_CACHE},
 	{"/io", DNET_MONITOR_IO},
 	{"/commands", DNET_MONITOR_COMMANDS},
 	{"/backend", DNET_MONITOR_BACKEND},
-	{"/call_tree", DNET_MONITOR_CALL_TREE},
-	{"/procfs", DNET_MONITOR_PROCFS}};
+	{"/stats", DNET_MONITOR_STATS},
+	{"/procfs", DNET_MONITOR_PROCFS}
+};
 
 /*!
  * Generates HTTP response for @req category with @content

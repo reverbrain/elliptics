@@ -41,7 +41,7 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "react/elliptics_react.h"
+#include "monitor/measure_points.h"
 
 int dnet_remove_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id)
 {
@@ -74,8 +74,6 @@ int dnet_remove_local(struct dnet_backend_io *backend, struct dnet_node *n, stru
 
 static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd)
 {
-	react_start_action(ACTION_DNET_CMD_ROUTE_LIST);
-
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
 	struct dnet_addr_cmd *acmd = NULL;
@@ -96,7 +94,6 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 
 	if (!acmd) {
 		pthread_mutex_unlock(&n->state_lock);
-		react_stop_action(ACTION_DNET_CMD_ROUTE_LIST);
 		return -ENOMEM;
 	}
 
@@ -156,14 +153,11 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	}
 
 	free(acmd);
-	react_stop_action(ACTION_DNET_CMD_ROUTE_LIST);
 	return err;
 }
 
 static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
-	react_start_action(ACTION_DNET_CMD_EXEC);
-
 	struct dnet_node *n = st->n;
 	struct sph *e = data;
 	int err = -ENOTSUP;
@@ -185,13 +179,11 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	err = dnet_cmd_exec_raw(st, cmd, e, data);
 
 err_out_exit:
-	react_stop_action(ACTION_DNET_CMD_EXEC);
 	return err;
 }
 
 static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
-	react_start_action(ACTION_DNET_CMD_STATUS);
 	struct dnet_node *n = orig->n;
 	struct dnet_node_status *st = data;
 
@@ -233,13 +225,11 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 
 	dnet_convert_node_status(st);
 
-	react_stop_action(ACTION_DNET_CMD_STATUS);
 	return dnet_send_reply(orig, cmd, st, sizeof(struct dnet_node_status), 1);
 }
 
 static int dnet_cmd_auth(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
-	react_start_action(ACTION_DNET_CMD_AUTH);
 	struct dnet_node *n = orig->n;
 	struct dnet_auth *a = data;
 	int err = 0;
@@ -258,7 +248,6 @@ static int dnet_cmd_auth(struct dnet_net_state *orig, struct dnet_cmd *cmd __unu
 	}
 
 err_out_exit:
-	react_stop_action(ACTION_DNET_CMD_AUTH);
 	return err;
 }
 
@@ -713,8 +702,6 @@ err_out_exit:
  */
 static int dnet_cmd_iterator(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
-	react_start_action(ACTION_DNET_CMD_ITERATOR);
-
 	struct dnet_iterator_request *ireq = data;
 	struct dnet_iterator_range *irange = data + sizeof(struct dnet_iterator_request);
 	int err = 0;
@@ -754,7 +741,6 @@ err_out_exit:
 	dnet_log(st->n, DNET_LOG_NOTICE,
 			"%s: finished: %s: id: %" PRIu64 ", action: %d, err: %d",
 			__func__, dnet_dump_id(&cmd->id), ireq->id, ireq->action, err);
-	react_stop_action(ACTION_DNET_CMD_ITERATOR);
 	return err;
 }
 
@@ -936,13 +922,11 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 				err = dnet_notify_remove(st, cmd);
 			break;
 		case DNET_CMD_BULK_READ:
-			react_start_action(ACTION_DNET_CMD_BULK_READ);
 			err = backend->cb->command_handler(st, backend->cb->command_private, cmd, data);
 
 			if (err == -ENOTSUP) {
 				err = dnet_cmd_bulk_read(backend, st, cmd, data);
 			}
-			react_stop_action(ACTION_DNET_CMD_BULK_READ);
 			break;
 		case DNET_CMD_READ:
 		case DNET_CMD_WRITE:
@@ -1045,23 +1029,11 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	long diff;
 	int handled_in_cache = 0;
 
-	int react_was_activated = 0;
-
-	if (n->monitor) {
-		if (!react_is_active()) {
-			err = react_activate(st->n->react_aggregator);
-
-			if (err) {
-				dnet_log(st->n, DNET_LOG_ERROR, "Failed to init react");
-			} else {
-				react_was_activated = 1;
-			}
-		}
-	}
-
-	react_start_action(ACTION_DNET_PROCESS_CMD_RAW);
+	HANDY_TIMER_SCOPE(recursive ? "io.cmd_recursive" : "io.cmd");
+	FORMATTED(HANDY_TIMER_SCOPE, ("io.cmd%s.%s", (recursive ? "_recursive" : ""), dnet_cmd_string(cmd->cmd)));
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
+		FORMATTED(HANDY_TIMER_SCOPE, ("io.cmd.%s.lock_time", dnet_cmd_string(cmd->cmd)));
 		dnet_oplock(n, &cmd->id);
 	}
 
@@ -1137,12 +1109,6 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
 		dnet_opunlock(n, &cmd->id);
-
-	react_stop_action(ACTION_DNET_PROCESS_CMD_RAW);
-
-	if (react_was_activated) {
-		react_deactivate();
-	}
 
 	dnet_stat_inc(st->stat, cmd->cmd, err);
 	if (st->__join_state == DNET_JOIN)

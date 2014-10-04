@@ -25,6 +25,7 @@
 #include "monitor/monitor.h"
 #include "monitor/monitor.hpp"
 #include "monitor/statistics.hpp"
+#include "monitor/measure_points.h"
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
@@ -195,8 +196,6 @@ using namespace ioremap::cache;
 
 int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data)
 {
-	react::action_guard cache_guard(ACTION_CACHE);
-
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
 
@@ -209,6 +208,8 @@ int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st
 
 	cache_manager *cache = (cache_manager *)backend->cache;
 	std::shared_ptr<raw_data_t> d;
+
+	FORMATTED(HANDY_TIMER_SCOPE, ("cache.%s", dnet_cmd_string(cmd->cmd)));
 
 	try {
 		switch (cmd->cmd) {
@@ -273,8 +274,6 @@ int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st
 
 int dnet_cmd_cache_lookup(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
-	react::action_guard cache_guard(ACTION_CACHE);
-
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
 

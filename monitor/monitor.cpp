@@ -25,7 +25,6 @@
 
 #include "library/elliptics.h"
 #include "io_stat_provider.hpp"
-#include "react_stat_provider.hpp"
 #include "backends_stat_provider.hpp"
 #include "procfs_provider.hpp"
 
@@ -33,13 +32,43 @@ static ioremap::monitor::monitor* get_monitor(struct dnet_node *n) {
 	return n->monitor ? static_cast<ioremap::monitor::monitor*>(n->monitor) : NULL;
 }
 
+#ifdef HAVE_HANDYSTATS
+#include <handystats/core.hpp>
+#endif
+
 namespace ioremap { namespace monitor {
 
 monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 : m_node(n)
 , m_server(*this, cfg->monitor_port, cfg->family)
 , m_statistics(*this, cfg)
-{}
+{
+#if defined(HAVE_HANDYSTATS) && !defined(HANDYSTATS_DISABLE)
+	if (cfg->handystats_config != nullptr) {
+		//TODO: add parse/configuration errors logging when handystats will allow to get them
+		if (HANDY_CONFIG_FILE(cfg->handystats_config)) {
+			BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, config file '%s'", cfg->handystats_config);
+		} else {
+			BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: initializing stats subsystem, error parsing config file '%s', using defaults", cfg->handystats_config);
+		}
+	} else {
+		BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, no config file specified, using defaults");
+	}
+	HANDY_INIT();
+#else
+	BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: stats subsystem disabled at compile time");
+#endif
+}
+
+monitor::~monitor()
+{
+	//TODO: is node still alive here? If so, add shutdown log messages
+	// for both monitoring and handystats
+	stop();
+#if defined(HAVE_HANDYSTATS) && !defined(HANDYSTATS_DISABLE)
+	HANDY_FINALIZE();
+#endif
+}
 
 void monitor::stop() {
 	m_server.stop();
@@ -65,17 +94,6 @@ static void init_io_stat_provider(struct dnet_node *n, struct dnet_config *cfg) 
 		add_provider(n, new io_stat_provider(n), "io");
 	} catch (std::exception &e) {
 		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize io_stat_provider: %s.", e.what());
-	}
-}
-
-static void init_react_stat_provider(struct dnet_node *n, struct dnet_config *cfg) {
-	try {
-		auto call_tree_timeout = n->config_data->cfg_state.monitor_call_tree_timeout;
-		auto provider = new react_stat_provider(call_tree_timeout);
-		add_provider(n, provider, "call_tree");
-		n->react_aggregator = static_cast<void*> (&provider->get_react_aggregator());
-	}catch (std::exception &e) {
-		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize react_stat_provider: %s.", e.what());
 	}
 }
 
@@ -112,7 +130,6 @@ int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
 	}
 
 	ioremap::monitor::init_io_stat_provider(n, cfg);
-	ioremap::monitor::init_react_stat_provider(n, cfg);
 	ioremap::monitor::init_backends_stat_provider(n, cfg);
 	ioremap::monitor::init_procfs_provider(n, cfg);
 
@@ -151,8 +168,6 @@ void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans
 
 int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
-	react::action_guard monitor_process_cmd_guard(ACTION_DNET_MONITOR_PROCESS_CMD);
-
 	if (cmd->size != sizeof(dnet_monitor_stat_request)) {
 		dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, invalid size: %llu",
 			dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), static_cast<unsigned long long>(cmd->size));

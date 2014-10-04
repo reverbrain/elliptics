@@ -43,6 +43,11 @@ public:
 	monitor(struct dnet_node *n, struct dnet_config *cfg);
 
 	/*!
+	 * Destructor: deactivates everything, calls stop()
+	 */
+	~monitor();
+
+	/*!
 	 * Stops monitor: stops listening incoming port, frees all providers etc.
 	 */
 	void stop();

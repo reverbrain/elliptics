@@ -364,6 +364,7 @@ class srw {
 					dnet_log(m_node, DNET_LOG_INFO, "%s: sph: %s: %s: was already started",
 							id_str, sph_str, event.c_str());
 				}
+
 			} else if (ev == "stop-task") {
 				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
@@ -373,6 +374,7 @@ class srw {
 				guard.unlock();
 
 				dnet_log(m_node, DNET_LOG_INFO, "%s: sph: %s: %s: stopped", id_str, sph_str, event.c_str());
+
 			} else if (ev == "info") {
 				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
@@ -401,8 +403,9 @@ class srw {
 				tmp += event;
 				tmp += s;
 
-				dnet_log(m_node, DNET_LOG_INFO, "%s: sph: %s: %s: info: %s", id_str, sph_str, event.c_str(), s.c_str());
 				err = dnet_send_reply(st, cmd, (void *)tmp.data(), tmp.size(), 0);
+				dnet_log(m_node, DNET_LOG_INFO, "%s: sph: %s: %s: info request complete", id_str, sph_str, event.c_str());
+
 			} else if (sph->flags & (DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH)) {
 				bool final = !!(sph->flags & DNET_SPH_FLAGS_FINISH);
 
@@ -476,6 +479,7 @@ class srw {
 					}
 
 					stream->write((const char *)sph, total_size(sph) + sizeof(struct sph));
+
 				} catch (const std::exception &e) {
 					dnet_log(m_node, DNET_LOG_ERROR, "%s: sph: %s: %s: enqueue/write-exception: queue: %s, src-key-orig: %d, "
 							"job: %d, total-size: %zd, block: %d: %s",
