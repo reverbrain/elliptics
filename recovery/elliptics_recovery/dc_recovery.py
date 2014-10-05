@@ -421,7 +421,7 @@ if __name__ == '__main__':
     log.debug("Creating logger")
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
 
-    res = recover(ctx)
+    result = recover(ctx)
 
     rc = int(not result)
     exit(rc)
