@@ -143,6 +143,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Oct 05 2014 BogusDateBot
+- Eliminated rpmbuild "bogus date" warnings due to inconsistent weekday,
+  by assuming the date is correct and changing the weekday.
+  Sun Jul 26 2010 --> Sun Jul 25 2010 or Mon Jul 26 2010 or Sun Aug 01 2010 or ....
+  Sun Jul 28 2010 --> Sun Jul 25 2010 or Wed Jul 28 2010 or Sun Aug 01 2010 or ....
+  Thu Nov 30 2010 --> Thu Nov 25 2010 or Tue Nov 30 2010 or Thu Dec 02 2010 or ....
+  Thu Nov 23 2011 --> Thu Nov 17 2011 or Wed Nov 23 2011 or Thu Nov 24 2011 or ....
+  Sun Mar 13 2012 --> Sun Mar 11 2012 or Tue Mar 13 2012 or Sun Mar 18 2012 or ....
+  Sat Apr 27 2012 --> Sat Apr 21 2012 or Fri Apr 27 2012 or Sat Apr 28 2012 or ....
+  Sun Apr 28 2012 --> Sun Apr 22 2012 or Sat Apr 28 2012 or Sun Apr 29 2012 or ....
+  Thu Jul 28 2014 --> Thu Jul 24 2014 or Mon Jul 28 2014 or Thu Jul 31 2014 or ....
+
 * Tue Sep 30 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.27
 - recovery: added another one (last) fix for compatibility with python2.6 which doesn't support multiple open with one with
 - recovery: fixed multiple open at one with (python2.6)
@@ -449,10 +461,12 @@ rm -rf %{buildroot}
 - tests: Added test for backend's control
 - tests: Apps should write logs to different files
 
-* Thu Jul 28 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.4
+* Mon Jul 28 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.4
+  Thu Jul 28 2014 --> Thu Jul 24 2014 or Mon Jul 28 2014 or Thu Jul 31 2014 or ....
 - reconnect: reconnect to addresses which were timed out during connection
 
-* Thu Jul 28 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.3
+* Mon Jul 28 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.3
+  Thu Jul 28 2014 --> Thu Jul 24 2014 or Mon Jul 28 2014 or Thu Jul 31 2014 or ....
 - recv: do not dereference data stored in state, since to that moment it can be overwritten by the next command from the same client(socket)
 - route: let regular route table update also get route table from nodes explicitly added via dnet_add_state() and helpers
 - state: print error if no state has been found for given ID
@@ -2095,11 +2109,13 @@ rm -rf %{buildroot}
 - Use ioremap::elliptics namespace
 - Added ::push() - nonblocking exec
 
-* Sun Apr 28 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.9-1
+* Sat Apr 28 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.9-1
+  Sun Apr 28 2012 --> Sun Apr 22 2012 or Sat Apr 28 2012 or Sun Apr 29 2012 or ....
 - Do not allow zero-sized reads
 - Do not double-close python init file
 
-* Sat Apr 27 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.8-1
+* Fri Apr 27 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.8-1
+  Sat Apr 27 2012 --> Sat Apr 21 2012 or Fri Apr 27 2012 or Sat Apr 28 2012 or ....
 - Added new lookup() methods to c++/python bindings. Patch by Anton Kortunov <toshik@yandex-team.ru>
 - If we fail to open log file, dup2() stdout/stderr to /dev/null in spawned worker process
 
@@ -2134,7 +2150,8 @@ rm -rf %{buildroot}
 - Use correct structure size for dentries and extended logging
 - Do not set name for main process
 
-* Sun Mar 13 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.2-1
+* Tue Mar 13 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.2-1
+  Sun Mar 13 2012 --> Sun Mar 11 2012 or Tue Mar 13 2012 or Sun Mar 18 2012 or ....
 - Use exactly specified in config socket family
 - Obsolete srw by ellipitcs
 - Revert "Use X bits from operation key to find a lock instead of random hashing"
@@ -2232,10 +2249,12 @@ rm -rf %{buildroot}
 - Added bulk_write operation.
 - Added sstable parser into python module
 
-* Thu Nov 23 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.4-1
+* Wed Nov 23 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.4-1
+  Thu Nov 23 2011 --> Thu Nov 17 2011 or Wed Nov 23 2011 or Thu Nov 24 2011 or ....
 - Added nolocking IO thread
 
-* Thu Nov 23 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.3-1
+* Wed Nov 23 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.3-1
+  Thu Nov 23 2011 --> Thu Nov 17 2011 or Wed Nov 23 2011 or Thu Nov 24 2011 or ....
 - Added oplock_num config parameter
 - Added non-blocking thread checks
 
@@ -2343,7 +2362,8 @@ rm -rf %{buildroot}
 - Multi-threaded fsck.
 - Bug fixes (including 2.9.4.4 version).
 
-* Thu Nov 30 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.4.3-1
+* Tue Nov 30 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.4.3-1
+  Thu Nov 30 2010 --> Thu Nov 25 2010 or Tue Nov 30 2010 or Thu Dec 02 2010 or ....
 - Implemented bdb fsck (both merge and copy check).
 
 * Thu Nov 25 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.4.2-1
@@ -2540,32 +2560,38 @@ rm -rf %{buildroot}
 - Drop unused DNET_FCGI_EMBED_TIMESTAMP_PATTERN and change to use
 	DNET_FCGI_EMBED_PATTERN option.
 
-* Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.20-1
+* Wed Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.20-1
+  Sun Jul 28 2010 --> Sun Jul 25 2010 or Wed Jul 28 2010 or Sun Aug 01 2010 or ....
   - Fixed several fd leaks.
 
-* Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.19-1
+* Wed Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.19-1
+  Sun Jul 28 2010 --> Sun Jul 25 2010 or Wed Jul 28 2010 or Sun Aug 01 2010 or ....
   - Unmap history file when failed to read transaction.
 
-* Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.18-1
+* Wed Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.18-1
+  Sun Jul 28 2010 --> Sun Jul 25 2010 or Wed Jul 28 2010 or Sun Aug 01 2010 or ....
 - Guard OpenSSL_add_all_digests() and initialize it only once per thread
 	group.
 - Force dnet_check_process_request() to wait for all sent transactions, do
 	not wakeup after receiving reply from the first one.
 
-* Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.17-1
+* Wed Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.17-1
+  Sun Jul 28 2010 --> Sun Jul 25 2010 or Wed Jul 28 2010 or Sun Aug 01 2010 or ....
 - Fixed compilation warnings on 64bit platform (uint64_t to unsigned long
 	long and void * to unsigned long)
 - Try only requested transformation function, do not continue with the next
 	one.
 - Use errno to differentiate reconnection state.
 
-* Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.15-1
+* Wed Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.15-1
+  Sun Jul 28 2010 --> Sun Jul 25 2010 or Wed Jul 28 2010 or Sun Aug 01 2010 or ....
 - Made elliptics depend on eblob
 - Updated checker's logger.
 - Increase example/check/common.c waiting timeout.
 - Added logs into file io backend listing processor.
 
-* Sun Jul 26 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.12-1
+* Mon Jul 26 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.12-1
+  Sun Jul 26 2010 --> Sun Jul 25 2010 or Mon Jul 26 2010 or Sun Aug 01 2010 or ....
 - Let check applications to sleep longer waiting for replies.
 - Reduce number of ids sent via DNET_CMD_LIST command to 1024 per reply.
 - Mark states added via dnet_add_state() as reconnect-friendly.
