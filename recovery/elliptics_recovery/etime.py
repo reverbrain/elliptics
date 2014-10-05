@@ -21,7 +21,7 @@ import re
 from datetime import datetime, timedelta
 
 import sys
-sys.path.insert(0, "bindings/python/") # XXX
+sys.path.insert(0, "bindings/python/")  # XXX
 import elliptics
 
 
@@ -77,7 +77,7 @@ class Time(object):
         keys = ["weeks", "days", "hours", "minutes"]
         regex = "".join(["((?P<%s>\d+)%s ?)?" % (k, k[0]) for k in keys])
         kwargs = {}
-        for k,v in re.match(regex, string).groupdict(default=0).items():
+        for k, v in re.match(regex, string).groupdict(default=0).items():
             kwargs[k] = int(v)
         dt = datetime.utcnow() - timedelta(**kwargs)
         return cls.from_datetime(dt)

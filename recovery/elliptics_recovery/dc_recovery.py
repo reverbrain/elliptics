@@ -18,7 +18,6 @@ import sys
 import logging
 import threading
 import os
-from itertools import groupby
 import traceback
 
 from elliptics_recovery.utils.misc import elliptics_create_node, RecoverStat, validate_index, INDEX_MAGIC_NUMBER_LENGTH
@@ -422,7 +421,7 @@ if __name__ == '__main__':
     log.debug("Creating logger")
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
 
-    res = recover(ctx)
+    result = recover(ctx)
 
     rc = int(not result)
     exit(rc)
