@@ -14,7 +14,6 @@
 # =============================================================================
 
 from elliptics.core import Node
-from socket import AF_INET
 from elliptics.route import Address
 from elliptics.log import logged_class
 

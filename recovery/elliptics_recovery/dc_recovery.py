@@ -18,7 +18,6 @@ import sys
 import logging
 import threading
 import os
-from itertools import groupby
 import traceback
 
 from elliptics_recovery.utils.misc import elliptics_create_node, RecoverStat, validate_index, INDEX_MAGIC_NUMBER_LENGTH

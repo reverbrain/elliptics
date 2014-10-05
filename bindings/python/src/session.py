@@ -245,4 +245,4 @@ class Session(Session):
             address = ()
         else:
             address = tuple(address)
-        return super(Session, self).monitor_stat(address, categories);
+        return super(Session, self).monitor_stat(address, categories)

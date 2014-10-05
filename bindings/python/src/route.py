@@ -15,7 +15,6 @@
 # =============================================================================
 
 from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET, AF_UNSPEC
-from operator import itemgetter
 from elliptics.core import Id
 from elliptics.log import logged_class
 
@@ -243,7 +242,7 @@ class RouteList(object):
         routes = routes.filter_by_backend((1, 2, 3))
         """
         return RouteList([route for route in self.routes
-                            if route.backend_id == backend_id])
+                          if route.backend_id == backend_id])
 
     def groups(self):
         """
