@@ -13,12 +13,14 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	dnet_indexes_shard_count_decode(&cmd->id, &indexes_shard_count);
 	memcpy(st->version, version, sizeof(st->version));
 
-	dnet_version_encode(&cmd->id);
-	dnet_indexes_shard_count_encode(&cmd->id, n->indexes_shard_count);
-
+	/* check received version at first and if it is ok - send self version */
 	err = dnet_version_check(st, version);
 	if (err)
 		goto err_out_exit;
+
+	/* send self version only if client has right version */
+	dnet_version_encode(&cmd->id);
+	dnet_indexes_shard_count_encode(&cmd->id, n->indexes_shard_count);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: client indexes shard count: %d, server indexes shard count: %d",
 			dnet_state_dump_addr(st),
