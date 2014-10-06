@@ -10,7 +10,10 @@
 				"sink": {
 					"type": "files",
 					"path": "/dev/stdout",
-					"autoflush": true
+					"autoflush": true,
+					"rotation": {
+						"move": 0
+					}
 				}
 			}
 		]
@@ -41,7 +44,7 @@
 		"indexes_shard_count": 2,
 		"monitor": {
 			"port":20000
-		},
+		}
 	},
 	"backends": [
 		{

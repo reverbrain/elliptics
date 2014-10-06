@@ -104,7 +104,13 @@ static void parse_logger(config_data *data, const config &logger)
 
 	// Available logging sinks.
 	typedef boost::mpl::vector<
-	    blackhole::sink::files_t<>,
+	    blackhole::sink::files_t<
+	        blackhole::sink::files::boost_backend_t,
+	        blackhole::sink::rotator_t<
+	            blackhole::sink::files::boost_backend_t,
+	            blackhole::sink::rotation::watcher::move_t
+	        >
+	    >,
 	    blackhole::sink::syslog_t<dnet_log_level>,
 	    blackhole::sink::socket_t<boost::asio::ip::tcp>,
 	    blackhole::sink::socket_t<boost::asio::ip::udp>

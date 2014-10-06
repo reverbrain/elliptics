@@ -287,6 +287,11 @@ void server_config::write(const std::string &path)
 	sink.AddMember("path", log_path.c_str(), allocator);
 	sink.AddMember("autoflush", true, allocator);
 
+	rapidjson::Value rotation;
+	rotation.SetObject();
+	rotation.AddMember("move", 0, allocator);
+	sink.AddMember("rotation", rotation, allocator);
+
 	rapidjson::Value frontend;
 	frontend.SetObject();
 	frontend.AddMember("formatter", formatter, allocator);
