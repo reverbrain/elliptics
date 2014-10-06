@@ -272,6 +272,7 @@ class RouteList(object):
         unique_routes = routes.get_unique_routes()
         """
         tmp = set()
+
         def seen(route):
             val = (route.address, route.id.group_id, route.backend_id)
             return val in tmp or tmp.add(val)
@@ -300,6 +301,7 @@ class RouteList(object):
         Returns address routes unique by backend_id.
         """
         tmp = set()
+
         def seen(route):
             return route.backend_id in tmp or tmp.add(route.backend_id)
         return tuple(route for route in self.routes if route.address == address and not seen(route))
@@ -429,7 +431,7 @@ class RouteList(object):
         """x.__getitem__(y) <==> x[y]"""
         if not len(self.routes):
             raise IndexError("index out of range")
-        return self.routes[item % len(self.routes)]
+        return self.routes[item]
 
     def __repr__(self):
         return "(" + ",\n".join(map(repr, self.routes)) + ")"
