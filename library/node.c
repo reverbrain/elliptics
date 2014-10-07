@@ -856,6 +856,9 @@ int dnet_session_set_ns(struct dnet_session *s, const char *ns, int nsize)
 		s->nsize = nsize;
 
 		free(old);
+	} else {
+		s->ns = NULL;
+		free(old);
 	}
 
 	return 0;
