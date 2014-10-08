@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.27
+Version:	2.26.3.28
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,36 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Oct 08 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.28
+- python: fixed TypeError on some python version
+- blackhole: enabled blackhole log rotation. Blackhole reopens log file if the original file has been moved or removed.
+- spec: handystats dependency updated to 0.10
+- auth: check client version at first and send self version only to client with right version.
+- dc_recovery: Fix variable name: it was undefined name
+- python: Fix some PEP8 warnings. Bad identation is fixed.
+- spec: fixed bogus dates
+- monitor: update to handystats 1.10
+- example: monitoring-stats.txt lists measured values
+- example: added sample config file for handystats
+- monitor: io input/output/commands stats fixed and improved
+- monitor: added support for formatted metrics names
+- monitor: complete replacement of react
+- monitor: using handystats library to gather runtime statistics
+- srw: removed dumping @info result to the log
+- rapidjson: correctly handle NaN values, small double values
+- srw: added log-output: true into application's profile top level to dump crashlog into log
+- test: monitor: open json dump file for writing
+- test: write_cas: do not use lambda, use plain function instead (checking RHEL6 issue)
+- run_servers: added 2 seconds sleep to wait for server/app initialization
+- file: do not chroot to root dir, since with multuple backends there are multuple roots in the same process context
+- state: dnet_state_create() reference counter fix/change
+- backend: moved object size calc (getting into account total size and io->size/io->offset) into common header from eblob.
+- find: set DNET_FLAGS_DIRECT_BACKEND flag which will force client code to set backend ID
+- session: when using send-to-all-backends set backend id via dnet_session_set_direct_backend() call.
+- fixed check for gcc version: support for noexcept on class constructor available only since gcc 4.6
+- monitor: use one lock_guard for both: checking backend state and dumping backend json.
+- monitor: Monitor uses almost all others, so it should be stopped at first.
+
 * Sun Oct 05 2014 BogusDateBot
 - Eliminated rpmbuild "bogus date" warnings due to inconsistent weekday,
   by assuming the date is correct and changing the weekday.
