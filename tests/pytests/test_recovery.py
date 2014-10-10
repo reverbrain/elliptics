@@ -108,7 +108,7 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
     '''
     from elliptics_recovery.ctx import Ctx
     from elliptics_recovery.route import RouteList
-    from elliptics_recovery.monitor import Monitor
+    from elliptics_recovery.monitor import Monitor, STAT_TEXT
     from elliptics_recovery.etime import Time
     import os
 
@@ -158,8 +158,9 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
     ctx.wait_timeout = 36000
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     ctx.routes = RouteList.from_session(session)
-    ctx.monitor = Monitor(ctx, None)
+    ctx.stat_format = STAT_TEXT
     ctx.timestamp = Time.from_epoch(0)
+    ctx.monitor = Monitor(ctx, None)
 
     recovery_res = main(ctx)
     assert recovery_res
