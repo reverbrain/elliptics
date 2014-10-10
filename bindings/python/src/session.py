@@ -234,6 +234,16 @@ class Session(Session):
                                                   family=address.family,
                                                   backend_id=backend_id)
 
+    def set_backend_ids(self, address, backend_id, ids):
+        '''
+        Sets new ids to backend with @backend_id at node addressed by @host, @port, @family.
+        '''
+        return super(Session, self).set_backend_ids(host=address.host,
+                                                    port=address.port,
+                                                    family=address.family,
+                                                    backend_id=backend_id,
+                                                    ids=ids)
+
     def monitor_stat(self, address=None, categories=monitor_stat_categories.all):
         '''
         Gather monitor statistics of specified categories from @address.
