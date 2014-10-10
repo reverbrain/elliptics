@@ -606,6 +606,11 @@ static int dnet_cmd_backend_control_dangerous(struct dnet_net_state *st, struct 
 		control->backend_id, control->command, dnet_state_dump_addr(st));
 
 	const dnet_backend_info &backend = backends[control->backend_id];
+	if (backend.state == DNET_BACKEND_UNITIALIZED) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_control: there is no such backend: %u, state: %s", control->backend_id, dnet_state_dump_addr(st));
+		return -EINVAL;
+	}
+
 	dnet_backend_io &io = node->io->backends[control->backend_id];
 
 	int state = DNET_BACKEND_DISABLED;
