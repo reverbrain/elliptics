@@ -1127,6 +1127,7 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
+	memset(n->io, 0, io_size);
 
 	err = pthread_mutex_init(&n->io->full_lock, NULL);
 	if (err) {
@@ -1147,8 +1148,6 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 	}
 
 	list_stat_init(&n->io->output_stats);
-
-	memset(n->io, 0, io_size);
 
 	n->io->net_thread_num = cfg->net_thread_num;
 	n->io->net_thread_pos = 0;
@@ -1234,12 +1233,11 @@ int dnet_server_io_init(struct dnet_node *n)
 	size_t j = 0, k = 0;
 
 	n->io->backends_count = dnet_backend_info_list_count(n->config_data->backends);
-	n->io->backends = malloc(n->io->backends_count * sizeof(struct dnet_backend_io));
+	n->io->backends = calloc(n->io->backends_count, sizeof(struct dnet_backend_io));
 	if (!n->io->backends) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-	memset(n->io->backends, 0, n->io->backends_count * sizeof(struct dnet_backend_io));
 
 	for (j = 0; j < n->io->backends_count; ++j) {
 		struct dnet_backend_io *io = &n->io->backends[j];
