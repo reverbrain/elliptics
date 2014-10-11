@@ -99,6 +99,7 @@ enum dnet_backend_command {
 	DNET_BACKEND_SET_IDS,
 	DNET_BACKEND_READ_ONLY,
 	DNET_BACKEND_WRITEABLE,
+	DNET_BACKEND_CTL,		// change internal parameters like delay
 };
 
 enum dnet_backend_state {
@@ -322,7 +323,7 @@ struct dnet_backend_control
 	uint32_t backend_id;
 	uint32_t command;
 	uint64_t reserved[7];
-	uint32_t reserved2;
+	uint32_t delay;
 	uint32_t ids_count;
 	struct dnet_raw_id ids[0];
 } __attribute__ ((packed));
@@ -698,7 +699,9 @@ struct dnet_backend_status
 	int32_t last_start_err;
 	uint8_t read_only;
 	uint8_t reserved_flags[7];
-	uint64_t reserved[7];
+	uint32_t delay;			// delay in ms for each backend operation
+	uint32_t reserved1;
+	uint64_t reserved2[6];
 } __attribute__ ((packed));
 
 struct dnet_backend_status_list

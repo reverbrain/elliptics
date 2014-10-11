@@ -633,6 +633,7 @@ class session
 		async_backend_control_result set_backend_ids(const address &addr, uint32_t backend_id, const std::vector<dnet_raw_id> &ids);
 		async_backend_control_result make_readonly(const address &addr, uint32_t backend_id);
 		async_backend_control_result make_writable(const address &addr, uint32_t backend_id);
+		async_backend_control_result set_delay(const address &addr, uint32_t backend_id, uint32_t delay);
 		async_backend_status_result request_backends_status(const address &addr);
 
 		/*!

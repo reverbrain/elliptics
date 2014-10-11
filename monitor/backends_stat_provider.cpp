@@ -119,6 +119,7 @@ static void fill_backend_status(rapidjson::Value &stat_value,
 	status_value.AddMember("string_last_time", dnet_print_time(&status.last_start), allocator);
 	status_value.AddMember("last_start_err", status.last_start_err, allocator);
 	status_value.AddMember("read_only", status.read_only == 1, allocator);
+	status_value.AddMember("delay", status.delay, allocator);
 
 	stat_value.AddMember("status", status_value, allocator);
 }

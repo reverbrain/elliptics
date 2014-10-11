@@ -68,7 +68,10 @@ static void dnet_usage(char *p)
 			" -i flags             - IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h\n"
 			" -H                   - do not hash id, use it as is\n"
 			" -b backend_id        - operate with given backend ID, it is needed for defragmentation request or backend status update\n"
-			" -B status            - change backend status, possible options are: enable, disable, enable_write, disable_write, status (default)\n"
+			" -B status            - change backend status, possible options are: enable, disable, "
+							"enable_write, disable_write, delay, status (default)\n"
+			" -p delay             - number of milliseconds for given backend to sleep after every command, "
+							"can be set with backend-status command (-B option)\n"
 			" -h                   - this help\n"
 			" ...                  - every parameter can be repeated multiple times, in this case the last one will be used\n"
 			, p);
@@ -114,6 +117,7 @@ int main(int argc, char *argv[])
 	int exec_src_key = -1;
 	int backend_id = -1;
 	char *backend_status_str = NULL;
+	uint32_t delay = 0;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -129,7 +133,7 @@ int main(int argc, char *argv[])
 	cfg.wait_timeout = 60;
 	dnet_log_level log_level = DNET_LOG_ERROR;
 
-	while ((ch = getopt(argc, argv, "i:d:C:A:f:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:k:I:r:W:R:D:hHb:B:")) != -1) {
+	while ((ch = getopt(argc, argv, "i:d:C:A:f:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:k:I:r:W:R:D:hHb:B:p:")) != -1) {
 		switch (ch) {
 			case 'i':
 				ioflags = strtoull(optarg, NULL, 0);
@@ -240,6 +244,9 @@ int main(int argc, char *argv[])
 			case 'B':
 				backend_status_str = optarg;
 				break;
+			case 'p':
+				delay = atoi(optarg);
+				break;
 			case 'h':
 			default:
 				dnet_usage(argv[0]);
@@ -322,6 +329,8 @@ int main(int argc, char *argv[])
 				result = sess.make_writable(ra, backend_id);
 			} else if (backend_status == "disable_write") {
 				result = sess.make_readonly(ra, backend_id);
+			} else if (backend_status == "delay") {
+				result = sess.set_delay(ra, backend_id, delay);
 			} else {
 				fprintf(stderr, "Invalid %s status '%s'\n", defrag_status_str ? "defrag" : "backend",
 						defrag_status_str ? defrag_status_str : backend_status_str);
@@ -340,6 +349,8 @@ int main(int argc, char *argv[])
 					std::cout << "backend: " << status->backend_id << " at " << dnet_server_convert_dnet_addr(entry.address()) << std::endl;
 					std::cout << "  backend state: " << dnet_backend_state_string(status->state) << std::endl;
 					std::cout << "  defrag  state: " << dnet_backend_defrag_state_string(status->defrag_state) << std::endl;
+					std::cout << "  read-only: " << (status->read_only != 0 ? "true" : "false") << std::endl;
+					std::cout << "  delay: " << status->delay << std::endl;
 					if (dnet_time_is_empty(&status->last_start)) {
 						std::cout << "  backend has never been started" << std::endl;
 					} else {

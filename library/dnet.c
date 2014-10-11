@@ -895,6 +895,21 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 
 	gettimeofday(&start, NULL);
 
+	// sleep before running a command, since for some commands ->command_handler sends reply itself,
+	// and client will not wait for this thread to finish
+	if (backend->delay) {
+		long seconds = backend->delay / 1000;
+		long useconds = (backend->delay % 1000) * 1000;
+
+		if (seconds) {
+			sleep(seconds);
+		}
+
+		if (useconds) {
+			usleep(useconds);
+		}
+	}
+
 	switch (cmd->cmd) {
 		case DNET_CMD_ITERATOR:
 			err = dnet_cmd_iterator(backend, st, cmd, data);

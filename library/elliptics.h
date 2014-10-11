@@ -468,6 +468,7 @@ struct dnet_backend_io
 {
 	int				need_exit;
 	int				read_only;
+	uint32_t			delay; // delay in ms for every command
 	size_t				backend_id;
 	struct dnet_io_pool		pool;
 	struct dnet_backend_callbacks	*cb;
