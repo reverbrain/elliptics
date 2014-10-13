@@ -249,6 +249,18 @@ int callback_entry_group_id(const callback_result_entry &result)
 	return result.command()->id.group_id;
 }
 
+int callback_entry_backend_id(const callback_result_entry &result) {
+	return result.command()->backend_id;
+}
+
+uint64_t callback_entry_trace_id(const callback_result_entry &result) {
+	return result.command()->trace_id;
+}
+
+uint64_t callback_entry_trans(const callback_result_entry &result) {
+	return result.command()->trans;
+}
+
 uint64_t callback_result_size(callback_result_entry &result)
 {
 	return result.size();
@@ -296,6 +308,9 @@ void init_result_entry() {
 		.add_property("error", callback_result_error)
 		.add_property("address", callback_entry_address)
 		.add_property("group_id", callback_entry_group_id)
+		.add_property("backend_id", callback_entry_backend_id)
+		.add_property("trace_id", callback_entry_trace_id)
+		.add_property("trans", callback_entry_trans)
 	;
 
 	bp::class_<index_entry>("IndexEntry")
