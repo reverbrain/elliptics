@@ -104,50 +104,36 @@ address::address()
 	memset(&m_addr, 0, sizeof(m_addr));
 }
 
-static void address_construct(dnet_addr *result, const char *addr, int port, int family)
-{
-	int err = dnet_create_addr(result, addr, port, family);
-	if (err) {
-		throw_error(err, "dnet_fill_addr failed, address: %s, port: %d, family: %d", addr, port, family);
-	}
-}
-
-static void address_construct(dnet_addr *result, const char *addr, size_t addr_len)
-{
-	// dnet_parse_addr will modify the string
-	std::vector<char> tmp;
-	tmp.reserve(addr_len + 1);
-	tmp.assign(addr, addr + addr_len);
-	tmp.push_back('\0');
-
-	int port;
-	int family;
-	int err = dnet_parse_addr(tmp.data(), &port, &family);
-	if (err) {
-		throw_error(err, "dnet_parse_addr failed, address: %s", addr);
-	}
-
-	address_construct(result, tmp.data(), port, family);
-}
-
 address::address(const std::string &host, int port, int family)
 {
-	address_construct(&m_addr, host.c_str(), port, family);
+	int err = dnet_create_addr(&m_addr, host.c_str(), port, family);
+	if (err) {
+		throw_error(err, "could not create addr: %s:%d:%d: %d", host.c_str(), port, family, err);
+	}
 }
 
 address::address(const char *host, int port, int family)
 {
-	address_construct(&m_addr, host, port, family);
+	int err = dnet_create_addr(&m_addr, host, port, family);
+	if (err) {
+		throw_error(err, "could not create addr: %s:%d:%d: %d", host, port, family, err);
+	}
 }
 
 address::address(const std::string &addr)
 {
-	address_construct(&m_addr, addr.c_str(), addr.size());
+	int err = dnet_create_addr_str(&m_addr, addr.c_str(), addr.size());
+	if (err) {
+		throw_error(err, "could not create addr: %s: %d", addr.c_str(), err);
+	}
 }
 
 address::address(const char *addr)
 {
-	address_construct(&m_addr, addr, strlen(addr));
+	int err = dnet_create_addr_str(&m_addr, addr, strlen(addr));
+	if (err) {
+		throw_error(err, "could not create addr: %s: %d", addr, err);
+	}
 }
 
 address::address(const dnet_addr &addr) : m_addr(addr)

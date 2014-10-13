@@ -540,6 +540,11 @@ int dnet_add_state(struct dnet_node *n, const struct dnet_addr *addr, int num, i
 int dnet_create_addr(struct dnet_addr *addr, const char *addr_str, int port, int family);
 
 /*
+ * The same as @dnet_create_addr(), but parses @addr_str first.
+ */
+int dnet_create_addr_str(struct dnet_addr *addr, const char *addr_str, int addr_len);
+
+/*
  * Returns number of states we are connected to.
  * It does not check whether they are alive though.
  */

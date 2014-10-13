@@ -105,6 +105,40 @@ int dnet_create_addr(struct dnet_addr *addr, const char *addr_str, int port, int
 	return 0;
 }
 
+int dnet_create_addr_str(struct dnet_addr *addr, const char *addr_str, int addr_len)
+{
+	int port;
+	int family;
+	int err;
+	char *tmp;
+
+	// space for NULL-byte
+	tmp = malloc(addr_len + 1);
+	if (!tmp) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	snprintf(tmp, addr_len+1, "%s", addr_str);
+
+	err = dnet_parse_addr(tmp, &port, &family);
+	if (err) {
+		goto err_out_free;
+	}
+
+	err = dnet_create_addr(addr, tmp, port, family);
+	if (err) {
+		goto err_out_free;
+	}
+
+	err = 0;
+
+err_out_free:
+	free(tmp);
+err_out_exit:
+	return err;
+}
+
 void dnet_state_clean(struct dnet_net_state *st)
 {
 	struct rb_node *rb_node;
