@@ -1052,7 +1052,9 @@ static int dnet_blob_config_init(struct dnet_config_backend *b)
 
 	c->eblob = eblob_init(&c->data);
 	if (!c->eblob) {
-		err = -EINVAL;
+		err = errno;
+		if (err == 0)
+			err = -EINVAL;
 		goto err_out_last_read_lock_destroy;
 	}
 
