@@ -19,7 +19,7 @@ BuildRequires:	eblob-devel >= 0.22.6
 BuildRequires:  libblackhole-devel >= 0.2.3-1
 BuildRequires:	libev-devel libtool-ltdl-devel
 BuildRequires:	cmake msgpack-devel python-msgpack
-BuildRequires:	handystats >= 1.10.0
+BuildRequires:	handystats >= 1.10.2
 
 %define boost_ver %{nil}
 
