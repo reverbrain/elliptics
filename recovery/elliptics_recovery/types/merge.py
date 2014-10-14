@@ -569,7 +569,7 @@ class DumpRecover(object):
         self.ctx = ctx
         simple_session = elliptics.Session(node)
         # determines node where the id lives
-        self.address = simple_session.lookup_address(self.id, group)
+        self.address, _, self.backend_id = simple_session.routes.filter_by_group(group).get_id_routes(self.id)[0]
         self.async_lookups = []
         self.async_removes = []
         self.recover_address = None
@@ -601,8 +601,8 @@ class DumpRecover(object):
         max_size = max([r.size for r in results])
         log.debug("Max size of latest replicas for key: {0}: {1}".format(repr(self.id), max_size))
         # filters newest objects with max size
-        results = [r.address for r in results if r.size == max_size]
-        if self.address in results:
+        results = [(r.address, r.backend_id) for r in results if r.size == max_size]
+        if (self.address, self.backend_id) in results:
             log.debug("Node: {0} already has the latest version of key: {1}."
                       .format(self.address, repr(self.id), self.group))
             # if destination node already has newest object then just remove key from unproper nodes
@@ -611,7 +611,7 @@ class DumpRecover(object):
             # if destination node has outdated object - recovery it from one of filtered nodes
             self.timestamp = max_ts
             self.size = max_size
-            self.recover_address = results[0]
+            self.recover_address, self.recover_backend_id = results[0]
             log.debug("Node: {0} has the newer version of key: {1}. Recovering it on node: {2}"
                       .format(self.recover_address, repr(self.id), self.address))
             self.recover()
@@ -621,6 +621,7 @@ class DumpRecover(object):
                                        timestamp=self.timestamp,
                                        size=self.size,
                                        address=self.recover_address,
+                                       backend_id=self.recover_backend_id,
                                        group=self.group,
                                        ctx=self.ctx,
                                        node=self.node,

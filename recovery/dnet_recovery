@@ -312,7 +312,8 @@ def main(options, args):
     ctx.monitor.print_stat()
     return rc
 
-if __name__ == '__main__':
+
+def run(args=None):
     from optparse import OptionParser
 
     parser = OptionParser()
@@ -366,4 +367,7 @@ if __name__ == '__main__':
     parser.add_option('-i', '--backend-id', action='store', dest='backend_id', default=None,
                       help='Specifies backend data on which should be recovered. IT WORKS ONLY WITH --one-node')
 
-    exit(main(*parser.parse_args()))
+    exit(main(*parser.parse_args(args)))
+
+if __name__ == '__main__':
+    run()
