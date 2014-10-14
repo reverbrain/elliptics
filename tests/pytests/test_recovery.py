@@ -418,7 +418,6 @@ class TestRecovery:
         session.groups = (scope.test_group2,)
         check_data(scope, session, self.keys, self.datas, self.timestamp)
 
-
     def test_enable_all_third_group_backends(self, scope, server, simple_node):
         '''
         Enables all backends from all node from third group.
@@ -463,7 +462,6 @@ class TestRecovery:
         for group in (scope.test_group, scope.test_group2, scope.test_group3):
             session.groups = [group]
             check_data(scope, session, self.keys, self.datas2, self.timestamp2)
-
 
     def test_write_and_corrupt_data(self, scope, server, simple_node):
         '''
@@ -523,7 +521,6 @@ class TestRecovery:
         for group in (scope.test_group, scope.test_group2, scope.test_group3):
             session.groups = [group]
             check_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.2'], self.corrupted_timestamp2)
-
 
     def test_defragmentation(self, scope, server, simple_node):
         '''
