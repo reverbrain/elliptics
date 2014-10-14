@@ -31,6 +31,11 @@ from .stat import Stats
 from BaseHTTPServer import HTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 
+STAT_NONE = 'none'
+STAT_TEXT = 'text'
+STAT_JSON = 'json'
+ALLOWED_STAT_FORMATS = (STAT_NONE, STAT_TEXT, STAT_JSON)
+
 
 @logged_class
 class StatsProxy(object):
@@ -85,7 +90,12 @@ class Monitor(object):
         self.stats = StatsProxy(self.queue)
         self.__shutdown_request = False
         self.__stats = Stats('monitor')
-        self.stats_file = 'stats'
+        if self.ctx.stat_format == STAT_TEXT:
+            self.stats_file = 'stats.txt'
+        elif self.ctx.stat_format == STAT_JSON:
+            self.stats_file = 'stats.json'
+        else:
+            self.stats_file = 'stats'
 
         self.d_thread = Thread(target=self.data_thread, name="MonitorDataThread")
         self.d_thread.daemon = True
@@ -116,13 +126,16 @@ class Monitor(object):
         """
         stats_file_tmp = os.path.join(self.ctx.tmp_dir, self.stats_file + '.tmp')
         with open(stats_file_tmp, 'w') as f:
-            f.write(str(self.__stats))
+            if self.ctx.stat_format == STAT_TEXT:
+                f.write(str(self.__stats))
+            elif self.ctx.stat_format == STAT_JSON:
+                f.write(self.__stats.json())
             f.write('\n')
         try:
             if os.path.exists(stats_file_tmp):
-                os.rename(stats_file_tmp, self.stats_file + '.txt')
+                os.rename(stats_file_tmp, self.stats_file)
         except Exception as e:
-            self.log.error("Failed to rename {0} to {1}: {2}".format(stats_file_tmp, self.stats_file + '.txt', e))
+            self.log.error("Failed to rename {0} to {1}: {2}".format(stats_file_tmp, self.stats_file, e))
 
     def data_thread(self):
         """
@@ -195,3 +208,11 @@ class Monitor(object):
         self.__shutdown_request = True
         if self.port:
             self.httpd.shutdown()
+
+    def print_stat(self):
+        '''
+        Prints to stdout final statistics in requested format
+        '''
+        with open(self.stats_file) as lines:
+            for line in lines:
+                print line,

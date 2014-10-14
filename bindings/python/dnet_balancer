@@ -127,7 +127,6 @@ def save_ids(routes, addresses):
     For each address from @addresses creates ids file based on @routes
     Returns [(ids_filename, address)]
     '''
-    mapping = []
     from struct import pack
     for addr, backend_id in addresses:
         addr_routes = routes.filter_by_address(addr).filter_by_backend(backend_id)
@@ -136,7 +135,24 @@ def save_ids(routes, addresses):
             for r in addr_routes:
                 data = pack('B' * 64, *r.id.id)
                 f.write(data)
-        mapping.append((filename, addr, backend_id))
+        line = "IDS file '{0}' should be copied to node: {1}/{2}".format(filename, addr, backend_id)
+        log.debug(line)
+        print(line)
+
+
+def update_ids(routes, addresses, session):
+    '''
+    For each address from @addresses creates ids file based on @routes
+    Returns [(ids_filename, address)]
+    '''
+    mapping = []
+    for addr, backend_id in addresses:
+        addr_routes = routes.filter_by_address(addr).filter_by_backend(backend_id)
+        log.debug("Updating ids on node {0}/{1}".format(addr, backend_id))
+        try:
+            session.set_backend_ids(addr, backend_id, [r.id for r in addr_routes]).get()
+        except Exception as e:
+            log.error("Couldn't update ids on node {0}/{1}: {2}".format(addr, backend_id, repr(e)))
     return mapping
 
 
@@ -168,7 +184,7 @@ def restore_fake_routes(routes, group):
                                              routes.routes[-1].backend_id))
 
 
-def balance_group(group, routes, min_deviation, max_deviation):
+def balance_group(group, routes, min_deviation, max_deviation, accuracy, autoupdate, session):
     '''
     Balance the ranges in group route list.
     It finds smallest and largest ranges and moves route
@@ -257,9 +273,9 @@ def balance_group(group, routes, min_deviation, max_deviation):
         #stops if deviation is too small
         #it means that we shift route of smallest range on very small value
         #which doesn't affect to spread.
-        if deviation < options.accuracy:
+        if deviation < accuracy:
             log.debug("break because of accuracy : {0}, {1}"
-                      .format(deviation, options.accuracy))
+                      .format(deviation, accuracy))
             break
 
         #converts new position to elliptics.Id
@@ -284,16 +300,17 @@ def balance_group(group, routes, min_deviation, max_deviation):
     log.debug("Total iterations: {0}".format(iterations))
 
     #creates ids file for each address whose routes were changed
-    ids_mapping = save_ids(routes, updated_addresses)
+    if not autoupdate:
+        save_ids(routes, updated_addresses)
+    else:
+        update_ids(routes, updated_addresses, session)
 
     for index, length in enumerate(ranges):
-        print("Range #{0} - {1}".format(index, length * 1. / middle_size))
+        log.debug("Range #{0} - {1}".format(index, length * 1. / middle_size))
 
     restore_fake_routes(routes, group)
-    log.debug("Final routes:\n{0}".format(routes))
-    log.debug("Final spread:\n{0}".format(log_spread(routes.percentages()[group])))
-
-    return ids_mapping
+    log.debug("Group #{0} final routes:\n{1}".format(group, routes))
+    print("Group #{0} final spread:\n{1}".format(group, log_spread(routes.percentages()[group])))
 
 
 def get_routes(options):
@@ -309,10 +326,9 @@ def get_routes(options):
         raise ValueError("Can't parse host:port:family: '{0}'".format(options.remote))
     node.add_remotes(address)
 
-    session = elliptics.Session(node)
+    options.session = elliptics.Session(node)
 
-    routes = session.routes
-    session = None
+    routes = options.session.routes
     return routes
 
 
@@ -329,19 +345,14 @@ def balance(options):
     '''
     routes = get_routes(options)
 
-    groups = filter_groups(routes, options)
-
-    ids_mapping = []
-
-    for g in groups:
-        ids_mapping += balance_group(g, routes.filter_by_group(g),
-                                     options.min_deviation,
-                                     options.max_deviation)
-
-    for filename, address, backend_id in ids_mapping:
-        line = "IDS file '{0}' should be copied to node: {1}/{2}".format(filename, address, backend_id)
-        log.debug(line)
-        print(line)
+    for g in filter_groups(routes, options):
+        balance_group(g,
+                      routes.filter_by_group(g),
+                      options.min_deviation,
+                      options.max_deviation,
+                      options.accuracy,
+                      options.update,
+                      options.session)
 
 
 def check(options):
@@ -367,6 +378,28 @@ def check(options):
                               length * 100. / total))
         restore_fake_routes(group_routes, group)
         print log_spread(group_routes.percentages()[group])
+
+
+def main(options, args):
+    if options.remote is None:
+        raise ValueError("You must specify remote address by -r/--remote")
+
+    try:
+        fh = logging.FileHandler(options.log)
+        fh.setFormatter(formatter)
+        fh.setLevel(logging.DEBUG)
+        log.addHandler(fh)
+    except Exception as e:
+        raise ValueError("Can't parse log_level: '{0}': {1}"
+                         .format(options.log_level, repr(e)))
+
+    if options.groups:
+        options.groups = map(int, options.groups.split(','))
+
+    if options.check_mode or options.check_nodes:
+        check(options)
+    else:
+        balance(options)
 
 
 if __name__ == '__main__':
@@ -404,25 +437,8 @@ if __name__ == '__main__':
     parser.add_option('-n', '--check-nodes', action='store_true',
                       dest='check_nodes', default=False,
                       help='Prints actial nodes statistics')
+    parser.add_option('-u', '--update', action='store_true',
+                      dest='update', default=False,
+                      help='Remotly updates ids on backends')
 
-    (options, args) = parser.parse_args()
-
-    if options.remote is None:
-        raise ValueError("You must specify remote address by -r/--remote")
-
-    try:
-        fh = logging.FileHandler(options.log)
-        fh.setFormatter(formatter)
-        fh.setLevel(logging.DEBUG)
-        log.addHandler(fh)
-    except Exception as e:
-        raise ValueError("Can't parse log_level: '{0}': {1}"
-                         .format(options.log_level, repr(e)))
-
-    if options.groups:
-        options.groups = map(int, options.groups.split(','))
-
-    if options.check_mode or options.check_nodes:
-        check(options)
-    else:
-        balance(options)
+    main(*parser.parse_args())

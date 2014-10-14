@@ -34,8 +34,7 @@ def iterate_node(arg):
     address, backend_id, ranges = arg
     ctx = g_ctx
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
-    stats_name = 'iterate_{0}/{1}'.format(address, backend_id)
-    stats = ctx.monitor.stats[stats_name]
+    stats = ctx.monitor.stats["iterate"][str(address)][str(backend_id)]
     stats.timer('process', 'started')
     log.info("Running iterator on node: {0}/{1}".format(address, backend_id))
     log.debug("Ranges:")
@@ -63,7 +62,7 @@ def iterate_node(arg):
             tmp_dir=ctx.tmp_dir,
             address=address,
             backend_id=backend_id,
-            group_id = node_id.group_id,
+            group_id=node_id.group_id,
             batch_size=ctx.batch_size,
             stats=stats,
             leave_file=True,
@@ -74,12 +73,10 @@ def iterate_node(arg):
     except Exception as e:
         log.error("Iteration failed for node {0}/{1}: {2}, traceback: {3}"
                   .format(address, backend_id, repr(e), traceback.format_exc()))
-        stats.counter('iterations', -1)
         return None
 
     log.debug("Iterator for node {0}/{1} obtained: {2} record(s)"
               .format(address, backend_id, results_len))
-    stats.counter('iterations', 1)
 
     stats.timer('process', 'sort')
     for range_id in results:
@@ -176,10 +173,9 @@ def get_ranges(ctx):
         prev_id = route.id
         addresses[route.id.group_id] = (route.address, route.backend_id)
 
-
     def contains(addresses_with_backends, address, backend_id):
         for addr, bid in addresses_with_backends:
-            if addr == address and (backend_id == None or backend_id == bid):
+            if addr == address and (backend_id is None or backend_id == bid):
                 return True
         return False
 
@@ -194,8 +190,41 @@ def get_ranges(ctx):
             if addr not in address_range:
                 address_range[addr] = []
             address_range[addr].append(val)
-
     return address_range
+
+
+def unpickle(filename):
+    unpickler = pickle.Unpickler(open(filename, 'rb'))
+    while 1:
+        try:
+            ret = unpickler.load()
+            yield ret
+        except:
+            break
+
+
+def final_merge(ctx, results):
+    ctx.monitor.stats.timer('main', 'final_merge')
+    log.info("final merge")
+
+    ctx.merged_filename = os.path.join(ctx.tmp_dir, 'merged_result')
+    dump_filename = os.path.join(ctx.tmp_dir, 'dump')
+
+    total_keys = 0
+    pickler = pickle.Pickler(open(ctx.merged_filename, 'wb'))
+    d_file = open(dump_filename, 'w')
+    for res in (r for r in results if r):
+        for key_data in unpickle(res):
+            pickler.dump(key_data)
+            d_file.write('{0}\n'.format(key_data[0]))
+            total_keys += 1
+        os.remove(res)
+    ctx.monitor.stats.counter('found_keys', total_keys)
+    log.info("Dumped %d keys in file: %s", total_keys, dump_filename)
+
+    log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir: %s",
+              ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
+
 
 def main(ctx):
     global g_ctx
@@ -241,34 +270,13 @@ def main(ctx):
         ctx.monitor.stats.timer('main', 'finished')
         return False
 
-    ctx.merged_filename = os.path.join(ctx.tmp_dir, 'merged_result')
-    dump_filename = os.path.join(ctx.tmp_dir, 'dump')
-
-    ctx.monitor.stats.timer('main', 'combine_and_dump')
-    log.info("Dumping keys")
-    total_keys = 0
-    with open(ctx.merged_filename, 'w') as m_file:
-        with open(dump_filename, 'w') as d_file:
-            for res in (r for r in results if r):
-                with open(res, 'r') as r_file:
-                    while 1:
-                        try:
-                            key_data = pickle.load(r_file)
-                            pickle.dump(key_data, m_file)
-                            d_file.write('{0}\n'.format(key_data[0]))
-                            total_keys += 1
-                        except:
-                            break
-    ctx.monitor.stats.counter('found keys', total_keys)
-    log.info("Dumped %d keys in file: %s", total_keys, dump_filename)
-
-    log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir: %s",
-              ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
-    ctx.monitor.stats.timer('main', 'recover')
+    final_merge(ctx, results)
 
     if ctx.dry_run:
+        ctx.monitor.stats.timer('main', 'finished')
         return ret
 
+    ctx.monitor.stats.timer('main', 'recover')
     log.info("Start recovering")
     if ctx.custom_recover == '':
         from ..dc_recovery import recover
@@ -318,8 +326,8 @@ def lookup_keys(ctx):
                                                  result.size,
                                                  result.user_flags))
                     except Exception, e:
-                        log.error("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"
-                                  .format(id, ctx.groups[i], repr(e), traceback.format_exc()))
+                        log.warning("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"
+                                    .format(id, ctx.groups[i], repr(e), traceback.format_exc()))
                         stats.counter("lookups", -1)
                 if len(key_infos) > 0:
                     key_data = (id, key_infos)

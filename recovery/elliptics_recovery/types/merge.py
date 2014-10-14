@@ -45,6 +45,7 @@ import elliptics
 
 log = logging.getLogger(__name__)
 
+
 # class for recovering one key with (timestamp, size) from address to group with check or not
 # if callback is specified then it will be called when all work is done
 class Recovery(object):
@@ -88,7 +89,9 @@ class Recovery(object):
         self.dest_address = address
         self.dest_backend_id = backend_id
         if self.check:
-            log.debug("Lookup key: {0} on node: {1}/{2}".format(repr(self.key), self.dest_address, self.dest_backend_id))
+            log.debug("Lookup key: {0} on node: {1}/{2}".format(repr(self.key),
+                                                                self.dest_address,
+                                                                self.dest_backend_id))
             self.lookup_result = LookupDirect(self.dest_address,
                                               self.dest_backend_id,
                                               self.key,
@@ -180,7 +183,8 @@ class Recovery(object):
             if result and self.key_timestamp < result.timestamp:
                 self.just_remove = True
                 log.debug("Key: {0} on node: {1}/{2} is newer. Just removing it from node: {3}/{4}."
-                          .format(repr(self.key), self.dest_address, self.dest_backend_id, self.address, self.backend_id))
+                          .format(repr(self.key), self.dest_address, self.dest_backend_id,
+                                  self.address, self.backend_id))
                 if self.ctx.dry_run:
                     log.debug("Dry-run mode is turned on. Skipping removing stage.")
                     return
@@ -286,7 +290,8 @@ class Recovery(object):
                 self.read()
             else:
                 log.debug("Key: {0} has been copied to node: {1}/{2}. So we can delete it from node: {3}/{4}"
-                          .format(repr(self.key), self.dest_address, self.dest_backend_id, self.address, self.backend_id))
+                          .format(repr(self.key), self.dest_address, self.dest_backend_id,
+                                  self.address, self.backend_id))
                 self.remove()
         except Exception as e:
             log.error("Onwrite exception: {0}, traceback: {1}"
@@ -352,7 +357,7 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
                                                          tmp_dir=ctx.tmp_dir,
                                                          address=address,
                                                          backend_id=backend_id,
-                                                         group_id = eid.group_id,
+                                                         group_id=eid.group_id,
                                                          batch_size=ctx.batch_size,
                                                          stats=stats,
                                                          leave_file=False)
@@ -446,14 +451,16 @@ def get_ranges(ctx, group):
 
     addresses = None
     if ctx.one_node:
-        if ctx.backend_id == None:
+        if ctx.backend_id is None:
             if ctx.address not in routes.addresses():
                 log.error("Address: {0} wasn't found at group: {1} route list".format(ctx.address, group))
                 return None
             addresses = routes.filter_by_address(ctx.address).addresses_with_backends()
         else:
             if (ctx.address, ctx.backend_id) not in routes.addresses_with_backends():
-                log.error("Address: {0}/{1} hasn't been found in group: {2}".format(ctx.address, ctx.backend_id, ctx.group))
+                log.error("Address: {0}/{1} hasn't been found in group: {2}".format(ctx.address,
+                                                                                    ctx.backend_id,
+                                                                                    ctx.group))
                 return None
             addresses = ((ctx.address, ctx.backend_id),)
     else:
@@ -488,10 +495,11 @@ def main(ctx):
     pool = Pool(processes=processes, initializer=worker_init)
     ret = True
     if ctx.one_node:
-        if ctx.backend_id == None:
+        if ctx.backend_id is None:
             ctx.groups = tuple(set(ctx.groups).intersection(ctx.routes.get_address_groups(ctx.address)))
         else:
-            ctx.groups = tuple(set(ctx.groups).intersection((ctx.routes.get_address_backend_group(ctx.address, ctx.backend_id),)))
+            ctx.groups = tuple(set(ctx.groups).intersection((ctx.routes.get_address_backend_group(ctx.address,
+                                                                                                  ctx.backend_id),)))
     for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
         group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
@@ -499,7 +507,8 @@ def main(ctx):
 
         group_routes = ctx.routes.filter_by_groups([group])
         if len(group_routes.addresses_with_backends()) < 2:
-            log.warning("Group {0} hasn't enough nodes/backends for recovery: {1}".format(group, group_routes.addresses_with_backends()))
+            log.warning("Group {0} hasn't enough nodes/backends for recovery: {1}"
+                        .format(group, group_routes.addresses_with_backends()))
             group_stats.timer('group', 'finished')
             continue
 
@@ -560,8 +569,9 @@ class DumpRecover(object):
         self.ctx = ctx
         simple_session = elliptics.Session(node)
         # determines node where the id lives
-        self.address = simple_session.lookup_address(self.id, group)
+        self.address, _, self.backend_id = simple_session.routes.filter_by_group(group).get_id_routes(self.id)[0]
         self.async_lookups = []
+        self.lookups_count = 0
         self.async_removes = []
         self.recover_address = None
         self.stats = RecoverStat()
@@ -570,20 +580,28 @@ class DumpRecover(object):
     def run(self):
         self.lookup_results = []
         # looks up for id on each node in group
+        addresses_with_backends = self.routes.addresses_with_backends()
+        self.lookups_count = len(addresses_with_backends)
         for addr, backend_id in self.routes.addresses_with_backends():
-            self.async_lookups.append(LookupDirect(addr, backend_id, self.id, self.group, self.ctx, self.node, self.onlookup))
+            self.async_lookups.append(LookupDirect(addr, backend_id, self.id, self.group,
+                                                   self.ctx, self.node, self.onlookup))
             self.async_lookups[-1].run()
 
     def onlookup(self, result, stats):
         self.stats += stats
         self.lookup_results.append(result)
-        if len(self.lookup_results) == len(self.async_lookups):
+        if len(self.lookup_results) == self.lookups_count:
             self.check()
             self.async_lookups = None
 
     def check(self):
         # finds timestamp of newest object
-        max_ts = max([r.timestamp for r in self.lookup_results if r])
+        self.lookup_results = [r for r in self.lookup_results if r]
+        if not self.lookup_results:
+            log.debug("Key: {0} has not been found in group {1}. Skip it".format(self.id, self.group))
+            self.stats.skipped += 1
+            return
+        max_ts = max([r.timestamp for r in self.lookup_results])
         log.debug("Max timestamp of key: {0}: {1}".format(repr(self.id), max_ts))
         # filters objects with newest timestamp
         results = [r for r in self.lookup_results if r and r.timestamp == max_ts]
@@ -591,8 +609,8 @@ class DumpRecover(object):
         max_size = max([r.size for r in results])
         log.debug("Max size of latest replicas for key: {0}: {1}".format(repr(self.id), max_size))
         # filters newest objects with max size
-        results = [r.address for r in results if r.size == max_size]
-        if self.address in results:
+        results = [(r.address, r.backend_id) for r in results if r.size == max_size]
+        if (self.address, self.backend_id) in results:
             log.debug("Node: {0} already has the latest version of key: {1}."
                       .format(self.address, repr(self.id), self.group))
             # if destination node already has newest object then just remove key from unproper nodes
@@ -601,7 +619,7 @@ class DumpRecover(object):
             # if destination node has outdated object - recovery it from one of filtered nodes
             self.timestamp = max_ts
             self.size = max_size
-            self.recover_address = results[0]
+            self.recover_address, self.recover_backend_id = results[0]
             log.debug("Node: {0} has the newer version of key: {1}. Recovering it on node: {2}"
                       .format(self.recover_address, repr(self.id), self.address))
             self.recover()
@@ -611,6 +629,7 @@ class DumpRecover(object):
                                        timestamp=self.timestamp,
                                        size=self.size,
                                        address=self.recover_address,
+                                       backend_id=self.recover_backend_id,
                                        group=self.group,
                                        ctx=self.ctx,
                                        node=self.node,
@@ -620,16 +639,17 @@ class DumpRecover(object):
 
     def onrecover(self, result, stats):
         self.result &= result
-        self.stats += stats;
+        self.stats += stats
         self.remove()
 
     def remove(self):
         # remove id from node with positive lookups but not from destination node and node that took a part in recovery
         addresses_with_backends = [(r.address, r.backend_id) for r in self.lookup_results if r and r.address not in [self.address, self.recover_address]]
         if addresses_with_backends and not self.ctx.safe:
-            log.debug("Removing key: {0} from nodes: {1}".format(repr(self.id), addresses))
-            for addr, backend_id in addresses:
-                self.async_removes.append(RemoveDirect(addr, backend_id, self.id, self.group, self.ctx, self.node, self.onremove))
+            log.debug("Removing key: {0} from nodes: {1}".format(repr(self.id), addresses_with_backends))
+            for addr, backend_id in addresses_with_backends:
+                self.async_removes.append(RemoveDirect(addr, backend_id, self.id, self.group,
+                                                       self.ctx, self.node, self.onremove))
                 self.async_removes[-1].run()
 
     def wait(self):

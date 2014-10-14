@@ -23,6 +23,8 @@ import pytest
 from conftest import simple_node, make_session
 from server import server
 import elliptics
+import elliptics_recovery.types.dc
+import elliptics_recovery.types.merge
 
 class RECOVERY:
     MERGE = 1
@@ -102,22 +104,17 @@ def check_data(scope, session, keys, datas, timestamp):
     timestamps = [x.timestamp for x in results]
     assert all(x == timestamp for x in timestamps)
 
-def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log_file, tmp_dir):
+def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log_file, tmp_dir, dump_file=None):
     '''
     Imports dnet_recovery tools and executes merge recovery. Checks result of merge.
     '''
     from elliptics_recovery.ctx import Ctx
     from elliptics_recovery.route import RouteList
-    from elliptics_recovery.monitor import Monitor
+    from elliptics_recovery.monitor import Monitor, STAT_TEXT
     from elliptics_recovery.etime import Time
     import os
 
-    if rtype == RECOVERY.MERGE:
-        from elliptics_recovery.types.merge import main
-    elif rtype == RECOVERY.DC:
-        from elliptics_recovery.types.dc import main
-    else:
-        assert 0
+    assert rtype in (RECOVERY.MERGE, RECOVERY.DC)
 
     ctx = Ctx()
     cur_dir = os.getcwd()
@@ -144,7 +141,10 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
     ctx.safe = False
     ctx.one_node = one_node
     ctx.custom_recover = ''
-    ctx.dump_file = None
+    if dump_file:
+        ctx.dump_file = os.path.abspath(dump_file)
+    else:
+        ctx.dump_file = None
     ctx.chunk_size = 1024
     ctx.log_level = elliptics.log_level.debug
     ctx.remotes = remotes
@@ -158,13 +158,25 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
     ctx.wait_timeout = 36000
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     ctx.routes = RouteList.from_session(session)
-    ctx.monitor = Monitor(ctx, None)
+    ctx.stat_format = STAT_TEXT
     ctx.timestamp = Time.from_epoch(0)
+    ctx.monitor = Monitor(ctx, None)
 
-    recovery_res = main(ctx)
+    if rtype == RECOVERY.MERGE:
+        if dump_file:
+            recovery_res = elliptics_recovery.types.merge.dump_main(ctx)
+        else:
+            recovery_res = elliptics_recovery.types.merge.main(ctx)
+    elif rtype == RECOVERY.DC:
+        if dump_file:
+            recovery_res = elliptics_recovery.types.dc.dump_main(ctx)
+        else:
+            recovery_res = elliptics_recovery.types.dc.main(ctx)
+
     assert recovery_res
 
     ctx.monitor.shutdown()
+    log.handlers = []
 
 
 @pytest.fixture(scope="module")
@@ -185,6 +197,9 @@ class TestRecovery:
     Turns on one backend from the same node and the same group
     Runs dnet_recovery merge with --one-node and --backend-id.
     Checks written data availability.
+    Enables another one backend from the same group.
+    Runs dnet_recovery merge without --one-node and without --backend-id and with -f merge.dump.file.
+    Checks written data availability.
     Turns on all backends from the same group from all node.
     Runs dnet_recovery merge without --one-node and without --backend-id.
     Checks written data availability.
@@ -192,7 +207,7 @@ class TestRecovery:
     Runs dnet_recovery dc with --one-node and with --backend-id.
     Checks written data availability in both groups.
     Turns on all nodes from on second group.
-    Runs dnet_recovery dc without --one-node and without --backend-id.
+    Runs dnet_recovery dc without --one-node and without --backend-id and with -f merge.dump.file.
     Checks written data availability in both groups.
     Turns on third group nodes.
     Writes new data on the same keys.
@@ -315,6 +330,49 @@ class TestRecovery:
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas, self.timestamp)
 
+    def test_enable_another_one_backend(self, scope, server, simple_node):
+        '''
+        Enables another one backend from the same group.
+        '''
+        assert scope.disabled_backends[-2][0] == scope.test_group
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_enable_another_one_backend',
+                               test_namespace=self.namespace)
+        group, address, backend = scope.disabled_backends[-1]
+        r = enable_backend(scope, session, group, address, backend)
+        check_backend_status(r.get(), backend, state=1)
+        wait_backends_in_route(session, ((address, backend),))
+
+    def test_merge_from_dump_3_backends(self, scope, server, simple_node):
+        '''
+        Writes all keys to dump file: 'merge.dump.file'.
+        Runs dnet_recovery merge without --one-node and without --backend-id and with -f merge.dump.file.
+        Checks that all keys are available and have correct data.
+        '''
+        session = make_session(node=simple_node,
+                               test_name='TestRecovery.test_merge_from_dump_3_backends',
+                               test_namespace=self.namespace)
+
+        dump_filename = 'merge.dump.file'
+        with open(dump_filename, 'w') as dump_file:
+            for key in self.keys + ['unknown_key']:
+                dump_file.write('{0}\n'.format(str(session.transform(key))))
+
+        recovery(one_node=False,
+                 remotes=map(elliptics.Address.from_host_port_family, server.remotes),
+                 backend_id=None,
+                 address=scope.test_address,
+                 groups=(scope.test_group,),
+                 session=session.clone(),
+                 rtype=RECOVERY.MERGE,
+                 log_file='merge_from_dump_3_backends.log',
+                 tmp_dir='merge_from_dump_3_backends',
+                 dump_file=dump_filename)
+
+        session.groups = (scope.test_group,)
+        check_data(scope, session, self.keys, self.datas, self.timestamp)
+
+
     def test_enable_all_group_backends(self, scope, server, simple_node):
         '''
         Enables all backends from all nodes from first group
@@ -392,14 +450,19 @@ class TestRecovery:
                                test_namespace=self.namespace)
         enable_group(scope, session, scope.test_group2)
 
-    def test_dc_two_groups(self, scope, server, simple_node):
+    def test_dc_from_dump_two_groups(self, scope, server, simple_node):
         '''
-        Runs dnet_recovery dc without --one-node and without --backend-id against both groups.
+        Runs dnet_recovery dc without --one-node and without --backend-id against both groups and with -f merge.dump.file.
         Checks self.keys availability after recovering in both groups.
         '''
         session = make_session(node=simple_node,
-                               test_name='TestRecovery.test_dc_two_groups',
+                               test_name='TestRecovery.test_dc_from_dump_two_groups',
                                test_namespace=self.namespace)
+
+        dump_filename = 'dc.dump.file'
+        with open(dump_filename, 'w') as dump_file:
+            for key in self.keys + ['unknown_key']:
+                dump_file.write('{0}\n'.format(str(session.transform(key))))
 
         recovery(one_node=False,
                  remotes=map(elliptics.Address.from_host_port_family, server.remotes),
@@ -408,15 +471,15 @@ class TestRecovery:
                  groups=(scope.test_group, scope.test_group2,),
                  session=session.clone(),
                  rtype=RECOVERY.DC,
-                 log_file='dc_two_groups.log',
-                 tmp_dir='dc_two_groups')
+                 log_file='dc_from_dump_two_groups.log',
+                 tmp_dir='dc_from_dump_two_groups',
+                 dump_file=dump_filename)
 
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas, self.timestamp)
 
         session.groups = (scope.test_group2,)
         check_data(scope, session, self.keys, self.datas, self.timestamp)
-
 
     def test_enable_all_third_group_backends(self, scope, server, simple_node):
         '''
@@ -462,7 +525,6 @@ class TestRecovery:
         for group in (scope.test_group, scope.test_group2, scope.test_group3):
             session.groups = [group]
             check_data(scope, session, self.keys, self.datas2, self.timestamp2)
-
 
     def test_write_and_corrupt_data(self, scope, server, simple_node):
         '''
@@ -522,7 +584,6 @@ class TestRecovery:
         for group in (scope.test_group, scope.test_group2, scope.test_group3):
             session.groups = [group]
             check_data(scope, session, [self.corrupted_key], [self.corrupted_data + '.2'], self.corrupted_timestamp2)
-
 
     def test_defragmentation(self, scope, server, simple_node):
         '''

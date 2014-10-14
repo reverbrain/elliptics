@@ -229,8 +229,7 @@ int callback_result_status(callback_result_entry &result)
 	return result.status();
 }
 
-template <typename T>
-error result_entry_error(T &result)
+error callback_result_error(callback_result_entry &result)
 {
 	return error(result.error().code(), result.error().message());
 }
@@ -240,16 +239,26 @@ std::string callback_result_data(callback_result_entry &result)
 	return result.data().to_string();
 }
 
-template <typename T>
-std::string result_entry_address(const T &result)
+std::string callback_entry_address(const callback_result_entry &result)
 {
 	return dnet_server_convert_dnet_addr(result.address());
 }
 
-template <typename T>
-int result_entry_group_id(const T &result)
+int callback_entry_group_id(const callback_result_entry &result)
 {
 	return result.command()->id.group_id;
+}
+
+int callback_entry_backend_id(const callback_result_entry &result) {
+	return result.command()->backend_id;
+}
+
+uint64_t callback_entry_trace_id(const callback_result_entry &result) {
+	return result.command()->trace_id;
+}
+
+uint64_t callback_entry_trans(const callback_result_entry &result) {
+	return result.command()->trans;
 }
 
 uint64_t callback_result_size(callback_result_entry &result)
@@ -289,6 +298,21 @@ bp::list dnet_backend_status_result_get_backends(const backend_status_result_ent
 
 void init_result_entry() {
 
+	bp::class_<callback_result_entry>("CallbackResultEntry")
+		.add_property("is_valid", callback_result_is_valid)
+		.add_property("is_ack", callback_result_is_ack)
+		.add_property("is_final", callback_result_is_final)
+		.add_property("status", callback_result_status)
+		.add_property("data", callback_result_data)
+		.add_property("size", callback_result_size)
+		.add_property("error", callback_result_error)
+		.add_property("address", callback_entry_address)
+		.add_property("group_id", callback_entry_group_id)
+		.add_property("backend_id", callback_entry_backend_id)
+		.add_property("trace_id", callback_entry_trace_id)
+		.add_property("trans", callback_entry_trans)
+	;
+
 	bp::class_<index_entry>("IndexEntry")
 		.add_property("index",
 		              index_entry_get_index,
@@ -300,19 +324,13 @@ void init_result_entry() {
 		              "data associated with the index")
 	;
 
-	bp::class_<iterator_result_entry>("IteratorResultEntry")
+	bp::class_<iterator_result_entry, bp::bases<callback_result_entry> >("IteratorResultEntry")
 		.add_property("id", &iterator_result_entry::id,
 		              "Iterator integer ID. Which can be used for pausing, continuing and cancelling iterator")
-		.add_property("status", &iterator_result_entry::status,
-		              "Status of iterated key")
 		.add_property("response", iterator_result_response,
 		              "elliptics.IteratorResultResponse which provides meta information about iterated key")
 		.add_property("response_data", iterator_result_response_data,
 		              "Data of iterated key. May be empty if elliptics.iterator_flags.data hasn't been specified for iteration.")
-		.add_property("address", result_entry_address<iterator_result_entry>,
-		              "Address of node")
-		.add_property("group_id", result_entry_group_id<iterator_result_entry>)
-		.add_property("error", result_entry_error<iterator_result_entry>)
 	;
 
 	bp::class_<dnet_iterator_response>("IteratorResultResponse",
@@ -335,7 +353,7 @@ void init_result_entry() {
 		              "1 - keepalive response")
 	;
 
-	bp::class_<read_result_entry>("ReadResultEntry")
+	bp::class_<read_result_entry, bp::bases<callback_result_entry> >("ReadResultEntry")
 		.add_property("data", read_result_get_data,
 		              "Read data")
 		.add_property("id", read_result_get_id,
@@ -350,16 +368,11 @@ void init_result_entry() {
 		              "Offset with which object has been read")
 		.add_property("size", read_result_get_size,
 		              "Size of read object data")
-		.add_property("address", result_entry_address<read_result_entry>,
-		              "Node address which provides the object")
-		.add_property("group_id", result_entry_group_id<read_result_entry>)
 		.add_property("io_attribute", read_result_get_io,
 		              "elliptics.IoAttr of read operation")
-		.add_property("error", result_entry_error<read_result_entry>,
-		              "elliptics.Error of operation execution")
 	;
 
-	bp::class_<lookup_result_entry>("LookupResultEntry")
+	bp::class_<lookup_result_entry, bp::bases<callback_result_entry> >("LookupResultEntry")
 		.add_property("storage_address", lookup_result_get_storage_address)
 		.add_property("size", lookup_result_get_size,
 		              "Size of data")
@@ -371,11 +384,6 @@ void init_result_entry() {
 		              "elliptics.Id checksum of object")
 		.add_property("filepath", lookup_result_get_filepath,
 		              "path to object in the backend")
-		.add_property("address", result_entry_address<lookup_result_entry>,
-		              "Address of node where the object lives")
-		.add_property("group_id", result_entry_group_id<lookup_result_entry>)
-		.add_property("error", result_entry_error<lookup_result_entry>,
-		              "elliptics.Error of operation execution")
 	;
 
 	bp::class_<exec_context>("ExecContext")
@@ -386,10 +394,8 @@ void init_result_entry() {
 		.add_property("address", exec_context_get_address)
 	;
 
-	bp::class_<exec_result_entry>("ExecResultEntry")
+	bp::class_<exec_result_entry, bp::bases<callback_result_entry> >("ExecResultEntry")
 		.add_property("context", exec_result_get_context)
-		.add_property("address", result_entry_address<exec_result_entry>)
-		.add_property("group_id", result_entry_group_id<exec_result_entry>)
 	;
 
 	bp::class_<find_indexes_result_entry>("FindIndexesResultEntry")
@@ -399,24 +405,8 @@ void init_result_entry() {
 		              "list of elliptics.IndexEntry which associated with the id")
 	;
 
-	bp::class_<callback_result_entry>("CallbackResultEntry")
-		.add_property("is_valid", callback_result_is_valid)
-		.add_property("is_ack", callback_result_is_ack)
-		.add_property("is_final", callback_result_is_final)
-		.add_property("status", callback_result_status)
-		.add_property("data", callback_result_data)
-		.add_property("size", callback_result_size)
-		.add_property("error", result_entry_error<callback_result_entry>)
-		.add_property("address", result_entry_address<callback_result_entry>)
-		.add_property("group_id", result_entry_group_id<callback_result_entry>)
-	;
-
-	bp::class_<monitor_stat_result_entry>("MonitorStatResultEntry")
+	bp::class_<monitor_stat_result_entry, bp::bases<callback_result_entry> >("MonitorStatResultEntry")
 		.add_property("statistics", monitor_stat_result_get_statistics)
-		.add_property("address", result_entry_address<monitor_stat_result_entry>)
-		.add_property("group_id", result_entry_group_id<monitor_stat_result_entry>)
-		.add_property("error", result_entry_error<monitor_stat_result_entry>,
-		              "elliptics.Error information")
 	;
 
 	bp::class_<dnet_route_entry>("RouteEntry")
@@ -425,7 +415,7 @@ void init_result_entry() {
 		.add_property("backend_id", &dnet_route_entry::backend_id)
 	;
 
-	bp::class_<backend_status_result_entry>("BackendStatusResultEntry")
+	bp::class_<backend_status_result_entry, bp::bases<callback_result_entry> >("BackendStatusResultEntry")
 		.add_property("backends", &dnet_backend_status_result_get_backends)
 	;
 
