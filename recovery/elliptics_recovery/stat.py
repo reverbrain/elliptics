@@ -22,7 +22,10 @@ Currently we support counters and time measurements.
 
 from datetime import datetime
 from itertools import chain
-from collections import OrderedDict
+try:
+    from collections import OrderedDict
+except:
+    OrderedDict = dict
 
 
 def format_kv(k, v):
