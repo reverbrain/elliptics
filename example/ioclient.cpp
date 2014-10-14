@@ -347,16 +347,16 @@ int main(int argc, char *argv[])
 				for (size_t i = 0; i < entry.count(); ++i) {
 					dnet_backend_status *status = entry.backend(i);
 					std::cout << "backend: " << status->backend_id << " at " << dnet_server_convert_dnet_addr(entry.address()) << std::endl;
-					std::cout << "  backend state: " << dnet_backend_state_string(status->state) << std::endl;
-					std::cout << "  defrag  state: " << dnet_backend_defrag_state_string(status->defrag_state) << std::endl;
-					std::cout << "      read-only: " << (status->read_only != 0 ? "true" : "false") << std::endl;
-					std::cout << "          delay: " << status->delay << std::endl;
-					std::cout << "     last start: ";
+					std::cout << "    backend state: " << dnet_backend_state_string(status->state) << std::endl;
+					std::cout << "    defrag  state: " << dnet_backend_defrag_state_string(status->defrag_state) << std::endl;
+					std::cout << "        read-only: " << (status->read_only != 0 ? "true" : "false") << std::endl;
+					std::cout << "            delay: " << status->delay << std::endl;
+					std::cout << "       last start: ";
 					if (dnet_time_is_empty(&status->last_start)) {
 						std::cout << "  backend has never been started" << std::endl;
 					} else {
 						std::cout << dnet_print_time(&status->last_start) << std::endl;
-						std::cout << "last start error: " << status->last_start_err << std::endl;
+						std::cout << " last start error: " << status->last_start_err << std::endl;
 					}
 				}
 			} else {
