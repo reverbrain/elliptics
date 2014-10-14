@@ -1,3 +1,31 @@
+elliptics (2.26.3.29) unstable; urgency=low
+
+  * package: depend on 0.22.9+ eblob where init errno code was introduced
+  * route: do not request route list if node flags includes DNET_CFG_NO_ROUTE_LIST
+  * recover: do not print error on lookup fail while recovering keys from dump - fail is an ok situation
+  * recover: skips keys that are missed on all nodes
+  * python: use dict if OrderedDict is not available
+  * recover: fixed  and  recovery from dump. Added test case for recovering keys from dump.
+  * python: added 'backend_id', 'trace_id' and 'trans' to callback_result_entry
+  * python: removed duplicated calls - use bp::bases for inheritance between different result_entry and base callback_result_entry
+  * backend: eblob_init sets errno on fail - use it for returning correct error code
+  * backends: do not process commands aimed to uninitialized backend
+  * python: added set_backend_ids method to elliptics.Session.
+  * dnet_balancer: added option '-u/--update' that turns no remote update ids on backends after balancing.
+  * dnet_balancer: added outputing final dht spread between nodes/backends.
+  * recovery: added  output format for statistics.
+  * recovery: skipping on iteration key with zero size of data.
+  * Python: fixed missing _node at cloned session.
+  * api: added resetting namespace by setting empty namespace.
+  * logs: added log that net thread has been finished.
+  * ioclient: backend status messages whitespace cleanup
+  * addr: added dnet_create_addr_str() helper which parses string and fills dnet_addr structure
+  * package: depend on 0.10.2+ handystats
+  * backend: added possibility to delay execution of every backend command by X ms
+  * init: fixed IO pool initialization
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 14 Oct 2014 21:16:06 +0400
+
 elliptics (2.26.3.28) unstable; urgency=low
 
   * python: fixed TypeError on some python version
