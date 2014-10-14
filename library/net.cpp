@@ -1054,8 +1054,10 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_
 	}
 
 	// send route request to already connected states
-	for (size_t i = 0; i < states_count; ++i) {
-		dnet_request_route_list(state, states[i]);
+	if (!(state.node->flags & DNET_CFG_NO_ROUTE_LIST)) {
+		for (size_t i = 0; i < states_count; ++i) {
+			dnet_request_route_list(state, states[i]);
+		}
 	}
 
 	states.reset();
