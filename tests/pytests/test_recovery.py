@@ -355,7 +355,7 @@ class TestRecovery:
 
         dump_filename = 'merge.dump.file'
         with open(dump_filename, 'w') as dump_file:
-            for key in self.keys:
+            for key in self.keys + ['unknown_key']:
                 dump_file.write('{0}\n'.format(str(session.transform(key))))
 
         recovery(one_node=False,
@@ -461,7 +461,7 @@ class TestRecovery:
 
         dump_filename = 'dc.dump.file'
         with open(dump_filename, 'w') as dump_file:
-            for key in self.keys:
+            for key in self.keys + ['unknown_key']:
                 dump_file.write('{0}\n'.format(str(session.transform(key))))
 
         recovery(one_node=False,

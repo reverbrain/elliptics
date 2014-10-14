@@ -593,7 +593,12 @@ class DumpRecover(object):
 
     def check(self):
         # finds timestamp of newest object
-        max_ts = max([r.timestamp for r in self.lookup_results if r])
+        self.lookup_results = [r for r in self.lookup_results if r]
+        if not self.lookup_results:
+            log.debug("Key: {0} has not been found in group {1}. Skip it".format(self.id, self.group))
+            self.stats.skipped += 1
+            return
+        max_ts = max([r.timestamp for r in self.lookup_results])
         log.debug("Max timestamp of key: {0}: {1}".format(repr(self.id), max_ts))
         # filters objects with newest timestamp
         results = [r for r in self.lookup_results if r and r.timestamp == max_ts]
