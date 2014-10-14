@@ -571,6 +571,7 @@ class DumpRecover(object):
         # determines node where the id lives
         self.address, _, self.backend_id = simple_session.routes.filter_by_group(group).get_id_routes(self.id)[0]
         self.async_lookups = []
+        self.lookups_count = 0
         self.async_removes = []
         self.recover_address = None
         self.stats = RecoverStat()
@@ -579,6 +580,8 @@ class DumpRecover(object):
     def run(self):
         self.lookup_results = []
         # looks up for id on each node in group
+        addresses_with_backends = self.routes.addresses_with_backends()
+        self.lookups_count = len(addresses_with_backends)
         for addr, backend_id in self.routes.addresses_with_backends():
             self.async_lookups.append(LookupDirect(addr, backend_id, self.id, self.group,
                                                    self.ctx, self.node, self.onlookup))
@@ -587,7 +590,7 @@ class DumpRecover(object):
     def onlookup(self, result, stats):
         self.stats += stats
         self.lookup_results.append(result)
-        if len(self.lookup_results) == len(self.async_lookups):
+        if len(self.lookup_results) == self.lookups_count:
             self.check()
             self.async_lookups = None
 
