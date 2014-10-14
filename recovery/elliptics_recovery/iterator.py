@@ -323,7 +323,7 @@ class Iterator(object):
 
                 if iterated_keys % batch_size == 0:
                     yield (filtered_keys, iterated_keys, total_keys)
-                if record.response.status != 0:
+                if record.response.status != 0 or record.response.size == 0:
                     continue
                 results[self.get_key_range_id(record.response.key)].append(record)
 

@@ -22,6 +22,11 @@ Currently we support counters and time measurements.
 
 from datetime import datetime
 from itertools import chain
+try:
+    from collections import OrderedDict
+except:
+    OrderedDict = dict
+
 
 def format_kv(k, v):
     """Formats one line of test output"""
@@ -71,6 +76,16 @@ class ResultCounter(object):
             result.append(format_kv(self.name, self.success))
         return "\n".join(result)
 
+    def dump_to_dict(self):
+        if self.failures:
+            result = OrderedDict()
+            result['successes'] = self.success
+            result['failures'] = self.failures
+            result['total'] = self.total
+            return result
+        else:
+            return self.success
+
 
 class DurationTimer(object):
     """
@@ -116,6 +131,20 @@ class DurationTimer(object):
         if start != stop:
             result.append(construct_line(stop))
         return "\n".join(result)
+
+    def dump_to_dict(self):
+        if not self.times:
+            return
+
+        result = OrderedDict()
+        name, time = self.times[0]
+        result[str(name)] = str(time)
+        for (begin_name, begin_time), (end_name, end_time) in zip(self.times, self.times[1:]):
+            name = '{0}...{1}'.format(begin_name, end_name)
+            result[name] = str(end_time - begin_time)
+            result[end_name] = str(end_time)
+
+        return result
 
 
 class Container(object):
@@ -200,6 +229,17 @@ class Stats(object):
         for _, v in chain(sorted(self.counter), sorted(self.timer), sorted(self.__sub_stats)):
             result.append(str(v))
         return "\n".join(result)
+
+    def dump_to_dict(self):
+        result = OrderedDict()
+        for _, v in chain(sorted(self.counter), sorted(self.timer), sorted(self.__sub_stats)):
+            result[v.name] = v.dump_to_dict()
+        return result
+
+    def json(self):
+        import json
+        return json.dumps(self.dump_to_dict(), sort_keys=False,
+                          indent=4, separators=(',', ': '))
 
     def __getitem__(self, item):
         return getattr(self.__sub_stats, str(item))

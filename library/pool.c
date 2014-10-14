@@ -947,6 +947,7 @@ static void *dnet_io_process_network(void *data_)
 	free(evs);
 
 err_out_exit:
+	dnet_log(n, DNET_LOG_NOTICE, "finished net pool");
 	return &n->need_exit;
 }
 
