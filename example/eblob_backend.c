@@ -819,13 +819,13 @@ static int dnet_blob_set_blob_size(struct dnet_config_backend *b, char *key, cha
 	struct eblob_backend_config *c = b->data;
 	uint64_t val = strtoul(value, NULL, 0);
 
-	if (strchr(value, 'T'))
+	if (strchr(value, 'T') || strchr(value, 't'))
 		val *= 1024*1024*1024*1024ULL;
-	else if (strchr(value, 'G'))
+	else if (strchr(value, 'G') || strchr(value, 'g'))
 		val *= 1024*1024*1024ULL;
-	else if (strchr(value, 'M'))
+	else if (strchr(value, 'M') || strchr(value, 'm'))
 		val *= 1024*1024;
-	else if (strchr(value, 'K'))
+	else if (strchr(value, 'K') || strchr(value, 'k'))
 		val *= 1024;
 
 	if (!strcmp(key, "blob_size"))
