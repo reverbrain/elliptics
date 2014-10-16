@@ -32,6 +32,7 @@ import os
 from itertools import groupby
 from multiprocessing import Pool
 import traceback
+import threading
 
 from ..etime import Time
 from ..utils.misc import elliptics_create_node, worker_init, RecoverStat, LookupDirect, RemoveDirect
@@ -46,9 +47,12 @@ import elliptics
 log = logging.getLogger(__name__)
 
 
-# class for recovering one key with (timestamp, size) from address to group with check or not
-# if callback is specified then it will be called when all work is done
 class Recovery(object):
+    '''
+    Base class for recovering one key with specified timestamp and size from specified address to group
+    with optional check that group doesn't have or have an older version of the key.
+    If Recovery was inited with callback then this callback will be called when all work is done.
+    '''
     def __init__(self, key, timestamp, size, address, backend_id, group, ctx, node, check=True, callback=None):
         self.key = key
         self.key_timestamp = timestamp
@@ -72,6 +76,7 @@ class Recovery(object):
         self.chunked = self.total_size > self.ctx.chunk_size
         self.check = check
         self.callback = callback
+        self.complete = threading.Event()
         log.debug("Created Recovery object for key: {0}, node: {1}/{2}".format(repr(key), address, backend_id))
 
     def run(self):
@@ -106,6 +111,13 @@ class Recovery(object):
             self.attempt = 0
             self.read()
 
+    def stop(self, result):
+        self.result = result
+        log.debug("Finished recovering key: {0} with result: {1}".format(self.key, self.result))
+        if self.callback:
+            self.callback(self.result, self.stats)
+        self.complete.set()
+
     def read(self):
         size = 0
         try:
@@ -124,7 +136,7 @@ class Recovery(object):
         except Exception, e:
             log.error("Read key: {0} by offset: {1} and size: {2} raised exception: {3}, traceback: {4}"
                       .format(self.key, self.recovered_size, size, repr(e), traceback.format_exc()))
-            self.result = False
+            self.stop(False)
 
     def write(self):
         try:
@@ -158,8 +170,7 @@ class Recovery(object):
         except Exception, e:
             log.error("Write exception: {0}, traceback: {1}"
                       .format(repr(e), traceback.format_exc()))
-            self.result = False
-            raise e
+            self.Stop(False)
 
     def remove(self):
         if not self.ctx.safe:
@@ -173,8 +184,8 @@ class Recovery(object):
                                               self.node,
                                               self.onremove)
             self.remove_result.run()
-        elif self.callback:
-            self.callback(self.result, self.stats)
+        else:
+            self.stop(True)
 
     def onlookup(self, result, stats):
         self.lookup_result = None
@@ -202,9 +213,7 @@ class Recovery(object):
         except Exception as e:
             log.error("Onlookup exception: {0}, traceback: {1}"
                       .format(repr(e), traceback.format_exc()))
-            self.result = False
-            if self.callback:
-                self.callback(self.result, self.stats)
+            self.stop(False)
 
     def onread(self, results, error):
         self.read_result = None
@@ -230,8 +239,8 @@ class Recovery(object):
                                   self.address,
                                   self.backend_id,
                                   error))
-                self.result = False
                 self.stats.read_failed += 1
+                self.stop(False)
                 return
 
             if self.recovered_size == 0:
@@ -246,9 +255,7 @@ class Recovery(object):
         except Exception as e:
             log.error("Onread exception: {0}, traceback: {1}"
                       .format(repr(e), traceback.format_exc()))
-            self.result = False
-            if self.callback:
-                self.callback(self.result, self.stats)
+            self.stop(False)
 
     def onwrite(self, results, error):
         self.write_result = None
@@ -277,8 +284,8 @@ class Recovery(object):
                                   self.dest_address,
                                   self.dest_backend_id,
                                   error))
-                self.result = False
                 self.stats.write_failed += 1
+                self.stop(False)
                 return
 
             self.stats.write += 1
@@ -296,49 +303,16 @@ class Recovery(object):
         except Exception as e:
             log.error("Onwrite exception: {0}, traceback: {1}"
                       .format(repr(e), traceback.format_exc()))
-            self.result = False
-            if self.callback:
-                self.callback(self.result, self.stats)
+            self.stop(False)
 
     def onremove(self, removed, stats):
         self.remove_result = None
-        self.result &= removed
         self.stats += stats
-        if self.callback:
-            self.callback(self.result, self.stats)
+        self.stop(removed)
 
     def wait(self):
-        log.debug("Waiting lookup for key: {0}".format(repr(self.key)))
-        while hasattr(self, 'lookup_result') and self.lookup_result is not None:
-            try:
-                self.lookup_result.wait()
-            except:
-                pass
-        log.debug("Lookup completed for key: {0}".format(repr(self.key)))
-
-        log.debug("Waiting read for key: {0}".format(repr(self.key)))
-        while hasattr(self, 'read_result') and self.read_result is not None:
-            try:
-                self.read_result.wait()
-            except:
-                pass
-        log.debug("Read completed for key: {0}".format(repr(self.key)))
-
-        log.debug("Waiting write for key: {0}".format(repr(self.key)))
-        while hasattr(self, 'write_result') and self.write_result is not None:
-            try:
-                self.write_result.wait()
-            except:
-                pass
-        log.debug("Write completed for key: {0}".format(repr(self.key)))
-
-        log.debug("Waiting remove for key: {0}".format(repr(self.key)))
-        while hasattr(self, 'remove_result') and self.remove_result is not None:
-            try:
-                self.remove_result.wait()
-            except:
-                pass
-        log.debug("Remove completed for key: {0}".format(repr(self.key)))
+        if not self.complete.is_set():
+            self.complete.wait()
 
     def succeeded(self):
         self.wait()
@@ -575,6 +549,7 @@ class DumpRecover(object):
         self.async_removes = []
         self.recover_address = None
         self.stats = RecoverStat()
+        self.complete = threading.Event()
         self.result = True
 
     def run(self):
@@ -586,6 +561,11 @@ class DumpRecover(object):
             self.async_lookups.append(LookupDirect(addr, backend_id, self.id, self.group,
                                                    self.ctx, self.node, self.onlookup))
             self.async_lookups[-1].run()
+
+    def stop(self, result):
+        self.result = result
+        log.debug("Finished recovering key: {0} with result: {1}".format(self.id, self.result))
+        self.complete.set()
 
     def onlookup(self, result, stats):
         self.stats += stats
@@ -600,6 +580,7 @@ class DumpRecover(object):
         if not self.lookup_results:
             log.debug("Key: {0} has not been found in group {1}. Skip it".format(self.id, self.group))
             self.stats.skipped += 1
+            self.stop(True)
             return
         max_ts = max([r.timestamp for r in self.lookup_results])
         log.debug("Max timestamp of key: {0}: {1}".format(repr(self.id), max_ts))
@@ -638,44 +619,31 @@ class DumpRecover(object):
         self.recover_result.run()
 
     def onrecover(self, result, stats):
-        self.result &= result
         self.stats += stats
+        self.result &= result
         self.remove()
 
     def remove(self):
         # remove id from node with positive lookups but not from destination node and node that took a part in recovery
-        addresses_with_backends = [(r.address, r.backend_id) for r in self.lookup_results if r and r.address not in [self.address, self.recover_address]]
+        def check(r):
+            return r and r.address not in (self.address, self.recover_address)
+        addresses_with_backends = [(r.address, r.backend_id) for r in self.lookup_results if check(r)]
         if addresses_with_backends and not self.ctx.safe:
             log.debug("Removing key: {0} from nodes: {1}".format(repr(self.id), addresses_with_backends))
             for addr, backend_id in addresses_with_backends:
                 self.async_removes.append(RemoveDirect(addr, backend_id, self.id, self.group,
                                                        self.ctx, self.node, self.onremove))
                 self.async_removes[-1].run()
+        else:
+            self.stop(True)
 
     def wait(self):
-        log.debug("Waiting lookup for key: {0}".format(repr(self.id)))
-        while hasattr(self, 'async_lookups') and self.async_lookups is not None:
-            for r in self.async_lookups:
-                try:
-                    self.r.wait()
-                except:
-                    pass
-        log.debug("Lookup completed for key: {0}".format(repr(self.id)))
-        if hasattr(self, 'recover_result'):
-            self.recover_result.wait()
-
-        log.debug("Waiting remove for key: {0}".format(repr(self.id)))
-        if hasattr(self, 'async_removes') and self.async_removes is not None:
-            for r in self.async_removes:
-                try:
-                    r.wait()
-                except:
-                    pass
-        log.debug("Remove completed for key: {0}".format(repr(self.id)))
+        if not self.complete.is_set():
+            self.complete.wait()
 
     def onremove(self, removed, stats):
-        self.result &= removed
         self.stats += stats
+        self.stop(self.result & removed)
 
     def succeeded(self):
         self.wait()
