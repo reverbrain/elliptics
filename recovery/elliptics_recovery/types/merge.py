@@ -463,8 +463,8 @@ def get_ranges(ctx, group):
 def main(ctx):
     global g_ctx
     g_ctx = ctx
-    g_ctx.monitor.stats.timer('main', 'started')
-    processes = min(g_ctx.nprocess, len(g_ctx.routes.addresses_with_backends()))
+    ctx.monitor.stats.timer('main', 'started')
+    processes = min(ctx.nprocess, len(ctx.routes.addresses_with_backends()))
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
     ret = True
@@ -476,7 +476,7 @@ def main(ctx):
                                                                                                   ctx.backend_id),)))
     for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
-        group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
+        group_stats = ctx.monitor.stats['group_{0}'.format(group)]
         group_stats.timer('group', 'started')
 
         group_routes = ctx.routes.filter_by_groups([group])
@@ -511,7 +511,7 @@ def main(ctx):
             pool.terminate()
             pool.join()
             group_stats.timer('group', 'finished')
-            g_ctx.monitor.stats.timer('main', 'finished')
+            ctx.monitor.stats.timer('main', 'finished')
             return False
         except Exception as e:
             log.error("Caught unexpected exception: {0}, traceback: {1}"
@@ -520,7 +520,7 @@ def main(ctx):
             pool.terminate()
             pool.join()
             group_stats.timer('group', 'finished')
-            g_ctx.monitor.stats.timer('main', 'finished')
+            ctx.monitor.stats.timer('main', 'finished')
             return False
 
         group_stats.timer('group', 'finished')
@@ -528,7 +528,8 @@ def main(ctx):
     log.info("Closing pool, joining threads.")
     pool.close()
     pool.join()
-    g_ctx.monitor.stats.timer('main', 'finished')
+    ctx.monitor.stats.timer('main', 'finished')
+    del g_ctx
     return ret
 
 
@@ -686,7 +687,7 @@ def dump_main(ctx):
     global g_ctx
     g_ctx = ctx
     ctx.monitor.stats.timer('main', 'started')
-    processes = min(g_ctx.nprocess, len(g_ctx.groups))
+    processes = min(ctx.nprocess, len(ctx.groups))
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
     ret = True
@@ -707,4 +708,5 @@ def dump_main(ctx):
     pool.close()
     pool.join()
     ctx.monitor.stats.timer('main', 'finished')
+    del g_ctx
     return ret

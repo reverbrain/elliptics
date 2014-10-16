@@ -293,6 +293,7 @@ def main(ctx):
         ret &= custom_recover.recover(ctx)
 
     ctx.monitor.stats.timer('main', 'finished')
+    del g_ctx
     return ret
 
 
@@ -379,4 +380,5 @@ def dump_main(ctx):
         custom_recover.recover(ctx)
 
     ctx.monitor.stats.timer('main', 'finished')
+    del g_ctx
     return ret
