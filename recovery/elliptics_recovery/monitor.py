@@ -141,11 +141,14 @@ class Monitor(object):
         """
         TODO: Not very pythonish interface, but OK for now.
         """
+        import Queue
         while not self.__shutdown_request:
             try:
-                data = self.queue.get(block=True)
+                data = self.queue.get(block=True, timeout=1)
             except EOFError:
                 break
+            except Queue.Empty:
+                continue
             except Exception as e:
                 self.log.error("Failed to wait on queue: {0}".format(e))
                 continue
@@ -208,6 +211,10 @@ class Monitor(object):
         self.__shutdown_request = True
         if self.port:
             self.httpd.shutdown()
+        self.d_thread.join()
+        if self.port:
+            self.l_thread.join()
+        self.u_thread.join()
 
     def print_stat(self):
         '''
