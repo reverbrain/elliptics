@@ -272,6 +272,9 @@ def main(ctx):
 
     final_merge(ctx, results)
 
+    pool.close()
+    pool.join()
+
     if ctx.dry_run:
         ctx.monitor.stats.timer('main', 'finished')
         return ret

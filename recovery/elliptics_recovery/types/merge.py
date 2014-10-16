@@ -517,7 +517,7 @@ def main(ctx):
             log.error("Caught unexpected exception: {0}, traceback: {1}"
                       .format(repr(e), traceback.format_exc()))
             log.info("Closing pool, joining threads.")
-            pool.close()
+            pool.terminate()
             pool.join()
             group_stats.timer('group', 'finished')
             g_ctx.monitor.stats.timer('main', 'finished')
