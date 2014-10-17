@@ -556,9 +556,18 @@ class DumpRecover(object):
     def run(self):
         self.lookup_results = []
         # looks up for id on each node in group
-        addresses_with_backends = self.routes.addresses_with_backends()
+        if self.ctx.one_node:
+            if self.ctx.backend_id is not None:
+                addresses_with_backends = [(self.ctx.address, self.ctx.backend_id)]
+            else:
+                addresses_with_backends = list(self.routes.filter_by_address(self.ctx.address).addresses_with_backends())
+            id_host = self.routes.get_id_routes(self.id)[0][0], self.routes.get_id_routes(self.id)[0][2]
+            if id_host not in addresses_with_backends:
+                addresses_with_backends.append(id_host)
+        else:
+            addresses_with_backends = self.routes.addresses_with_backends()
         self.lookups_count = len(addresses_with_backends)
-        for addr, backend_id in self.routes.addresses_with_backends():
+        for addr, backend_id in addresses_with_backends:
             self.async_lookups.append(LookupDirect(addr, backend_id, self.id, self.group,
                                                    self.ctx, self.node, self.onlookup))
             self.async_lookups[-1].run()
@@ -687,14 +696,30 @@ def dump_main(ctx):
     global g_ctx
     g_ctx = ctx
     ctx.monitor.stats.timer('main', 'started')
-    processes = min(ctx.nprocess, len(ctx.groups))
+    groups = ctx.groups
+    if ctx.one_node:
+        routes = ctx.routes.filter_by_groups(groups)
+        if ctx.backend_id is None:
+            if ctx.address not in routes.addresses():
+                log.error("Address: {0} wasn't found at groups: {1} route list".format(ctx.address, groups))
+                return False
+            groups = routes.filter_by_address(ctx.address).groups()
+        else:
+            if (ctx.address, ctx.backend_id) not in routes.addresses_with_backends():
+                log.error("Address: {0}/{1} hasn't been found in groups: {2}".format(ctx.address,
+                                                                                     ctx.backend_id,
+                                                                                     ctx.groups))
+                return False
+            groups = [routes.get_address_backend_group(ctx.address, ctx.backend_id)]
+
+    processes = min(ctx.nprocess, len(groups))
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
     ret = True
 
     try:
         # processes each group in separated process
-        results = pool.map(dump_process_group, ctx.groups)
+        results = pool.map(dump_process_group, groups)
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
         pool.terminate()
