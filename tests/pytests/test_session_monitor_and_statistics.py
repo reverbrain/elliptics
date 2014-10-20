@@ -50,6 +50,7 @@ class MonitorStatsChecker:
         self.start_time = datetime.now()
         entry = self.session.monitor_stat(self.address, categories=self.categories).get()[0]
         try:
+            assert type(entry.address) is elliptics.Address
             self.json_stat = entry.statistics
         except Exception as e:
             with open("monitor.stat.json", "w") as f:
