@@ -15,11 +15,11 @@
 # =============================================================================
 
 import logging
-from multiprocessing import Pool
-from ..utils.misc import worker_init, elliptics_create_node
+from ..utils.misc import elliptics_create_node
 from ..range import IdRange
 from ..etime import Time
 from ..iterator import Iterator, MergeData, KeyInfo, IteratorResult
+from ..dc_recovery import recover
 
 import os
 import cPickle as pickle
@@ -31,10 +31,9 @@ log = logging.getLogger(__name__)
 
 
 def iterate_node(arg):
-    address, backend_id, ranges = arg
-    ctx = g_ctx
-    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
-    stats = ctx.monitor.stats["iterate"][str(address)][str(backend_id)]
+    ctx, address, backend_id, ranges = arg
+    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+    stats = ctx.stats["iterate"][str(address)][str(backend_id)]
     stats.timer('process', 'started')
     log.info("Running iterator on node: {0}/{1}".format(address, backend_id))
     log.debug("Ranges:")
@@ -45,7 +44,7 @@ def iterate_node(arg):
     node_id = ctx.routes.get_address_backend_route_id(address, backend_id)
 
     node = elliptics_create_node(address=address,
-                                 elog=ctx.elog,
+                                 elog=elog,
                                  wait_timeout=ctx.wait_timeout,
                                  net_thread_num=4,
                                  io_thread_num=1)
@@ -107,9 +106,8 @@ def transpose_results(results):
 
 def merge_results(arg):
     import heapq
-    ctx = g_ctx
 
-    range_id, results = arg
+    ctx, range_id, results = arg
     log.debug("Merging iteration results of range: {0}".format(range_id))
     results = [IteratorResult.load_filename(
         filename=r[0],
@@ -204,7 +202,7 @@ def unpickle(filename):
 
 
 def final_merge(ctx, results):
-    ctx.monitor.stats.timer('main', 'final_merge')
+    ctx.stats.timer('main', 'final_merge')
     log.info("final merge")
 
     ctx.merged_filename = os.path.join(ctx.tmp_dir, 'merged_result')
@@ -219,7 +217,7 @@ def final_merge(ctx, results):
             d_file.write('{0}\n'.format(key_data[0]))
             total_keys += 1
         os.remove(res)
-    ctx.monitor.stats.counter('found_keys', total_keys)
+    ctx.stats.counter('found_keys', total_keys)
     log.info("Dumped %d keys in file: %s", total_keys, dump_filename)
 
     log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir: %s",
@@ -227,62 +225,49 @@ def final_merge(ctx, results):
 
 
 def main(ctx):
-    global g_ctx
-    g_ctx = ctx
-    ctx.monitor.stats.timer('main', 'started')
+    ctx.stats.timer('main', 'started')
     ret = True
     if len(ctx.routes.groups()) < 2:
         log.error("There is only one group in route list: {0}. "
                   "sdc recovery could not be made."
                   .format(ctx.routes.groups()))
         return False
-    processes = min(g_ctx.nprocess, len(g_ctx.routes.addresses_with_backends()))
-    log.info("Creating pool of processes: {0}".format(processes))
-    pool = Pool(processes=processes, initializer=worker_init)
 
     ranges = get_ranges(ctx)
     log.debug("Ranges: {0}".format(ranges))
     results = None
 
     try:
-        ctx.monitor.stats.timer('main', 'iterating')
+        ctx.stats.timer('main', 'iterating')
         log.info("Start iterating {0} nodes in the pool".format(len(ranges)))
-        results = pool.map(iterate_node, ((addr[0], addr[1], ranges[addr], ) for addr in ranges))
+        results = ctx.pool.map(iterate_node, ((ctx.portable(), addr[0], addr[1], ranges[addr]) for addr in ranges))
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
-        pool.terminate()
-        pool.join()
-        ctx.monitor.stats.timer('main', 'finished')
+        ctx.stats.timer('main', 'finished')
         return False
 
-    ctx.monitor.stats.timer('main', 'transpose')
+    ctx.stats.timer('main', 'transpose')
     log.info("Transposing iteration results")
     results = transpose_results(results)
-    ctx.monitor.stats.timer('main', 'merge')
+    ctx.stats.timer('main', 'merge')
 
     try:
         log.info("Merging iteration results from different nodes")
-        results = pool.map(merge_results, (x for x in results.items()))
+        results = ctx.pool.map(merge_results, ((ctx.portable(), ) + x for x in results.items()))
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
-        pool.terminate()
-        pool.join()
-        ctx.monitor.stats.timer('main', 'finished')
+        ctx.stats.timer('main', 'finished')
         return False
 
     final_merge(ctx, results)
 
-    pool.close()
-    pool.join()
-
     if ctx.dry_run:
-        ctx.monitor.stats.timer('main', 'finished')
+        ctx.stats.timer('main', 'finished')
         return ret
 
-    ctx.monitor.stats.timer('main', 'recover')
+    ctx.stats.timer('main', 'recover')
     log.info("Start recovering")
     if ctx.custom_recover == '':
-        from ..dc_recovery import recover
         ret &= recover(ctx)
     else:
         import imp
@@ -292,18 +277,17 @@ def main(ctx):
         imp.release_lock()
         ret &= custom_recover.recover(ctx)
 
-    ctx.monitor.stats.timer('main', 'finished')
-    del g_ctx
+    ctx.stats.timer('main', 'finished')
     return ret
 
 
 def lookup_keys(ctx):
     log.info("Start looking up keys")
-    stats = ctx.monitor.stats["lookup"]
+    stats = ctx.stats["lookup"]
     stats.timer('process', 'started')
-    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     node = elliptics_create_node(address=ctx.address,
-                                 elog=ctx.elog,
+                                 elog=elog,
                                  wait_timeout=ctx.wait_timeout,
                                  net_thread_num=1,
                                  io_thread_num=1,
@@ -345,9 +329,7 @@ def lookup_keys(ctx):
 
 
 def dump_main(ctx):
-    global g_ctx
-    g_ctx = ctx
-    ctx.monitor.stats.timer('main', 'started')
+    ctx.stats.timer('main', 'started')
     ret = True
     if len(ctx.routes.groups()) < 2:
         log.error("There is only one group in route list: {0}. "
@@ -359,7 +341,7 @@ def dump_main(ctx):
         ctx.merged_filename = lookup_keys(ctx)
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
-        ctx.monitor.stats.timer('main', 'finished')
+        ctx.stats.timer('main', 'finished')
         return False
 
     log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir:%s",
@@ -369,7 +351,6 @@ def dump_main(ctx):
         return ret
 
     if ctx.custom_recover == '':
-        from ..dc_recovery import recover
         recover(ctx)
     else:
         import imp
@@ -379,6 +360,5 @@ def dump_main(ctx):
         imp.release_lock()
         custom_recover.recover(ctx)
 
-    ctx.monitor.stats.timer('main', 'finished')
-    del g_ctx
+    ctx.stats.timer('main', 'finished')
     return ret

@@ -30,12 +30,11 @@ import logging
 import os
 
 from itertools import groupby
-from multiprocessing import Pool
 import traceback
 import threading
 
 from ..etime import Time
-from ..utils.misc import elliptics_create_node, worker_init, RecoverStat, LookupDirect, RemoveDirect
+from ..utils.misc import elliptics_create_node, RecoverStat, LookupDirect, RemoveDirect
 from ..route import RouteList
 from ..iterator import Iterator
 from ..range import IdRange
@@ -376,15 +375,15 @@ def recover(ctx, address, backend_id, group, node, results, stats):
     return ret
 
 
-def process_node_backend(address, backend_id, group, ranges):
+def process_node_backend(ctx, address, backend_id, group, ranges):
     log.debug("Processing node: {0}/{1} from group: {2} for ranges: {3}"
               .format(address, backend_id, group, ranges))
-    ctx = g_ctx
-    stats = ctx.monitor.stats['node_{0}/{1}'.format(address, backend_id)]
+    stats = ctx.stats['node_{0}/{1}'.format(address, backend_id)]
     stats.timer('process', 'started')
 
+    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     node = elliptics_create_node(address=ctx.address,
-                                 elog=ctx.elog,
+                                 elog=elog,
                                  wait_timeout=ctx.wait_timeout,
                                  remotes=ctx.remotes,
                                  io_thread_num=4)
@@ -460,12 +459,7 @@ def get_ranges(ctx, group):
 
 
 def main(ctx):
-    global g_ctx
-    g_ctx = ctx
-    ctx.monitor.stats.timer('main', 'started')
-    processes = min(ctx.nprocess, len(ctx.routes.addresses_with_backends()))
-    log.info("Creating pool of processes: {0}".format(processes))
-    pool = Pool(processes=processes, initializer=worker_init)
+    ctx.stats.timer('main', 'started')
     ret = True
     if ctx.one_node:
         if ctx.backend_id is None:
@@ -475,7 +469,7 @@ def main(ctx):
                                                                                                   ctx.backend_id),)))
     for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
-        group_stats = ctx.monitor.stats['group_{0}'.format(group)]
+        group_stats = ctx.stats['group_{0}'.format(group)]
         group_stats.timer('group', 'started')
 
         group_routes = ctx.routes.filter_by_groups([group])
@@ -497,7 +491,11 @@ def main(ctx):
         log.debug("Processing nodes ranges: {0}".format(ranges))
 
         for range in ranges:
-            pool_results.append(pool.apply_async(process_node_backend, (range[0], range[1], group, ranges[range])))
+            pool_results.append(ctx.pool.apply_async(process_node_backend, (ctx.portable(),
+                                                                            range[0],
+                                                                            range[1],
+                                                                            group,
+                                                                            ranges[range])))
 
         try:
             log.info("Fetching results")
@@ -507,28 +505,19 @@ def main(ctx):
                 ret &= p.get(timeout)
         except KeyboardInterrupt:
             log.error("Caught Ctrl+C. Terminating.")
-            pool.terminate()
-            pool.join()
             group_stats.timer('group', 'finished')
-            ctx.monitor.stats.timer('main', 'finished')
+            ctx.stats.timer('main', 'finished')
             return False
         except Exception as e:
             log.error("Caught unexpected exception: {0}, traceback: {1}"
                       .format(repr(e), traceback.format_exc()))
-            log.info("Closing pool, joining threads.")
-            pool.terminate()
-            pool.join()
             group_stats.timer('group', 'finished')
-            ctx.monitor.stats.timer('main', 'finished')
+            ctx.stats.timer('main', 'finished')
             return False
 
         group_stats.timer('group', 'finished')
 
-    log.info("Closing pool, joining threads.")
-    pool.close()
-    pool.join()
-    ctx.monitor.stats.timer('main', 'finished')
-    del g_ctx
+    ctx.stats.timer('main', 'finished')
     return ret
 
 
@@ -658,16 +647,15 @@ class DumpRecover(object):
         return self.result
 
 
-def dump_process_group(group):
+def dump_process_group((ctx, group)):
     log.debug("Processing group: {0}".format(group))
-    ctx = g_ctx
-    stats = ctx.monitor.stats['group_{0}'.format(group)]
+    stats = ctx.stats['group_{0}'.format(group)]
     if group not in ctx.routes.groups():
         log.error("Group: {0} is not presented in route list".format(group))
         return False
-    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     node = elliptics_create_node(address=ctx.address,
-                                 elog=ctx.elog,
+                                 elog=elog,
                                  wait_timeout=ctx.wait_timeout,
                                  net_thread_num=1,
                                  io_thread_num=1,
@@ -691,9 +679,7 @@ def dump_process_group(group):
 
 
 def dump_main(ctx):
-    global g_ctx
-    g_ctx = ctx
-    ctx.monitor.stats.timer('main', 'started')
+    ctx.stats.timer('main', 'started')
     groups = ctx.groups
     if ctx.one_node:
         routes = ctx.routes.filter_by_groups(groups)
@@ -710,26 +696,17 @@ def dump_main(ctx):
                 return False
             groups = [routes.get_address_backend_group(ctx.address, ctx.backend_id)]
 
-    processes = min(ctx.nprocess, len(groups))
-    log.info("Creating pool of processes: {0}".format(processes))
-    pool = Pool(processes=processes, initializer=worker_init)
     ret = True
 
     try:
         # processes each group in separated process
-        results = pool.map(dump_process_group, groups)
+        results = ctx.pool.map(dump_process_group, ((ctx.portable(), g) for g in groups))
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
-        pool.terminate()
-        pool.join()
-        ctx.monitor.stats.timer('main', 'finished')
+        ctx.stats.timer('main', 'finished')
         return False
 
     ret = all(results)
 
-    log.info("Closing pool, joining threads.")
-    pool.close()
-    pool.join()
-    ctx.monitor.stats.timer('main', 'finished')
-    del g_ctx
+    ctx.stats.timer('main', 'finished')
     return ret

@@ -262,14 +262,15 @@ def iterate_key(filepath, groups):
 def recover(ctx):
     from itertools import islice
     ret = True
-    stats = ctx.monitor.stats['recover']
+    stats = ctx.stats['recover']
 
     stats.timer('recover', 'started')
 
     it = iterate_key(ctx.merged_filename, ctx.groups)
 
+    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     node = elliptics_create_node(address=ctx.address,
-                                 elog=ctx.elog,
+                                 elog=elog,
                                  wait_timeout=ctx.wait_timeout,
                                  net_thread_num=4,
                                  io_thread_num=1,
@@ -295,9 +296,9 @@ def recover(ctx):
                 failures += 1
         rs.apply(stats)
         stats.counter('recovered_keys', successes)
-        ctx.monitor.stats.counter('recovered_keys', successes)
+        ctx.stats.counter('recovered_keys', successes)
         stats.counter('recovered_keys', -failures)
-        ctx.monitor.stats.counter('recovered_keys', -failures)
+        ctx.stats.counter('recovered_keys', -failures)
     stats.timer('recover', 'finished')
     return ret
 
@@ -419,7 +420,7 @@ if __name__ == '__main__':
                          .format(options.wait_timeout, repr(e), traceback.format_exc()))
 
     log.debug("Creating logger")
-    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
 
     result = recover(ctx)
 
