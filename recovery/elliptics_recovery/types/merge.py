@@ -82,7 +82,7 @@ class Recovery(object):
     def run(self):
         log.debug("Recovering key: {0}, node: {1}/{2}"
                   .format(repr(self.key), self.address, self.backend_id))
-        address, _, backend_id = self.session.routes.filter_by_group(self.group).get_id_routes(self.key)[0]
+        address, _, backend_id = self.ctx.routes.filter_by_group(self.group).get_id_routes(self.key)[0]
         if (address, backend_id) == (self.address, self.backend_id):
             log.warning("Key: {0} already on the right node: {1}/{2}"
                         .format(repr(self.key), self.address, self.backend_id))
@@ -388,7 +388,6 @@ def process_node_backend(address, backend_id, group, ranges):
                                  wait_timeout=ctx.wait_timeout,
                                  remotes=ctx.remotes,
                                  io_thread_num=4)
-    s = elliptics.Session(node)
 
     stats.timer('process', 'iterate')
     results = iterate_node(ctx=ctx,
@@ -396,7 +395,7 @@ def process_node_backend(address, backend_id, group, ranges):
                            address=address,
                            backend_id=backend_id,
                            ranges=ranges,
-                           eid=s.routes.get_address_backend_route_id(address, backend_id),
+                           eid=ctx.routes.get_address_backend_route_id(address, backend_id),
                            stats=stats)
     if results is None or len(results) == 0:
         log.warning('Iterator result is empty, skipping')
@@ -542,9 +541,8 @@ class DumpRecover(object):
         self.routes = routes.filter_by_group(group)
         self.group = group
         self.ctx = ctx
-        simple_session = elliptics.Session(node)
         # determines node where the id lives
-        self.address, _, self.backend_id = simple_session.routes.filter_by_group(group).get_id_routes(self.id)[0]
+        self.address, _, self.backend_id = self.routes.get_id_routes(self.id)[0]
         self.async_lookups = []
         self.lookups_count = 0
         self.async_removes = []
