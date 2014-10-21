@@ -83,8 +83,8 @@ class Recovery(object):
                   .format(repr(self.key), self.address, self.backend_id))
         address, _, backend_id = self.ctx.routes.filter_by_group(self.group).get_id_routes(self.key)[0]
         if (address, backend_id) == (self.address, self.backend_id):
-            log.warning("Key: {0} already on the right node: {1}/{2}"
-                        .format(repr(self.key), self.address, self.backend_id))
+            log.debug("Key: {0} already on the right node: {1}/{2}"
+                      .format(repr(self.key), self.address, self.backend_id))
             self.stats.skipped += 1
             return
         else:
@@ -96,14 +96,13 @@ class Recovery(object):
             log.debug("Lookup key: {0} on node: {1}/{2}".format(repr(self.key),
                                                                 self.dest_address,
                                                                 self.dest_backend_id))
-            self.lookup_result = LookupDirect(self.dest_address,
-                                              self.dest_backend_id,
-                                              self.key,
-                                              self.group,
-                                              self.ctx,
-                                              self.node,
-                                              self.onlookup)
-            self.lookup_result.run()
+            LookupDirect(self.dest_address,
+                         self.dest_backend_id,
+                         self.key,
+                         self.group,
+                         self.ctx,
+                         self.node,
+                         self.onlookup).run()
         elif self.ctx.dry_run:
             log.debug("Dry-run mode is turned on. Skipping reading, writing and removing stages.")
         else:
@@ -128,10 +127,9 @@ class Recovery(object):
             if self.recovered_size != 0:
                 # if it is not first chunk then do not check checksum on read
                 self.direct_session.ioflags |= elliptics.io_flags.nocsum
-            self.read_result = self.direct_session.read_data(self.key,
-                                                             offset=self.recovered_size,
-                                                             size=size)
-            self.read_result.connect(self.onread)
+            self.direct_session.read_data(self.key,
+                                          offset=self.recovered_size,
+                                          size=size).connect(self.onread)
         except Exception, e:
             log.error("Read key: {0} by offset: {1} and size: {2} raised exception: {3}, traceback: {4}"
                       .format(self.key, self.recovered_size, size, repr(e), traceback.format_exc()))
@@ -175,19 +173,17 @@ class Recovery(object):
         if not self.ctx.safe:
             log.debug("Removing key: {0} from node: {1}/{2}".format(repr(self.key), self.address, self.backend_id))
             # remove object directly from address by using RemoveDirect
-            self.remove_result = RemoveDirect(self.address,
-                                              self.backend_id,
-                                              self.key,
-                                              self.group,
-                                              self.ctx,
-                                              self.node,
-                                              self.onremove)
-            self.remove_result.run()
+            RemoveDirect(self.address,
+                         self.backend_id,
+                         self.key,
+                         self.group,
+                         self.ctx,
+                         self.node,
+                         self.onremove).run()
         else:
             self.stop(True)
 
     def onlookup(self, result, stats):
-        self.lookup_result = None
         try:
             self.stats += stats
             if result and self.key_timestamp < result.timestamp:
@@ -215,7 +211,6 @@ class Recovery(object):
             self.stop(False)
 
     def onread(self, results, error):
-        self.read_result = None
         try:
             if error.code or len(results) < 1:
                 log.debug("Read key: {0} on node: {1}/{2} has been timed out: {3}"
@@ -305,7 +300,6 @@ class Recovery(object):
             self.stop(False)
 
     def onremove(self, removed, stats):
-        self.remove_result = None
         self.stats += stats
         self.stop(removed)
 
@@ -532,9 +526,7 @@ class DumpRecover(object):
         self.ctx = ctx
         # determines node where the id lives
         self.address, _, self.backend_id = self.routes.get_id_routes(self.id)[0]
-        self.async_lookups = []
         self.lookups_count = 0
-        self.async_removes = []
         self.recover_address = None
         self.stats = RecoverStat()
         self.complete = threading.Event()
@@ -544,20 +536,31 @@ class DumpRecover(object):
         self.lookup_results = []
         # looks up for id on each node in group
         if self.ctx.one_node:
+            id_host = self.routes.get_id_routes(self.id)[0][0], self.routes.get_id_routes(self.id)[0][2]
             if self.ctx.backend_id is not None:
                 addresses_with_backends = [(self.ctx.address, self.ctx.backend_id)]
             else:
-                addresses_with_backends = list(self.routes.filter_by_address(self.ctx.address).addresses_with_backends())
-            id_host = self.routes.get_id_routes(self.id)[0][0], self.routes.get_id_routes(self.id)[0][2]
+                address_routes = self.routes.filter_by_address(self.ctx.address)
+                addresses_with_backends = list(address_routes.addresses_with_backends())
             if id_host not in addresses_with_backends:
                 addresses_with_backends.append(id_host)
         else:
             addresses_with_backends = self.routes.addresses_with_backends()
+        if len(addresses_with_backends) <= 1:
+            log.debug("Key: {0} already on the right node: {1}/{2}. Skip it"
+                      .format(repr(self.id), id_host[0], id_host[1]))
+            self.stats.skipped += 1
+            self.stop(True)
+            return
         self.lookups_count = len(addresses_with_backends)
         for addr, backend_id in addresses_with_backends:
-            self.async_lookups.append(LookupDirect(addr, backend_id, self.id, self.group,
-                                                   self.ctx, self.node, self.onlookup))
-            self.async_lookups[-1].run()
+            LookupDirect(addr,
+                         backend_id,
+                         self.id,
+                         self.group,
+                         self.ctx,
+                         self.node,
+                         self.onlookup).run()
 
     def stop(self, result):
         self.result = result
@@ -628,9 +631,8 @@ class DumpRecover(object):
         if addresses_with_backends and not self.ctx.safe:
             log.debug("Removing key: {0} from nodes: {1}".format(repr(self.id), addresses_with_backends))
             for addr, backend_id in addresses_with_backends:
-                self.async_removes.append(RemoveDirect(addr, backend_id, self.id, self.group,
-                                                       self.ctx, self.node, self.onremove))
-                self.async_removes[-1].run()
+                RemoveDirect(addr, backend_id, self.id, self.group,
+                             self.ctx, self.node, self.onremove).run()
         else:
             self.stop(True)
 
@@ -650,6 +652,7 @@ class DumpRecover(object):
 def dump_process_group((ctx, group)):
     log.debug("Processing group: {0}".format(group))
     stats = ctx.stats['group_{0}'.format(group)]
+    stats.timer('process', 'started')
     if group not in ctx.routes.groups():
         log.error("Group: {0} is not presented in route list".format(group))
         return False
@@ -675,6 +678,7 @@ def dump_process_group((ctx, group)):
                 ret &= r.succeeded()
                 rs += r.stats
             rs.apply(stats)
+    stats.timer('process', 'finished')
     return ret
 
 

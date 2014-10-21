@@ -200,22 +200,16 @@ class DirectOperation(object):
         self.attempt = 0
         self.ctx = ctx
         self.callback = callback
-        self.async_result = None
         self.address = address
         self.backend_id = backend_id
-
-    def wait(self):
-        if self.async_result:
-            self.async_result.wait()
-            self.async_result = None
 
 
 # class for looking up id directly from address via reading 1 byte of it
 class LookupDirect(DirectOperation):
     def run(self):
         # read one byt of id
-        self.async_result = self.session.read_data(self.id, offset=0, size=1)
-        self.async_result.connect(self.onread)
+        async_result = self.session.read_data(self.id, offset=0, size=1)
+        async_result.connect(self.onread)
 
     def onread(self, results, error):
         try:
@@ -251,8 +245,8 @@ class RemoveDirect(DirectOperation):
     Class for removing id directly from address
     '''
     def run(self):
-        self.async_result = self.session.remove(self.id)
-        self.async_result.connect(self.onremove)
+        async_result = self.session.remove(self.id)
+        async_result.connect(self.onremove)
 
     def onremove(self, results, error):
         try:
