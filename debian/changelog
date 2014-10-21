@@ -1,3 +1,27 @@
+elliptics (2.26.3.30) unstable; urgency=low
+
+  * recovery: removed odd increasing of iterations
+  * recovery: fixed memory leak at merge recovery
+  * python: removed wrapping address method at result entries that inherited from CallbackResultEntry
+  * recovery: Moved code from dnet_recovery to recovery.py for using/testing it from pytests.
+  *     Added 'portable' method to Ctx that returns lightweight copy of the context that can be used by multiprocessing.
+  *     Removed monitor from context, left only stats - proxy object for sending updates to monitor from different processes/threads.
+  *     Removed using global context, use portable context insead of.
+  *     Moved process pool initialization and destruction into common recovery.py - removed duplicating code.
+  * Recovery: Use cached route-list for speedup recovering
+  * recovery: implemented one-node recovery for merge from dump
+  * recovery: cleanups global reference to context
+  * recovery: correctly close and join process pool
+  * recovery: correctly stops monitor threads
+  * test: decreased number of backends and nodes at pytests - decreased number of threads and processes used from tests
+  * cmake: added blackhole headers lookup
+  * recovery: used threading.Event for waiting complete
+  * recovery: decreased log level of log that looking up key from dump fail failed
+  * tests: reduce number of io/net threads
+  * eblob: allow small leters in size modificators M,m are for megabyte and so on
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 21 Oct 2014 20:09:10 +0400
+
 elliptics (2.26.3.29) unstable; urgency=low
 
   * package: depend on 0.22.9+ eblob where init errno code was introduced
