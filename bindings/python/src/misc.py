@@ -50,12 +50,7 @@ LookupResultEntry.storage_address = storage_address
 MonitorStatResultEntry.__statistics__ = MonitorStatResultEntry.statistics
 MonitorStatResultEntry.statistics = monitor_statistics
 
-wrap_address([IteratorResultEntry,
-              ReadResultEntry,
-              LookupResultEntry,
-              ExecResultEntry,
-              CallbackResultEntry,
-              MonitorStatResultEntry,
+wrap_address([CallbackResultEntry,
               ExecContext,
               RouteEntry
               ])

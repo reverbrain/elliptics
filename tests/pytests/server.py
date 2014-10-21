@@ -26,8 +26,8 @@ class Servers:
     def __init__(self,
                  groups=[1],
                  without_cocaine=False,
-                 nodes_count=3,
-                 backends_count=3):
+                 nodes_count=2,
+                 backends_count=2):
         import json
         import subprocess
         self.path = 'servers'

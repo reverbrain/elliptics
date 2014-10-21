@@ -30,12 +30,11 @@ import logging
 import os
 
 from itertools import groupby
-from multiprocessing import Pool
 import traceback
 import threading
 
 from ..etime import Time
-from ..utils.misc import elliptics_create_node, worker_init, RecoverStat, LookupDirect, RemoveDirect
+from ..utils.misc import elliptics_create_node, RecoverStat, LookupDirect, RemoveDirect
 from ..route import RouteList
 from ..iterator import Iterator
 from ..range import IdRange
@@ -82,10 +81,10 @@ class Recovery(object):
     def run(self):
         log.debug("Recovering key: {0}, node: {1}/{2}"
                   .format(repr(self.key), self.address, self.backend_id))
-        address, _, backend_id = self.session.routes.filter_by_group(self.group).get_id_routes(self.key)[0]
+        address, _, backend_id = self.ctx.routes.filter_by_group(self.group).get_id_routes(self.key)[0]
         if (address, backend_id) == (self.address, self.backend_id):
-            log.warning("Key: {0} already on the right node: {1}/{2}"
-                        .format(repr(self.key), self.address, self.backend_id))
+            log.debug("Key: {0} already on the right node: {1}/{2}"
+                      .format(repr(self.key), self.address, self.backend_id))
             self.stats.skipped += 1
             return
         else:
@@ -97,14 +96,13 @@ class Recovery(object):
             log.debug("Lookup key: {0} on node: {1}/{2}".format(repr(self.key),
                                                                 self.dest_address,
                                                                 self.dest_backend_id))
-            self.lookup_result = LookupDirect(self.dest_address,
-                                              self.dest_backend_id,
-                                              self.key,
-                                              self.group,
-                                              self.ctx,
-                                              self.node,
-                                              self.onlookup)
-            self.lookup_result.run()
+            LookupDirect(self.dest_address,
+                         self.dest_backend_id,
+                         self.key,
+                         self.group,
+                         self.ctx,
+                         self.node,
+                         self.onlookup).run()
         elif self.ctx.dry_run:
             log.debug("Dry-run mode is turned on. Skipping reading, writing and removing stages.")
         else:
@@ -129,10 +127,9 @@ class Recovery(object):
             if self.recovered_size != 0:
                 # if it is not first chunk then do not check checksum on read
                 self.direct_session.ioflags |= elliptics.io_flags.nocsum
-            self.read_result = self.direct_session.read_data(self.key,
-                                                             offset=self.recovered_size,
-                                                             size=size)
-            self.read_result.connect(self.onread)
+            self.direct_session.read_data(self.key,
+                                          offset=self.recovered_size,
+                                          size=size).connect(self.onread)
         except Exception, e:
             log.error("Read key: {0} by offset: {1} and size: {2} raised exception: {3}, traceback: {4}"
                       .format(self.key, self.recovered_size, size, repr(e), traceback.format_exc()))
@@ -176,19 +173,17 @@ class Recovery(object):
         if not self.ctx.safe:
             log.debug("Removing key: {0} from node: {1}/{2}".format(repr(self.key), self.address, self.backend_id))
             # remove object directly from address by using RemoveDirect
-            self.remove_result = RemoveDirect(self.address,
-                                              self.backend_id,
-                                              self.key,
-                                              self.group,
-                                              self.ctx,
-                                              self.node,
-                                              self.onremove)
-            self.remove_result.run()
+            RemoveDirect(self.address,
+                         self.backend_id,
+                         self.key,
+                         self.group,
+                         self.ctx,
+                         self.node,
+                         self.onremove).run()
         else:
             self.stop(True)
 
     def onlookup(self, result, stats):
-        self.lookup_result = None
         try:
             self.stats += stats
             if result and self.key_timestamp < result.timestamp:
@@ -216,7 +211,6 @@ class Recovery(object):
             self.stop(False)
 
     def onread(self, results, error):
-        self.read_result = None
         try:
             if error.code or len(results) < 1:
                 log.debug("Read key: {0} on node: {1}/{2} has been timed out: {3}"
@@ -306,7 +300,6 @@ class Recovery(object):
             self.stop(False)
 
     def onremove(self, removed, stats):
-        self.remove_result = None
         self.stats += stats
         self.stop(removed)
 
@@ -339,12 +332,10 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
             return None
         log.info("Iterator {0}/{1} obtained: {2} record(s)"
                  .format(result.address, backend_id, result_len))
-        stats.counter('iterations', 1)
         return result
     except Exception as e:
         log.error("Iteration failed for: {0}/{1}: {2}, traceback: {3}"
                   .format(address, backend_id, repr(e), traceback.format_exc()))
-        stats.counter('iterations', -1)
         return None
 
 
@@ -376,19 +367,18 @@ def recover(ctx, address, backend_id, group, node, results, stats):
     return ret
 
 
-def process_node_backend(address, backend_id, group, ranges):
+def process_node_backend(ctx, address, backend_id, group, ranges):
     log.debug("Processing node: {0}/{1} from group: {2} for ranges: {3}"
               .format(address, backend_id, group, ranges))
-    ctx = g_ctx
-    stats = ctx.monitor.stats['node_{0}/{1}'.format(address, backend_id)]
+    stats = ctx.stats['node_{0}/{1}'.format(address, backend_id)]
     stats.timer('process', 'started')
 
+    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     node = elliptics_create_node(address=ctx.address,
-                                 elog=ctx.elog,
+                                 elog=elog,
                                  wait_timeout=ctx.wait_timeout,
                                  remotes=ctx.remotes,
                                  io_thread_num=4)
-    s = elliptics.Session(node)
 
     stats.timer('process', 'iterate')
     results = iterate_node(ctx=ctx,
@@ -396,7 +386,7 @@ def process_node_backend(address, backend_id, group, ranges):
                            address=address,
                            backend_id=backend_id,
                            ranges=ranges,
-                           eid=s.routes.get_address_backend_route_id(address, backend_id),
+                           eid=ctx.routes.get_address_backend_route_id(address, backend_id),
                            stats=stats)
     if results is None or len(results) == 0:
         log.warning('Iterator result is empty, skipping')
@@ -461,12 +451,7 @@ def get_ranges(ctx, group):
 
 
 def main(ctx):
-    global g_ctx
-    g_ctx = ctx
-    g_ctx.monitor.stats.timer('main', 'started')
-    processes = min(g_ctx.nprocess, len(g_ctx.routes.addresses_with_backends()))
-    log.info("Creating pool of processes: {0}".format(processes))
-    pool = Pool(processes=processes, initializer=worker_init)
+    ctx.stats.timer('main', 'started')
     ret = True
     if ctx.one_node:
         if ctx.backend_id is None:
@@ -476,7 +461,7 @@ def main(ctx):
                                                                                                   ctx.backend_id),)))
     for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
-        group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
+        group_stats = ctx.stats['group_{0}'.format(group)]
         group_stats.timer('group', 'started')
 
         group_routes = ctx.routes.filter_by_groups([group])
@@ -498,7 +483,11 @@ def main(ctx):
         log.debug("Processing nodes ranges: {0}".format(ranges))
 
         for range in ranges:
-            pool_results.append(pool.apply_async(process_node_backend, (range[0], range[1], group, ranges[range])))
+            pool_results.append(ctx.pool.apply_async(process_node_backend, (ctx.portable(),
+                                                                            range[0],
+                                                                            range[1],
+                                                                            group,
+                                                                            ranges[range])))
 
         try:
             log.info("Fetching results")
@@ -508,27 +497,19 @@ def main(ctx):
                 ret &= p.get(timeout)
         except KeyboardInterrupt:
             log.error("Caught Ctrl+C. Terminating.")
-            pool.terminate()
-            pool.join()
             group_stats.timer('group', 'finished')
-            g_ctx.monitor.stats.timer('main', 'finished')
+            ctx.stats.timer('main', 'finished')
             return False
         except Exception as e:
             log.error("Caught unexpected exception: {0}, traceback: {1}"
                       .format(repr(e), traceback.format_exc()))
-            log.info("Closing pool, joining threads.")
-            pool.close()
-            pool.join()
             group_stats.timer('group', 'finished')
-            g_ctx.monitor.stats.timer('main', 'finished')
+            ctx.stats.timer('main', 'finished')
             return False
 
         group_stats.timer('group', 'finished')
 
-    log.info("Closing pool, joining threads.")
-    pool.close()
-    pool.join()
-    g_ctx.monitor.stats.timer('main', 'finished')
+    ctx.stats.timer('main', 'finished')
     return ret
 
 
@@ -541,12 +522,9 @@ class DumpRecover(object):
         self.routes = routes.filter_by_group(group)
         self.group = group
         self.ctx = ctx
-        simple_session = elliptics.Session(node)
         # determines node where the id lives
-        self.address, _, self.backend_id = simple_session.routes.filter_by_group(group).get_id_routes(self.id)[0]
-        self.async_lookups = []
+        self.address, _, self.backend_id = self.routes.get_id_routes(self.id)[0]
         self.lookups_count = 0
-        self.async_removes = []
         self.recover_address = None
         self.stats = RecoverStat()
         self.complete = threading.Event()
@@ -555,12 +533,32 @@ class DumpRecover(object):
     def run(self):
         self.lookup_results = []
         # looks up for id on each node in group
-        addresses_with_backends = self.routes.addresses_with_backends()
+        if self.ctx.one_node:
+            id_host = self.routes.get_id_routes(self.id)[0][0], self.routes.get_id_routes(self.id)[0][2]
+            if self.ctx.backend_id is not None:
+                addresses_with_backends = [(self.ctx.address, self.ctx.backend_id)]
+            else:
+                address_routes = self.routes.filter_by_address(self.ctx.address)
+                addresses_with_backends = list(address_routes.addresses_with_backends())
+            if id_host not in addresses_with_backends:
+                addresses_with_backends.append(id_host)
+        else:
+            addresses_with_backends = self.routes.addresses_with_backends()
+        if len(addresses_with_backends) <= 1:
+            log.debug("Key: {0} already on the right node: {1}/{2}. Skip it"
+                      .format(repr(self.id), id_host[0], id_host[1]))
+            self.stats.skipped += 1
+            self.stop(True)
+            return
         self.lookups_count = len(addresses_with_backends)
-        for addr, backend_id in self.routes.addresses_with_backends():
-            self.async_lookups.append(LookupDirect(addr, backend_id, self.id, self.group,
-                                                   self.ctx, self.node, self.onlookup))
-            self.async_lookups[-1].run()
+        for addr, backend_id in addresses_with_backends:
+            LookupDirect(addr,
+                         backend_id,
+                         self.id,
+                         self.group,
+                         self.ctx,
+                         self.node,
+                         self.onlookup).run()
 
     def stop(self, result):
         self.result = result
@@ -631,9 +629,8 @@ class DumpRecover(object):
         if addresses_with_backends and not self.ctx.safe:
             log.debug("Removing key: {0} from nodes: {1}".format(repr(self.id), addresses_with_backends))
             for addr, backend_id in addresses_with_backends:
-                self.async_removes.append(RemoveDirect(addr, backend_id, self.id, self.group,
-                                                       self.ctx, self.node, self.onremove))
-                self.async_removes[-1].run()
+                RemoveDirect(addr, backend_id, self.id, self.group,
+                             self.ctx, self.node, self.onremove).run()
         else:
             self.stop(True)
 
@@ -650,16 +647,16 @@ class DumpRecover(object):
         return self.result
 
 
-def dump_process_group(group):
+def dump_process_group((ctx, group)):
     log.debug("Processing group: {0}".format(group))
-    ctx = g_ctx
-    stats = ctx.monitor.stats['group_{0}'.format(group)]
+    stats = ctx.stats['group_{0}'.format(group)]
+    stats.timer('process', 'started')
     if group not in ctx.routes.groups():
         log.error("Group: {0} is not presented in route list".format(group))
         return False
-    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     node = elliptics_create_node(address=ctx.address,
-                                 elog=ctx.elog,
+                                 elog=elog,
                                  wait_timeout=ctx.wait_timeout,
                                  net_thread_num=1,
                                  io_thread_num=1,
@@ -679,32 +676,39 @@ def dump_process_group(group):
                 ret &= r.succeeded()
                 rs += r.stats
             rs.apply(stats)
+    stats.timer('process', 'finished')
     return ret
 
 
 def dump_main(ctx):
-    global g_ctx
-    g_ctx = ctx
-    ctx.monitor.stats.timer('main', 'started')
-    processes = min(g_ctx.nprocess, len(g_ctx.groups))
-    log.info("Creating pool of processes: {0}".format(processes))
-    pool = Pool(processes=processes, initializer=worker_init)
+    ctx.stats.timer('main', 'started')
+    groups = ctx.groups
+    if ctx.one_node:
+        routes = ctx.routes.filter_by_groups(groups)
+        if ctx.backend_id is None:
+            if ctx.address not in routes.addresses():
+                log.error("Address: {0} wasn't found at groups: {1} route list".format(ctx.address, groups))
+                return False
+            groups = routes.filter_by_address(ctx.address).groups()
+        else:
+            if (ctx.address, ctx.backend_id) not in routes.addresses_with_backends():
+                log.error("Address: {0}/{1} hasn't been found in groups: {2}".format(ctx.address,
+                                                                                     ctx.backend_id,
+                                                                                     ctx.groups))
+                return False
+            groups = [routes.get_address_backend_group(ctx.address, ctx.backend_id)]
+
     ret = True
 
     try:
         # processes each group in separated process
-        results = pool.map(dump_process_group, ctx.groups)
+        results = ctx.pool.map(dump_process_group, ((ctx.portable(), g) for g in groups))
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
-        pool.terminate()
-        pool.join()
-        ctx.monitor.stats.timer('main', 'finished')
+        ctx.stats.timer('main', 'finished')
         return False
 
     ret = all(results)
 
-    log.info("Closing pool, joining threads.")
-    pool.close()
-    pool.join()
-    ctx.monitor.stats.timer('main', 'finished')
+    ctx.stats.timer('main', 'finished')
     return ret

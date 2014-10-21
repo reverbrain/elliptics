@@ -28,6 +28,7 @@ import struct
 sys.path.insert(0, "bindings/python/")
 import elliptics
 
+
 def logged_class(klass):
     """
     This decorator adds 'log' method to passed class
@@ -35,9 +36,11 @@ def logged_class(klass):
     klass.log = log.getLogger(klass.__name__)
     return klass
 
+
 def id_to_int(key_id):
     """Returns numerical equivalent of key"""
     return int(''.join('%02x' % b for b in key_id.id[:64]), 16)
+
 
 def mk_container_name(address, backend_id, prefix="iterator_"):
     """
@@ -47,12 +50,16 @@ def mk_container_name(address, backend_id, prefix="iterator_"):
 
 INDEX_MAGIC_NUMBER = struct.pack('Q', 6747391680278904871)
 INDEX_MAGIC_NUMBER_LENGTH = len(INDEX_MAGIC_NUMBER)
+
+
 def validate_index(result):
     if result.size < INDEX_MAGIC_NUMBER_LENGTH:
         return False
     return result.data[:8] == INDEX_MAGIC_NUMBER
 
-def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_timeout=60, flags=0, io_thread_num=1, net_thread_num=1, nonblocking_io_thread_num=1, remotes=[]):
+
+def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_timeout=60, flags=0, io_thread_num=1,
+                          net_thread_num=1, nonblocking_io_thread_num=1, remotes=[]):
     """
     Connects to elliptics cloud
     """
@@ -69,12 +76,14 @@ def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_time
     log.debug("Created node: {0}".format(node))
     return node
 
+
 def elliptics_create_session(node=None, group=None, cflags=elliptics.command_flags.default):
     log.debug("Creating session: {0}@{1}.{2}".format(node, group, cflags))
     session = elliptics.Session(node)
     session.groups = [group]
     session.cflags = cflags
     return session
+
 
 def worker_init():
     """Do not catch Ctrl+C in worker"""
@@ -172,8 +181,11 @@ class RecoverStat(object):
         ret.merged_indexes = self.merged_indexes + b.merged_indexes
         return ret
 
-# base class for direct operations with id from address in group
+
 class DirectOperation(object):
+    '''
+    Base class for direct operations with id from address in group
+    '''
     def __init__(self, address, backend_id, id, group, ctx, node, callback):
         # creates new session
         self.session = elliptics.Session(node)
@@ -188,21 +200,16 @@ class DirectOperation(object):
         self.attempt = 0
         self.ctx = ctx
         self.callback = callback
-        self.async_result = None
         self.address = address
         self.backend_id = backend_id
-
-    def wait(self):
-        if self.async_result:
-            self.async_result.wait()
 
 
 # class for looking up id directly from address via reading 1 byte of it
 class LookupDirect(DirectOperation):
     def run(self):
         # read one byt of id
-        self.async_result = self.session.read_data(self.id, offset=0, size=1)
-        self.async_result.connect(self.onread)
+        async_result = self.session.read_data(self.id, offset=0, size=1)
+        async_result.connect(self.onread)
 
     def onread(self, results, error):
         try:
@@ -233,11 +240,13 @@ class LookupDirect(DirectOperation):
             self.callback(None, self.stats)
 
 
-# class for removing id directly from address
 class RemoveDirect(DirectOperation):
+    '''
+    Class for removing id directly from address
+    '''
     def run(self):
-        self.async_result = self.session.remove(self.id)
-        self.async_result.connect(self.onremove)
+        async_result = self.session.remove(self.id)
+        async_result.connect(self.onremove)
 
     def onremove(self, results, error):
         try:

@@ -16,7 +16,9 @@
 # =============================================================================
 
 import sys
+import os
 sys.path.insert(0, "")  # for running from cmake
+sys.path.insert(0, os.getcwd())
 import pytest
 
 
@@ -108,75 +110,38 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
     '''
     Imports dnet_recovery tools and executes merge recovery. Checks result of merge.
     '''
-    from elliptics_recovery.ctx import Ctx
-    from elliptics_recovery.route import RouteList
-    from elliptics_recovery.monitor import Monitor, STAT_TEXT
-    from elliptics_recovery.etime import Time
+    from elliptics_recovery.recovery import run
     import os
 
-    assert rtype in (RECOVERY.MERGE, RECOVERY.DC)
-
-    ctx = Ctx()
     cur_dir = os.getcwd()
-    ctx.tmp_dir = os.path.join(cur_dir, tmp_dir)
+    tmp_dir = os.path.join(cur_dir, tmp_dir)
     try:
         os.makedirs(ctx.tmp_dir, 0755)
     except: pass
-    ctx.log_file = os.path.join(ctx.tmp_dir, 'recovery.log')
 
-    import logging
-    import logging.handlers
-
-    log = logging.getLogger()
-    log.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(fmt='%(asctime)-15s %(thread)d/%(process)d %(processName)s %(levelname)s %(message)s',
-                                  datefmt='%d %b %y %H:%M:%S')
-
-    ch = logging.FileHandler(ctx.log_file)
-    ch.setFormatter(formatter)
-    ch.setLevel(logging.DEBUG)
-    log.addHandler(ch)
-
-    ctx.dry_run = False
-    ctx.safe = False
-    ctx.one_node = one_node
-    ctx.custom_recover = ''
+    args = ['-D', tmp_dir,
+            '-l', os.path.join(tmp_dir, 'recovery.log'),
+            '-c', 1024,
+            '-L', elliptics.log_level.debug,
+            '-g', ','.join(map(str, groups)),
+            '-b', 100,
+            '-n', 3,
+            '-a', 1
+            ]
+    for r in remotes:
+        args += ['-r', str(r)]
+    if one_node:
+        args += ['-o', str(address)]
     if dump_file:
-        ctx.dump_file = os.path.abspath(dump_file)
-    else:
-        ctx.dump_file = None
-    ctx.chunk_size = 1024
-    ctx.log_level = elliptics.log_level.debug
-    ctx.remotes = remotes
-    ctx.backend_id = backend_id
-    ctx.address = address
-    ctx.groups = groups
-    ctx.batch_size = 100
-    ctx.nprocess = 3
-    ctx.attempts = 1
-    ctx.monitor_port = None
-    ctx.wait_timeout = 36000
-    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
-    ctx.routes = RouteList.from_session(session)
-    ctx.stat_format = STAT_TEXT
-    ctx.timestamp = Time.from_epoch(0)
-    ctx.monitor = Monitor(ctx, None)
-
+        args += ['-f', os.path.abspath(dump_file)]
+    if backend_id is not None:
+        args += ['-i', backend_id]
     if rtype == RECOVERY.MERGE:
-        if dump_file:
-            recovery_res = elliptics_recovery.types.merge.dump_main(ctx)
-        else:
-            recovery_res = elliptics_recovery.types.merge.main(ctx)
+        args += ['merge']
     elif rtype == RECOVERY.DC:
-        if dump_file:
-            recovery_res = elliptics_recovery.types.dc.dump_main(ctx)
-        else:
-            recovery_res = elliptics_recovery.types.dc.main(ctx)
+        args += ['dc']
 
-    assert recovery_res
-
-    ctx.monitor.shutdown()
-    log.handlers = []
+    assert run(args) == 0
 
 
 @pytest.fixture(scope="module")

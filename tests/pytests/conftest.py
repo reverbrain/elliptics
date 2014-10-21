@@ -30,9 +30,9 @@ def pytest_addoption(parser):
 
     parser.addoption('--without-cocaine', action='store_true', default=False,
                      help='Turns off exec tests that are connected with cocaine')
-    parser.addoption('--backends-count', action='store', default=3,
+    parser.addoption('--backends-count', action='store', default=2,
                      help='Number of backends that will be enabled per group on node')
-    parser.addoption('--nodes-count', action='store', default=3,
+    parser.addoption('--nodes-count', action='store', default=2,
                      help='Number of nodes that should be run')
     parser.addoption('--recovery-keys', action='store', default=10,
                      help='Number of keys that would be used at test_recovery')
@@ -117,9 +117,11 @@ def elliptics_remotes(request):
 def elliptics_groups(request):
     return [int(g) for g in request.config.option.groups.split(',')]
 
+
 def make_trace_id(test_name):
     import hashlib
     return int(hashlib.sha512(test_name).hexdigest(), 16) % (1 << 64)
+
 
 def make_session(node, test_name, test_namespace=None):
     session = elliptics.Session(node)

@@ -18,6 +18,7 @@ Recovery context is just a configuration of recovery process
 """
 
 from pprint import pformat
+from copy import copy
 
 
 class Ctx(object):
@@ -27,6 +28,15 @@ class Ctx(object):
     """
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
+    def portable(self):
+        '''
+        Makes lightweight copy of context that can be used by multiprocessing
+        '''
+        tmp = copy(self.__dict__)
+        if 'pool' in tmp:
+            del tmp['pool']
+        return Ctx(**tmp)
 
     def __repr__(self):
         return pformat(self.__dict__, indent=4)
