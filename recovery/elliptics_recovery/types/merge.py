@@ -332,12 +332,10 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
             return None
         log.info("Iterator {0}/{1} obtained: {2} record(s)"
                  .format(result.address, backend_id, result_len))
-        stats.counter('iterations', 1)
         return result
     except Exception as e:
         log.error("Iteration failed for: {0}/{1}: {2}, traceback: {3}"
                   .format(address, backend_id, repr(e), traceback.format_exc()))
-        stats.counter('iterations', -1)
         return None
 
 
