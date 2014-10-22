@@ -473,7 +473,9 @@ void none(const error_info &, const std::vector<dnet_cmd> &)
 {
 }
 
-void remove_on_fail_impl(session &sess, const error_info &error, const std::vector<dnet_cmd> &statuses) {
+void remove_on_fail_impl(session &sess_, const error_info &error, const std::vector<dnet_cmd> &statuses) {
+	auto sess = sess_.clone();
+
 	logger &log = sess.get_logger();
 
 	if (statuses.size() == 0) {
