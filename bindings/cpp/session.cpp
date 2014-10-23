@@ -166,29 +166,12 @@ bool address::is_valid() const
 
 std::string address::host() const
 {
-	if (m_addr.family == AF_INET) {
-		const struct sockaddr_in *in = reinterpret_cast<const struct sockaddr_in *>(m_addr.addr);
-		return inet_ntoa(in->sin_addr);
-	} else if (m_addr.family == AF_INET6) {
-		const struct sockaddr_in6 *in = reinterpret_cast<const struct sockaddr_in6 *>(m_addr.addr);
-		char buffer[128];
-		memset(buffer, 0, sizeof(buffer));
-		snprintf(buffer, sizeof(buffer), NIP6_FMT, NIP6(in->sin6_addr));
-		return buffer;
-	}
-	return std::string();
+	return std::string(dnet_addr_host_string(&m_addr));
 }
 
 int address::port() const
 {
-	if (m_addr.family == AF_INET) {
-		const struct sockaddr_in *in = reinterpret_cast<const struct sockaddr_in *>(m_addr.addr);
-		return ntohs(in->sin_port);
-	} else if (m_addr.family == AF_INET6) {
-		const struct sockaddr_in6 *in = reinterpret_cast<const struct sockaddr_in6 *>(m_addr.addr);
-		return ntohs(in->sin6_port);
-	}
-	return 0;
+	return dnet_addr_port(&m_addr);
 }
 
 int address::family() const
