@@ -22,11 +22,12 @@
 
 #include <elliptics/core.h>
 
+#include <netdb.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -401,25 +402,6 @@ int dnet_log_init(struct dnet_node *s, dnet_logger *l);
 void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, int level, const char *format, ...) DNET_LOG_CHECK;
 void __attribute__((weak)) dnet_log_raw_log_only(dnet_logger *l, int level, const char *format, ...) DNET_LOG_CHECK;
 
-#define NIP6(addr) \
-	(addr).s6_addr[0], \
-	(addr).s6_addr[1], \
-	(addr).s6_addr[2], \
-	(addr).s6_addr[3], \
-	(addr).s6_addr[4], \
-	(addr).s6_addr[5], \
-	(addr).s6_addr[6], \
-	(addr).s6_addr[7], \
-	(addr).s6_addr[8], \
-	(addr).s6_addr[9], \
-	(addr).s6_addr[10], \
-	(addr).s6_addr[11], \
-	(addr).s6_addr[12], \
-	(addr).s6_addr[13], \
-	(addr).s6_addr[14], \
-	(addr).s6_addr[15]
-#define NIP6_FMT "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"
-
 /*
  * Logging helpers used for the fine-printed address representation.
  */
@@ -438,7 +420,13 @@ static inline int dnet_addr_port(const struct dnet_addr *addr)
 static inline const char *dnet_addr_host_string(const struct dnet_addr *addr)
 {
 	static __thread char __dnet_addr_host_string[128];
-	if (!inet_ntop(addr->family, addr->addr, __dnet_addr_host_string, sizeof(__dnet_addr_host_string))) {
+	int err;
+	memset(__dnet_addr_host_string, 0, sizeof(__dnet_addr_host_string));
+
+	err = getnameinfo((struct sockaddr *)addr->addr, addr->addr_len,
+			__dnet_addr_host_string, sizeof(__dnet_addr_host_string),
+			NULL, 0, NI_NUMERICHOST | NI_NUMERICSERV);
+	if (err) {
 		return "invalid address";
 	}
 
