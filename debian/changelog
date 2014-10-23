@@ -1,3 +1,12 @@
+elliptics (2.26.3.31) unstable; urgency=low
+
+  * session: get rid of handmade address-to-string conversion, use dnet_addr_string() and friends helpers
+  * addr: use getnameinfo() to properly determine family and automatically dereference sockaddr
+  * addr: new thread-safe helpers to print address strings
+  * Fixed remove_on_fail implementation
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 23 Oct 2014 18:07:31 +0400
+
 elliptics (2.26.3.30) unstable; urgency=low
 
   * recovery: removed odd increasing of iterations

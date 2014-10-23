@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.30
+Version:	2.26.3.31
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Oct 23 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.31
+- session: get rid of handmade address-to-string conversion, use dnet_addr_string() and friends helpers
+- addr: use getnameinfo() to properly determine family and automatically dereference sockaddr
+- addr: new thread-safe helpers to print address strings
+- Fixed remove_on_fail implementation
+
 * Tue Oct 21 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.30
 - recovery: removed odd increasing of iterations
 - recovery: fixed memory leak at merge recovery
