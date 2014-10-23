@@ -71,7 +71,7 @@ void finder::parse_lookup(const sync_generic_result &ret)
 				}
 
 				dnet_convert_addr(addr);
-				dnet_server_convert_dnet_addr_raw(addr, addr_str, sizeof(addr_str));
+				dnet_addr_string_raw(addr, addr_str, sizeof(addr_str));
 			}
 
 			std::string route_addr = "failed to get route table";
@@ -84,7 +84,7 @@ void finder::parse_lookup(const sync_generic_result &ret)
 					dnet_addr addr = *dnet_state_addr(st);
 					dnet_state_put(st);
 
-					std::string tmp = dnet_server_convert_dnet_addr(&addr);
+					std::string tmp = dnet_addr_string(&addr);
 					tmp += ", backend: ";
 					tmp += std::to_string(static_cast<long long int>(tmp_backend_id));
 					std::swap(route_addr, tmp);

@@ -127,7 +127,7 @@ static void dnet_add_to_reconnect_list(dnet_node *node, const dnet_addr &addr, i
 		return;
 	}
 
-	dnet_log(node, DNET_LOG_NOTICE, "%s: could not add state, its error: %d", dnet_server_convert_dnet_addr(&addr), error);
+	dnet_log(node, DNET_LOG_NOTICE, "%s: could not add state, its error: %d", dnet_addr_string(&addr), error);
 
 	if ((error == -ENOMEM) ||
 		(error == -EBADF)) {
@@ -169,7 +169,7 @@ static bool dnet_epoll_ctl(dnet_connect_state &state, dnet_addr_socket *socket, 
 	if (err < 0) {
 		int err = -errno;
 		dnet_log_err(state.node, "Could not add %s address to epoll set, operation: %u, events: %u",
-			dnet_server_convert_dnet_addr(&socket->addr), operation, events);
+			dnet_addr_string(&socket->addr), operation, events);
 		dnet_fail_socket(state, socket, err, operation == EPOLL_CTL_ADD);
 		return false;
 	}
@@ -190,7 +190,7 @@ static bool dnet_recv_nolock(dnet_connect_state &state, dnet_addr_socket *socket
 		if (errno != EAGAIN && errno != EINTR) {
 			err = -errno;
 			dnet_log_err(state.node, "%s: failed to receive data, socket: %d",
-					dnet_server_convert_dnet_addr(&socket->addr), socket->s);
+					dnet_addr_string(&socket->addr), socket->s);
 			dnet_fail_socket(state, socket, err);
 			return false;
 		}
@@ -200,7 +200,7 @@ static bool dnet_recv_nolock(dnet_connect_state &state, dnet_addr_socket *socket
 
 	if (err == 0) {
 		dnet_log(state.node, DNET_LOG_ERROR, "%s: peer has disconnected, socket: %d.",
-			dnet_server_convert_dnet_addr(&socket->addr), socket->s);
+			dnet_addr_string(&socket->addr), socket->s);
 		err = -ECONNRESET;
 		dnet_fail_socket(state, socket, err);
 		return false;
@@ -227,7 +227,7 @@ static bool dnet_send_nolock(dnet_connect_state &state, dnet_addr_socket *socket
 		err = -errno;
 		if (err != -EAGAIN) {
 			dnet_log_err(state.node, "%s: failed to send packet: size: %llu, socket: %d",
-				dnet_server_convert_dnet_addr(&socket->addr), (unsigned long long)socket->io_size, socket->s);
+				dnet_addr_string(&socket->addr), (unsigned long long)socket->io_size, socket->s);
 			dnet_fail_socket(state, socket, err);
 			return false;
 		}
@@ -237,7 +237,7 @@ static bool dnet_send_nolock(dnet_connect_state &state, dnet_addr_socket *socket
 
 	if (err == 0) {
 		dnet_log(state.node, DNET_LOG_ERROR, "Peer %s has dropped the connection: socket: %d.",
-			dnet_server_convert_dnet_addr(&socket->addr), socket->s);
+			dnet_addr_string(&socket->addr), socket->s);
 		err = -ECONNRESET;
 		dnet_fail_socket(state, socket, err);
 		return false;
@@ -288,7 +288,7 @@ static int dnet_socket_init(dnet_node *node, const dnet_addr *addr, dnet_addr_so
 		err = -EEXIST;
 
 		dnet_log(node, DNET_LOG_NOTICE, "Address %s already exists in route table",
-			dnet_server_convert_dnet_addr(addr));
+			dnet_addr_string(addr));
 		dnet_state_put(st);
 		goto err_out_exit;
 	}
@@ -307,7 +307,7 @@ static int dnet_socket_init(dnet_node *node, const dnet_addr *addr, dnet_addr_so
 		err = -errno;
 
 		dnet_log_err(node, "Failed to create socket for %s: family: %d",
-			dnet_server_convert_dnet_addr(&result->addr), sa->sa_family);
+			dnet_addr_string(&result->addr), sa->sa_family);
 		goto err_out_exit;
 	}
 
@@ -322,7 +322,7 @@ static int dnet_socket_init(dnet_node *node, const dnet_addr *addr, dnet_addr_so
 		if (err) {
 			err = -errno;
 			dnet_log_err(node, "Failed to bind to %s",
-				dnet_server_convert_dnet_addr(addr));
+				dnet_addr_string(addr));
 			goto err_out_close;
 		}
 
@@ -330,15 +330,15 @@ static int dnet_socket_init(dnet_node *node, const dnet_addr *addr, dnet_addr_so
 		if (err) {
 			err = -errno;
 			dnet_log_err(node, "Failed to listen at %s",
-				dnet_server_convert_dnet_addr(addr));
+				dnet_addr_string(addr));
 			goto err_out_close;
 		}
 
 		dnet_log(node, DNET_LOG_INFO, "Server is now listening at %s.",
-				dnet_server_convert_dnet_addr(addr));
+				dnet_addr_string(addr));
 	} else {
 		dnet_log(node, DNET_LOG_INFO, "Added %s to connect list",
-			dnet_server_convert_dnet_addr(addr));
+			dnet_addr_string(addr));
 	}
 
 	return 0;
@@ -403,7 +403,7 @@ static dnet_addr_socket_list *dnet_socket_create_addresses(dnet_node *node, cons
 		int err = dnet_socket_init(node, &addrs[i], socket, 0);
 		if (err == 0) {
 			dnet_log(node, DNET_LOG_DEBUG, "dnet_socket_create_addresses: socket for state %s created successfully, socket: %d",
-				dnet_server_convert_dnet_addr(&addrs[i]), socket->s);
+				dnet_addr_string(&addrs[i]), socket->s);
 			++result->sockets_count;
 		} else {
 			if (err == -EEXIST) {
@@ -412,7 +412,7 @@ static dnet_addr_socket_list *dnet_socket_create_addresses(dnet_node *node, cons
 				dnet_add_to_reconnect_list(node, addrs[i], err, join);
 
 				dnet_log(node, DNET_LOG_ERROR, "dnet_socket_create_addresses: failed to create a socket for state %s, err: %d",
-					dnet_server_convert_dnet_addr(&addrs[i]), err);
+					dnet_addr_string(&addrs[i]), err);
 			}
 		}
 	}
@@ -487,7 +487,7 @@ static int dnet_validate_route_list(const char *server_addr, dnet_node *node, st
 		}
 
 		dnet_log(node, DNET_LOG_DEBUG, "route-list: from: %s, node: %d, addr: %s",
-			server_addr, i / cnt->node_addr_num, dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr)));
+			server_addr, i / cnt->node_addr_num, dnet_addr_string_raw(&cnt->addrs[i], rem_addr, sizeof(rem_addr)));
 	}
 
 err_out_exit:
@@ -500,7 +500,7 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 	dnet_node *node = state->node;
 
 	char server_addr[128];
-	dnet_server_convert_dnet_addr_raw(addr, server_addr, sizeof(server_addr));
+	dnet_addr_string_raw(addr, server_addr, sizeof(server_addr));
 
 	int err;
 	if (is_trans_destroyed(cmd)) {
@@ -630,7 +630,7 @@ static void dnet_socket_connect_new_sockets(dnet_connect_state &state, dnet_addr
 
 		if (already_exist) {
 			dnet_log(state.node, DNET_LOG_NOTICE, "we are already connecting to %s",
-				dnet_server_convert_dnet_addr(&socket->addr));
+				dnet_addr_string(&socket->addr));
 
 			dnet_fail_socket(state, socket, -EEXIST, false);
 			continue;
@@ -651,7 +651,7 @@ static void dnet_socket_connect_new_sockets(dnet_connect_state &state, dnet_addr
 			err = -errno;
 			if (err != -EINPROGRESS) {
 				dnet_log_err(state.node, "Failed to connect to %s",
-					dnet_server_convert_dnet_addr(&socket->addr));
+					dnet_addr_string(&socket->addr));
 				dnet_fail_socket(state, socket, err, false);
 				continue;
 			}
@@ -700,7 +700,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 	dnet_addr_socket *socket = reinterpret_cast<dnet_addr_socket *>(ev.data.ptr);
 	dnet_cmd *cmd = &socket->io_cmd;
 
-	dnet_log(state.node, DNET_LOG_DEBUG, "%s: socket: %d, state: %d", dnet_server_convert_dnet_addr(&socket->addr), socket->s, socket->state);
+	dnet_log(state.node, DNET_LOG_DEBUG, "%s: socket: %d, state: %d", dnet_addr_string(&socket->addr), socket->s, socket->state);
 
 	switch (socket->state) {
 	case trying_to_connect: {
@@ -713,7 +713,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 				err = -status;
 
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: failed to connect, status: %d: %s [%d]",
-				dnet_server_convert_dnet_addr(&socket->addr), status,
+				dnet_addr_string(&socket->addr), status,
 				strerror(-err), err);
 
 			dnet_fail_socket(state, socket, err);
@@ -721,7 +721,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		}
 
 		dnet_log(state.node, DNET_LOG_NOTICE, "%s: successfully connected, sending reverse lookup command",
-			dnet_server_convert_dnet_addr(&socket->addr));
+			dnet_addr_string(&socket->addr));
 
 		socket->state = started;
 		// Fall through
@@ -777,7 +777,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: reverse lookup command failed: local version: %d.%d.%d.%d, "
 					"remote version: %d.%d.%d.%d, error: %s [%d]",
-					dnet_server_convert_dnet_addr(&socket->addr),
+					dnet_addr_string(&socket->addr),
 					CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
 					CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3,
 					version[0], version[1], version[2], version[3],
@@ -793,12 +793,12 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		}
 
 		dnet_log(state.node, DNET_LOG_NOTICE, "%s: received indexes shard count: local: %d, remote: %d, using server one",
-				dnet_server_convert_dnet_addr(&socket->addr), state.node->indexes_shard_count, indexes_shard_count);
+				dnet_addr_string(&socket->addr), state.node->indexes_shard_count, indexes_shard_count);
 
 		if (indexes_shard_count != state.node->indexes_shard_count && indexes_shard_count != 0) {
 			dnet_log(state.node, DNET_LOG_INFO, "%s: local and remote indexes shard count are different: "
 					"local: %d, remote: %d, using remote (%d) one",
-					dnet_server_convert_dnet_addr(&socket->addr),
+					dnet_addr_string(&socket->addr),
 					state.node->indexes_shard_count, indexes_shard_count, indexes_shard_count);
 
 			state.node->indexes_shard_count = indexes_shard_count;
@@ -811,7 +811,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		if (!socket->buffer) {
 			err = -ENOMEM;
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: failed to allocate %llu bytes for reverse lookup data",
-					dnet_server_convert_dnet_addr(&socket->addr), (unsigned long long)cmd->size);
+					dnet_addr_string(&socket->addr), (unsigned long long)cmd->size);
 			dnet_fail_socket(state, socket, err);
 			break;
 		}
@@ -829,7 +829,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 			err = -EINVAL;
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: received dnet_addr_container "
 				"is invalid, size: %lld, expected at least: %llu, err: %d",
-				dnet_server_convert_dnet_addr(&socket->addr),
+				dnet_addr_string(&socket->addr),
 				uint64_t(cmd->size),
 				sizeof(dnet_addr_container) + cnt->addr_num * sizeof(dnet_addr) + sizeof(dnet_id_container),
 				err);
@@ -850,9 +850,9 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		));
 		if (!backends) {
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: failed to allocate %llu bytes for dnet_backend_ids array from %s.",
-				dnet_server_convert_dnet_addr(&socket->addr),
+				dnet_addr_string(&socket->addr),
 				(unsigned long long)id_container->backends_count * sizeof(dnet_backend_ids *),
-				dnet_server_convert_dnet_addr(&socket->addr));
+				dnet_addr_string(&socket->addr));
 			dnet_fail_socket(state, socket, -ENOMEM);
 			break;
 		}
@@ -860,7 +860,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		err = dnet_validate_id_container(id_container, size, backends.get());
 		if (err) {
 			dnet_log(state.node, DNET_LOG_ERROR, "connected-to-addr: %s: failed to validate id container: %d",
-					dnet_server_convert_dnet_addr(&socket->addr), err);
+					dnet_addr_string(&socket->addr), err);
 			dnet_fail_socket(state, socket, err);
 			break;
 		}
@@ -870,7 +870,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 			if (dnet_empty_addr(&cnt->addrs[i])) {
 				dnet_log(state.node, DNET_LOG_ERROR, "connected-to-addr: %s: received wildcard (like 0.0.0.0) addr: "
 						"backends: %d, addr-num: %d, idx: %d.",
-						dnet_server_convert_dnet_addr(&socket->addr),
+						dnet_addr_string(&socket->addr),
 						int(id_container->backends_count), int(cnt->addr_num), idx);
 				err = -EPROTO;
 				dnet_fail_socket(state, socket, err);
@@ -885,7 +885,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		if (idx == -1) {
 			err = -EPROTO;
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: there is no connected addr in received reverse lookup data",
-					dnet_server_convert_dnet_addr(&socket->addr));
+					dnet_addr_string(&socket->addr));
 			dnet_fail_socket(state, socket, err);
 			break;
 		}
@@ -896,7 +896,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 				dnet_log(state.node, DNET_LOG_NOTICE, "connected-to-addr: %s: received backends: %d/%d, "
 						"ids: %d/%d, addr-num: %d, idx: %d, "
 						"backend_id: %d, group_id: %d, id: %s.",
-						dnet_server_convert_dnet_addr(&socket->addr), i, int(id_container->backends_count),
+						dnet_addr_string(&socket->addr), i, int(id_container->backends_count),
 						j, uint32_t(backend->ids_count), int(cnt->addr_num), idx,
 						int(backend->backend_id), int(backend->group_id), dnet_dump_id_str(backend->ids[j].id));
 			}
@@ -917,14 +917,14 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 
 		memcpy(st->version, socket->version, sizeof(st->version));
 		dnet_log(state.node, DNET_LOG_NOTICE, "%s: connected: backends-num: %d, addr-num: %d, idx: %d.",
-				dnet_server_convert_dnet_addr(&socket->addr), int(id_container->backends_count), int(cnt->addr_num), idx);
+				dnet_addr_string(&socket->addr), int(id_container->backends_count), int(cnt->addr_num), idx);
 
 		free(socket->buffer);
 
 		dnet_set_sockopt(state.node, socket->s);
 
 		dnet_log(state.node, DNET_LOG_INFO, "Connected to %s, socket: %d.",
-			dnet_server_convert_dnet_addr(&socket->addr), socket->s);
+			dnet_addr_string(&socket->addr), socket->s);
 		state.succeed_count++;
 
 		socket->ok = 1;
@@ -943,7 +943,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 	case finished:
 	case failed:
 		dnet_log(state.node, DNET_LOG_ERROR, "Socket was epolled in state: %d, which is impossible, state: %s, socket: %d",
-			int(socket->state), dnet_server_convert_dnet_addr(&socket->addr), socket->s);
+			int(socket->state), dnet_addr_string(&socket->addr), socket->s);
 		break;
 	}
 }
@@ -1141,7 +1141,7 @@ err_out_put:
 				socket->s = -ETIMEDOUT;
 
 				dnet_log(state.node, DNET_LOG_ERROR, "Could not connect to %s because of timeout",
-					dnet_server_convert_dnet_addr(&socket->addr));
+					dnet_addr_string(&socket->addr));
 
 				dnet_add_to_reconnect_list(state.node, socket->addr, -ETIMEDOUT, state.join);
 

@@ -347,7 +347,7 @@ int main(int argc, char *argv[])
 				for (size_t i = 0; i < entry.count(); ++i) {
 					dnet_backend_status *status = entry.backend(i);
 					std::cout << "       backend_id: " << status->backend_id << std::endl;
-					std::cout << "          address: " << dnet_server_convert_dnet_addr(entry.address()) << std::endl;
+					std::cout << "          address: " << dnet_addr_string(entry.address()) << std::endl;
 					std::cout << "    backend state: " << dnet_backend_state_string(status->state) << std::endl;
 					std::cout << "    defrag  state: " << dnet_backend_defrag_state_string(status->defrag_state) << std::endl;
 					std::cout << "        read-only: " << (status->read_only != 0 ? "true" : "false") << std::endl;
@@ -424,16 +424,16 @@ int main(int argc, char *argv[])
 			for (auto it = result.begin(); it != result.end(); ++it) {
 				if (it->error()) {
 					error_info error = it->error();
-					std::cerr << dnet_server_convert_dnet_addr(it->address())
+					std::cerr << dnet_addr_string(it->address())
 						<< ": failed to process: \"" << error.message() << "\": " << error.code() << std::endl;
 					failed = true;
 				} else {
 					exec_context context = it->context();
 					if (context.is_null()) {
-						std::cout << dnet_server_convert_dnet_addr(it->address())
+						std::cout << dnet_addr_string(it->address())
 							<< ": acknowledge" << std::endl;
 					} else {
-						std::cout << dnet_server_convert_dnet_addr(context.address())
+						std::cout << dnet_addr_string(context.address())
 							<< ": " << context.event()
 							<< " \"" << context.data().to_string() << "\"" << std::endl;
 					}

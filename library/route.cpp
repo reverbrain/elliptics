@@ -57,8 +57,8 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	dnet_socket_local_addr(st->read_s, &laddr);
 	idx = dnet_local_addr_index(n, &laddr);
 
-	dnet_server_convert_dnet_addr_raw(&st->addr, client_addr, sizeof(client_addr));
-	dnet_server_convert_dnet_addr_raw(&laddr, server_addr, sizeof(server_addr));
+	dnet_addr_string_raw(&st->addr, client_addr, sizeof(client_addr));
+	dnet_addr_string_raw(&laddr, server_addr, sizeof(server_addr));
 
 	if (cmd->size < sizeof(struct dnet_addr_container)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
@@ -175,7 +175,7 @@ static int dnet_state_join_nolock(struct dnet_net_state *st)
 	err = dnet_route_list_send_all_ids_nolock(st, &id, 0, DNET_CMD_JOIN, 0, 1);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send join request to %s.",
-			dnet_dump_id(&id), dnet_server_convert_dnet_addr(&st->addr));
+			dnet_dump_id(&id), dnet_addr_string(&st->addr));
 		// JOIN is critical command
 		dnet_state_reset(st, err);
 		goto err_out_exit;

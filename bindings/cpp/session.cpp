@@ -198,7 +198,7 @@ int address::family() const
 
 std::string address::to_string() const
 {
-	return dnet_server_convert_dnet_addr(&m_addr);
+	return dnet_addr_string(&m_addr);
 }
 
 std::string address::to_string_with_family() const
@@ -1807,7 +1807,7 @@ void session::update_status(const address &addr, dnet_node_status *status)
 	int err = dnet_update_status(m_data->session_ptr, &addr.to_raw(), NULL, status);
 
 	if (err < 0) {
-		throw_error(err, "%s: failed to request set status %p", dnet_server_convert_dnet_addr(&addr.to_raw()), status);
+		throw_error(err, "%s: failed to request set status %p", dnet_addr_string(&addr.to_raw()), status);
 	}
 }
 

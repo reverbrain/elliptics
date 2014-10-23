@@ -204,7 +204,7 @@ int dnet_copy_addrs_nolock(struct dnet_net_state *nst, struct dnet_addr *addrs, 
 	if (nst->addrs) {
 		// idx = -1 for just created server node, which can not have ->addrs yet
 		dnet_log(n, DNET_LOG_NOTICE, "%s: do not copy %d addrs, already have %d, idx: %d",
-				dnet_server_convert_dnet_addr(&nst->addrs[nst->idx]),
+				dnet_addr_string(&nst->addrs[nst->idx]),
 				addr_num, nst->addr_num, nst->idx);
 		goto err_out_exit;
 	}
@@ -218,11 +218,11 @@ int dnet_copy_addrs_nolock(struct dnet_net_state *nst, struct dnet_addr *addrs, 
 	nst->addr_num = addr_num;
 	memcpy(nst->addrs, addrs, addr_num * sizeof(struct dnet_addr));
 
-	dnet_server_convert_dnet_addr_raw(dnet_state_addr(nst), addr_str, sizeof(addr_str));
+	dnet_addr_string_raw(dnet_state_addr(nst), addr_str, sizeof(addr_str));
 	for (i = 0; i < addr_num; ++i) {
 		dnet_log(n, DNET_LOG_NOTICE, "%s: copy addr: %s, idx: %d",
 				addr_str,
-				dnet_server_convert_dnet_addr(&nst->addrs[i]),
+				dnet_addr_string(&nst->addrs[i]),
 				nst->idx);
 	}
 
@@ -278,7 +278,7 @@ int dnet_recv_route_list(struct dnet_net_state *st, int (*complete)(struct dnet_
 	dnet_convert_cmd(cmd);
 
 	dnet_log(n, DNET_LOG_DEBUG, "%s: list route request to %s.", dnet_dump_id(&cmd->id),
-		dnet_server_convert_dnet_addr(&st->addr));
+		dnet_addr_string(&st->addr));
 
 	memset(&req, 0, sizeof(req));
 	req.st = st;
@@ -375,7 +375,7 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 		t->st = dnet_state_search_by_addr(n, &s->direct_addr);
 		if (!t->st) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: %s: io_trans_send: could not find network state for address",
-				dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(&s->direct_addr));
+				dnet_dump_id(&cmd->id), dnet_addr_string(&s->direct_addr));
 		}
 	}
 
@@ -395,7 +395,7 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
 			ctl->fd,
 			(unsigned long long)ctl->local_offset,
-			dnet_server_convert_dnet_addr(&t->st->addr), t->st->weight,
+			dnet_addr_string(&t->st->addr), t->st->weight,
 			t->wait_ts.tv_sec);
 
 	dnet_convert_cmd(cmd);
@@ -667,7 +667,7 @@ int dnet_request_cmd_addr(struct dnet_session *s, struct dnet_addr *addr, struct
 	st = dnet_state_search_by_addr(s->node, addr);
 	if (!st) {
 		dnet_log(s->node, DNET_LOG_ERROR, "%s: %s: request_cmd_addr: could not find network state for address",
-			dnet_dump_id(&ctl->id), dnet_server_convert_dnet_addr(addr));
+			dnet_dump_id(&ctl->id), dnet_addr_string(addr));
 		return -ENXIO;
 	}
 
@@ -730,7 +730,7 @@ int dnet_update_status(struct dnet_session *s, const struct dnet_addr *addr, str
 		if (!st) {
 			err = -ENXIO;
 			dnet_log(s->node, DNET_LOG_ERROR, "%s: %s: update_state: could not find network state for address",
-				dnet_dump_id(&ctl.id), dnet_server_convert_dnet_addr(addr));
+				dnet_dump_id(&ctl.id), dnet_addr_string(addr));
 		}
 
 		pthread_mutex_lock(&st->n->state_lock);
@@ -824,7 +824,7 @@ int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, const 
 	if (!st)
 		goto err_out_exit;
 
-	dnet_server_convert_dnet_addr_raw(dnet_state_addr(st), dst, dlen);
+	dnet_addr_string_raw(dnet_state_addr(st), dst, dlen);
 	dnet_state_put(st);
 	err = 0;
 

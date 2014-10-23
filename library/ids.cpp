@@ -27,7 +27,7 @@
 int dnet_ids_update(struct dnet_node *n, int update_local, const char *file, struct dnet_addr *cfg_addrs, size_t backend_id)
 {
 	char remote_id[1024];
-	sprintf(remote_id, "elliptics_node_ids_%s_%zu", dnet_server_convert_dnet_addr(cfg_addrs), backend_id);
+	sprintf(remote_id, "elliptics_node_ids_%s_%zu", dnet_addr_string(cfg_addrs), backend_id);
 
 	blackhole::log::attributes_t attributes;
 //	attributes.insert(std::make_)

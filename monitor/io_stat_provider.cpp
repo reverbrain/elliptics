@@ -42,7 +42,7 @@ void dump_states_stats(rapidjson::Value &stat, struct dnet_node *n, rapidjson::D
 		           .AddMember("stall", st->stall, allocator)
 		           .AddMember("join_state", st->__join_state, allocator);
 
-		rapidjson::Value addr(dnet_server_convert_dnet_addr(&st->addr), allocator);
+		rapidjson::Value addr(dnet_addr_string(&st->addr), allocator);
 		stat.AddMember(addr, state_value, allocator);
 	}
 	pthread_mutex_unlock(&n->state_lock);

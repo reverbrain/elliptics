@@ -566,7 +566,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	err = dnet_socket_local_addr(cs, &saddr);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to resolve server addr for connected client: %s [%d]",
-				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
+				dnet_addr_string_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
 		goto err_out_exit;
 	}
 
@@ -575,7 +575,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	st = dnet_state_create(n, NULL, 0, &addr, cs, &err, 0, 0, idx, 0, NULL, 0);
 	if (!st) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]",
-				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
+				dnet_addr_string_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
 		err = -EAGAIN;
 
 		/* We do not close socket, since it is closed in dnet_state_create() */
@@ -586,8 +586,8 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	dnet_state_put(st);
 
 	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d, server address: %s, idx: %d.",
-			dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), cs,
-			dnet_server_convert_dnet_addr_raw(&saddr, server_addr, sizeof(server_addr)), idx);
+			dnet_addr_string_raw(&addr, client_addr, sizeof(client_addr)), cs,
+			dnet_addr_string_raw(&saddr, server_addr, sizeof(server_addr)), idx);
 
 	return 0;
 
@@ -647,7 +647,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 				if (atomic_dec(&st->send_queue_size) == DNET_SEND_WATERMARK_LOW) {
 					dnet_log(st->n, DNET_LOG_DEBUG,
 							"State low_watermark reached: %s: %d, waking up",
-							dnet_server_convert_dnet_addr(&st->addr),
+							dnet_addr_string(&st->addr),
 							atomic_read(&st->send_queue_size));
 					pthread_cond_broadcast(&st->send_wait);
 				}
@@ -902,7 +902,7 @@ static void *dnet_io_process_network(void *data_)
 
 				char addr_str[128] = "no address";
 				if (n->addr_num) {
-					dnet_server_convert_dnet_addr_raw(&n->addrs[0], addr_str, sizeof(addr_str));
+					dnet_addr_string_raw(&n->addrs[0], addr_str, sizeof(addr_str));
 				}
 				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %p", addr_str, st);
 				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %s", addr_str, dnet_state_dump_addr(st));

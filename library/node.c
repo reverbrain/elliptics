@@ -226,7 +226,7 @@ int dnet_state_set_server_prio(struct dnet_net_state *st)
 
 		if (!err) {
 			dnet_log(n, DNET_LOG_INFO, "%s: server net TOS value set to %d",
-					dnet_server_convert_dnet_addr(&st->addr), n->server_prio);
+					dnet_addr_string(&st->addr), n->server_prio);
 		}
 	}
 

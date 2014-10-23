@@ -40,7 +40,7 @@ struct Ctx {
 };
 
 void iterate_node(Ctx &ctx, const dnet_addr &node) {
-	std::cout << "Iterating node: " << dnet_server_convert_dnet_addr(&node) << ":" << node.family << std::endl;
+	std::cout << "Iterating node: " << dnet_addr_string(&node) << ":" << node.family << std::endl;
 	std::vector<dnet_iterator_range> ranges;
 	if (ctx.iflags & DNET_IFLAGS_KEY_RANGE)
 		ranges.push_back(ctx.key_range);
@@ -69,7 +69,7 @@ void iterate_node(Ctx &ctx, const dnet_addr &node) {
 
 	char buffer[2*DNET_ID_SIZE + 1] = {0};
 	for (auto it = res.begin(), end = res.end(); it != end; ++it) {
-		std::cout << "node: "    << dnet_server_convert_dnet_addr(&node) << node.family
+		std::cout << "node: "    << dnet_addr_string(&node) << node.family
 		          << ", key: "   << dnet_dump_id_len_raw(it->reply()->key.id, DNET_ID_SIZE, buffer)
 		          << ", flags: " << it->reply()->user_flags
 		          << ", ts: "    << it->reply()->timestamp.tsec << "/" << it->reply()->timestamp.tnsec

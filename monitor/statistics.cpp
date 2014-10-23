@@ -113,7 +113,7 @@ static void clients_stat_json(dnet_node *n, rapidjson::Value &stat_value,
 		list_for_each_entry(st, &n->empty_state_list, node_entry) {
 			rapidjson::Value client_stat(rapidjson::kObjectType);
 			single_client_stat_json(st, client_stat, allocator);
-			stat_value.AddMember(dnet_server_convert_dnet_addr(&st->addr), allocator, client_stat, allocator);
+			stat_value.AddMember(dnet_addr_string(&st->addr), allocator, client_stat, allocator);
 		}
 	} catch(std::exception &e) {
 		pthread_mutex_unlock(&n->state_lock);

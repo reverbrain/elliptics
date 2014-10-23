@@ -88,7 +88,7 @@ int dnet_trans_insert_nolock(struct dnet_net_state *st, struct dnet_trans *a)
 	if (a->st && a->st->n)
 		dnet_log(a->st->n, DNET_LOG_NOTICE, "%s: added transaction: %llu -> %s.",
 			dnet_dump_id(&a->cmd.id), (unsigned long long)a->trans,
-			dnet_server_convert_dnet_addr(&a->st->addr));
+			dnet_addr_string(&a->st->addr));
 
 	rb_link_node(&a->trans_entry, parent, n);
 	rb_insert_color(&a->trans_entry, root);
@@ -423,7 +423,7 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 			dnet_dump_id(&cmd->id),
 			dnet_cmd_string(ctl->cmd),
 			(unsigned long long)t->trans,
-			dnet_server_convert_dnet_addr(&t->st->addr), t->st->weight);
+			dnet_addr_string(&t->st->addr), t->st->weight);
 
 	err = dnet_trans_send(t, &req);
 	if (err)
@@ -451,7 +451,7 @@ int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl
 		if (!st) {
 			err = -ENXIO;
 			dnet_log(n, DNET_LOG_ERROR, "%s: %s: trans_send: could not find network state for address",
-				dnet_dump_id(&ctl->id), dnet_server_convert_dnet_addr(&s->direct_addr));
+				dnet_dump_id(&ctl->id), dnet_addr_string(&s->direct_addr));
 		}
 	} else {
 		st = dnet_state_get_first(n, &ctl->id);

@@ -68,7 +68,7 @@ static int notify_complete(struct dnet_addr *addr __unused,
 	dnet_convert_io_notification(io);
 
 	fprintf(stream, "%s: client: %s, size: %llu, offset: %llu, flags: %s\n",
-			dnet_dump_id_str(io->io.id), dnet_server_convert_dnet_addr(&io->addr),
+			dnet_dump_id_str(io->io.id), dnet_addr_string(&io->addr),
 			(unsigned long long)io->io.size,
 			(unsigned long long)io->io.offset,
 			dnet_flags_dump_ioflags(io->io.flags));

@@ -76,7 +76,7 @@ static std::set<std::tuple<std::string, int, uint32_t>> get_unique_hosts(session
 
 	for (auto it = routes.begin(); it != routes.end(); ++it) {
 		dnet_route_entry &entry = *it;
-		std::string addr = dnet_server_convert_dnet_addr(&entry.addr);
+		std::string addr = dnet_addr_string(&entry.addr);
 
 		unique_hosts.insert(std::make_tuple(addr, entry.group_id, entry.backend_id));
 	}
