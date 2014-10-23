@@ -688,7 +688,7 @@ static void create_cocaine_config(const std::string &config_path, const std::str
 
 static void start_client_nodes(const nodes_data::ptr &data, std::ostream &debug_stream, const std::vector<std::string> &remotes);
 
-nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server_config> &configs, const std::string &path, bool fork, bool monitor)
+nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server_config> &configs, const std::string &path, bool fork, bool monitor, bool isolated)
 {
 	nodes_data::ptr data = std::make_shared<nodes_data>();
 
@@ -789,7 +789,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 			remotes.push_back(create_remote(ports[j]));
 		}
 
-		if (!remotes.empty())
+		if (!remotes.empty() && !isolated)
 			config.options("remote", remotes);
 
 		if (config.options.has_value("srw_config")) {
