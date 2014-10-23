@@ -1130,8 +1130,10 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 		for (i = 0; i < backends_count; ++i) {
 			err = dnet_idc_update_backend(st, backends[i]);
-			if (err)
+			if (err) {
+				dnet_state_reset(st, err);
 				goto err_out_send_destroy;
+			}
 		}
 
 		pthread_mutex_lock(&n->state_lock);
