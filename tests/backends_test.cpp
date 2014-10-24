@@ -65,7 +65,10 @@ static void configure_nodes(const std::string &path)
 
 	servers.push_back(default_value(groups_count));
 
-	global_data = start_nodes(results_reporter::get_stream(), servers, path, true);
+	start_nodes_config start_config(results_reporter::get_stream(), std::move(servers), path);
+	start_config.fork = true;
+
+	global_data = start_nodes(start_config);
 }
 
 static std::set<std::tuple<std::string, int, uint32_t>> get_unique_hosts(session &sess)

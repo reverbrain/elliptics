@@ -688,8 +688,16 @@ static void create_cocaine_config(const std::string &config_path, const std::str
 
 static void start_client_nodes(const nodes_data::ptr &data, std::ostream &debug_stream, const std::vector<std::string> &remotes);
 
-nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server_config> &configs, const std::string &path, bool fork, bool monitor)
-{
+start_nodes_config::start_nodes_config(std::ostream &debug_stream, const std::vector<server_config> &&configs, const std::string &path)
+: debug_stream(debug_stream)
+, configs(std::move(configs))
+, path(path)
+, fork(false)
+, monitor(true)
+, isolated(false)
+{}
+
+nodes_data::ptr start_nodes(start_nodes_config &start_config) {
 	nodes_data::ptr data = std::make_shared<nodes_data>();
 
 	std::string base_path;
@@ -710,12 +718,12 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 	}
 
 	std::set<std::string> all_ports;
-	const auto ports = generate_ports(configs.size(), all_ports);
-	const auto monitor_ports = monitor
-		? generate_ports(configs.size(), all_ports)
-		: std::vector<std::string>(configs.size(), "0");
+	const auto ports = generate_ports(start_config.configs.size(), all_ports);
+	const auto monitor_ports = start_config.monitor
+		? generate_ports(start_config.configs.size(), all_ports)
+		: std::vector<std::string>(start_config.configs.size(), "0");
 
-	if (path.empty()) {
+	if (start_config.path.empty()) {
 		char buffer[1024];
 
 		snprintf(buffer, sizeof(buffer), "/tmp/elliptics-test-%04x/", rand());
@@ -726,9 +734,9 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		data->directory = directory_handler(base_path, true);
 	} else {
 #if BOOST_VERSION >= 104600
-		boost::filesystem::path boost_path = boost::filesystem::absolute(path);
+		boost::filesystem::path boost_path = boost::filesystem::absolute(start_config.path);
 #else
-		boost::filesystem::path boost_path = boost::filesystem::complete(path, boost::filesystem::current_path());
+		boost::filesystem::path boost_path = boost::filesystem::complete(start_config.path, boost::filesystem::current_path());
 #endif
 		base_path = boost_path.string();
 
@@ -736,20 +744,20 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		data->directory = directory_handler(base_path, false);
 	}
 
-	debug_stream << "Set base directory: \"" << base_path << "\"" << std::endl;
+	start_config.debug_stream << "Set base directory: \"" << base_path << "\"" << std::endl;
 
 	create_directory(run_path);
 	data->run_directory = directory_handler(run_path, true);
-	debug_stream << "Set cocaine run directory: \"" << run_path << "\"" << std::endl;
+	start_config.debug_stream << "Set cocaine run directory: \"" << run_path << "\"" << std::endl;
 
 	std::set<std::string> cocaine_unique_groups;
 	std::string cocaine_remotes;
 	std::string cocaine_groups;
-	for (size_t j = 0; j < configs.size(); ++j) {
+	for (size_t j = 0; j < start_config.configs.size(); ++j) {
 		if (j > 0)
 			cocaine_remotes += ", ";
 		cocaine_remotes += "\"127.0.0.1:" + ports[j] + ":2\"";
-		for (auto it = configs[j].backends.begin(); it != configs[j].backends.end(); ++it) {
+		for (auto it = start_config.configs[j].backends.begin(); it != start_config.configs[j].backends.end(); ++it) {
 			const std::string group = it->string_value("group");
 			if (cocaine_unique_groups.insert(group).second) {
 				if (!cocaine_groups.empty())
@@ -759,15 +767,15 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		}
 	}
 
-	const auto cocaine_locator_ports = generate_ports(configs.size(), all_ports);
+	const auto cocaine_locator_ports = generate_ports(start_config.configs.size(), all_ports);
 
 	std::vector<int> locator_ports;
 
-	debug_stream << "Starting " << configs.size() << " servers" << std::endl;
+	start_config.debug_stream << "Starting " << start_config.configs.size() << " servers" << std::endl;
 
-	for (size_t i = 0; i < configs.size(); ++i) {
-		debug_stream << "Starting server #" << (i + 1) << std::endl;
-		server_config config = configs[i];
+	for (size_t i = 0; i < start_config.configs.size(); ++i) {
+		start_config.debug_stream << "Starting server #" << (i + 1) << std::endl;
+		server_config config = start_config.configs[i];
 
 		const std::string server_suffix = "/server-" + boost::lexical_cast<std::string>(i + 1);
 		const std::string server_path = base_path + server_suffix;
@@ -782,14 +790,14 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		}
 
 		std::vector<std::string> remotes;
-		for (size_t j = 0; j < configs.size(); ++j) {
+		for (size_t j = 0; j < start_config.configs.size(); ++j) {
 			if (j == i)
 				continue;
 
 			remotes.push_back(create_remote(ports[j]));
 		}
 
-		if (!remotes.empty())
+		if (!remotes.empty() && !start_config.isolated)
 			config.options("remote", remotes);
 
 		if (config.options.has_value("srw_config")) {
@@ -845,7 +853,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 			config,
 			create_remote(ports[i]),
 			boost::lexical_cast<int>(monitor_ports[i]),
-			fork);
+			start_config.fork);
 
 		try {
 			server.start();
@@ -857,7 +865,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 				if (in) {
 					std::string line;
 					while (std::getline(in, line))
-						debug_stream << line << std::endl;
+						start_config.debug_stream << line << std::endl;
 				}
 			} catch (...) {
 			}
@@ -865,7 +873,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 			throw;
 		}
 
-		debug_stream << "Started server #" << (i + 1) << std::endl;
+		start_config.debug_stream << "Started server #" << (i + 1) << std::endl;
 
 		data->nodes.emplace_back(std::move(server));
 	}
@@ -875,7 +883,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 
 		for (size_t i = 0; i < data->nodes.size(); ++i) {
 			if (data->nodes[i].is_stopped()) {
-				debug_stream << "Failed to start server #" << (i + 1) << std::endl;
+				start_config.debug_stream << "Failed to start server #" << (i + 1) << std::endl;
 				throw std::runtime_error("Failed to configure servers");
 			}
 		}
@@ -892,7 +900,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 				auto storage = manager->get_service<storage_service_t>("storage");
 				(void) storage;
 
-				debug_stream << "Succesfully connected to Cocaine #" << (i + 1) << std::endl;
+				start_config.debug_stream << "Succesfully connected to Cocaine #" << (i + 1) << std::endl;
 			} catch (std::exception &) {
 				any_failed = true;
 				break;
@@ -900,7 +908,7 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 		}
 
 		if (any_failed) {
-			debug_stream << "Cocaine has not been started yet, try again in 1 second" << std::endl;
+			start_config.debug_stream << "Cocaine has not been started yet, try again in 1 second" << std::endl;
 			continue;
 		}
 #endif
@@ -913,13 +921,13 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server
 			remotes.push_back(data->nodes[i].remote().to_string_with_family());
 		}
 
-		start_client_nodes(data, debug_stream, remotes);
+		start_client_nodes(data, start_config.debug_stream, remotes);
 	} catch (std::exception &e) {
-		debug_stream << "Failed to connect to servers: " << e.what() << std::endl;
+		start_config.debug_stream << "Failed to connect to servers: " << e.what() << std::endl;
 		throw;
 	}
 
-	debug_stream << "Started servers" << std::endl;
+	start_config.debug_stream << "Started servers" << std::endl;
 
 	return data;
 }

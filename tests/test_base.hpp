@@ -225,8 +225,18 @@ struct nodes_data
 
 #ifndef NO_SERVER
 
-nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<server_config> &configs,
-	const std::string &path, bool fork = false, bool monitor = true);
+struct start_nodes_config {
+	std::ostream &debug_stream;
+	std::vector<server_config> configs;
+	std::string path;
+	bool fork;
+	bool monitor;
+	bool isolated;
+
+	start_nodes_config(std::ostream &debug_stream, const std::vector<server_config> &&configs, const std::string &path);
+};
+
+nodes_data::ptr start_nodes(start_nodes_config &config);
 
 #endif // NO_SERVER
 

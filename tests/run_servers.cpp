@@ -233,6 +233,7 @@ static int run_servers(const rapidjson::Value &doc)
 	bool srw = read_option(doc, "srw", false);
 	bool fork = read_option(doc, "fork", false);
 	bool monitor = read_option(doc, "monitor", true);
+	bool isolated = read_option(doc, "isolated", false);
 
 	if (!doc.HasMember("path")) {
 		std::cerr << "Field \"path\" is missed" << std::endl;
@@ -297,7 +298,12 @@ static int run_servers(const rapidjson::Value &doc)
 	}
 
 	try {
-		global_data = tests::start_nodes(std::cerr, configs, std::string(path.GetString(), path.GetStringLength()), fork, monitor);
+		tests::start_nodes_config start_config(std::cerr, std::move(configs), std::string(path.GetString(), path.GetStringLength()));
+		start_config.fork = fork;
+		start_config.monitor = monitor;
+		start_config.isolated = isolated;
+
+		global_data = tests::start_nodes(start_config);
 	} catch (std::exception &err) {
 		test::log << "Error during startup: " << err.what() << test::endl;
 		return 1;

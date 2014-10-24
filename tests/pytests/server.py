@@ -40,6 +40,7 @@ class Servers:
         config['fork'] = True
         config['monitor'] = True
         config['path'] = self.path
+        config['isolated'] = True
         servers = []
         for node in xrange(nodes_count):
             backends = []
@@ -76,7 +77,7 @@ class Servers:
             self.p.wait()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session", autouse=True)
 def server(request):
     if request.config.option.remotes:
         return None
