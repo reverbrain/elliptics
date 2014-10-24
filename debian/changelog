@@ -1,3 +1,12 @@
+elliptics (2.26.3.32) unstable; urgency=low
+
+  * tests: created config struct for create_nodes method and moved all argument to it
+  * pytests: added test case for checking correct handling situation when 2 backends from different nodes has equal group and ids
+  * pytests: made server node isolated - now server nodes do not know about each other
+  * core: reset state if dnet_idc_update_backend has been failed.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 24 Oct 2014 23:00:00 +0400
+
 elliptics (2.26.3.31) unstable; urgency=low
 
   * session: get rid of handmade address-to-string conversion, use dnet_addr_string() and friends helpers
