@@ -27,10 +27,12 @@ class Servers:
                  groups=[1],
                  without_cocaine=False,
                  nodes_count=2,
-                 backends_count=2):
+                 backends_count=2,
+                 isolated=False,
+                 path='servers'):
         import json
         import subprocess
-        self.path = 'servers'
+        self.path = path
         if os.path.exists(self.path):
             shutil.rmtree(self.path)
         os.mkdir(self.path)
@@ -40,7 +42,7 @@ class Servers:
         config['fork'] = True
         config['monitor'] = True
         config['path'] = self.path
-        config['isolated'] = True
+        config['isolated'] = isolated
         servers = []
         for node in xrange(nodes_count):
             backends = []
@@ -71,13 +73,13 @@ class Servers:
         self.remotes = [str(x['remote']) for x in self.config['servers']]
         self.monitors = [str(x['monitor']) for x in self.config['servers']]
 
-    def stop(self, failed):
+    def stop(self):
         if self.p and self.p.poll() is None:
             self.p.terminate()
             self.p.wait()
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def server(request):
     if request.config.option.remotes:
         return None
@@ -94,7 +96,7 @@ def server(request):
 
     def fin():
         print "Finilizing Servers"
-        servers.stop(request.node.exitstatus != 0)
+        servers.stop()
     request.addfinalizer(fin)
 
     return servers
