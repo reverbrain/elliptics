@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.6.12
+Version:	2.25.6.13
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Oct 28 2014 Kirill Smorodinnikov <shaitan@s36h.xxx.yandex.net> - 2.25.6.13
+- auth: check client version at first and send self version only to client with right version
+- debian: fixed minor typo in version string
+- Block dependency from next major version of elliptics. 2.27 will be incompatible with 2.26. So, any client built with 2.26 shouldn't be dependent from 2.27. And so on.
+
 * Tue Sep 02 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.6.12
 - reconnect: always add address into reconnection queue until it is EEXIST, ENOMEM or EBADF error
 
