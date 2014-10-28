@@ -1,3 +1,11 @@
+elliptics (2.25.6.13) unstable; urgency=low
+
+  * auth: check client version at first and send self version only to client with right version
+  * debian: fixed minor typo in version string
+  * Block dependency from next major version of elliptics. 2.27 will be incompatible with 2.26. So, any client built with 2.26 shouldn't be dependent from 2.27. And so on.
+
+ -- Kirill Smorodinnikov <shaitan@s36h.xxx.yandex.net>  Tue, 28 Oct 2014 16:35:00 +0400
+
 elliptics (2.25.6.12) unstable; urgency=low
 
   * reconnect: always add address into reconnection queue until it is EEXIST, ENOMEM or EBADF error
