@@ -15,13 +15,31 @@
 
 import pytest
 import elliptics
-from server import server
+from server import Servers
+
+@pytest.fixture(scope="module")
+def servers(request):
+    groups = [int(g) for g in request.config.option.groups.split(',')]
+
+    servers = Servers(groups=groups,
+                      without_cocaine=False,
+                      nodes_count=2,
+                      backends_count=1,
+                      isolated=True,
+                      path='special_servers')
+
+    def fin():
+        print "Finilizing Servers"
+        servers.stop()
+    request.addfinalizer(fin)
+
+    return servers
 
 class TestSpecificCases:
     '''
     Test that covers specific bugs
     '''
-    def test_2_backends_with_equal_ids_and_group(self, elliptics_remotes):
+    def test_2_backends_with_equal_ids_and_group(self, servers):
         '''
         These test case check correct handling situation when some backend from one nodes has the same group and ids
         like another backend from another node.
@@ -34,7 +52,7 @@ class TestSpecificCases:
         With old bug thes test case caused `Segmentation fault` on read_data_from_groups.
         At the end reverts ids of both backends.
         '''
-        address1, address2 = elliptics_remotes[:2]
+        address1, address2 = servers.remotes
 
         address1 = elliptics.Address.from_host_port_family(address1)
         session1 = elliptics.Session(elliptics.Node(elliptics.Logger("client.log", elliptics.log_level.debug)))
