@@ -209,13 +209,10 @@ def final_merge(ctx, results):
     dump_filename = os.path.join(ctx.tmp_dir, 'dump')
 
     total_keys = 0
-    pickler = pickle.Pickler(open(ctx.merged_filename, 'wb'))
     d_file = open(dump_filename, 'w')
     for res in (r for r in results if r):
-        for key_data in unpickle(res):
-            pickler.dump(key_data)
-            d_file.write('{0}\n'.format(key_data[0]))
-            total_keys += 1
+        log.info("final_merge-processing file: {0}".format(res))
+        os.system("cat {0} >> {1}".format(res, ctx.merged_filename))
         os.remove(res)
     ctx.stats.counter('found_keys', total_keys)
     log.info("Dumped %d keys in file: %s", total_keys, dump_filename)
