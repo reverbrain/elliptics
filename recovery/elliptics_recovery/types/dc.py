@@ -202,6 +202,7 @@ def unpickle(filename):
 
 
 def final_merge(ctx, results):
+    import shutil
     ctx.stats.timer('main', 'final_merge')
     log.info("final merge")
 
@@ -214,7 +215,7 @@ def final_merge(ctx, results):
         for res in (r for r in results if r):
             log.info("final_merge-processing file: {0}".format(res))
             with open(res, 'rb') as kf:
-                mf.write(kf.read())
+                shutil.copyfileobj(kf, mf)
             os.remove(res)
     ctx.stats.counter('found_keys', total_keys)
     log.info("Dumped %d keys in file: %s", total_keys, dump_filename)
