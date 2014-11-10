@@ -351,7 +351,8 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 
 		data->config_path = file;
 
-		const config root = config_parser().open(file);
+		auto parser = data->parse_config();
+		const config root = parser->root();
 		const config logger = root.at("logger");
 		const config options = root.at("options");
 		const config backends = root.at("backends");

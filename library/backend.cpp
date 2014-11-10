@@ -232,8 +232,8 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, int *state)
 	try {
 		using namespace ioremap::elliptics::config;
 		auto &data = *static_cast<config_data *>(node->config_data);
-		config_parser parser;
-		config cfg = parser.open(data.config_path);
+		auto parser = data.parse_config();
+		config cfg = parser->root();
 		const config backends_config = cfg.at("backends");
 		bool found = false;
 
@@ -487,7 +487,8 @@ void dnet_backend_cleanup_all(struct dnet_node *node)
 
 	auto &backends = node->config_data->backends->backends;
 	for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
-		dnet_backend_cleanup(node, backend_id, &state);
+		if (backends[backend_id].state != DNET_BACKEND_DISABLED)
+			dnet_backend_cleanup(node, backend_id, &state);
 	}
 }
 
