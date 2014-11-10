@@ -487,7 +487,8 @@ void dnet_backend_cleanup_all(struct dnet_node *node)
 
 	auto &backends = node->config_data->backends->backends;
 	for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
-		dnet_backend_cleanup(node, backend_id, &state);
+		if (backends[backend_id].state != DNET_BACKEND_DISABLED)
+			dnet_backend_cleanup(node, backend_id, &state);
 	}
 }
 
