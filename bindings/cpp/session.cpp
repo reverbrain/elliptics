@@ -1394,12 +1394,17 @@ async_write_result session::write_cache(const key &id, const argument_data &file
 std::string session::lookup_address(const key &id, int group_id)
 {
 	char buf[128];
+	struct dnet_addr addr;
+	int backend_id = -1;
+
+	memset(&addr, 0, sizeof(struct dnet_addr));
 
 	int err = dnet_lookup_addr(m_data->session_ptr,
 		id.by_id() ? NULL : id.remote().c_str(),
 		id.by_id() ? 0 : id.remote().size(),
 		id.by_id() ? &id.id() : NULL,
-		group_id, buf, sizeof(buf));
+		group_id, &addr, &backend_id);
+
 	if (err < 0) {
 		if (id.by_id()) {
 			throw_error(err, id.id(), "Failed to lookup");
@@ -1409,6 +1414,7 @@ std::string session::lookup_address(const key &id, int group_id)
 		}
 	}
 
+	dnet_addr_string_raw(&addr, buf, sizeof(buf));
 	return std::string(buf, strlen(buf));
 }
 

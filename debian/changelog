@@ -1,3 +1,10 @@
+elliptics (2.26.3.33) unstable; urgency=low
+
+  * lookup: extended lookup address to return dnet_addr, not address string
+  * pytests: fixed broken index tests - use common cluster for all test and isolated cluster for test_special_cases
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 10 Nov 2014 06:00:01 +0400
+
 elliptics (2.26.3.32) unstable; urgency=low
 
   * tests: created config struct for create_nodes method and moved all argument to it

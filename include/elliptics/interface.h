@@ -749,7 +749,8 @@ void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_r
 int dnet_indexes_get_shard_id(struct dnet_node *node, const struct dnet_raw_id *object_id);
 int dnet_node_get_indexes_shard_count(struct dnet_node *node);
 
-int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, const struct dnet_id *id, int group_id, char *dst, int dlen);
+int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, const struct dnet_id *id, int group_id,
+		struct dnet_addr *addr, int *backend);
 
 struct dnet_id_param {
 	unsigned int		group_id;

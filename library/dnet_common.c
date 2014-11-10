@@ -806,7 +806,8 @@ struct dnet_read_data_completion {
 	atomic_t			refcnt;
 };
 
-int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, const struct dnet_id *id, int group_id, char *dst, int dlen)
+int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, const struct dnet_id *id, int group_id,
+		struct dnet_addr *addr, int *backend_id)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_id raw;
@@ -820,16 +821,17 @@ int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, const 
 	}
 	raw.group_id = group_id;
 
-	st = dnet_state_get_first(n, &raw);
+	st = dnet_state_get_first_with_backend(n, &raw, backend_id);
 	if (!st)
 		goto err_out_exit;
 
-	dnet_addr_string_raw(dnet_state_addr(st), dst, dlen);
+	*addr = *dnet_state_addr(st);
 	dnet_state_put(st);
 	err = 0;
 
 err_out_exit:
 	return err;
+
 }
 
 struct dnet_weight {
