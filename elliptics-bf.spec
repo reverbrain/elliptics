@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.32
+Version:	2.26.3.33
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Nov 10 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.33
+- lookup: extended lookup address to return dnet_addr, not address string
+- pytests: fixed broken index tests - use common cluster for all test and isolated cluster for test_special_cases
+
 * Fri Oct 24 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.32
 - tests: created config struct for create_nodes method and moved all argument to it
 - pytests: added test case for checking correct handling situation when 2 backends from different nodes has equal group and ids
