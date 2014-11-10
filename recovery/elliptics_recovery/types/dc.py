@@ -211,7 +211,7 @@ def final_merge(ctx, results):
 
     total_keys = 0
     d_file = open(dump_filename, 'w')
-    with open(ctx.merged_filename), 'wb') as mf:
+    with open(ctx.merged_filename, 'wb') as mf:
         for res in (r for r in results if r):
             log.info("final_merge-processing file: {0}".format(res))
             with open(res, 'rb') as kf:
