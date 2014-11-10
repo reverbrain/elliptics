@@ -233,15 +233,12 @@ public:
 	size_t size() const
 	{
 		assert_array();
-		return m_value.to<dynamic_t::array_t>().size();
+		return m_value.to<const dynamic_t::array_t &>().size();
 	}
 
 	bool has(size_t index) const
 	{
-		assert_array();
-
-		const dynamic_t::array_t &array = m_value.to<dynamic_t::array_t>();
-		return index < array.size();
+		return index < size();
 	}
 
 	config at(size_t index) const
@@ -251,8 +248,7 @@ public:
 		if (!has(index))
 			throw config_error() << path << " is missed";
 
-		const dynamic_t::array_t &array = m_value.to<dynamic_t::array_t>();
-		return config(path, array[index]);
+		return config(path, m_value[index]);
 	}
 
 	template <typename T>
@@ -339,21 +335,30 @@ public:
 	~config_parser();
 
 	config open(const std::string &path);
+	config root() const;
+private:
+	blackhole::dynamic_t root_;
 };
 
 struct config_data : public dnet_config_data
 {
 	config_data() : logger(logger_base, blackhole::log::attributes_t())
 	{
+		dnet_empty_time(&config_timestamp);
 	}
 
-	std::string config_path;
-	dnet_backend_info_list backends_guard;
-	std::string logger_value;
-	ioremap::elliptics::logger_base logger_base;
-	ioremap::elliptics::logger logger;
-	std::vector<address> remotes;
-	std::unique_ptr<cache::cache_config> cache_config;
+	std::shared_ptr<config_parser> parse_config();
+
+	std::string								config_path;
+	std::mutex								parser_mutex;
+	std::shared_ptr<config_parser>			parser;
+	dnet_time								config_timestamp;
+	dnet_backend_info_list					backends_guard;
+	std::string								logger_value;
+	ioremap::elliptics::logger_base			logger_base;
+	ioremap::elliptics::logger				logger;
+	std::vector<address>					remotes;
+	std::unique_ptr<cache::cache_config>	cache_config;
 };
 
 } } } // namespace ioremap::elliptics::config

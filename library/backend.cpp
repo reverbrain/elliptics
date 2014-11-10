@@ -232,8 +232,8 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, int *state)
 	try {
 		using namespace ioremap::elliptics::config;
 		auto &data = *static_cast<config_data *>(node->config_data);
-		config_parser parser;
-		config cfg = parser.open(data.config_path);
+		auto parser = data.parse_config();
+		config cfg = parser->root();
 		const config backends_config = cfg.at("backends");
 		bool found = false;
 

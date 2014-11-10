@@ -80,6 +80,35 @@ config config_parser::open(const std::string &path)
 	if (!doc.IsObject())
 		throw config_error() << "root must be an object";
 
-	auto root = blackhole::repository::config::transformer_t<rapidjson::Value>::transform(doc);
-	return config("path", root);
+	root_ = blackhole::repository::config::transformer_t<rapidjson::Value>::transform(doc);
+	return root();
 }
+
+config config_parser::root() const {
+	return config("<root>", root_);
+}
+
+std::shared_ptr<config_parser> config_data::parse_config() {
+	struct stat st;
+	dnet_time ts;
+	memset(&st, 0, sizeof(st));
+	if (stat(config_path.c_str(), &st) != 0) {
+		int err = -errno;
+		throw config_error() << "failed to get stat of config file'" << config_path << "': " << strerror(-err);
+	}
+
+	ts.tsec = st.st_mtime;
+	ts.tnsec = 0;
+
+	std::unique_lock<std::mutex> locker(parser_mutex);
+	if (dnet_time_is_empty(&config_timestamp) ||
+	    dnet_time_before(&config_timestamp, &ts)) {
+		config_timestamp = ts;
+		parser = std::make_shared<config_parser>();
+		parser->open(config_path);
+		return parser;
+	} else {
+		return parser;
+	}
+}
+
