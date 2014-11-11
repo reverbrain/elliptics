@@ -341,6 +341,10 @@ if __name__ == '__main__':
                       dest="batch_size", default="1024",
                       help="Number of keys in read_bulk/write_bulk "
                       "batch [default: %default]")
+    parser.add_option("-k", "--key-dump", action="store_true",
+                      dest="dump_keys", default=False,
+                      help="Enable dumping all iterated key [default: %default]")
+
 
     (options, args) = parser.parse_args()
     ctx = Ctx()
@@ -369,6 +373,7 @@ if __name__ == '__main__':
         ctx.log_level = int(options.elliptics_log_level)
         ctx.merged_filename = os.path.join(ctx.tmp_dir,
                                            options.merged_filename)
+        ctx.dump_keys = options.dump_keys
 
         ch.setLevel(logging.WARNING)
         if options.debug:

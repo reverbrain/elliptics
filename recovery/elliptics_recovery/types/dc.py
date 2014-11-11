@@ -118,7 +118,8 @@ def merge_results(arg):
         tmp_dir=ctx.tmp_dir)
         for r in results]
     filename = os.path.join(ctx.tmp_dir, 'merge_{0}'.format(range_id))
-    with open(filename, 'w') as f:
+    dump_filename = os.path.join(ctx.tmp_dir, 'dump_{0}'.format(range_id))
+    with open(filename, 'w') as f, open(dump_filename, 'w') as df:
         heap = []
 
         for d in results:
@@ -144,6 +145,8 @@ def merge_results(arg):
                                            heap[0].value.user_flags))
                 same_datas.append(heapq.heappop(heap))
             pickle.dump(key_data, f)
+            if ctx.dump_keys:
+                df.write('{0}\n'.format(key_data[0]))
             for i in same_datas:
                 try:
                     i.next()
@@ -151,7 +154,7 @@ def merge_results(arg):
                 except StopIteration:
                     pass
 
-    return filename
+    return filename, dump_filename
 
 
 def get_ranges(ctx):
@@ -199,7 +202,7 @@ def unpickle(filename):
             yield ret
         except:
             break
-
+    
 
 def final_merge(ctx, results):
     import shutil
@@ -208,17 +211,12 @@ def final_merge(ctx, results):
 
     ctx.merged_filename = os.path.join(ctx.tmp_dir, 'merged_result')
     dump_filename = os.path.join(ctx.tmp_dir, 'dump')
-
-    total_keys = 0
-    d_file = open(dump_filename, 'w')
-    with open(ctx.merged_filename, 'wb') as mf:
+    with open(ctx.merged_filename, 'wb') as mf, open(dump_filename, 'wb') as df:
         for res in (r for r in results if r):
-            log.info("final_merge-processing file: {0}".format(res))
-            with open(res, 'rb') as kf:
-                shutil.copyfileobj(kf, mf)
-            os.remove(res)
-    ctx.stats.counter('found_keys', total_keys)
-    log.info("Dumped %d keys in file: %s", total_keys, dump_filename)
+            shutil.copyfileobj(open(res[0], 'rb'), mf)
+            os.remove(res[0])
+            shutil.copyfileobj(open(res[1], 'rb'), df)
+            os.remove(res[1])
 
     log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir: %s",
               ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
