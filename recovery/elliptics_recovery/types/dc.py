@@ -28,7 +28,7 @@ import traceback
 import elliptics
 
 log = logging.getLogger(__name__)
-
+PICKLE_PROTOCOL = 2
 
 def iterate_node(arg):
     ctx, address, backend_id, ranges = arg
@@ -144,7 +144,7 @@ def merge_results(arg):
                                            heap[0].value.size,
                                            heap[0].value.user_flags))
                 same_datas.append(heapq.heappop(heap))
-            pickle.dump(key_data, f)
+            pickle.dump(key_data, f, PICKLE_PROTOCOL)
             if ctx.dump_keys:
                 df.write('{0}\n'.format(key_data[0]))
             for i in same_datas:
@@ -317,7 +317,7 @@ def lookup_keys(ctx):
                         stats.counter("lookups", -1)
                 if len(key_infos) > 0:
                     key_data = (id, key_infos)
-                    pickle.dump(key_data, merged_f)
+                    pickle.dump(key_data, merged_f, PICKLE_PROTOCOL)
                     stats.counter("lookups", len(key_infos))
                 else:
                     log.error("Key: {0} is missing in all specified groups: {1}. It won't be recovered."
