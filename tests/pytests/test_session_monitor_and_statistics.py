@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 # =============================================================================
 # 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
 # All rights reserved.
@@ -19,11 +16,8 @@
 import sys
 sys.path.insert(0, "")  # for running from cmake
 import pytest
-
 from datetime import datetime, timedelta
-
-from conftest import set_property, simple_node, raises, make_session
-from server import server
+from conftest import make_session
 
 import elliptics
 

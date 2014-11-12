@@ -27,8 +27,6 @@ from elliptics_recovery.utils.misc import elliptics_create_node, elliptics_creat
 from elliptics_recovery.monitor import Monitor, ALLOWED_STAT_FORMATS
 from elliptics_recovery.ctx import Ctx
 
-# XXX: change me before BETA
-sys.path.insert(0, "bindings/python/")
 import elliptics
 
 log = logging.getLogger()

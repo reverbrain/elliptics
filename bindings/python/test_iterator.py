@@ -18,7 +18,6 @@
 
 import sys
 
-sys.path.insert(0, "bindings/python/")
 import elliptics
 
 def range(key_begin, key_end):

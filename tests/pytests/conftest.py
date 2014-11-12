@@ -21,6 +21,8 @@ import pytest
 
 import elliptics
 
+from server import Servers
+
 
 def pytest_addoption(parser):
     parser.addoption('--remotes', action='append', default=[],
@@ -56,14 +58,10 @@ def raises(type, message, func, *args, **kwargs):
     assert exception.value.message == message
 
 
-@pytest.fixture(scope='class')
+@pytest.fixture(scope='session')
 def simple_node(request):
     simple_node = elliptics.Node(elliptics.Logger("client.log", elliptics.log_level.debug))
     simple_node.add_remotes(request.config.option.remotes)
-
-    def fin():
-        print "Finilizing simple node"
-    request.addfinalizer(fin)
     return simple_node
 
 
@@ -131,8 +129,7 @@ def make_session(node, test_name, test_namespace=None):
     return session
 
 
-#@pytest.fixture(scope='module')
-@pytest.fixture
+@pytest.fixture(scope='session')
 def elliptics_client(request):
     ''' Initializes client connection to elliptics.
     Returns Session object.
@@ -145,3 +142,22 @@ def elliptics_client(request):
     # client = connect([remote], groups, loglevel=loglevel)
     # client.set_filter(elliptics.filters.all_with_ack)
     # return client
+
+
+@pytest.fixture(scope="session")
+def server(request):
+    groups = [int(g) for g in request.config.option.groups.split(',')]
+
+    servers = Servers(groups=groups,
+                      without_cocaine=request.config.option.without_cocaine,
+                      nodes_count=int(request.config.option.nodes_count),
+                      backends_count=int(request.config.option.backends_count))
+
+    request.config.option.remotes = servers.remotes
+    request.config.option.monitors = servers.monitors
+
+    def fin():
+        servers.stop()
+    request.addfinalizer(fin)
+
+    return servers

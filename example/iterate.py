@@ -20,10 +20,7 @@
     Example script for showing how to iterate specified nodes or all nodes in specified groups
 """
 
-import sys
 from elliptics_recovery.etime import Time
-
-sys.path.insert(0, "bindings/python/")
 import elliptics
 
 MODE_GROUP = "groups"

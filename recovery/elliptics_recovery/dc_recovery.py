@@ -22,8 +22,6 @@ import traceback
 
 from elliptics_recovery.utils.misc import elliptics_create_node, RecoverStat, validate_index, INDEX_MAGIC_NUMBER_LENGTH
 
-sys.path.insert(0, "bindings/python/")
-
 import elliptics
 from elliptics import Address
 

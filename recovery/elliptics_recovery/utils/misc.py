@@ -18,14 +18,10 @@ Misc. routines
 """
 
 import logging as log
-import sys
 import hashlib
 import errno
 import traceback
 import struct
-
-# XXX: change me before BETA
-sys.path.insert(0, "bindings/python/")
 import elliptics
 
 

@@ -25,22 +25,16 @@ by placing them to the node where they belong.
  * If the key is valid then just remove it from the node.
 """
 
-import sys
 import logging
 import os
-
 from itertools import groupby
 import traceback
 import threading
-
 from ..etime import Time
 from ..utils.misc import elliptics_create_node, RecoverStat, LookupDirect, RemoveDirect
 from ..route import RouteList
 from ..iterator import Iterator
 from ..range import IdRange
-
-# XXX: change me before BETA
-sys.path.insert(0, "bindings/python/")
 import elliptics
 
 log = logging.getLogger(__name__)

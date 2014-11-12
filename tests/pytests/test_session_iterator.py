@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # =============================================================================
 # 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
 # All rights reserved.

@@ -16,8 +16,6 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-import sys, os
-sys.path.insert(0, "bindings/python")
 from elliptics import *
 
 def upload_file(node, filename):

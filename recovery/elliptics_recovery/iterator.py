@@ -18,17 +18,13 @@
 Wrappers for iterator and it's result container
 """
 
-import sys
 import logging
 import os
 
 from .utils.misc import logged_class, mk_container_name
 from .etime import Time
 from .range import IdRange
-from collections import namedtuple
 import traceback
-
-sys.path.insert(0, "bindings/python/")  # XXX
 import elliptics
 
 log = logging.getLogger(__name__)

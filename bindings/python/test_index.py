@@ -16,8 +16,6 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-import sys
-
 import random
 
 rnd = random.randint(0, 999999999)
@@ -25,7 +23,6 @@ test_id = "test_id_" + str(rnd)
 test_ind = "test_ind_" + str(rnd)
 test_data = "test_data_" + str(rnd)
 
-sys.path.insert(0, "bindings/python/")
 import elliptics
 
 elog = elliptics.Logger("/dev/stderr", 0)
