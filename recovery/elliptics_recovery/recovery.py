@@ -366,6 +366,6 @@ def run(args=None):
                       help='Sets dump file which contains hex ids of object that should be recovered')
     parser.add_option('-i', '--backend-id', action='store', dest='backend_id', default=None,
                       help='Specifies backend data on which should be recovered. IT WORKS ONLY WITH --one-node')
-    parser.add_option("-p", "--key-dump", action="store_true", dest="dump_keys", default=False,
-                      help="Enable dumping all iterated key [default: %default]")
+    parser.add_option("-u", "--dont-dump-keys", action="store_false", dest="dump_keys", default=True,
+                      help="Disable dumping all iterated key [default: %default]")
     return main(*parser.parse_args(args))
