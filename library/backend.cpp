@@ -774,7 +774,7 @@ void dnet_backend_info::parse(ioremap::elliptics::config::config_data *data, con
 	if (!found_backend)
 		throw ioremap::elliptics::config::config_error() << backend.at("type").path() << " is unknown backend";
 
-	group = backend.at<int>("group");
+	group = backend.at<uint32_t>("group");
 	history = backend.at<std::string>("history");
 	cache = NULL;
 

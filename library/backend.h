@@ -116,7 +116,7 @@ struct dnet_backend_info
 	dnet_config_backend config_template;
 	std::unique_ptr<dnet_logger> log;
 	std::vector<dnet_backend_config_entry> options;
-	int group;
+	uint32_t group;
 	void *cache;
 	std::string history;
 	bool enable_at_start;
