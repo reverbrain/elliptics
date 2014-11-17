@@ -341,10 +341,6 @@ if __name__ == '__main__':
                       dest="batch_size", default="1024",
                       help="Number of keys in read_bulk/write_bulk "
                       "batch [default: %default]")
-    parser.add_option("-u", "--dont-dump-keys", action="store_false",
-                      dest="dump_keys", default=True,
-                      help="Disable dumping all iterated key [default: %default]")
-
 
     (options, args) = parser.parse_args()
     ctx = Ctx()
