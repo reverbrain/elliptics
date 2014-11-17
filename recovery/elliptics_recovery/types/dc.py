@@ -119,40 +119,41 @@ def merge_results(arg):
         for r in results]
     filename = os.path.join(ctx.tmp_dir, 'merge_{0}'.format(range_id))
     dump_filename = os.path.join(ctx.tmp_dir, 'dump_{0}'.format(range_id))
-    with open(filename, 'w') as f, open(dump_filename, 'w') as df:
-        heap = []
+    with open(filename, 'w') as f:
+        with open(dump_filename, 'w') as df:
+            heap = []
 
-        for d in results:
-            try:
-                heapq.heappush(heap, MergeData(d, None))
-            except StopIteration:
-                pass
-
-        while len(heap):
-            min_data = heapq.heappop(heap)
-            key_data = (min_data.value.key,
-                        [KeyInfo(min_data.address,
-                                 min_data.group_id,
-                                 min_data.value.timestamp,
-                                 min_data.value.size,
-                                 min_data.value.user_flags)])
-            same_datas = [min_data]
-            while len(heap) and min_data.value.key == heap[0].value.key:
-                key_data[1].append(KeyInfo(heap[0].address,
-                                           heap[0].group_id,
-                                           heap[0].value.timestamp,
-                                           heap[0].value.size,
-                                           heap[0].value.user_flags))
-                same_datas.append(heapq.heappop(heap))
-            pickle.dump(key_data, f, PICKLE_PROTOCOL)
-            if ctx.dump_keys:
-                df.write('{0}\n'.format(key_data[0]))
-            for i in same_datas:
+            for d in results:
                 try:
-                    i.next()
-                    heapq.heappush(heap, i)
+                    heapq.heappush(heap, MergeData(d, None))
                 except StopIteration:
                     pass
+
+            while len(heap):
+                min_data = heapq.heappop(heap)
+                key_data = (min_data.value.key,
+                            [KeyInfo(min_data.address,
+                                    min_data.group_id,
+                                    min_data.value.timestamp,
+                                    min_data.value.size,
+                                    min_data.value.user_flags)])
+                same_datas = [min_data]
+                while len(heap) and min_data.value.key == heap[0].value.key:
+                    key_data[1].append(KeyInfo(heap[0].address,
+                                               heap[0].group_id,
+                                               heap[0].value.timestamp,
+                                               heap[0].value.size,
+                                               heap[0].value.user_flags))
+                    same_datas.append(heapq.heappop(heap))
+                pickle.dump(key_data, f, PICKLE_PROTOCOL)
+                if ctx.dump_keys:
+                    df.write('{0}\n'.format(key_data[0]))
+                for i in same_datas:
+                    try:
+                        i.next()
+                        heapq.heappush(heap, i)
+                    except StopIteration:
+                        pass
 
     return filename, dump_filename
 
