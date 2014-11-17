@@ -211,12 +211,13 @@ def final_merge(ctx, results):
 
     ctx.merged_filename = os.path.join(ctx.tmp_dir, 'merged_result')
     dump_filename = os.path.join(ctx.tmp_dir, 'dump')
-    with open(ctx.merged_filename, 'wb') as mf, open(dump_filename, 'wb') as df:
-        for res in (r for r in results if r):
-            shutil.copyfileobj(open(res[0], 'rb'), mf)
-            os.remove(res[0])
-            shutil.copyfileobj(open(res[1], 'rb'), df)
-            os.remove(res[1])
+    with open(ctx.merged_filename, 'wb') as mf:
+        with open(dump_filename, 'wb') as df:
+            for res in (r for r in results if r):
+                shutil.copyfileobj(open(res[0], 'rb'), mf)
+                os.remove(res[0])
+                shutil.copyfileobj(open(res[1], 'rb'), df)
+                os.remove(res[1])
 
     log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir: %s",
               ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
