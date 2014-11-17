@@ -369,7 +369,6 @@ if __name__ == '__main__':
         ctx.log_level = int(options.elliptics_log_level)
         ctx.merged_filename = os.path.join(ctx.tmp_dir,
                                            options.merged_filename)
-        ctx.dump_keys = options.dump_keys
 
         ch.setLevel(logging.WARNING)
         if options.debug:
