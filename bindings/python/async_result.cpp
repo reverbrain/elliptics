@@ -72,6 +72,19 @@ struct def_async_result<T>
 			     "        print 'The operation has been completed'\n"
 			     "    else:\n"
 			     "        print 'The operation hasn't been completed'")
+			.def("start_time", &python_async_result<T>::start_time,
+			     "start_time()\n"
+			     "    Returns elliptics.Time - timestamp when AsyncResult was created\n\n"
+			     "    time = async_result.start_time()\n"
+			     "    print 'The operation was started at {0}'\n"
+			     "          .format(time)")
+			.def("end_time", &python_async_result<T>::end_time,
+			     "end_time()\n"
+			     "    Returns elliptics.Time - timestamp when AsyncResult was finished\n"
+			     "    or elliptics.Time(-1, -1) if it hasn't been finished yet\n"
+			     "    time = async_result.end_time()\n"
+			     "    print 'The operation was finished at {0}'\n"
+			     "          .format(time)")
 			.def("elapsed_time", &python_async_result<T>::elapsed_time,
 			     "elapsed_time()\n"
 			     "    Returns elliptics.Time - time spended for operation execution\n\n"
