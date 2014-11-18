@@ -269,6 +269,7 @@ std::string get_cmd_string(int cmd) {
 
 BOOST_PYTHON_MODULE(core)
 {
+	PyEval_InitThreads();
 	bp::docstring_options local_docstring_options(true, false, false);
 	bp::class_<error>(
 	    "ErrorInfo", "Basic error for Elliptics",
