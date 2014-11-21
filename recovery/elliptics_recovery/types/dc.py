@@ -28,7 +28,7 @@ import traceback
 import elliptics
 
 log = logging.getLogger(__name__)
-
+PICKLE_PROTOCOL = 2
 
 def iterate_node(arg):
     ctx, address, backend_id, ranges = arg
@@ -118,40 +118,44 @@ def merge_results(arg):
         tmp_dir=ctx.tmp_dir)
         for r in results]
     filename = os.path.join(ctx.tmp_dir, 'merge_{0}'.format(range_id))
+    dump_filename = os.path.join(ctx.tmp_dir, 'dump_{0}'.format(range_id))
     with open(filename, 'w') as f:
-        heap = []
+        with open(dump_filename, 'w') as df:
+            heap = []
 
-        for d in results:
-            try:
-                heapq.heappush(heap, MergeData(d, None))
-            except StopIteration:
-                pass
-
-        while len(heap):
-            min_data = heapq.heappop(heap)
-            key_data = (min_data.value.key,
-                        [KeyInfo(min_data.address,
-                                 min_data.group_id,
-                                 min_data.value.timestamp,
-                                 min_data.value.size,
-                                 min_data.value.user_flags)])
-            same_datas = [min_data]
-            while len(heap) and min_data.value.key == heap[0].value.key:
-                key_data[1].append(KeyInfo(heap[0].address,
-                                           heap[0].group_id,
-                                           heap[0].value.timestamp,
-                                           heap[0].value.size,
-                                           heap[0].value.user_flags))
-                same_datas.append(heapq.heappop(heap))
-            pickle.dump(key_data, f)
-            for i in same_datas:
+            for d in results:
                 try:
-                    i.next()
-                    heapq.heappush(heap, i)
+                    heapq.heappush(heap, MergeData(d, None))
                 except StopIteration:
                     pass
 
-    return filename
+            while len(heap):
+                min_data = heapq.heappop(heap)
+                key_data = (min_data.value.key,
+                            [KeyInfo(min_data.address,
+                                    min_data.group_id,
+                                    min_data.value.timestamp,
+                                    min_data.value.size,
+                                    min_data.value.user_flags)])
+                same_datas = [min_data]
+                while len(heap) and min_data.value.key == heap[0].value.key:
+                    key_data[1].append(KeyInfo(heap[0].address,
+                                               heap[0].group_id,
+                                               heap[0].value.timestamp,
+                                               heap[0].value.size,
+                                               heap[0].value.user_flags))
+                    same_datas.append(heapq.heappop(heap))
+                pickle.dump(key_data, f, PICKLE_PROTOCOL)
+                if ctx.dump_keys:
+                    df.write('{0}\n'.format(key_data[0]))
+                for i in same_datas:
+                    try:
+                        i.next()
+                        heapq.heappush(heap, i)
+                    except StopIteration:
+                        pass
+
+    return filename, dump_filename
 
 
 def get_ranges(ctx):
@@ -199,26 +203,22 @@ def unpickle(filename):
             yield ret
         except:
             break
-
+    
 
 def final_merge(ctx, results):
+    import shutil
     ctx.stats.timer('main', 'final_merge')
     log.info("final merge")
 
     ctx.merged_filename = os.path.join(ctx.tmp_dir, 'merged_result')
     dump_filename = os.path.join(ctx.tmp_dir, 'dump')
-
-    total_keys = 0
-    pickler = pickle.Pickler(open(ctx.merged_filename, 'wb'))
-    d_file = open(dump_filename, 'w')
-    for res in (r for r in results if r):
-        for key_data in unpickle(res):
-            pickler.dump(key_data)
-            d_file.write('{0}\n'.format(key_data[0]))
-            total_keys += 1
-        os.remove(res)
-    ctx.stats.counter('found_keys', total_keys)
-    log.info("Dumped %d keys in file: %s", total_keys, dump_filename)
+    with open(ctx.merged_filename, 'wb') as mf:
+        with open(dump_filename, 'wb') as df:
+            for res in (r for r in results if r):
+                shutil.copyfileobj(open(res[0], 'rb'), mf)
+                os.remove(res[0])
+                shutil.copyfileobj(open(res[1], 'rb'), df)
+                os.remove(res[1])
 
     log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir: %s",
               ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
@@ -319,7 +319,7 @@ def lookup_keys(ctx):
                         stats.counter("lookups", -1)
                 if len(key_infos) > 0:
                     key_data = (id, key_infos)
-                    pickle.dump(key_data, merged_f)
+                    pickle.dump(key_data, merged_f, PICKLE_PROTOCOL)
                     stats.counter("lookups", len(key_infos))
                 else:
                     log.error("Key: {0} is missing in all specified groups: {1}. It won't be recovered."

@@ -107,7 +107,7 @@ def main(options, args):
     try:
         ctx.log_file = os.path.join(ctx.tmp_dir, options.elliptics_log)
         ctx.log_level = int(options.elliptics_log_level)
-
+        ctx.dump_keys = options.dump_keys
         if options.debug:
             ch.setLevel(logging.DEBUG)
 
@@ -366,5 +366,6 @@ def run(args=None):
                       help='Sets dump file which contains hex ids of object that should be recovered')
     parser.add_option('-i', '--backend-id', action='store', dest='backend_id', default=None,
                       help='Specifies backend data on which should be recovered. IT WORKS ONLY WITH --one-node')
-
+    parser.add_option("-u", "--dont-dump-keys", action="store_false", dest="dump_keys", default=True,
+                      help="Disable dumping all iterated key [default: %default]")
     return main(*parser.parse_args(args))
