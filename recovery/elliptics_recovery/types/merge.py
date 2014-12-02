@@ -310,6 +310,11 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
     try:
         log.debug("Running iterator on node: {0}/{1}".format(address, backend_id))
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
+        flags = elliptics.iterator_flags.key_range
+        if ctx.no_meta:
+            flags |= elliptics.iterator_flags.no_meta
+        else:
+            flags |= elliptics.iterator_flags.ts_range
         key_ranges = [IdRange(r[0], r[1]) for r in ranges]
         result, result_len = Iterator.iterate_with_stats(node=node,
                                                          eid=eid,
@@ -321,6 +326,7 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
                                                          group_id=eid.group_id,
                                                          batch_size=ctx.batch_size,
                                                          stats=stats,
+                                                         flags=flags,
                                                          leave_file=False)
         if result is None:
             return None

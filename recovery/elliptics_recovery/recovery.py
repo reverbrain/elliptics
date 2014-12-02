@@ -73,6 +73,7 @@ def main(options, args):
     ctx.safe = options.safe
     ctx.one_node = bool(options.one_node)
     ctx.custom_recover = options.custom_recover
+    ctx.no_meta = options.no_meta and (options.timestamp is None)
 
     if ctx.custom_recover:
         ctx.custom_recover = os.path.abspath(ctx.custom_recover)
@@ -174,6 +175,8 @@ def main(options, args):
     log.info("Using group list: {0}".format(ctx.groups))
 
     try:
+        if options.timestamp is None:
+            options.timestamp = 0
         ctx.timestamp = Time.from_epoch(options.timestamp)
     except Exception:
         try:
@@ -342,7 +345,7 @@ def run(args=None):
                       help="Statistics output format: {0} [default: %default]".format("/".join(ALLOWED_STAT_FORMATS)))
     parser.add_option("-S", "--safe", action="store_true", dest="safe", default=False,
                       help="Do not remove recovered keys after merge [default: %default]")
-    parser.add_option("-t", "--time", action="store", dest="timestamp", default="0",
+    parser.add_option("-t", "--time", action="store", dest="timestamp", default=None,
                       help="Recover keys modified since `time`. "
                            "Can be specified as timestamp or as time difference"
                            "e.g.: `1368940603`, `12h`, `1d`, or `4w` [default: %default]")
@@ -366,4 +369,8 @@ def run(args=None):
                       help='Specifies backend data on which should be recovered. IT WORKS ONLY WITH --one-node')
     parser.add_option("-u", "--dont-dump-keys", action="store_false", dest="dump_keys", default=True,
                       help="Disable dumping all iterated key [default: %default]")
+    parser.add_option("-M", "--no-meta", action="store_true", dest="no_meta", default=False,
+                      help="Recover data without meta. It is usefull only for services without data-rewriting because"
+                      " with this option dnet_recovery will not check which replica of the key is newer"
+                      " and will copy any replica of the key to missing groups.")
     return main(*parser.parse_args(args))

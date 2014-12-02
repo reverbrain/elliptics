@@ -42,7 +42,7 @@ def format_stat(node, backend, result, counter):
         result.response.total_keys)
 
 
-def check_iterator_results(node, backend, iterator, session, node_id):
+def check_iterator_results(node, backend, iterator, session, node_id, no_meta=False):
     counter = 0
     for result in iterator:
         assert result.status == 0, "if iterator is ok status of result should be 0"
@@ -50,6 +50,10 @@ def check_iterator_results(node, backend, iterator, session, node_id):
             #this is one of keepalive response, we should skip it because it contains iterator statistics only
             print format_stat(node, backend, result, counter)
             continue
+
+        if no_meta:
+            assert result.response.user_flags == 0
+            assert result.response.timestamp == elliptics.Time(2 ** 64 - 1, 2 ** 64 - 1)
 
         # Test flow control on after result
         if counter == 0:
@@ -195,3 +199,27 @@ class TestSession:
             time_end=elliptics.Time(2 ** 64 - 1, 2 ** 64 - 1))
 
         check_iterator_results(node, backend, iterator, session, node_id)
+
+    def test_iterate_all_node_ranges_no_meta(self, server, simple_node):
+        '''
+        Runs iterator with no_meta on first node/backend from route-list with using all ranges covered by it
+        '''
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_iterate_all_node_ranges_no_meta')
+        session.groups = session.routes.groups()
+        node_id, node, backend = iter(session.routes.get_unique_routes()[0])
+        ranges = convert_ranges(session.routes.get_address_backend_ranges(node, backend))
+
+        end_time = elliptics.Time.now()
+        begin_time = end_time
+        begin_time.tsec -= 30
+
+        iterator = session.start_iterator(
+            id=node_id,
+            ranges=ranges,
+            type=elliptics.iterator_types.network,
+            flags=elliptics.iterator_flags.key_range | elliptics.iterator_flags.no_meta,
+            time_begin=begin_time,
+            time_end=end_time)
+
+        check_iterator_results(node, backend, iterator, session, node_id, True)

@@ -342,15 +342,15 @@ class Iterator(object):
                            .format(address, backend_id, repr(e), traceback.format_exc()))
             yield None
 
-
     @classmethod
     def iterate_with_stats(cls, node, eid, timestamp_range,
                            key_ranges, tmp_dir, address, group_id, backend_id, batch_size,
-                           stats, leave_file=False,
+                           stats, flags, leave_file=False,
                            separately=False):
         iterator = cls(node, group_id, separately)
         result = iterator.start(eid=eid,
                                 timestamp_range=timestamp_range,
+                                flags=flags,
                                 key_ranges=key_ranges,
                                 tmp_dir=tmp_dir,
                                 address=address,

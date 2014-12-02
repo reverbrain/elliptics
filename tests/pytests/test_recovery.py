@@ -108,7 +108,8 @@ def check_data(scope, session, keys, datas, timestamp):
     assert all(x == timestamp for x in timestamps)
 
 
-def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log_file, tmp_dir, dump_file=None):
+def recovery(one_node, remotes, backend_id, address, groups,
+             session, rtype, log_file, tmp_dir, dump_file=None, no_meta=False):
     '''
     Imports dnet_recovery tools and executes merge recovery. Checks result of merge.
     '''
@@ -139,6 +140,8 @@ def recovery(one_node, remotes, backend_id, address, groups, session, rtype, log
         args += ['-f', os.path.abspath(dump_file)]
     if backend_id is not None:
         args += ['-i', backend_id]
+    if no_meta:
+        args += ['-M']
     if rtype == RECOVERY.MERGE:
         args += ['merge']
     elif rtype == RECOVERY.DC:
@@ -293,6 +296,7 @@ class TestRecovery:
                  groups=(scope.test_group,),
                  session=session.clone(),
                  rtype=RECOVERY.MERGE,
+                 no_meta=True,
                  log_file='merge_2_backends.log',
                  tmp_dir='merge_2_backends')
 
@@ -389,7 +393,8 @@ class TestRecovery:
 
     def test_dc_one_backend_and_one_group(self, server, simple_node):
         '''
-        Runs dnet_recovery dc with --one-node=scope.test_address2, --backend-id=scope.test_backend2 and against both groups.
+        Runs dnet_recovery dc with --one-node=scope.test_address2,
+        --backend-id=scope.test_backend2 and against both groups.
         Checks self.keys availability after recovering in both groups.
         '''
         session = make_session(node=simple_node,
@@ -404,7 +409,8 @@ class TestRecovery:
                  session=session.clone(),
                  rtype=RECOVERY.DC,
                  log_file='dc_one_backend.log',
-                 tmp_dir='dc_one_backend')
+                 tmp_dir='dc_one_backend',
+                 no_meta=True)
 
         session.groups = (scope.test_group2,)
         check_data(scope, session, self.keys, self.datas, self.timestamp)
@@ -420,7 +426,8 @@ class TestRecovery:
 
     def test_dc_from_dump_two_groups(self, server, simple_node):
         '''
-        Runs dnet_recovery dc without --one-node and without --backend-id against both groups and with -f merge.dump.file.
+        Runs dnet_recovery dc without --one-node and
+        without --backend-id against both groups and with -f merge.dump.file.
         Checks self.keys availability after recovering in both groups.
         '''
         session = make_session(node=simple_node,
@@ -496,7 +503,8 @@ class TestRecovery:
 
     def test_write_and_corrupt_data(self, server, simple_node):
         '''
-        Writes one by one the key with different data and incremental timestamp to groups 1, 2, 3 and corrupts data in the group #3.
+        Writes one by one the key with different data and
+        incremental timestamp to groups 1, 2, 3 and corrupts data in the group #3.
         '''
         session = make_session(node=simple_node,
                                test_name='TestRecovery.test_write_and_corrupt_data',

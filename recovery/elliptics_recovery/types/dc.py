@@ -49,7 +49,12 @@ def iterate_node(arg):
                                  io_thread_num=1)
 
     try:
+        flags = elliptics.iterator_flags.key_range
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
+        if ctx.no_meta:
+            flags |= elliptics.iterator_flags.no_meta
+        else:
+            flags |= elliptics.iterator_flags.ts_range
 
         log.debug("Running iterator on node: {0}/{1}".format(address, backend_id))
         results, results_len = Iterator.iterate_with_stats(
@@ -63,6 +68,7 @@ def iterate_node(arg):
             group_id=node_id.group_id,
             batch_size=ctx.batch_size,
             stats=stats,
+            flags=flags,
             leave_file=True,
             separately=True)
         if results is None or results_len == 0:

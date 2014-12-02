@@ -108,6 +108,7 @@ static int blob_iterate_callback(struct eblob_disk_control *dc,
 		void *data, void *priv, void *thread_priv __unused)
 {
 	struct dnet_iterator_ctl *ictl = priv;
+	struct dnet_iterator_request *ireq = ictl->iterator_request;
 	struct dnet_ext_list elist;
 	uint64_t size;
 	int err;
@@ -118,16 +119,25 @@ static int blob_iterate_callback(struct eblob_disk_control *dc,
 	size = dc->data_size;
 	dnet_ext_list_init(&elist);
 
-	/* If it's an extended record - extract header, move data pointer */
-	if (dc->flags & BLOB_DISK_CTL_EXTHDR) {
-		err = dnet_ext_list_extract((void *)&data, &size, &elist,
-				DNET_EXT_DONT_FREE_ON_DESTROY);
-		if (err != 0)
-			goto err;
+	if (!(ireq->flags & DNET_IFLAGS_NO_META) ||
+	     (ireq->flags & DNET_IFLAGS_TS_RANGE) ||
+	     (ireq->flags & DNET_IFLAGS_DATA)) {
+		/* If it's an extended record - extract header, move data pointer */
+		if (dc->flags & BLOB_DISK_CTL_EXTHDR) {
+			err = dnet_ext_list_extract((void *)&data, &size, &elist,
+					DNET_EXT_DONT_FREE_ON_DESTROY);
+			if (err != 0)
+				goto err;
+		}
+	} else {
+		dnet_empty_time(&elist.timestamp);
+		if (dc->flags & BLOB_DISK_CTL_EXTHDR) {
+			size -= sizeof(struct dnet_ext_list_hdr);
+		}
 	}
 
 	err = ictl->callback(ictl->callback_private, (struct dnet_raw_id *)&dc->key,
-			data, size, &elist);
+	                     data, size, &elist);
 
 err:
 	dnet_ext_list_destroy(&elist);

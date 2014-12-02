@@ -627,6 +627,7 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	};
 	struct dnet_iterator_ctl ictl = {
 		.iterate_private = backend->cb->command_private,
+		.iterator_request = ireq,
 		.callback = dnet_iterator_callback_common,
 		.callback_private = &cpriv,
 	};
@@ -639,14 +640,16 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 		err = -ENOTSUP;
 		goto err_out_exit;
 	}
+
 	/* Check callback type */
 	if (ireq->itype <= DNET_ITYPE_FIRST || ireq->itype >= DNET_ITYPE_LAST) {
 		err = -ENOTSUP;
 		goto err_out_exit;
 	}
+
 	/* Check ranges */
 	if ((err = dnet_iterator_check_key_range(st, cmd, ireq, irange)) ||
-			(err = dnet_iterator_check_ts_range(st, cmd, ireq)))
+	    (err = dnet_iterator_check_ts_range(st, cmd, ireq)))
 		goto err_out_exit;
 
 	atomic_init(&cpriv.iterated_keys, 0);

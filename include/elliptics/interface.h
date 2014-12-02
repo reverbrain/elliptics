@@ -198,6 +198,7 @@ static inline const char *dnet_flags_dump_cfgflags(uint64_t flags)
 struct dnet_iterator_ctl {
 	void				*iterate_private;
 	void				*callback_private;
+	struct dnet_iterator_request	*iterator_request;
 	int				(* callback)(void *priv, struct dnet_raw_id *key,
 			void *data, uint64_t dsize, struct dnet_ext_list *elist);
 };
