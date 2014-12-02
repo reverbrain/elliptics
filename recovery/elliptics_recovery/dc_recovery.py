@@ -13,7 +13,6 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-import cPickle as pickle
 import sys
 import logging
 import threading
@@ -21,6 +20,7 @@ import os
 import traceback
 
 from elliptics_recovery.utils.misc import elliptics_create_node, RecoverStat, validate_index, INDEX_MAGIC_NUMBER_LENGTH
+from elliptics_recovery.utils.misc import load_key_data
 
 import elliptics
 from elliptics import Address
@@ -228,22 +228,12 @@ class KeyRecover(object):
         return self.result
 
 
-def unpcikle(filepath):
-    with open(filepath, 'r') as input_file:
-        try:
-            unpickler = pickle.Unpickler(input_file)
-            while True:
-                yield unpickler.load()
-        except:
-            pass
-
-
 def iterate_key(filepath, groups):
     '''
     Iterates key and sort each key key_infos by timestamp and size
     '''
     groups = set(groups)
-    for key, key_infos in unpcikle(filepath):
+    for key, key_infos in load_key_data(filepath):
         if len(key_infos) + len(groups) > 1:
             key_infos = sorted(key_infos, key=lambda x: (x.timestamp, x.size), reverse=True)
             missed_groups = tuple(groups.difference([k.group_id for k in key_infos]))

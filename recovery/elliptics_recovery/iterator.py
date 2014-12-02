@@ -425,12 +425,3 @@ class MergeData(object):
         except StopIteration:
             self.next_value = None
             self.iter = None
-
-
-class KeyInfo(object):
-    def __init__(self, address, group_id, timestamp, size, user_flags):
-        self.address = address
-        self.group_id = group_id
-        self.timestamp = timestamp
-        self.size = size
-        self.user_flags = user_flags

@@ -120,6 +120,7 @@ add_custom_command(TARGET test
         . bin/activate &&
         pip install pytest &&
         pip install pytest-timeout &&
+        pip install msgpack-python &&
         export LD_LIBRARY_PATH=.:.. &&
         ${TEST_ENV} py.test ${PYTESTS_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/pytests
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)
