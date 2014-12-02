@@ -249,6 +249,7 @@ def iterate_key(filepath, groups):
 
 def recover(ctx):
     from itertools import islice
+    import time
     ret = True
     stats = ctx.stats['recover']
 
@@ -263,7 +264,8 @@ def recover(ctx):
                                  net_thread_num=4,
                                  io_thread_num=1,
                                  remotes=ctx.remotes)
-
+    processed_keys = 0
+    start = time.time()
     while 1:
         batch = tuple(islice(it, ctx.batch_size))
         if not batch:
@@ -282,11 +284,13 @@ def recover(ctx):
                 successes += 1
             else:
                 failures += 1
+        processed_keys += successes + failures
         rs.apply(stats)
         stats.counter('recovered_keys', successes)
         ctx.stats.counter('recovered_keys', successes)
         stats.counter('recovered_keys', -failures)
         ctx.stats.counter('recovered_keys', -failures)
+        stats.set_counter('recovery_speed', processed_keys / (time.time() - start))
     stats.timer('recover', 'finished')
     return ret
 

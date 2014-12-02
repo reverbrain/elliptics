@@ -26,8 +26,10 @@ from .etime import Time
 from .range import IdRange
 import traceback
 import elliptics
+import time
 
 log = logging.getLogger(__name__)
+
 
 @logged_class
 class IteratorResult(object):
@@ -119,7 +121,8 @@ class IteratorResult(object):
                     results - resulting container of merged diffs.
                 1.  Goes through tuples and find tuple with minimum key and maximum timestamp in value
                 2.  Value from the tuple appends in corresponding result container.
-                3.  Goes through tuples again and for tuple with a key equal to minimum key, gets new record from iterator while it key == minimum or end of node diffs is reached.
+                3.  Goes through tuples again and for tuple with a key equal to minimum key,
+                    gets new record from iterator while it key == minimum or end of node diffs is reached.
                 4.  If for some tuple all node diffs are processed - adds number of the tuple into remove list
                 5.  After that removes from tuple list all tuples from remove list
                 6.  Repeates step 1-6 while tuple list isn't empty
@@ -307,7 +310,10 @@ class Iterator(object):
             iterated_keys = 0
             total_keys = 0
 
+            start = time.time()
+
             for num, record in enumerate(records):
+                end = time.time()
                 # TODO: Here we can add throttling
                 if record.status != 0:
                     raise RuntimeError("Iteration status check failed: {0}".format(record.status))
@@ -318,14 +324,15 @@ class Iterator(object):
                 total_keys = record.response.total_keys
 
                 if iterated_keys % batch_size == 0:
-                    yield (filtered_keys, iterated_keys, total_keys)
+                    yield (filtered_keys, iterated_keys, total_keys, start, end)
                 if record.response.status != 0 or record.response.size == 0:
                     continue
                 results[self.get_key_range_id(record.response.key)].append(record)
+            end = time.time()
 
             elapsed_time = records.elapsed_time()
             self.log.debug("Time spended for iterator: {0}/{1}".format(elapsed_time.tsec, elapsed_time.tnsec))
-            yield (filtered_keys, iterated_keys, total_keys)
+            yield (filtered_keys, iterated_keys, total_keys, start, end)
             if self.separately:
                 yield results
             else:
@@ -361,9 +368,10 @@ class Iterator(object):
                 result = it
                 break
 
-            filtered_keys, iterated_keys, total_keys = it
+            filtered_keys, iterated_keys, total_keys, start, end = it
             result_len = filtered_keys
             stats.set_counter('filtered_keys', filtered_keys)
+            stats.set_counter('iteration_speed', filtered_keys / (end - start))
             stats.set_counter('iterated_keys', iterated_keys)
             stats.set_counter('total_keys', total_keys)
 
