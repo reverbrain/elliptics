@@ -30,6 +30,8 @@ import os
 from itertools import groupby
 import traceback
 import threading
+import time
+
 from ..etime import Time
 from ..utils.misc import elliptics_create_node, RecoverStat, LookupDirect, RemoveDirect
 from ..route import RouteList
@@ -346,6 +348,8 @@ def recover(ctx, address, backend_id, group, node, results, stats):
         return True
 
     ret = True
+    start = time.time()
+    processed_keys = 0
     for batch_id, batch in groupby(enumerate(results), key=lambda x: x[0] / ctx.batch_size):
         recovers = []
         rs = RecoverStat()
@@ -363,7 +367,9 @@ def recover(ctx, address, backend_id, group, node, results, stats):
         for r in recovers:
             ret &= r.succeeded()
             rs += r.stats
+        processed_keys += len(recovers)
         rs.apply(stats)
+        stats.set_counter("recovery_speed", processed_keys / (time.time() - start))
     return ret
 
 
