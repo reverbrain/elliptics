@@ -109,6 +109,20 @@ def transpose_results(results):
     return result_tree
 
 
+def skip_key_data(ctx, key_data):
+    '''
+    Checks that all groups are presented in key_data and
+    all key_datas have equal timestamp and user_flags
+    '''
+    count = len(key_data[1])
+    if count < len(ctx.groups):
+        return False
+    assert count == len(ctx.groups)
+
+    first = key_data[1][0]
+    return all(((k.timestamp, k.user_flags) == (first.timestamp, first.user_flags) for k in key_data[1]))
+
+
 def merge_results(arg):
     import heapq
 
@@ -151,10 +165,13 @@ def merge_results(arg):
                                                heap[0].value.size,
                                                heap[0].value.user_flags))
                     same_datas.append(heapq.heappop(heap))
-                keys_counter += 1
-                dump_key_data(key_data, f)
-                if ctx.dump_keys:
-                    df.write('{0}\n'.format(key_data[0]))
+
+                # skip keys that already exist and equal in all groups
+                if not skip_key_data(ctx, key_data):
+                    keys_counter += 1
+                    dump_key_data(key_data, f)
+                    if ctx.dump_keys:
+                        df.write('{0}\n'.format(key_data[0]))
                 for i in same_datas:
                     try:
                         i.next()
@@ -308,7 +325,7 @@ def lookup_keys(ctx):
                         key_infos.append(KeyInfo(address,
                                                  ctx.groups[i],
                                                  result.timestamp,
-                                                 result.size,
+                                                 result.total_size,
                                                  result.user_flags))
                     except Exception, e:
                         log.debug("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"

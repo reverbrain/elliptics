@@ -591,10 +591,10 @@ class DumpRecover(object):
         # filters objects with newest timestamp
         results = [r for r in self.lookup_results if r and r.timestamp == max_ts]
         # finds max size of newest object
-        max_size = max([r.size for r in results])
+        max_size = max([r.total_size for r in results])
         log.debug("Max size of latest replicas for key: {0}: {1}".format(repr(self.id), max_size))
         # filters newest objects with max size
-        results = [(r.address, r.backend_id) for r in results if r.size == max_size]
+        results = [(r.address, r.backend_id) for r in results if r.total_size == max_size]
         if (self.address, self.backend_id) in results:
             log.debug("Node: {0} already has the latest version of key: {1}."
                       .format(self.address, repr(self.id), self.group))

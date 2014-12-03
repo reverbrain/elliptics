@@ -86,7 +86,11 @@ class KeyRecover(object):
             else:
                 #first read should be at least INDEX_MAGIC_NUMBER_LENGTH bytes
                 size = min(self.total_size, max(size, INDEX_MAGIC_NUMBER_LENGTH))
-            read_result = self.read_session.read_data(self.key)
+            log.debug("Reading key: {0} from groups: {1}, chunked: {2}, offset: {3}, size: {4}, total_size: {5}"
+                      .format(self.key, self.read_session.groups, self.chunked, self.recovered_size, size, self.total_size))
+            read_result = self.read_session.read_data(self.key,
+                                                      offset=self.recovered_size,
+                                                      size=size)
             read_result.connect(self.onread)
         except Exception as e:
             log.error("Read key: {0} by offset: {1} and size: {2} raised exception: {3}, traceback: {4}"
