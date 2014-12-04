@@ -105,17 +105,30 @@ struct eblob_backend_config {
 /* Pre-callback that formats arguments and calls ictl->callback */
 static int blob_iterate_callback(struct eblob_disk_control *dc,
 		struct eblob_ram_control *rctl __unused,
-		void *data, void *priv, void *thread_priv __unused)
+		int fd, uint64_t data_offset, void *priv, void *thread_priv __unused)
 {
 	struct dnet_iterator_ctl *ictl = priv;
 	struct dnet_ext_list elist;
 	uint64_t size;
+    void *data, *saved_data;
 	int err;
 
 	assert(dc != NULL);
-	assert(data != NULL);
 
-	size = dc->data_size;
+    size = dc->disk_size;
+    saved_data = data = malloc(size);
+    if (!data) {
+        err = -ENOMEM;
+        goto err;
+    }
+
+    err = pread(fd, data, size, data_offset);
+    if (err == -1) {
+        err = -errno;
+        goto err_free_data;
+    }
+
+    size = dc->data_size;
 	dnet_ext_list_init(&elist);
 
 	/* If it's an extended record - extract header, move data pointer */
@@ -123,12 +136,14 @@ static int blob_iterate_callback(struct eblob_disk_control *dc,
 		err = dnet_ext_list_extract((void *)&data, &size, &elist,
 				DNET_EXT_DONT_FREE_ON_DESTROY);
 		if (err != 0)
-			goto err;
+			goto err_free_data;
 	}
 
 	err = ictl->callback(ictl->callback_private, (struct dnet_raw_id *)&dc->key,
-			data, size, &elist);
+                         data, size, &elist);
 
+err_free_data:
+    free(saved_data);
 err:
 	dnet_ext_list_destroy(&elist);
 	return err;
