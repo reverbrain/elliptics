@@ -611,7 +611,6 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	};
 	struct dnet_iterator_ctl ictl = {
 		.iterate_private = backend->cb->command_private,
-		.iterator_request = ireq,
 		.callback = dnet_iterator_callback_common,
 		.callback_private = &cpriv,
 	};
