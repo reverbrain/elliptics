@@ -391,6 +391,8 @@ struct dnet_transform
 
 	int 			(* transform)(void *priv, struct dnet_session *s, const void *src, uint64_t size,
 					void *dst, unsigned int *dsize, unsigned int flags);
+	int 			(* transform_file)(void *priv, struct dnet_session *s, int fd, uint64_t offset,
+                    uint64_t size, void *dst, unsigned int *dsize, unsigned int flags);
 };
 
 int dnet_crypto_init(struct dnet_node *n);

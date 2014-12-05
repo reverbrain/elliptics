@@ -1449,7 +1449,6 @@ err_out_exit:
 int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size, void *csum, int csize)
 {
 	int err;
-	struct dnet_map_fd m;
 
 	if (!size) {
 		struct stat st;
@@ -1464,16 +1463,7 @@ int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size
 		size = st.st_size;
 	}
 
-	m.fd = fd;
-	m.size = size;
-	m.offset = offset;
-
-	err = dnet_data_map(&m);
-	if (err)
-		goto err_out_exit;
-
-	err = dnet_checksum_data(n, m.data, size, csum, csize);
-	dnet_data_unmap(&m);
+    err = dnet_transform_file(n, fd, offset, size, csum, csize);
 
 err_out_exit:
 	return err;
