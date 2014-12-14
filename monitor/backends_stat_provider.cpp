@@ -125,7 +125,12 @@ static void fill_backend_status(rapidjson::Value &stat_value,
 }
 
 /*
- * Fills config with common backend info like config, group id
+ * This function is called to fill in config values read from the config for non-enabled (yet) backends.
+ *
+ * They are not parsed and can be invalid, like string instead of int and so on,
+ * that's why it doesn't fill 'backend::config' section, but 'backend::config_template'.
+ *
+ * After config has been enabled, @fill_backend_backend() is called instead.
  */
 static void fill_disabled_backend_config(rapidjson::Value &stat_value,
                                          rapidjson::Document::AllocatorType &allocator,
@@ -140,7 +145,7 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 		config_value.AddMember(entry.entry->key, tmp_val, allocator);
 	}
 
-	backend_value.AddMember("config", config_value, allocator);
+	backend_value.AddMember("config_template", config_value, allocator);
 	stat_value.AddMember("backend", backend_value, allocator);
 }
 
@@ -171,6 +176,7 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 
 		if (categories & DNET_MONITOR_BACKEND) {
 			fill_backend_backend(stat_value, allocator, backend);
+			stat_value["backend"]["config"].AddMember("group", config_backend.group, allocator);
 		}
 		if (categories & DNET_MONITOR_IO) {
 			fill_backend_io(stat_value, allocator, backend);
@@ -180,10 +186,6 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 		}
 	} else if (categories & DNET_MONITOR_BACKEND) {
 		fill_disabled_backend_config(stat_value, allocator, config_backend);
-	}
-
-	if (categories & DNET_MONITOR_BACKEND) {
-		stat_value["backend"]["config"].AddMember("group", config_backend.group, allocator);
 	}
 
 	return stat_value;
