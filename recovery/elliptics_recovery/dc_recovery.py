@@ -108,9 +108,9 @@ class KeyRecover(object):
             else:
                 log.debug("Writing key: {0} to groups: {1}"
                           .format(repr(self.key), self.diff_groups + self.missed_groups))
-                params = {'key' : self.key,
-                          'data' : self.write_data,
-                          'remote_offset' : self.recovered_size}
+                params = {'key': self.key,
+                          'data': self.write_data,
+                          'remote_offset': self.recovered_size}
                 if self.chunked:
                     if self.recovered_size == 0:
                         params['psize'] = self.total_size
@@ -162,6 +162,9 @@ class KeyRecover(object):
             if self.recovered_size == 0:
                 self.write_session.user_flags = results[-1].user_flags
                 self.write_session.timestamp = results[-1].timestamp
+                if self.total_size != results[-1].total_size:
+                    self.total_size = results[-1].total_size
+                    self.chunked = self.total_size > self.ctx.chunk_size
             self.attempt = 0
 
             if self.chunked and len(results) > 1:
