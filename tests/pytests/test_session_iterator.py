@@ -22,6 +22,9 @@ import elliptics
 
 
 def format_result(node, backend, result, counter):
+    '''
+    Formats and returns string that represents iteration result.
+    '''
     return "{0}, key: {1}, user_flags: {2}, timestamp: {3}, status: {4}, size: {5}, hashed_data: {6}, iterator_id: {7}".format(
         format_stat(node, backend, result, counter),
         result.response.key,
@@ -34,6 +37,9 @@ def format_result(node, backend, result, counter):
 
 
 def format_stat(node, backend, result, counter):
+    '''
+    Formats and returns string that represents iteration progress.
+    '''
     return "node: {0}/{1}: filtered_keys: {2} iterated_keys: {3}, total_keys: {4}".format(
         node,
         backend,
@@ -43,6 +49,11 @@ def format_stat(node, backend, result, counter):
 
 
 def check_iterator_results(node, backend, iterator, session, node_id, no_meta=False):
+    '''
+    Checks iteration result: validates status, user_flags and tiemstamp;
+    one time pauses and continues iterator;
+    prints iteration result and progress.
+    '''
     counter = 0
     for result in iterator:
         assert result.status == 0, "if iterator is ok status of result should be 0"
@@ -67,6 +78,9 @@ def check_iterator_results(node, backend, iterator, session, node_id, no_meta=Fa
 
 
 def convert_ranges(ranges):
+    '''
+    Converts ranges to tuple of elliptics.IteratorRange and returns result ranges
+    '''
     def make_range(begin, end):
         range = elliptics.IteratorRange()
         range.key_begin = begin
@@ -76,6 +90,9 @@ def convert_ranges(ranges):
 
 
 def invert_ranges(ranges):
+    '''
+    Inverts ranges, converts it to tuple of elliptics.IteratorRange and return result ranges
+    '''
     inverted_ranges = []
     ID_MIN = elliptics.Id([0] * 64, 0)
     ID_MAX = elliptics.Id([255] * 64, 0)
@@ -92,9 +109,15 @@ def invert_ranges(ranges):
 
 @pytest.mark.trylast
 class TestSession:
+    '''
+    This batch of tests runs iteration with different parameters.
+    It sanity checks all available interface and doesn't check correctness of data and metadata,
+    because these tests doesn't know anything about these keys.
+    '''
     def test_iterate_default(self, server, simple_node):
         '''
         Runs iterator on first node/backend from route-list without specified ranges and special flags
+        Checks iterated keys by check_iterator_results.
         '''
         session = make_session(node=simple_node,
                                test_name='TestSession.test_iterate_one_backend')
@@ -117,6 +140,7 @@ class TestSession:
     def test_iterate_one_range(self, server, simple_node):
         '''
         Runs iterator on first node/backend from route-list with using only first range of it.
+        Checks iterated keys by check_iterator_results.
         '''
         session = make_session(node=simple_node,
                                test_name='TestSession.test_iterate_one_range')
@@ -137,6 +161,7 @@ class TestSession:
     def test_iterate_all_node_ranges(self, server, simple_node):
         '''
         Runs iterator on first node/backend from route-list with using all ranges covered by it.
+        Checks iterated keys by check_iterator_results.
         '''
         session = make_session(node=simple_node,
                                test_name='TestSession.test_iterate_all_node_ranges')
@@ -158,6 +183,7 @@ class TestSession:
         '''
         Runs iterator on first node/backend from route-list with using all ranges covered by it
         and timetamps that specifies period from 30 second before now to now.
+        Checks iterated keys by check_iterator_results.
         '''
         session = make_session(node=simple_node,
                                test_name='TestSession.test_iterate_all_node_ranges_with_timestamp')
@@ -182,7 +208,8 @@ class TestSession:
     def test_iterate_inverted_node_ranges_with_data(self, server, simple_node):
         '''
         Runs iterator on first node/backend from route-list with using inverted ranges
-        that aren't covered by this node/backend
+        that aren't covered by this node/backend.
+        Checks iterated keys by check_iterator_results.
         '''
         session = make_session(node=simple_node,
                                test_name='TestSession.test_iterate_inverted_node_ranges')
@@ -202,7 +229,8 @@ class TestSession:
 
     def test_iterate_all_node_ranges_no_meta(self, server, simple_node):
         '''
-        Runs iterator with no_meta on first node/backend from route-list with using all ranges covered by it
+        Runs iterator with no_meta on first node/backend from route-list with using all ranges covered by it.
+        Checks iterated keys by check_iterator_results.
         '''
         session = make_session(node=simple_node,
                                test_name='TestSession.test_iterate_all_node_ranges_no_meta')
