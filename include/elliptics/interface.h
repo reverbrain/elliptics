@@ -182,7 +182,7 @@ static inline const char *dnet_flags_dump_cfgflags(uint64_t flags)
 		{ DNET_CFG_JOIN_NETWORK, "join" },
 		{ DNET_CFG_NO_ROUTE_LIST, "no_route_list" },
 		{ DNET_CFG_MIX_STATES, "mix_states" },
-		{ DNET_CFG_NO_CSUM, "n_ocsum" },
+		{ DNET_CFG_NO_CSUM, "no_csum" },
 		{ DNET_CFG_RANDOMIZE_STATES, "randomize_states" },
 		{ DNET_CFG_KEEPS_IDS_IN_CLUSTER, "keeps_ids_in_cluster" },
 	};
