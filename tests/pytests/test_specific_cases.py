@@ -22,14 +22,13 @@ def servers(request):
     groups = [int(g) for g in request.config.option.groups.split(',')]
 
     servers = Servers(groups=groups,
-                      without_cocaine=False,
+                      without_cocaine=True,
                       nodes_count=2,
                       backends_count=1,
                       isolated=True,
                       path='special_servers')
 
     def fin():
-        print "Finilizing Servers"
         servers.stop()
     request.addfinalizer(fin)
 

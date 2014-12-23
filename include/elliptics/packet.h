@@ -929,9 +929,14 @@ enum {
 #define DNET_IFLAGS_KEY_RANGE		(1<<1)
 /* When set timestamp range is used */
 #define DNET_IFLAGS_TS_RANGE		(1<<2)
+/* When set iterator will return only key with empty metadata (user_flags and timestamp) */
+#define DNET_IFLAGS_NO_META		(1<<3)
+
 /* Sanity */
-#define DNET_IFLAGS_ALL			(DNET_IFLAGS_DATA	\
-		| DNET_IFLAGS_KEY_RANGE | DNET_IFLAGS_TS_RANGE)
+#define DNET_IFLAGS_ALL			(DNET_IFLAGS_DATA | \
+					 DNET_IFLAGS_KEY_RANGE | \
+					 DNET_IFLAGS_TS_RANGE | \
+					 DNET_IFLAGS_NO_META)
 
 /*
  * Defines how iterator should behave

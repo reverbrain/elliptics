@@ -21,17 +21,9 @@ Vanilla elliptics python bindings are too C'ish.
 We need better abstractions.
 """
 
-from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET
-from itertools import groupby, izip
-from operator import attrgetter, itemgetter
-
 from .utils.misc import logged_class
-from .range import IdRange, RecoveryRange, AddressRanges
-
-import sys
-sys.path.insert(0, "bindings/python/") # XXX
-import elliptics
 from elliptics.route import RouteList
+
 
 @logged_class
 class RouteList(RouteList):

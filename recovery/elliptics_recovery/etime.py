@@ -19,9 +19,6 @@ Converters from and to elliptics dnet_time format.
 
 import re
 from datetime import datetime, timedelta
-
-import sys
-sys.path.insert(0, "bindings/python/")  # XXX
 import elliptics
 
 
@@ -46,7 +43,7 @@ class Time(object):
 
     @classmethod
     def time_max(cls):
-        return cls(2**64-1, 2**64-1)
+        return cls(2 ** 64 - 1, 2 ** 64 - 1)
 
     def to_etime(self):
         return self.time

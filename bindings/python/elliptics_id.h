@@ -34,14 +34,14 @@ public:
 	elliptics_id(const dnet_raw_id &id, uint32_t group_id);
 	elliptics_id(const uint8_t id[DNET_ID_SIZE]);
 	elliptics_id(const elliptics_id &other);
-	elliptics_id(const bp::list &id, const uint32_t &group_id);
+	elliptics_id(const bp::object &id, const uint32_t &group_id);
 
 	const dnet_id &id() const { return m_id; }
 	const dnet_raw_id &raw_id() const { return *reinterpret_cast<const dnet_raw_id *>(&m_id); }
 
 	bp::list list_id() const;
 
-	void set_list_id(const bp::list &id);
+	void set_list_id(const bp::object &id);
 
 	uint32_t group_id() const;
 

@@ -18,14 +18,10 @@ Misc. routines
 """
 
 import logging as log
-import sys
 import hashlib
 import errno
 import traceback
 import struct
-
-# XXX: change me before BETA
-sys.path.insert(0, "bindings/python/")
 import elliptics
 
 
@@ -280,3 +276,42 @@ class RemoveDirect(DirectOperation):
                       .format(repr(e), traceback.format_exc()))
             self.result = False
             self.callback(False, self.stats)
+
+
+class KeyInfo(object):
+    def __init__(self, address, group_id, timestamp, size, user_flags):
+        self.address = address
+        self.group_id = group_id
+        self.timestamp = timestamp
+        self.size = size
+        self.user_flags = user_flags
+
+    def dump(self):
+        return (
+            (self.address.host, self.address.port, self.address.family),
+            self.group_id,
+            (self.timestamp.tsec, self.timestamp.tnsec),
+            self.size,
+            self.user_flags)
+
+    @classmethod
+    def load(cls, data):
+        return cls(elliptics.Address(data[0][0], data[0][1], data[0][2]),
+                   data[1],
+                   elliptics.Time(data[2][0], data[2][1]),
+                   data[3],
+                   data[4])
+
+
+def dump_key_data(key_data, file):
+    import msgpack
+    dump_data = (key_data[0].id, tuple(ki.dump() for ki in key_data[1]))
+    msgpack.pack(dump_data, file)
+
+
+def load_key_data(filepath):
+    import msgpack
+    with open(filepath, 'r') as input_file:
+        unpacker = msgpack.Unpacker(input_file)
+        for data in unpacker:
+            yield (elliptics.Id(data[0], 0), tuple(KeyInfo.load(d) for d in data[1]))

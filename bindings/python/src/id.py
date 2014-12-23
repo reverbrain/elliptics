@@ -30,9 +30,12 @@ def convert_to_list(key):
 @logged_class
 class Id(Id):
     def __init__(self, key, group=0):
+        import types
         if type(key) is str:
             super(Id, self).__init__(convert_to_list(int(key, 16)), group)
-        elif type(key) in [long, int]:
+        elif type(key) in (long, int):
             super(Id, self).__init__(convert_to_list(key), group)
-        else:
+        elif type(key) in (tuple, list, types.GeneratorType, xrange):
             super(Id, self).__init__(key, group)
+        else:
+            raise TypeError("elliptics.Id can not be initialized by '{0}' object".format(type(key)))

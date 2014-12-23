@@ -441,22 +441,6 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 
 	iterated_keys = atomic_inc(&ipriv->iterated_keys);
 
-	/* If DNET_IFLAGS_KEY_RANGE is set... */
-	if (ipriv->req->flags & DNET_IFLAGS_KEY_RANGE) {
-		/* ...skip keys not in key ranges */
-		struct dnet_iterator_range *curr = ipriv->range;
-		struct dnet_iterator_range *end = curr + ipriv->req->range_num;
-		for (; curr < end; ++curr) {
-			if (dnet_id_cmp_str(key->id, curr->key_begin.id) >= 0
-					&& dnet_id_cmp_str(key->id, curr->key_end.id) < 0)
-				goto key_range_found;
-		}
-		/* no range contains the key */
-		goto key_skipped;
-	}
-
-key_range_found:
-
 	/* If DNET_IFLAGS_TS_RANGE is set... */
 	if (ipriv->req->flags & DNET_IFLAGS_TS_RANGE) {
 		/* ...skip ts not in ts range */
@@ -639,14 +623,16 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 		err = -ENOTSUP;
 		goto err_out_exit;
 	}
+
 	/* Check callback type */
 	if (ireq->itype <= DNET_ITYPE_FIRST || ireq->itype >= DNET_ITYPE_LAST) {
 		err = -ENOTSUP;
 		goto err_out_exit;
 	}
+
 	/* Check ranges */
 	if ((err = dnet_iterator_check_key_range(st, cmd, ireq, irange)) ||
-			(err = dnet_iterator_check_ts_range(st, cmd, ireq)))
+	    (err = dnet_iterator_check_ts_range(st, cmd, ireq)))
 		goto err_out_exit;
 
 	atomic_init(&cpriv.iterated_keys, 0);

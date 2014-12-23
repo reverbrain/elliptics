@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # =============================================================================
 # 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
 # All rights reserved.
@@ -18,8 +16,7 @@
 import sys
 sys.path.insert(0, "")  # for running from cmake
 import pytest
-from conftest import set_property, simple_node, raises, make_session
-from server import server
+from conftest import set_property, raises, make_session
 import elliptics
 
 io_flags = set((elliptics.io_flags.default,

@@ -20,10 +20,6 @@ namespace ioremap { namespace elliptics { namespace python {
 
 struct gil_guard {
 	gil_guard() {
-		if (!PyEval_ThreadsInitialized()) {
-			PyEval_InitThreads();
-			PyEval_ReleaseLock();
-		}
 		gstate = PyGILState_Ensure();
 	}
 

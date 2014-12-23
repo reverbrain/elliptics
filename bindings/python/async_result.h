@@ -134,6 +134,14 @@ struct python_async_result
 		return elliptics_time(scope->elapsed_time());
 	}
 
+	elliptics_time start_time() {
+		return elliptics_time(scope->start_time());
+	}
+
+	elliptics_time end_time() {
+		return elliptics_time(scope->end_time());
+	}
+
 	void connect(bp::api::object &result_handler, bp::api::object &final_handler) {
 		auto callback = boost::make_shared<callback_one_handlers<T>>(result_handler, final_handler);
 		scope->connect(boost::bind(&callback_one_handlers<T>::on_result, callback, _1),

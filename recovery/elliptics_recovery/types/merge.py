@@ -25,22 +25,18 @@ by placing them to the node where they belong.
  * If the key is valid then just remove it from the node.
 """
 
-import sys
 import logging
 import os
-
 from itertools import groupby
 import traceback
 import threading
+import time
 
 from ..etime import Time
 from ..utils.misc import elliptics_create_node, RecoverStat, LookupDirect, RemoveDirect
 from ..route import RouteList
 from ..iterator import Iterator
 from ..range import IdRange
-
-# XXX: change me before BETA
-sys.path.insert(0, "bindings/python/")
 import elliptics
 
 log = logging.getLogger(__name__)
@@ -240,6 +236,9 @@ class Recovery(object):
             if self.recovered_size == 0:
                 self.session.user_flags = results[0].user_flags
                 self.session.timestamp = results[0].timestamp
+                if self.total_size != results[0].total_size:
+                    self.total_size = results[0].total_size
+                    self.chunked = self.total_size > self.ctx.chunk_size
             self.stats.read += 1
             self.write_data = results[0].data
             self.total_size = results[0].io_attribute.total_size
@@ -316,6 +315,11 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
     try:
         log.debug("Running iterator on node: {0}/{1}".format(address, backend_id))
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
+        flags = elliptics.iterator_flags.key_range
+        if ctx.no_meta:
+            flags |= elliptics.iterator_flags.no_meta
+        else:
+            flags |= elliptics.iterator_flags.ts_range
         key_ranges = [IdRange(r[0], r[1]) for r in ranges]
         result, result_len = Iterator.iterate_with_stats(node=node,
                                                          eid=eid,
@@ -327,6 +331,7 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
                                                          group_id=eid.group_id,
                                                          batch_size=ctx.batch_size,
                                                          stats=stats,
+                                                         flags=flags,
                                                          leave_file=False)
         if result is None:
             return None
@@ -346,6 +351,8 @@ def recover(ctx, address, backend_id, group, node, results, stats):
         return True
 
     ret = True
+    start = time.time()
+    processed_keys = 0
     for batch_id, batch in groupby(enumerate(results), key=lambda x: x[0] / ctx.batch_size):
         recovers = []
         rs = RecoverStat()
@@ -363,7 +370,9 @@ def recover(ctx, address, backend_id, group, node, results, stats):
         for r in recovers:
             ret &= r.succeeded()
             rs += r.stats
+        processed_keys += len(recovers)
         rs.apply(stats)
+        stats.set_counter("recovery_speed", processed_keys / (time.time() - start))
     return ret
 
 
@@ -585,10 +594,10 @@ class DumpRecover(object):
         # filters objects with newest timestamp
         results = [r for r in self.lookup_results if r and r.timestamp == max_ts]
         # finds max size of newest object
-        max_size = max([r.size for r in results])
+        max_size = max([r.total_size for r in results])
         log.debug("Max size of latest replicas for key: {0}: {1}".format(repr(self.id), max_size))
         # filters newest objects with max size
-        results = [(r.address, r.backend_id) for r in results if r.size == max_size]
+        results = [(r.address, r.backend_id) for r in results if r.total_size == max_size]
         if (self.address, self.backend_id) in results:
             log.debug("Node: {0} already has the latest version of key: {1}."
                       .format(self.address, repr(self.id), self.group))

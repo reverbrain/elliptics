@@ -15,7 +15,6 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-import pytest
 import sys
 import os
 import shutil
@@ -77,26 +76,3 @@ class Servers:
         if self.p and self.p.poll() is None:
             self.p.terminate()
             self.p.wait()
-
-
-@pytest.fixture(scope="session")
-def server(request):
-    if request.config.option.remotes:
-        return None
-
-    groups = [int(g) for g in request.config.option.groups.split(',')]
-
-    servers = Servers(groups=groups,
-                      without_cocaine=request.config.option.without_cocaine,
-                      nodes_count=int(request.config.option.nodes_count),
-                      backends_count=int(request.config.option.backends_count))
-
-    request.config.option.remotes = servers.remotes
-    request.config.option.monitors = servers.monitors
-
-    def fin():
-        print "Finilizing Servers"
-        servers.stop()
-    request.addfinalizer(fin)
-
-    return servers
