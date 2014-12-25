@@ -21,6 +21,7 @@
 # include <stdio.h>
 
 # include "u64.h"
+# include <sys/types.h> /* off_t declaration */
 
 # ifdef __cplusplus
 extern "C" {
