@@ -81,7 +81,7 @@ static int dnet_local_digest_transform_file(void *priv __unused, struct dnet_ses
 		sha512_process_bytes("\0", 1, &ctx);
 	}
 
-    sha512_file(fd, offset, size, &ctx);
+    sha512_file_ctx(fd, offset, size, &ctx);
 	sha512_finish_ctx(&ctx, hash);
 
 	dnet_transform_final(dst, hash, dsize, rs);

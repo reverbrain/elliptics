@@ -328,7 +328,7 @@ sha384_stream (FILE *stream, void *resblock)
    The resulting message digest number will be written into the 64
    bytes beginning at RESBLOCK.  */
 int
-sha512_file (int fd, off_t offset, size_t count, struct sha512_ctx *ctx)
+sha512_file_ctx (int fd, off_t offset, size_t count, struct sha512_ctx *ctx)
 {
   size_t sum, total = 0;
 
