@@ -224,7 +224,7 @@ struct dnet_backend_callbacks {
 	int			(* storage_stat_json)(void *priv, char **json_stat, size_t *size);
 
 	/* returns total elements at backend */
-	uint64_t	(* total_elements)(void *priv);
+	uint64_t		(* total_elements)(void *priv);
 
 	/* cleanups backend at exit */
 	void			(* backend_cleanup)(void *command_private);
