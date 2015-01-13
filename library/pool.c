@@ -370,6 +370,7 @@ static int dnet_process_recv_single(struct dnet_net_state *st)
 	uint64_t size;
 	int err;
 
+	dnet_node_set_trace_id(n->log, st->rcv_cmd.trace_id, st->rcv_cmd.flags & DNET_FLAGS_TRACE_BIT, (ssize_t)-1);
 again:
 	/*
 	 * Reading command first.
@@ -401,6 +402,9 @@ again:
 			err = -ECONNRESET;
 			goto out;
 		}
+
+		dnet_node_unset_trace_id();
+		dnet_node_set_trace_id(n->log, st->rcv_cmd.trace_id, st->rcv_cmd.flags & DNET_FLAGS_TRACE_BIT, (ssize_t)-1);
 
 		st->rcv_offset += err;
 	}
@@ -457,12 +461,14 @@ again:
 	r->st = dnet_state_get(st);
 
 	dnet_schedule_io(n, r);
+	dnet_node_unset_trace_id();
 	return 0;
 
 out:
 	if (err != -EAGAIN && err != -EINTR)
 		dnet_schedule_command(st);
 
+	dnet_node_unset_trace_id();
 	return err;
 }
 
