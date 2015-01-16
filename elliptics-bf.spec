@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.34
+Version:	2.26.3.35
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Jan 17 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.35
+- logger: let file logger to watch to its sink file and allow file to be moved/rotated
+- Indent cleanup
+
 * Tue Dec 23 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.34
 - recovery: fixed recovering keys which have several alive copies at one backend
 - tests: updated description of test_session_iterator cases

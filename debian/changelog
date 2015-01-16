@@ -1,3 +1,10 @@
+elliptics (2.26.3.35) unstable; urgency=low
+
+  * logger: let file logger to watch to its sink file and allow file to be moved/rotated
+  * Indent cleanup
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 17 Jan 2015 00:31:41 +0400
+
 elliptics (2.26.3.34) unstable; urgency=low
 
   * recovery: fixed recovering keys which have several alive copies at one backend
