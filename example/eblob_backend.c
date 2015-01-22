@@ -106,6 +106,7 @@ struct eblob_backend_config {
 static int blob_iterate_callback_common(struct eblob_disk_control *dc, void *data, void *priv, int no_meta) {
 	struct dnet_iterator_ctl *ictl = priv;
 	struct dnet_ext_list elist;
+	struct eblob_backend_config *c = ictl->iterate_private;
 	uint64_t size;
 	int err;
 
@@ -120,11 +121,24 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, void *dat
 		if (dc->flags & BLOB_DISK_CTL_EXTHDR) {
 			err = dnet_ext_list_extract((void *)&data, &size, &elist,
 					DNET_EXT_DONT_FREE_ON_DESTROY);
-			if (err != 0)
-				goto err;
+			if (err != 0) {
+				/* If extended header couldn't be extracted reset elist,
+				 * call callback for key with empty elist
+				 * and continue iteration because the rest records can be ok.
+				 * We need to reset the error to make iteration continue.
+				 */
+				char buffer[2*DNET_ID_SIZE + 1] = {0};
+				dnet_backend_log(c->blog, DNET_LOG_ERROR,
+					"blob: iter: %s: dnet_ext_list_extract failed: %d. Use empty extended header for this key\n",
+					dnet_dump_id_len_raw((const unsigned char*)&dc->key, DNET_ID_SIZE, buffer),
+					err);
+
+				err = 0;
+				dnet_ext_list_destroy(&elist);
+				dnet_ext_list_init(&elist);
+			}
 		}
 	} else {
-		dnet_empty_time(&elist.timestamp);
 		if (dc->flags & BLOB_DISK_CTL_EXTHDR) {
 			size -= sizeof(struct dnet_ext_list_hdr);
 		}

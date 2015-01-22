@@ -64,7 +64,7 @@ def check_iterator_results(node, backend, iterator, session, node_id, no_meta=Fa
 
         if no_meta:
             assert result.response.user_flags == 0
-            assert result.response.timestamp == elliptics.Time(2 ** 64 - 1, 2 ** 64 - 1)
+            assert result.response.timestamp == elliptics.Time(0, 0)
 
         # Test flow control on after result
         if counter == 0:
