@@ -1162,6 +1162,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	c->size = sizeof(struct dnet_io_attr) + io->size;
 	c->trans = cmd->trans;
+	c->trace_id = cmd->trace_id;
 	c->cmd = DNET_CMD_READ;
 	c->backend_id = cmd->backend_id;
 
