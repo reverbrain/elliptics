@@ -70,6 +70,15 @@ typedef boost::intrusive::list_base_hook<boost::intrusive::tag<data_lru_tag_t>,
 boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::optimize_size<true>
 > lru_list_base_hook_t;
 
+class data_t;
+
+template<>
+struct treap_node_traits<data_t>
+{
+    typedef const uint8_t* key_type;
+    typedef size_t priority_type;
+};
+
 class data_t : public lru_list_base_hook_t, public treap_node_t<data_t> {
 public:
 	enum class sync_state_t : char {
@@ -248,6 +257,34 @@ public:
 	friend bool operator== (const data_t &a, const data_t &b) {
 		return dnet_id_cmp_str(a.id().id, b.id().id) == 0;
 	}
+
+    // treap_node_t
+    typedef typename treap_node_traits<data_t>::key_type key_type;
+    typedef typename treap_node_traits<data_t>::priority_type priority_type;
+
+    key_type get_key() const {
+        return m_id.id;
+    }
+
+    priority_type get_priority() const {
+        return eventtime();
+    }
+
+    inline static int compare_keys(const key_type &a, const key_type &b) {
+        return dnet_id_cmp_str(a, b);
+    }
+
+    inline static int compare_priorities(const priority_type &a, const priority_type &b) {
+        if (a < b) {
+			return 1;
+		}
+
+		if (a > b) {
+			return -1;
+		}
+
+		return 0;
+    }
 
 private:
 	size_t m_lifetime;

@@ -16,16 +16,28 @@
 #ifndef TREAP_HPP
 #define TREAP_HPP
 
-#include "cache.hpp"
 #include <stdexcept>
-#include <unordered_set>
 
 namespace ioremap { namespace cache {
 
 template<typename T>
+class treap_node_traits {};
+
+template<typename T>
 class treap_node_t {
 public:
+    // type traits
+    typedef typename treap_node_traits<T>::key_type key_type;
+    typedef typename treap_node_traits<T>::priority_type priority_type;
+
 	treap_node_t(): l(NULL), r(NULL) {}
+
+    // node policy
+    key_type get_key() const;
+    priority_type get_priority() const;
+    static int compare_keys(const key_type &a, const key_type &b);
+    static int compare_priorities(const priority_type &a, const priority_type &b);
+
 	T *l;
 	T *r;
 };
@@ -37,8 +49,8 @@ class treap {
 
 public:
 	typedef node_type* p_node_type;
-	typedef const unsigned char * key_type;
-	typedef size_t priority_type;
+	typedef typename node_type::priority_type priority_type;
+    typedef typename node_type::key_type key_type;
 
 	treap(): root(NULL) {
 	}
@@ -95,34 +107,26 @@ public:
 
 private:
 
-	key_type get_key(p_node_type node) const {
+    key_type get_key(p_node_type node) const {
 		if (!node) {
 			throw std::logic_error("getKey: node is NULL");
 		}
-		return node->id().id;
+		return node->get_key();
 	}
 
 	priority_type get_priority(p_node_type node) const {
 		if (!node) {
 			throw std::logic_error("getPriority: node is NULL");
 		}
-		return node->eventtime();
+		return node->get_priority();
 	}
 
 	inline int key_compare(const key_type& lhs, const key_type& rhs) const {
-		return dnet_id_cmp_str(lhs, rhs);
+        return node_type::compare_keys(lhs, rhs);
 	}
 
 	inline int priority_compare(const priority_type& lhs, const priority_type& rhs) const {
-		if (lhs < rhs) {
-			return 1;
-		}
-
-		if (lhs > rhs) {
-			return -1;
-		}
-
-		return 0;
+	    return node_type::compare_priorities(lhs, rhs);
 	}
 
 	void cleanup(p_node_type t) {
