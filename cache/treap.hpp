@@ -26,23 +26,21 @@ class treap_node_traits {};
 template<typename T>
 class treap_node_t {
 public:
-    // type traits
-    typedef typename treap_node_traits<T>::key_type key_type;
-    typedef typename treap_node_traits<T>::priority_type priority_type;
+	// type traits
+	typedef typename treap_node_traits<T>::key_type key_type;
+	typedef typename treap_node_traits<T>::priority_type priority_type;
 
 	treap_node_t(): l(NULL), r(NULL) {}
 
-    // node policy
-    key_type get_key() const;
-    priority_type get_priority() const;
-    static int compare_keys(const key_type &a, const key_type &b);
-    static int compare_priorities(const priority_type &a, const priority_type &b);
+	// node policy
+	key_type get_key() const;
+	priority_type get_priority() const;
+	static int key_compare(const key_type &lhs, const key_type &rhs);
+	static int priority_compare(const priority_type &lhs, const priority_type &rhs);
 
 	T *l;
 	T *r;
 };
-
-struct data_t;
 
 template<typename node_type>
 class treap {
@@ -50,7 +48,7 @@ class treap {
 public:
 	typedef node_type* p_node_type;
 	typedef typename node_type::priority_type priority_type;
-    typedef typename node_type::key_type key_type;
+	typedef typename node_type::key_type key_type;
 
 	treap(): root(NULL) {
 	}
@@ -107,7 +105,7 @@ public:
 
 private:
 
-    key_type get_key(p_node_type node) const {
+	key_type get_key(p_node_type node) const {
 		if (!node) {
 			throw std::logic_error("getKey: node is NULL");
 		}
@@ -122,11 +120,11 @@ private:
 	}
 
 	inline int key_compare(const key_type& lhs, const key_type& rhs) const {
-        return node_type::compare_keys(lhs, rhs);
+		return node_type::key_compare(lhs, rhs);
 	}
 
 	inline int priority_compare(const priority_type& lhs, const priority_type& rhs) const {
-	    return node_type::compare_priorities(lhs, rhs);
+		return node_type::priority_compare(lhs, rhs);
 	}
 
 	void cleanup(p_node_type t) {

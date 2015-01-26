@@ -75,8 +75,8 @@ class data_t;
 template<>
 struct treap_node_traits<data_t>
 {
-    typedef const uint8_t* key_type;
-    typedef size_t priority_type;
+	typedef const uint8_t* key_type;
+	typedef size_t priority_type;
 };
 
 class data_t : public lru_list_base_hook_t, public treap_node_t<data_t> {
@@ -258,33 +258,33 @@ public:
 		return dnet_id_cmp_str(a.id().id, b.id().id) == 0;
 	}
 
-    // treap_node_t
-    typedef typename treap_node_traits<data_t>::key_type key_type;
-    typedef typename treap_node_traits<data_t>::priority_type priority_type;
+	// treap_node_t
+	typedef treap_node_traits<data_t>::key_type key_type;
+	typedef treap_node_traits<data_t>::priority_type priority_type;
 
-    key_type get_key() const {
-        return m_id.id;
-    }
+	key_type get_key() const {
+		return m_id.id;
+	}
 
-    priority_type get_priority() const {
-        return eventtime();
-    }
+	priority_type get_priority() const {
+		return eventtime();
+	}
 
-    inline static int compare_keys(const key_type &a, const key_type &b) {
-        return dnet_id_cmp_str(a, b);
-    }
+	inline static int key_compare(const key_type &lhs, const key_type &rhs) {
+		return dnet_id_cmp_str(lhs, rhs);
+	}
 
-    inline static int compare_priorities(const priority_type &a, const priority_type &b) {
-        if (a < b) {
+	inline static int priority_compare(const priority_type &lhs, const priority_type &rhs) {
+		if (lhs < rhs) {
 			return 1;
 		}
 
-		if (a > b) {
+		if (lhs > rhs) {
 			return -1;
 		}
 
 		return 0;
-    }
+	}
 
 private:
 	size_t m_lifetime;
