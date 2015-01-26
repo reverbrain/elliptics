@@ -27,6 +27,7 @@
 #include "io_stat_provider.hpp"
 #include "backends_stat_provider.hpp"
 #include "procfs_provider.hpp"
+#include "top_provider.hpp"
 
 static ioremap::monitor::monitor* get_monitor(struct dnet_node *n) {
 	return n->monitor ? static_cast<ioremap::monitor::monitor*>(n->monitor) : NULL;
@@ -109,7 +110,15 @@ static void init_procfs_provider(struct dnet_node *n, struct dnet_config *cfg) {
 	try {
 		add_provider(n, new procfs_provider(n), "procfs");
 	} catch (std::exception &e) {
-		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize backends_stat_provider: %s.", e.what());
+		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize procfs_stat_provider: %s.", e.what());
+	}
+}
+
+static void init_top_provider(struct dnet_node *n, struct dnet_config *cfg) {
+	try {
+		add_provider(n, new top_provider(n, 10000, 300), "top");
+	} catch (const std::exception &e) {
+		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize top_stat_provider: %s.", e.what());
 	}
 }
 
@@ -132,6 +141,7 @@ int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
 	ioremap::monitor::init_io_stat_provider(n, cfg);
 	ioremap::monitor::init_backends_stat_provider(n, cfg);
 	ioremap::monitor::init_procfs_provider(n, cfg);
+	ioremap::monitor::init_top_provider(n, cfg);
 
 	return 0;
 }

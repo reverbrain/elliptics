@@ -1015,6 +1015,7 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 	}
 
 	dnet_backend_command_stats_update(n, backend, cmd, iosize, *handled_in_cache, err, diff);
+	dnet_node_stats_update(n, cmd, iosize);
 	return err;
 }
 

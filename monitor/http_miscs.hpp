@@ -52,6 +52,7 @@ const std::string list = "<html>\n"
 	"GET <a href='/backend'>/backend</a> - Retrieves statistics about backend<br/>\n"
 	"GET <a href='/stats'>/stats</a> - Retrieves in-process runtime statistics<br/>\n"
 	"GET <a href='/procfs'>/procfs</a> - Retrieves system statistics about process<br/>\n"
+	"GET <a href='/top'>/top</a> - Retrieves top keys arranged by traffic size and access frequency<br/>\n"
 	"</body>\n"
 	"</html>\n";
 }
@@ -65,7 +66,8 @@ const std::map<std::string, uint64_t> handlers = {
 	{"/commands", DNET_MONITOR_COMMANDS},
 	{"/backend", DNET_MONITOR_BACKEND},
 	{"/stats", DNET_MONITOR_STATS},
-	{"/procfs", DNET_MONITOR_PROCFS}
+	{"/procfs", DNET_MONITOR_PROCFS},
+	{"/top", DNET_MONITOR_TOP}
 };
 
 /*!

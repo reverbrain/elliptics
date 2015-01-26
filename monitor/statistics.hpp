@@ -28,6 +28,10 @@
 #include <mutex>
 #include <sstream>
 #include <thread>
+#include <map>
+
+#include <boost/thread/locks.hpp>
+#include <boost/thread/shared_mutex.hpp>
 
 #include "rapidjson/document.h"
 
@@ -208,6 +212,7 @@ private:
  *     generating final statistics report in json format
  */
 class statistics {
+	typedef boost::shared_mutex rw_lock;
 public:
 	/*!
 	 * \internal
@@ -247,6 +252,7 @@ public:
 	 */
 	void add_provider(stat_provider *stat, const std::string &name);
 	void remove_provider(const std::string &name);
+	std::shared_ptr<stat_provider> get_provider(const std::string &name);
 private:
 	/*!
 	 * \internal
@@ -288,9 +294,9 @@ private:
 	 *
 	 * Lock for controlling access to vector of external statistics provider
 	 */
-	std::mutex m_provider_mutex;
+	rw_lock m_provider_lock;
 
-	std::vector<std::pair<std::unique_ptr<stat_provider>, std::string>>	m_stat_providers;
+	std::map<std::string, std::shared_ptr<stat_provider>> m_stat_providers;
 };
 
 }} /* namespace ioremap::monitor */
