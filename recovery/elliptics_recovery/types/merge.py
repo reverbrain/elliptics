@@ -82,6 +82,7 @@ class Recovery(object):
             log.debug("Key: {0} already on the right node: {1}/{2}"
                       .format(repr(self.key), self.address, self.backend_id))
             self.stats.skipped += 1
+            self.stop(True)
             return
         else:
             log.debug("Key: {0} should be on node: {1}/{2}"
@@ -101,6 +102,8 @@ class Recovery(object):
                          self.onlookup).run()
         elif self.ctx.dry_run:
             log.debug("Dry-run mode is turned on. Skipping reading, writing and removing stages.")
+            self.stop(True)
+            return
         else:
             self.attempt = 0
             self.read()
