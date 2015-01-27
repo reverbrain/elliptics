@@ -293,6 +293,11 @@ void parse_options(config_data *data, const config &options)
 	if (options.has("monitor")) {
 		const config monitor = options.at("monitor");
 		data->cfg_state.monitor_port = monitor.at("port", 0);
+
+		if (monitor.has("top")) {
+			const config top = monitor.at("top");
+			data->monitor_config = ioremap::monitor::monitor_config::parse(top);
+		}
 	}
 
 	if (options.has("handystats_config")) {

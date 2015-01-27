@@ -28,36 +28,22 @@
 
 namespace ioremap { namespace monitor {
 
-top_provider::top_provider(struct dnet_node *node, size_t events_limit, int period_in_seconds)
+top_provider::top_provider(struct dnet_node *node, size_t top_k, size_t events_limit, int period_in_seconds)
 : m_node(node),
- m_stats(events_limit, period_in_seconds)
+ m_stats(events_limit, period_in_seconds),
+ m_top_k(top_k)
 {}
 
-static void fill_stat__(dnet_node *node,
-                      rapidjson::Value &stat_value,
+static void fill_top_stat(const key_stat_event &key_event,
+                      rapidjson::Value &stat_array,
                       rapidjson::Document::AllocatorType &allocator) {
-	/*rapidjson::Value stat_stat(rapidjson::kObjectType);
-	int err = 0;
-	proc_stat st;
+	rapidjson::Value key_stat(rapidjson::kObjectType);
 
-	err = fill_proc_stat(node->log, st);
-	stat_stat.AddMember("error", err, allocator);
+	key_stat.AddMember("group", key_event.id.group_id, allocator);
+	key_stat.AddMember("id", key_event.id.id, allocator);
+	key_stat.AddMember("size", key_event.size, allocator);
 
-	if (!err) {
-		stat_stat.AddMember("string_error", "", allocator);
-		stat_stat.AddMember("threads_num", st.threads_num, allocator);
-		stat_stat.AddMember("rss", st.rss, allocator);
-		stat_stat.AddMember("vsize", st.vsize, allocator);
-		stat_stat.AddMember("rsslim", st.rsslim, allocator);
-		stat_stat.AddMember("msize", st.msize, allocator);
-		stat_stat.AddMember("mresident", st.mresident, allocator);
-		stat_stat.AddMember("mshare", st.mshare, allocator);
-		stat_stat.AddMember("mcode", st.mcode, allocator);
-		stat_stat.AddMember("mdata", st.mdata, allocator);
-	} else
-		stat_stat.AddMember("string_error", strerror(-err), allocator);
-
-	stat_value.AddMember("stat", stat_stat, allocator);*/
+	stat_array.PushBack(key_stat, allocator);
 }
 
 std::string top_provider::json(uint64_t categories) const {
@@ -68,7 +54,18 @@ std::string top_provider::json(uint64_t categories) const {
 	doc.SetObject();
 	auto &allocator = doc.GetAllocator();
 
-	fill_stat__(m_node, doc, allocator);
+	typedef std::vector<key_stat_event> EventContainer;
+	EventContainer top_size_keys;
+	m_stats.get_top(m_top_k, time(nullptr), top_size_keys);
+
+	rapidjson::Value stat_array(rapidjson::kArrayType);
+	stat_array.Reserve(top_size_keys.size(), allocator);
+
+	for (const auto& key_stat : top_size_keys) {
+		fill_top_stat(key_stat, stat_array, allocator);
+	}
+
+	doc.AddMember("top_by_size", stat_array, allocator);
 
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -78,8 +75,11 @@ std::string top_provider::json(uint64_t categories) const {
 
 void top_provider::update_stats(struct dnet_cmd *cmd, uint64_t size)
 {
-	key_stat_event event{cmd->id, size, time(nullptr)};
-	m_stats.add_event(event, event.get_time());
+	if (size > 0 && (cmd->cmd == DNET_CMD_LOOKUP || cmd->cmd == DNET_CMD_READ
+					 || cmd->cmd == DNET_CMD_READ_RANGE || cmd->cmd == DNET_CMD_BULK_READ)) {
+		key_stat_event event{cmd->id, size, time(nullptr)};
+		m_stats.add_event(event, event.get_time());
+	}
 }
 
 }} /* namespace ioremap::monitor */

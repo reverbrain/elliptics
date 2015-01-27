@@ -29,6 +29,8 @@
 #include "procfs_provider.hpp"
 #include "top_provider.hpp"
 
+#include "../example/config.hpp"
+
 static ioremap::monitor::monitor* get_monitor(struct dnet_node *n) {
 	return n->monitor ? static_cast<ioremap::monitor::monitor*>(n->monitor) : NULL;
 }
@@ -38,6 +40,15 @@ static ioremap::monitor::monitor* get_monitor(struct dnet_node *n) {
 #endif
 
 namespace ioremap { namespace monitor {
+
+std::unique_ptr<monitor_config> monitor_config::parse(const elliptics::config::config &monitor)
+{
+	monitor_config config;
+	config.top_k = monitor.at<size_t>("top_k", DNET_DEFAULT_MONITOR_TOP_K);
+	config.events_limit = monitor.at<size_t>("events_limit", DNET_DEFAULT_MONITOR_TOP_EVENTS_LIMIT);
+	config.period_in_seconds = monitor.at<int>("period_in_seconds", DNET_DEFAULT_MONITOR_TOP_PERIOD);
+	return blackhole::utils::make_unique<monitor_config>(config);
+}
 
 monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 : m_node(n)
@@ -116,7 +127,13 @@ static void init_procfs_provider(struct dnet_node *n, struct dnet_config *cfg) {
 
 static void init_top_provider(struct dnet_node *n, struct dnet_config *cfg) {
 	try {
-		add_provider(n, new top_provider(n, 10000, 300), "top");
+		using namespace ioremap::elliptics::config;
+		const auto &data = *static_cast<const config_data *>(n->config_data);
+		const auto &monitor = data.monitor_config;
+		if (!monitor)
+			return;
+
+		add_provider(n, new top_provider(n, monitor->top_k, monitor->events_limit, monitor->period_in_seconds), "top");
 	} catch (const std::exception &e) {
 		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize top_stat_provider: %s.", e.what());
 	}

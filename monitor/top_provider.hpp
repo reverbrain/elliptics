@@ -31,7 +31,7 @@ struct key_stat_event {
 	time_t			last_access;
 
 	typedef const decltype(id) *key_type;
-	typedef decltype(last_access) time_type;
+	typedef size_t time_type;
 
 	key_type get_key() const { return &id; }
 
@@ -43,6 +43,10 @@ struct key_stat_event {
 
 	inline static int key_compare(const key_type &lhs, const key_type &rhs) {
 		return dnet_id_cmp(lhs, rhs);
+	}
+
+	inline static bool weight_compare(const key_stat_event &lhs, const key_stat_event &rhs) {
+		return lhs.get_weight() < rhs.get_weight();
 	}
 
 	inline static int time_compare(const time_type &lhs, const time_type &rhs) {
@@ -63,7 +67,7 @@ struct key_stat_event {
  */
 class top_provider : public stat_provider {
 public:
-	top_provider(struct dnet_node *node, size_t events_limit, int period_in_seconds);
+	top_provider(struct dnet_node *node, size_t top_k, size_t events_limit, int period_in_seconds);
 
 	virtual std::string json(uint64_t categories) const;
 
@@ -71,7 +75,8 @@ public:
 
 private:
 	struct dnet_node *m_node;
-	event_stats<key_stat_event, mutex_lock_policy> m_stats;
+	mutable event_stats<key_stat_event, mutex_lock_policy> m_stats;
+	size_t m_top_k;
 };
 
 }} /* namespace ioremap::monitor */
