@@ -176,7 +176,8 @@ public:
 			typename lock_policy::unique_lock lock(this);
 			treap_to_container(treap.top(), top_nodes);
 
-			for (auto n : top_nodes) {
+			for (auto it = top_nodes.begin(); it != top_nodes.end(); ++it) {
+				auto n = *it;
 				n->check_expiration(time, period);
 				if ( n->get_weight() == 0 ) {
 					treap.erase( n );

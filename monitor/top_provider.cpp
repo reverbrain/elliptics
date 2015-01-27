@@ -61,7 +61,8 @@ std::string top_provider::json(uint64_t categories) const {
 	rapidjson::Value stat_array(rapidjson::kArrayType);
 	stat_array.Reserve(top_size_keys.size(), allocator);
 
-	for (const auto& key_stat : top_size_keys) {
+	for (auto it = top_size_keys.cbegin(); it != top_size_keys.cend(); ++it) {
+		const auto &key_stat = *it;
 		fill_top_stat(key_stat, stat_array, allocator);
 	}
 
