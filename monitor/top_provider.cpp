@@ -40,7 +40,9 @@ static void fill_top_stat(const key_stat_event &key_event,
 	rapidjson::Value key_stat(rapidjson::kObjectType);
 
 	key_stat.AddMember("group", key_event.id.group_id, allocator);
-	key_stat.AddMember("id", key_event.id.id, allocator);
+	rapidjson::Value id;
+	id.SetString(dnet_dump_id_str(key_event.id.id), allocator);
+	key_stat.AddMember("id", id, allocator);
 	key_stat.AddMember("size", key_event.size, allocator);
 
 	stat_array.PushBack(key_stat, allocator);
