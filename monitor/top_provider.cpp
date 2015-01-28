@@ -50,6 +50,7 @@ static void fill_top_stat(const key_stat_event &key_event,
 	id.SetString(dnet_dump_id_str_full(key_event.id.id), allocator);
 	key_stat.AddMember("id", id, allocator);
 	key_stat.AddMember("size", key_event.size, allocator);
+	key_stat.AddMember("frequency", static_cast<uint64_t>(key_event.frequency), allocator);
 
 	stat_array.PushBack(key_stat, allocator);
 }
@@ -86,7 +87,7 @@ void top_provider::update_stats(struct dnet_cmd *cmd, uint64_t size)
 {
 	if (size > 0 && (cmd->cmd == DNET_CMD_LOOKUP || cmd->cmd == DNET_CMD_READ
 					 || cmd->cmd == DNET_CMD_READ_RANGE || cmd->cmd == DNET_CMD_BULK_READ)) {
-		key_stat_event event{cmd->id, size, time(nullptr)};
+		key_stat_event event{cmd->id, size, 1., time(nullptr)};
 		m_stats.add_event(event, event.get_time());
 	}
 }

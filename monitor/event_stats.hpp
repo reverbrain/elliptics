@@ -89,6 +89,11 @@ public:
 		m_event.set_weight(delta * m_event.get_weight() + size);
 	}
 
+	void update_frequency(time_t time, size_t window_size, double freq) {
+		double delta = compute_delta(time, m_event.get_time(), window_size);
+		m_event.set_frequency(delta * m_event.get_frequency() + freq);
+	}
+
 	void check_expiration(time_t time, size_t window_size) {
 		if (time - m_event.get_time() > window_size)
 			m_event.set_weight(0);
@@ -152,6 +157,7 @@ public:
 		typename treap_t::p_node_type it = treap.find( reinterpret_cast<typename treap_t::key_type>(event.get_key()) );
 		if (it) {
 			it->update_weight(time, period, event.size);
+			it->update_frequency(time, period, 1.);
 			it->update_time(time);
 			treap.decrease_key(it);
 		} else {

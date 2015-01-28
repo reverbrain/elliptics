@@ -28,6 +28,7 @@ namespace ioremap { namespace monitor {
 struct key_stat_event {
 	struct dnet_id	id;
 	uint64_t		size;
+	double			frequency;
 	time_t			last_access;
 
 	typedef const decltype(id) *key_type;
@@ -35,11 +36,14 @@ struct key_stat_event {
 
 	key_type get_key() const { return &id; }
 
-	time_type get_time() const {return last_access; }
-	void set_time(time_type time) { last_access = time; }
-
 	uint64_t get_weight() const { return size; }
 	void set_weight(uint64_t weight) { size = weight; }
+
+	double get_frequency() const { return frequency; }
+	void set_frequency(double freq) { frequency = freq; }
+
+	time_type get_time() const {return last_access; }
+	void set_time(time_type time) { last_access = time; }
 
 	inline static int key_compare(const key_type &lhs, const key_type &rhs) {
 		return dnet_id_cmp(lhs, rhs);
