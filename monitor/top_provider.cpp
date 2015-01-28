@@ -34,6 +34,12 @@ top_provider::top_provider(struct dnet_node *node, size_t top_k, size_t events_l
  m_top_k(top_k)
 {}
 
+static inline char *dnet_dump_id_str_full(const unsigned char *id)
+{
+	static __thread char __dnet_dump_id_str_full[2 * DNET_ID_SIZE + 1];
+	return dnet_dump_id_len_raw(id, DNET_ID_SIZE, __dnet_dump_id_str_full);
+}
+
 static void fill_top_stat(const key_stat_event &key_event,
                       rapidjson::Value &stat_array,
                       rapidjson::Document::AllocatorType &allocator) {
@@ -41,7 +47,7 @@ static void fill_top_stat(const key_stat_event &key_event,
 
 	key_stat.AddMember("group", key_event.id.group_id, allocator);
 	rapidjson::Value id;
-	id.SetString(dnet_dump_id_str(key_event.id.id), allocator);
+	id.SetString(dnet_dump_id_str_full(key_event.id.id), allocator);
 	key_stat.AddMember("id", id, allocator);
 	key_stat.AddMember("size", key_event.size, allocator);
 
