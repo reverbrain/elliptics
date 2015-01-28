@@ -1,3 +1,12 @@
+elliptics (2.26.3.36) unstable; urgency=low
+
+  * package: depend on 0.22.15+ eblob
+  * logs: fixed printing trace_id at logs while receiving/sending packets
+  * iterator: made iterators with `no-meta` flag to return zero timestamp.
+  * 	Now if iterator faces a record with corrupted exteded header it will return a key with empty extended header.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 28 Jan 2015 16:07:29 +0400
+
 elliptics (2.26.3.35) unstable; urgency=low
 
   * logger: let file logger to watch to its sink file and allow file to be moved/rotated
