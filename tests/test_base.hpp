@@ -130,6 +130,16 @@ class server_config;
 
 class config_data
 {
+protected:
+	typedef boost::variant<std::vector<std::string>, std::string, bool, int64_t, config_data> variant;
+
+	config_data &operator() (const std::string &name, const variant &value);
+	const variant *value_impl(const std::string &name) const;
+
+	typedef std::vector<std::pair<std::string, variant> > container_t;
+	container_t m_data;
+	friend class server_config;
+
 public:
 	config_data &operator() (const std::string &name, const std::vector<std::string> &value);
 	config_data &operator() (const std::string &name, const std::string &value);
@@ -137,18 +147,14 @@ public:
 	config_data &operator() (const std::string &name, int64_t value);
 	config_data &operator() (const std::string &name, int value);
 	config_data &operator() (const std::string &name, bool value);
+	config_data &operator() (const std::string &name, const config_data &value);
 
 	bool has_value(const std::string &name) const;
 	std::string string_value(const std::string &name) const;
 
-protected:
-	typedef boost::variant<std::vector<std::string>, std::string, bool, int64_t> variant;
-
-	config_data &operator() (const std::string &name, const variant &value);
-	const variant *value_impl(const std::string &name) const;
-
-	std::vector<std::pair<std::string, variant> >  m_data;
-	friend class server_config;
+	typedef container_t::const_iterator const_iterator;
+	const_iterator cbegin() const;
+	const_iterator cend() const;
 };
 
 class server_config
