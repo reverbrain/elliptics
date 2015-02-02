@@ -23,7 +23,8 @@
 #include "cache/treap.hpp"
 
 #include <algorithm>
-#include <functional> // not1
+#include <functional> // not2
+#include <stack>
 
 //#define TOP_SLICES
 #define TOP_LRU
@@ -154,7 +155,7 @@ public:
 	void add_event(const E &event, time_t time)
 	{
 		typename lock_policy::unique_lock lock(this);
-		typename treap_t::p_node_type it = treap.find( reinterpret_cast<typename treap_t::key_type>(event.get_key()) );
+		auto it = treap.find( reinterpret_cast<typename treap_t::key_type>(event.get_key()) );
 		if (it) {
 			it->update_weight(time, period, event.size);
 			it->update_frequency(time, period, 1.);
@@ -165,10 +166,10 @@ public:
 				treap.insert(new key_stat_t<E>(event));
 				++num_events;
 			} else {
-				typename treap_t::p_node_type t = treap.top();
+				auto t = treap.top();
 				treap.erase(t);
-				delete t;
-				treap.insert(new key_stat_t<E>(event));
+				*t = event;
+				treap.insert(t);
 			}
 		}
 	}
@@ -185,8 +186,8 @@ public:
 			for (auto it = top_nodes.begin(); it != top_nodes.end(); ++it) {
 				auto n = *it;
 				n->check_expiration(time, period);
-				if ( n->get_weight() == 0 ) {
-					treap.erase( n );
+				if (n->get_weight() == 0) {
+					treap.erase(n);
 					delete n;
 					--num_events;
 				} else {
@@ -203,17 +204,25 @@ public:
 
 private:
 	template<typename Container>
-	void treap_to_container(const typename treap_t::p_node_type node, Container &container) const {
-		if (node) {
-			container.push_back(node);
-			treap_to_container(node->l, container);
-			treap_to_container(node->r, container);
+	void treap_to_container(typename treap_t::p_node_type node, Container &result) const {
+		std::stack<typename treap_t::p_node_type> path;
+
+		while(node || !path.empty()) { // inorder bst traversal
+			if (node) {
+				path.push(node);
+				node = node->l;
+			} else {
+				node = path.top();
+				path.pop();
+				result.push_back(node);
+				node = node->r;
+			}
 		}
 	}
 
 	void clear() {
 		while (!treap.empty()) {
-			key_stat_t<E> *t = treap.top();
+			auto t = treap.top();
 			treap.erase(t);
 			delete t;
 		}
