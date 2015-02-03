@@ -867,6 +867,14 @@ nodes_data::ptr start_nodes(start_nodes_config &start_config) {
 				("monitor_port", boost::lexical_cast<int>(monitor_ports[i]))
 				;
 
+		if (start_config.monitor) {
+			config_data top_params = config_data()
+				("top_k", start_config.top_k)
+				("events_limit", start_config.top_events_limit)
+				("period_in_seconds", start_config.top_period);
+			config.options("monitor_top", top_params);
+		}
+
 		for (size_t i = 0; i < config.backends.size(); ++i) {
 			std::string prefix = server_path + "/" + boost::lexical_cast<std::string>(i);
 			config.backends[i]

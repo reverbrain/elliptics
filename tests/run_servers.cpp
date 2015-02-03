@@ -164,15 +164,33 @@ static void setup_signals()
 	sigprocmask(SIG_UNBLOCK, &sa.sa_mask, NULL);
 }
 
-static bool read_option(const rapidjson::Value &doc, const std::string &value, bool default_value)
+template<typename T>
+void read_option(const rapidjson::Value &doc, const std::string &value, T default_value, T& result);
+
+template<>
+void read_option(const rapidjson::Value &doc, const std::string &value, bool default_value, bool& result)
 {
 	if (doc.HasMember(value.c_str())) {
 		if (!doc[value.c_str()].IsBool()) {
 			throw std::runtime_error("Field \"" + value + "\" must be boolean");
 		}
-		return doc[value.c_str()].GetBool();
+		result = doc[value.c_str()].GetBool();
+		return;
 	}
-	return default_value;
+	result = default_value;
+}
+
+template<>
+void read_option(const rapidjson::Value &doc, const std::string &value, int64_t default_value, int64_t& result)
+{
+	if (doc.HasMember(value.c_str())) {
+		if (!doc[value.c_str()].IsInt64()) {
+			throw std::runtime_error("Field \"" + value + "\" must be int64_t");
+		}
+		result = doc[value.c_str()].GetInt64();
+		return;
+	}
+	result = default_value;
 }
 
 static int fill_config(tests::config_data &config, std::vector<tests::config_data> &backends, std::string &prefix, const rapidjson::Value &options, bool is_server)
@@ -230,10 +248,16 @@ static int fill_config(tests::config_data &config, std::vector<tests::config_dat
  */
 static int run_servers(const rapidjson::Value &doc)
 {
-	bool srw = read_option(doc, "srw", false);
-	bool fork = read_option(doc, "fork", false);
-	bool monitor = read_option(doc, "monitor", true);
-	bool isolated = read_option(doc, "isolated", false);
+	bool srw, fork, monitor, isolated;
+	read_option(doc, "srw", false, srw);
+	read_option(doc, "fork", false, fork);
+	read_option(doc, "monitor", true, monitor);
+	read_option(doc, "isolated", false, isolated);
+
+	int64_t top_k, top_events_limit, top_period;
+	read_option<int64_t>(doc, "top_k", 50, top_k);
+	read_option<int64_t>(doc, "top_events_limit", 1000, top_events_limit);
+	read_option<int64_t>(doc, "top_period", 300, top_period);
 
 	if (!doc.HasMember("path")) {
 		std::cerr << "Field \"path\" is missed" << std::endl;
@@ -302,6 +326,9 @@ static int run_servers(const rapidjson::Value &doc)
 		start_config.fork = fork;
 		start_config.monitor = monitor;
 		start_config.isolated = isolated;
+		start_config.top_k = top_k;
+		start_config.top_events_limit = top_events_limit;
+		start_config.top_period = top_period;
 
 		global_data = tests::start_nodes(start_config);
 	} catch (std::exception &err) {

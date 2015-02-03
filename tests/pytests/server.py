@@ -42,6 +42,9 @@ class Servers:
         config['monitor'] = True
         config['path'] = self.path
         config['isolated'] = isolated
+        config['top_period'] = 5 * 60
+        config['top_k'] = 50
+        config['top_events_limit'] = 1000
         servers = []
         for node in xrange(nodes_count):
             backends = []
