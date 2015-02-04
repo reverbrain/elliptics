@@ -71,7 +71,7 @@ struct key_stat_event {
  */
 class top_provider : public stat_provider {
 public:
-	top_provider(struct dnet_node *node, size_t top_k, size_t events_limit, int period_in_seconds);
+	top_provider(struct dnet_node *node, size_t top_k, size_t events_size, int period_in_seconds);
 
 	virtual std::string json(uint64_t categories) const;
 

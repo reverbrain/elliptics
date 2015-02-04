@@ -45,7 +45,7 @@ std::unique_ptr<monitor_config> monitor_config::parse(const elliptics::config::c
 {
 	monitor_config config;
 	config.top_k = monitor.at<size_t>("top_k", DNET_DEFAULT_MONITOR_TOP_K);
-	config.events_limit = monitor.at<size_t>("events_limit", DNET_DEFAULT_MONITOR_TOP_EVENTS_LIMIT);
+	config.events_size = monitor.at<size_t>("events_size", DNET_DEFAULT_MONITOR_TOP_EVENTS_SIZE);
 	config.period_in_seconds = monitor.at<int>("period_in_seconds", DNET_DEFAULT_MONITOR_TOP_PERIOD);
 	return blackhole::utils::make_unique<monitor_config>(config);
 }
@@ -133,7 +133,7 @@ static void init_top_provider(struct dnet_node *n, struct dnet_config *cfg) {
 		if (!monitor)
 			return;
 
-		add_provider(n, new top_provider(n, monitor->top_k, monitor->events_limit, monitor->period_in_seconds), "top");
+		add_provider(n, new top_provider(n, monitor->top_k, monitor->events_size, monitor->period_in_seconds), "top");
 	} catch (const std::exception &e) {
 		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize top_stat_provider: %s.", e.what());
 	}

@@ -127,7 +127,7 @@ public:
 	}
 
 private:
-	inline double compute_delta(time_t current_time, time_t last_time, size_t window_size) const {
+	inline static double compute_delta(time_t current_time, time_t last_time, size_t window_size) {
 		double delta = 1. - (current_time - last_time) / (double)window_size;
 		if (delta < 0.) delta = 0.;
 		return delta;
@@ -142,9 +142,9 @@ class event_stats : private lock_policy
 {
 	typedef ioremap::cache::treap< key_stat_t<E> > treap_t;
 public:
-	event_stats(size_t events_limit, int period_in_seconds)
+	event_stats(size_t events_size, int period_in_seconds)
 	: num_events(0),
-	 max_events(events_limit),
+	 max_events(bytes_to_num_events(events_size)),
 	 period(period_in_seconds)
 	{}
 
@@ -226,6 +226,10 @@ private:
 			treap.erase(t);
 			delete t;
 		}
+	}
+
+	inline static size_t bytes_to_num_events(size_t bytes) {
+		return bytes / sizeof(key_stat_t<E>);
 	}
 
 private:

@@ -14,12 +14,8 @@
  */
 
 #include "test_base.hpp"
-#include "../cache/cache.hpp"
 #include "../monitor/event_stats.hpp"
 #include "../monitor/monitor.hpp"
-
-#include <list>
-#include <stdexcept>
 
 #define BOOST_TEST_NO_MAIN
 #include <boost/test/included/unit_test.hpp>
@@ -31,10 +27,6 @@ using namespace boost::unit_test;
 
 namespace tests {
 
-#define TOP_K 50
-#define EVENTS_LIMIT 1000
-#define PERIOD_IN_SECONDS 300
-
 static std::shared_ptr<nodes_data> global_data;
 
 static void destroy_global_data()
@@ -42,40 +34,6 @@ static void destroy_global_data()
 	global_data.reset();
 }
 
-static void configure_nodes(const std::string &path)
-{
-    config_data top_params = config_data()
-		("top_k", TOP_K)
-		("events_limit", EVENTS_LIMIT)
-		("period_in_seconds", PERIOD_IN_SECONDS);
-
-	start_nodes_config start_config(results_reporter::get_stream(), std::vector<server_config>({
-		server_config::default_value().apply_options(config_data()
-			("group", 5)
-			("monitor_top", top_params)
-		)
-	}), path);
-
-	global_data = start_nodes(start_config);
-}
-
-static void test_top_provider_existance(session &sess)
-{
-	(void) sess;
-	typedef ioremap::monitor::monitor* MonitorPtr;
-	typedef std::shared_ptr<ioremap::monitor::stat_provider> StatPtr;
-
-	dnet_node *node = global_data->nodes[0].get_native();
-	MonitorPtr monitor = reinterpret_cast<MonitorPtr>(node->monitor);
-
-	BOOST_CHECK(monitor != nullptr);
-	StatPtr provider = monitor->get_statistics().get_provider("top");
-	BOOST_CHECK(provider != nullptr);
-}
-
-/****************
- Test event_stats
- ****************/
 struct test_event {
 	std::string		id;
 	uint64_t		size;
@@ -120,6 +78,45 @@ struct test_event {
 		return 0;
 	}
 };
+
+#define TOP_K 50
+#define EVENTS_LIMIT 1000
+#define EVENTS_SIZE (static_cast<int64_t>(EVENTS_LIMIT * sizeof(ioremap::monitor::key_stat_t<test_event>)))
+#define PERIOD_IN_SECONDS 300
+
+static void configure_nodes(const std::string &path)
+{
+    config_data top_params = config_data()
+		("top_k", TOP_K)
+		("events_size", EVENTS_SIZE)
+		("period_in_seconds", PERIOD_IN_SECONDS);
+
+	start_nodes_config start_config(results_reporter::get_stream(), std::vector<server_config>({
+		server_config::default_value().apply_options(config_data()
+		    ("group", 5)
+			("monitor_top", top_params)
+		)
+	}), path);
+
+	global_data = start_nodes(start_config);
+}
+
+static void test_top_provider_existance()
+{
+	typedef ioremap::monitor::monitor* MonitorPtr;
+	typedef std::shared_ptr<ioremap::monitor::stat_provider> StatPtr;
+
+	dnet_node *node = global_data->nodes[0].get_native();
+	MonitorPtr monitor = reinterpret_cast<MonitorPtr>(node->monitor);
+
+	BOOST_CHECK(monitor != nullptr);
+	StatPtr provider = monitor->get_statistics().get_provider("top");
+	BOOST_CHECK(provider != nullptr);
+}
+
+/****************
+ Test event_stats
+ ****************/
 typedef ioremap::monitor::event_stats<test_event> stats_t;
 
 static void test_event_stats_boundary_conditions()
@@ -127,7 +124,7 @@ static void test_event_stats_boundary_conditions()
 	const size_t default_size = 100;
 	const time_t default_time = time(nullptr);
 	const time_t expire_time = default_time + PERIOD_IN_SECONDS + 1;
-	stats_t stats(EVENTS_LIMIT, PERIOD_IN_SECONDS);
+	stats_t stats(EVENTS_SIZE, PERIOD_IN_SECONDS);
 	std::vector<test_event> result;
 
 	stats.get_top(TOP_K, default_time, result);
@@ -183,8 +180,8 @@ static void test_event_stats_no_time_dependency()
 {
 	const size_t default_size = 100;
 	const time_t default_time = time(nullptr);
-	stats_t stats(EVENTS_LIMIT, PERIOD_IN_SECONDS);
-	stats_t stats_rand(EVENTS_LIMIT, PERIOD_IN_SECONDS);
+	stats_t stats(EVENTS_SIZE, PERIOD_IN_SECONDS);
+	stats_t stats_rand(EVENTS_SIZE, PERIOD_IN_SECONDS);
 	std::vector<test_event> result;
 
 	for(int i = 0; i < TOP_K; ++i) {
@@ -242,7 +239,7 @@ static void test_event_stats_no_time_dependency()
 
 	do {
 		std::vector<test_event> permut(test_set);
-		stats_t stats(EVENTS_LIMIT, PERIOD_IN_SECONDS);
+		stats_t stats(EVENTS_SIZE, PERIOD_IN_SECONDS);
 		for(auto it = permut.cbegin(); it != permut.cend(); ++it) {
 			stats.add_event(*it, it->get_time());
 		}
@@ -257,9 +254,9 @@ static void test_event_stats_with_time_dependency()
 {
 	const size_t default_size = 100;
 	const time_t default_time = time(nullptr);
-	stats_t stats(EVENTS_LIMIT, PERIOD_IN_SECONDS);
-	stats_t stats2(EVENTS_LIMIT, PERIOD_IN_SECONDS);
-	stats_t stats3(EVENTS_LIMIT, PERIOD_IN_SECONDS);
+	stats_t stats(EVENTS_SIZE, PERIOD_IN_SECONDS);
+	stats_t stats2(EVENTS_SIZE, PERIOD_IN_SECONDS);
+	stats_t stats3(EVENTS_SIZE, PERIOD_IN_SECONDS);
 	std::vector<test_event> result, top_events;
 
 	// old events (outside observable period of time) are omitted
@@ -317,7 +314,8 @@ static void test_event_stats_with_time_dependency()
 
 bool register_tests(test_suite *suite, node n)
 {
-	ELLIPTICS_TEST_CASE(test_top_provider_existance, create_session(n, { 5 }, 0, 0));
+	(void) n;
+	ELLIPTICS_TEST_CASE_NOARGS(test_top_provider_existance);
 	ELLIPTICS_TEST_CASE_NOARGS(test_event_stats_boundary_conditions);
 	ELLIPTICS_TEST_CASE_NOARGS(test_event_stats_no_time_dependency);
 	ELLIPTICS_TEST_CASE_NOARGS(test_event_stats_with_time_dependency);

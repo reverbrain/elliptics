@@ -44,7 +44,7 @@ class Servers:
         config['isolated'] = isolated
         config['top_period'] = 5 * 60
         config['top_k'] = 50
-        config['top_events_limit'] = 1000
+        config['top_events_size'] = 1000 * 100
         servers = []
         for node in xrange(nodes_count):
             backends = []

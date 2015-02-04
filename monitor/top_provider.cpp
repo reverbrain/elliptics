@@ -28,9 +28,9 @@
 
 namespace ioremap { namespace monitor {
 
-top_provider::top_provider(struct dnet_node *node, size_t top_k, size_t events_limit, int period_in_seconds)
+top_provider::top_provider(struct dnet_node *node, size_t top_k, size_t events_size, int period_in_seconds)
 : m_node(node),
- m_stats(events_limit, period_in_seconds),
+ m_stats(events_size, period_in_seconds),
  m_top_k(top_k)
 {}
 

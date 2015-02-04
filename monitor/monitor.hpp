@@ -37,7 +37,7 @@ namespace ioremap { namespace monitor {
 struct monitor_config
 {
 	size_t		top_k;
-	size_t		events_limit;
+	size_t		events_size;
 	int			period_in_seconds;
 
 	static std::unique_ptr<monitor_config> parse(const ioremap::elliptics::config::config &monitor);

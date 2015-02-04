@@ -254,9 +254,9 @@ static int run_servers(const rapidjson::Value &doc)
 	read_option(doc, "monitor", true, monitor);
 	read_option(doc, "isolated", false, isolated);
 
-	int64_t top_k, top_events_limit, top_period;
+	int64_t top_k, top_events_size, top_period;
 	read_option<int64_t>(doc, "top_k", 50, top_k);
-	read_option<int64_t>(doc, "top_events_limit", 1000, top_events_limit);
+	read_option<int64_t>(doc, "top_events_size", 1000 * 100, top_events_size);
 	read_option<int64_t>(doc, "top_period", 300, top_period);
 
 	if (!doc.HasMember("path")) {
@@ -311,6 +311,14 @@ static int run_servers(const rapidjson::Value &doc)
 		if (err)
 			return err;
 
+		if (monitor) {
+			tests::config_data top_params = tests::config_data()
+				("top_k", top_k)
+				("events_size", top_events_size)
+				("period_in_seconds", top_period);
+			config("monitor_top", top_params);
+		}
+
 		configs[i].apply_options(config);
 
 		for (size_t j = 0; j < configs[i].backends.size(); ++j) {
@@ -326,9 +334,6 @@ static int run_servers(const rapidjson::Value &doc)
 		start_config.fork = fork;
 		start_config.monitor = monitor;
 		start_config.isolated = isolated;
-		start_config.top_k = top_k;
-		start_config.top_events_limit = top_events_limit;
-		start_config.top_period = top_period;
 
 		global_data = tests::start_nodes(start_config);
 	} catch (std::exception &err) {
