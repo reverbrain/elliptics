@@ -234,7 +234,8 @@ static void test_event_stats_no_time_dependency()
 	// check that statistics doesn't depend on order of key insertion
 	std::vector<test_event> test_set;
     for(int i = 1; i < 8; ++i) {
-		test_set.push_back({std::to_string(static_cast<long long>(i)), i * default_size, 1., default_time});
+		test_event e{std::to_string(static_cast<long long>(i)), i * default_size, 1., default_time};
+		test_set.push_back(e);
 	}
 
 	do {
