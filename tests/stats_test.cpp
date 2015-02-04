@@ -303,7 +303,8 @@ static void test_event_stats_with_time_dependency()
 			stats3.add_event(e, e.get_time());
 		}
 		if (i >= 4 * TOP_K) {
-			top_events.push_back({key, default_size, 1., default_time});
+			test_event e{key, default_size, 1., default_time};
+			top_events.push_back(e);
 		}
 	}
 
