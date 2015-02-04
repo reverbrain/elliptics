@@ -131,7 +131,7 @@ static void test_event_stats_boundary_conditions()
 	BOOST_CHECK(result.empty());
 
 	for(int i = 0; i < 2 * TOP_K; ++i) {
-		test_event e{std::to_string(i), default_size, 1., default_time};
+		test_event e{std::to_string(static_cast<long long>(i)), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
 
@@ -139,7 +139,7 @@ static void test_event_stats_boundary_conditions()
 	BOOST_REQUIRE_EQUAL(result.size(), TOP_K);
 
 	for(int i = 0; i < 4 * EVENTS_LIMIT; ++i) {
-		test_event e{std::to_string(rand()), default_size, 1., default_time};
+		test_event e{std::to_string(static_cast<long long>(rand())), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
 
@@ -155,7 +155,7 @@ static void test_event_stats_boundary_conditions()
 	BOOST_CHECK(few_events < TOP_K);
 
 	for(int i = 0; i < few_events; ++i) {
-		test_event e{std::to_string(i), default_size, 1., default_time};
+		test_event e{std::to_string(static_cast<long long>(i)), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
 
@@ -196,7 +196,7 @@ static void test_event_stats_no_time_dependency()
 	// monotonically increment event's weight within events_limit
 	std::vector<test_event> top_events;
 	for(int i = 1; i <= 3 * TOP_K; ++i) {
-		test_event e{std::to_string(i), i * default_size, 1., default_time};
+		test_event e{std::to_string(static_cast<long long>(i)), i * default_size, 1., default_time};
 		if (i > 2 * TOP_K)
 			top_events.push_back(e);
 		stats.add_event(e, e.get_time());
@@ -212,7 +212,7 @@ static void test_event_stats_no_time_dependency()
 	min_heap.reserve(TOP_K);
 	std::function<decltype(test_event::weight_compare)> comparator_weight(&test_event::weight_compare);
 	for(int i = 0; i < EVENTS_LIMIT; ++i) {
-		test_event e{std::to_string(i), rand(), 1., default_time};
+		test_event e{std::to_string(static_cast<long long>(i)), rand(), 1., default_time};
 		if (min_heap.size() >= TOP_K) {
 			if (min_heap.front().get_weight() < e.get_weight()) {
 				std::pop_heap(min_heap.begin(), min_heap.end(), std::not2(comparator_weight));
@@ -234,7 +234,7 @@ static void test_event_stats_no_time_dependency()
 	// check that statistics doesn't depend on order of key insertion
 	std::vector<test_event> test_set;
     for(int i = 1; i < 8; ++i) {
-		test_set.push_back({std::to_string(i), i * default_size, 1., default_time});
+		test_set.push_back({std::to_string(static_cast<long long>(i)), i * default_size, 1., default_time});
 	}
 
 	do {
@@ -281,7 +281,7 @@ static void test_event_stats_with_time_dependency()
 	// small key with regular frequent access must popup in top stats among heavier keys with single access
 	for(int i = 0; i < 3 * TOP_K; ++i) {
 		size_t size = i % 2 ? default_size : default_size * 10;
-		std::string key = i % 2 ? std::string("sum") : std::to_string(i);
+		std::string key = i % 2 ? std::string("sum") : std::to_string(static_cast<long long>(i));
 
 		test_event e{key, size, 1., default_time + i};
 		stats2.add_event(e, e.get_time());
@@ -296,7 +296,7 @@ static void test_event_stats_with_time_dependency()
 
 	// if keys have same size and time access pattern, then keys with more frequent access must be in top
 	for(int i = 0; i < 5 * TOP_K; ++i) {
-		std::string key = std::to_string(i);
+		std::string key = std::to_string(static_cast<long long>(i));
 		for(int j = 0; j < i+1; ++j) {
 			test_event e{key, default_size, 1., default_time + j};
 			stats3.add_event(e, e.get_time());
