@@ -25,35 +25,51 @@
 
 namespace ioremap { namespace monitor {
 
-struct key_stat_event {
-	struct dnet_id	id;
-	uint64_t		size;
-	double			frequency;
-	time_t			last_access;
+class key_stat_event;
 
-	typedef const decltype(id) *key_type;
-	typedef size_t time_type;
+}}  /* namespace ioremap::monitor */
 
-	key_type get_key() const { return &id; }
+namespace ioremap { namespace cache {
 
-	uint64_t get_weight() const { return size; }
-	void set_weight(uint64_t weight) { size = weight; }
+template<>
+struct treap_node_traits<ioremap::monitor::key_stat_event>
+{
+	typedef const struct dnet_id* key_type;
+	typedef size_t priority_type;
+};
 
-	double get_frequency() const { return frequency; }
-	void set_frequency(double freq) { frequency = freq; }
+}}  /* namespace ioremap::cache */
 
-	time_type get_time() const {return last_access; }
-	void set_time(time_type time) { last_access = time; }
+namespace ioremap { namespace monitor {
+
+class key_stat_event : public ioremap::cache::treap_node_t<key_stat_event> {
+public:
+	key_stat_event() = default;
+	key_stat_event(struct dnet_id &id, uint64_t size, double frequency, time_t last_access)
+	: m_id(id), m_size(size), m_frequency(frequency), m_last_access(last_access)
+	{}
+
+	uint64_t get_weight() const { return m_size; }
+	void set_weight(uint64_t weight) { m_size = weight; }
+
+	double get_frequency() const { return m_frequency; }
+	void set_frequency(double freq) { m_frequency = freq; }
+
+	time_t get_time() const {return m_last_access; }
+	void set_time(time_t time) { m_last_access = time; }
+
+	// treap_node_t
+	typedef typename ioremap::cache::treap_node_traits<key_stat_event>::key_type key_type;
+	typedef typename ioremap::cache::treap_node_traits<key_stat_event>::priority_type priority_type;
+
+	key_type get_key() const { return &m_id; }
+	priority_type get_priority() const { return m_last_access; }
 
 	inline static int key_compare(const key_type &lhs, const key_type &rhs) {
 		return dnet_id_cmp(lhs, rhs);
 	}
 
-	inline static bool weight_compare(const key_stat_event &lhs, const key_stat_event &rhs) {
-		return lhs.get_weight() < rhs.get_weight();
-	}
-
-	inline static int time_compare(const time_type &lhs, const time_type &rhs) {
+	inline static int priority_compare(const priority_type &lhs, const priority_type &rhs) {
 		if (lhs < rhs) {
 			return 1;
 		}
@@ -64,6 +80,12 @@ struct key_stat_event {
 
 		return 0;
 	}
+
+private:
+	struct dnet_id	m_id;
+	uint64_t		m_size;
+	double			m_frequency;
+	time_t			m_last_access;
 };
 
 /*!

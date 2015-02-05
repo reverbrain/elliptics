@@ -27,6 +27,23 @@ using namespace boost::unit_test;
 
 namespace tests {
 
+class test_event;
+
+}  /* namespace tests */
+
+namespace ioremap { namespace cache {
+
+template<>
+struct treap_node_traits<tests::test_event>
+{
+	typedef const std::string* key_type;
+	typedef size_t priority_type;
+};
+
+}}  /* namespace ioremap::cache */
+
+namespace tests {
+
 static std::shared_ptr<nodes_data> global_data;
 
 static void destroy_global_data()
@@ -34,29 +51,22 @@ static void destroy_global_data()
 	global_data.reset();
 }
 
-struct test_event {
-	std::string		id;
-	uint64_t		size;
-	double			frequency;
-	time_t			last_access;
+class test_event : public ioremap::cache::treap_node_t<test_event> {
+public:
+	test_event()
+	= default;
+	test_event(const std::string& id, uint64_t size, double frequency, time_t last_access)
+	: m_id(id), m_size(size), m_frequency(frequency), m_last_access(last_access)
+	{}
 
-	typedef const decltype(id) *key_type;
-	typedef size_t time_type;
+	uint64_t get_weight() const { return m_size; }
+	void set_weight(uint64_t weight) { m_size = weight; }
 
-	key_type get_key() const { return &id; }
+	double get_frequency() const { return m_frequency; }
+	void set_frequency(double freq) { m_frequency = freq; }
 
-	uint64_t get_weight() const { return size; }
-	void set_weight(uint64_t weight) { size = weight; }
-
-	double get_frequency() const { return frequency; }
-	void set_frequency(double freq) { frequency = freq; }
-
-	time_type get_time() const {return last_access; }
-	void set_time(time_type time) { last_access = time; }
-
-	inline static int key_compare(const key_type &lhs, const key_type &rhs) {
-		return lhs->compare(*rhs);
-	}
+	time_t get_time() const {return m_last_access; }
+	void set_time(time_t time) { m_last_access = time; }
 
 	inline static bool key_compare_event(const test_event &lhs, const test_event &rhs) {
 		return key_compare(lhs.get_key(), rhs.get_key()) < 0;
@@ -66,7 +76,18 @@ struct test_event {
 		return lhs.get_weight() < rhs.get_weight();
 	}
 
-	inline static int time_compare(const time_type &lhs, const time_type &rhs) {
+	// treap_node_t
+	typedef typename ioremap::cache::treap_node_traits<test_event>::key_type key_type;
+	typedef typename ioremap::cache::treap_node_traits<test_event>::priority_type priority_type;
+
+	key_type get_key() const { return &m_id; }
+	priority_type get_priority() const { return m_last_access; }
+
+	inline static int key_compare(const key_type &lhs, const key_type &rhs) {
+		return lhs->compare(*rhs);
+	}
+
+	inline static int priority_compare(const priority_type &lhs, const priority_type &rhs) {
 		if (lhs < rhs) {
 			return 1;
 		}
@@ -77,11 +98,17 @@ struct test_event {
 
 		return 0;
 	}
+
+private:
+	std::string		m_id;
+	uint64_t		m_size;
+	double			m_frequency;
+	time_t			m_last_access;
 };
 
 #define TOP_K 50
 #define EVENTS_LIMIT 1000
-#define EVENTS_SIZE (static_cast<int64_t>(EVENTS_LIMIT * sizeof(ioremap::monitor::key_stat_t<test_event>)))
+#define EVENTS_SIZE (static_cast<int64_t>(EVENTS_LIMIT * sizeof(test_event)))
 #define PERIOD_IN_SECONDS 300
 
 static void configure_nodes(const std::string &path)

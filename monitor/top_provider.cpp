@@ -45,12 +45,12 @@ static void fill_top_stat(const key_stat_event &key_event,
                       rapidjson::Document::AllocatorType &allocator) {
 	rapidjson::Value key_stat(rapidjson::kObjectType);
 
-	key_stat.AddMember("group", key_event.id.group_id, allocator);
+	key_stat.AddMember("group", key_event.get_key()->group_id, allocator);
 	rapidjson::Value id;
-	id.SetString(dnet_dump_id_str_full(key_event.id.id), allocator);
+	id.SetString(dnet_dump_id_str_full(key_event.get_key()->id), allocator);
 	key_stat.AddMember("id", id, allocator);
-	key_stat.AddMember("size", key_event.size, allocator);
-	key_stat.AddMember("frequency", static_cast<uint64_t>(key_event.frequency), allocator);
+	key_stat.AddMember("size", key_event.get_weight(), allocator);
+	key_stat.AddMember("frequency", static_cast<uint64_t>(key_event.get_frequency()), allocator);
 
 	stat_array.PushBack(key_stat, allocator);
 }
@@ -63,8 +63,7 @@ std::string top_provider::json(uint64_t categories) const {
 	doc.SetObject();
 	auto &allocator = doc.GetAllocator();
 
-	typedef std::vector<key_stat_event> EventContainer;
-	EventContainer top_size_keys;
+	std::vector<key_stat_event> top_size_keys;
 	m_stats.get_top(m_top_k, time(nullptr), top_size_keys);
 
 	rapidjson::Value stat_array(rapidjson::kArrayType);
@@ -87,7 +86,7 @@ void top_provider::update_stats(struct dnet_cmd *cmd, uint64_t size)
 {
 	if (size > 0 && (cmd->cmd == DNET_CMD_LOOKUP || cmd->cmd == DNET_CMD_READ
 					 || cmd->cmd == DNET_CMD_READ_RANGE || cmd->cmd == DNET_CMD_BULK_READ)) {
-		key_stat_event event{cmd->id, size, 1., time(nullptr)};
+		key_stat_event event(cmd->id, size, 1., time(nullptr));
 		m_stats.add_event(event, event.get_time());
 	}
 }

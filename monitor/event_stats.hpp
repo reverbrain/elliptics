@@ -26,29 +26,6 @@
 #include <functional> // not2
 #include <stack>
 
-//#define TOP_SLICES
-#define TOP_LRU
-
-#ifdef TOP_LRU
-
-namespace ioremap { namespace monitor {
-
-template<typename E>
-class key_stat_t;
-
-}}  /* namespace ioremap::monitor */
-
-namespace ioremap { namespace cache {
-
-template<typename E>
-struct treap_node_traits<ioremap::monitor::key_stat_t<E> >
-{
-	typedef typename E::key_type key_type;
-	typedef typename E::time_type priority_type;
-};
-
-}}  /* namespace ioremap::cache */
-
 namespace ioremap { namespace monitor {
 
 class mutex_lock_policy
@@ -78,69 +55,10 @@ public:
 	};
 };
 
-template<typename E>
-class key_stat_t : public ioremap::cache::treap_node_t<key_stat_t<E> > {
-public:
-	key_stat_t(const E &event) : m_event(std::move(event)) {}
-
-	size_t get_weight() const { return m_event.get_weight(); }
-
-	void update_weight(time_t time, size_t window_size, size_t size) {
-		double delta = compute_delta(time, m_event.get_time(), window_size);
-		m_event.set_weight(delta * m_event.get_weight() + size);
-	}
-
-	void update_frequency(time_t time, size_t window_size, double freq) {
-		double delta = compute_delta(time, m_event.get_time(), window_size);
-		m_event.set_frequency(delta * m_event.get_frequency() + freq);
-	}
-
-	void check_expiration(time_t time, size_t window_size) {
-		if (time - m_event.get_time() > window_size)
-			m_event.set_weight(0);
-	}
-
-	void update_time(time_t time) {
-		m_event.set_time(time);
-	}
-
-	const E &get_event() const { return m_event; }
-
-	// treap_node_t
-	typedef typename ioremap::cache::treap_node_traits<key_stat_t>::key_type key_type;
-	typedef typename ioremap::cache::treap_node_traits<key_stat_t>::priority_type priority_type;
-
-	key_type get_key() const {
-		return m_event.get_key();
-	}
-
-	priority_type get_priority() const {
-		return m_event.get_time();
-	}
-
-	inline static int key_compare(const key_type &lhs, const key_type &rhs) {
-		return E::key_compare(lhs, rhs);
-	}
-
-	inline static int priority_compare(const priority_type &lhs, const priority_type &rhs) {
-		return E::time_compare(lhs, rhs);
-	}
-
-private:
-	inline static double compute_delta(time_t current_time, time_t last_time, size_t window_size) {
-		double delta = 1. - (current_time - last_time) / (double)window_size;
-		if (delta < 0.) delta = 0.;
-		return delta;
-	}
-
-private:
-	E m_event;
-};
-
 template<typename E, typename lock_policy = null_lock_policy>
 class event_stats : private lock_policy
 {
-	typedef ioremap::cache::treap< key_stat_t<E> > treap_t;
+	typedef ioremap::cache::treap<E> treap_t;
 public:
 	event_stats(size_t events_size, int period_in_seconds)
 	: num_events(0),
@@ -155,15 +73,15 @@ public:
 	void add_event(const E &event, time_t time)
 	{
 		typename lock_policy::unique_lock lock(this);
-		auto it = treap.find( reinterpret_cast<typename treap_t::key_type>(event.get_key()) );
+		auto it = treap.find(event.get_key());
 		if (it) {
-			it->update_weight(time, period, event.size);
-			it->update_frequency(time, period, 1.);
-			it->update_time(time);
+			update_weight(*it, time, period, event.get_weight());
+			update_frequency(*it, time, period, 1.);
+			it->set_time(time);
 			treap.decrease_key(it);
 		} else {
 			if (num_events < max_events) {
-				treap.insert(new key_stat_t<E>(event));
+				treap.insert(new E(event));
 				++num_events;
 			} else {
 				auto t = treap.top();
@@ -185,19 +103,18 @@ public:
 
 			for (auto it = top_nodes.begin(); it != top_nodes.end(); ++it) {
 				auto n = *it;
-				n->check_expiration(time, period);
-				if (n->get_weight() == 0) {
+				if (check_expiration(n, time, period)) {
 					treap.erase(n);
 					delete n;
 					--num_events;
 				} else {
-					top_size.push_back(n->get_event());
+					top_size.push_back(*n);
 				}
 			}
 		}
 
 		k = std::min(top_size.size(), k);
-		std::function<decltype(E::weight_compare)> comparator_weight(&E::weight_compare);
+		std::function<decltype(weight_compare)> comparator_weight(weight_compare);
 		std::partial_sort(top_size.begin(), top_size.begin() + k, top_size.end(), std::not2(comparator_weight));
 		top_size.resize(k);
 	}
@@ -229,7 +146,31 @@ private:
 	}
 
 	inline static size_t bytes_to_num_events(size_t bytes) {
-		return bytes / sizeof(key_stat_t<E>);
+		return bytes / sizeof(E);
+	}
+
+	inline static void update_weight(E &event, time_t time, size_t window_size, size_t size) {
+		double delta = compute_expiration(time, event.get_time(), window_size);
+		event.set_weight(delta * event.get_weight() + size);
+	}
+
+	inline static void update_frequency(E &event, time_t time, size_t window_size, double freq) {
+		double delta = compute_expiration(time, event.get_time(), window_size);
+		event.set_frequency(delta * event.get_frequency() + freq);
+	}
+
+	inline static bool check_expiration(const E *event, time_t time, size_t window_size) {
+		return static_cast<size_t>(time - event->get_time()) > window_size;
+	}
+
+	inline static double compute_expiration(time_t current_time, time_t last_time, size_t window_size) {
+		double delta = 1. - (current_time - last_time) / (double)window_size;
+		if (delta < 0.) delta = 0.;
+		return delta;
+	}
+
+	inline static bool weight_compare(const E &lhs, const E &rhs) {
+		return lhs.get_weight() < rhs.get_weight();
 	}
 
 private:
@@ -240,7 +181,5 @@ private:
 };
 
 }}  /* namespace ioremap::monitor */
-
-#endif // TOP_LRU
 
 #endif // EVENT_STATS_HPP
