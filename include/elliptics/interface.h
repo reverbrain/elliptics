@@ -338,11 +338,6 @@ struct dnet_config
 	/* Config file name for handystats library */
 	const char 	*handystats_config;
 
-	/*
-	 * Monitor socket port
-	 */
-	unsigned int		monitor_port;
-
 	/* Unused. Will be removed at next major release */
 	long		__unused_1;
 

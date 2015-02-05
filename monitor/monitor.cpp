@@ -35,6 +35,13 @@ static ioremap::monitor::monitor* get_monitor(struct dnet_node *n) {
 	return n->monitor ? static_cast<ioremap::monitor::monitor*>(n->monitor) : NULL;
 }
 
+static unsigned int get_monitor_port(struct dnet_node *n) {
+	using namespace ioremap::elliptics::config;
+	const auto &data = *static_cast<const config_data *>(n->config_data);
+	const auto &monitor = data.monitor_config;
+	return monitor ? monitor->monitor_port : 0;
+}
+
 #ifdef HAVE_HANDYSTATS
 #include <handystats/core.hpp>
 #endif
@@ -43,16 +50,22 @@ namespace ioremap { namespace monitor {
 
 std::unique_ptr<monitor_config> monitor_config::parse(const elliptics::config::config &monitor)
 {
-	monitor_config config;
-	config.top_k = monitor.at<size_t>("top_k", DNET_DEFAULT_MONITOR_TOP_K);
-	config.events_size = monitor.at<size_t>("events_size", DNET_DEFAULT_MONITOR_TOP_EVENTS_SIZE);
-	config.period_in_seconds = monitor.at<int>("period_in_seconds", DNET_DEFAULT_MONITOR_TOP_PERIOD);
-	return blackhole::utils::make_unique<monitor_config>(config);
+	monitor_config cfg;
+	cfg.monitor_port = monitor.at<unsigned int>("port", 0);
+
+	cfg.has_top = monitor.has("top");
+	if (cfg.has_top) {
+		const elliptics::config::config top = monitor.at("top");
+		cfg.top_k = top.at<size_t>("top_k", DNET_DEFAULT_MONITOR_TOP_K);
+		cfg.events_size = top.at<size_t>("events_size", DNET_DEFAULT_MONITOR_TOP_EVENTS_SIZE);
+		cfg.period_in_seconds = top.at<int>("period_in_seconds", DNET_DEFAULT_MONITOR_TOP_PERIOD);
+	}
+	return blackhole::utils::make_unique<monitor_config>(cfg);
 }
 
 monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 : m_node(n)
-, m_server(*this, cfg->monitor_port, cfg->family)
+, m_server(*this, get_monitor_port(n), cfg->family)
 , m_statistics(*this, cfg)
 {
 #if defined(HAVE_HANDYSTATS) && !defined(HANDYSTATS_DISABLE)
@@ -130,7 +143,7 @@ static void init_top_provider(struct dnet_node *n, struct dnet_config *cfg) {
 		using namespace ioremap::elliptics::config;
 		const auto &data = *static_cast<const config_data *>(n->config_data);
 		const auto &monitor = data.monitor_config;
-		if (!monitor)
+		if (!monitor || !monitor->has_top)
 			return;
 
 		add_provider(n, new top_provider(n, monitor->top_k, monitor->events_size, monitor->period_in_seconds), "top");
@@ -142,7 +155,7 @@ static void init_top_provider(struct dnet_node *n, struct dnet_config *cfg) {
 }} /* namespace ioremap::monitor */
 
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
-	if (!cfg->monitor_port || !cfg->family) {
+	if (!get_monitor_port(n) || !cfg->family) {
 		n->monitor = NULL;
 		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: monitor hasn't been initialized because monitor port is zero.");
 		return 0;
@@ -151,7 +164,7 @@ int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
 	try {
 		n->monitor = static_cast<void*>(new ioremap::monitor::monitor(n, cfg));
 	} catch (const std::exception &e) {
-		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize monitor on port: %d: %s.", cfg->monitor_port, e.what());
+		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize monitor on port: %d: %s.", get_monitor_port(n), e.what());
 		return -ENOMEM;
 	}
 
