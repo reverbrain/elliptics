@@ -99,17 +99,16 @@ void top_provider::update_stats(struct dnet_cmd *cmd, uint64_t size)
 // on other headers (other than top_provider.hpp)
 void dnet_node_stats_update(struct dnet_node *node, struct dnet_cmd *cmd, uint64_t size)
 {
-	typedef ioremap::monitor::monitor* MonitorPtr;
-	typedef std::shared_ptr<ioremap::monitor::stat_provider> StatPtr;
-	typedef std::shared_ptr<ioremap::monitor::top_provider> TopStatPtr;
+	typedef ioremap::monitor::monitor* monitor_ptr;
+	typedef std::shared_ptr<ioremap::monitor::top_provider> top_stat_ptr;
 
-	MonitorPtr monitor = reinterpret_cast<MonitorPtr>(node->monitor);
+	monitor_ptr monitor = reinterpret_cast<monitor_ptr>(node->monitor);
 	if (monitor == nullptr)
 		return;
 
-	StatPtr provider = monitor->get_statistics().get_provider("top");
+	auto provider = monitor->get_statistics().get_provider("top");
 	if (provider) {
-		TopStatPtr top_provider = std::dynamic_pointer_cast<ioremap::monitor::top_provider>(provider);
+		top_stat_ptr top_provider = std::dynamic_pointer_cast<top_stat_ptr::element_type>(provider);
 		assert(top_provider != nullptr);
 
 		top_provider->update_stats(cmd, size);
