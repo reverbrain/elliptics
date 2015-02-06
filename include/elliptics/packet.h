@@ -90,7 +90,7 @@ enum dnet_commands {
 #define DNET_MONITOR_BACKEND		(1<<4)				/* backend statistics */
 #define DNET_MONITOR_STATS		(1<<5)				/* statistics gathered by handystats */
 #define DNET_MONITOR_PROCFS		(1<<6)				/* virtual memory statistics */
-#define DNET_MONITOR_TOP		(1<<7)				/* top keys by size and frequency statistics */
+#define DNET_MONITOR_TOP		(1<<7)				/* statistics of top keys ordered by generated traffic */
 #define DNET_MONITOR_ALL		(-1)				/* all available statistics */
 
 enum dnet_backend_command {
