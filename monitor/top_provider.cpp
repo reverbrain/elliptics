@@ -64,7 +64,7 @@ std::string top_provider::json(uint64_t categories) const {
 
 	std::vector<key_stat_event> top_size_keys;
 	auto& event_stats = m_top_stats->get_stats();
-	event_stats.get_top(m_top_stats->get_top_k(), time(nullptr), top_size_keys);
+	event_stats.get_top(m_top_stats->get_top_length(), time(nullptr), top_size_keys);
 
 	rapidjson::Value stat_array(rapidjson::kArrayType);
 	stat_array.Reserve(top_size_keys.size(), allocator);

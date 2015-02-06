@@ -90,18 +90,18 @@ private:
 
 class top_stats {
 public:
-	top_stats(size_t top_k, size_t events_size, int period_in_seconds);
+	top_stats(size_t top_length, size_t events_size, int period_in_seconds);
 
 	void update_stats(struct dnet_cmd *cmd, uint64_t size);
 
-	size_t get_top_k() const { return m_top_k; }
+	size_t get_top_length() const { return m_top_length; }
 
 	typedef event_stats<key_stat_event, mutex_lock_policy> event_stats_t;
 	event_stats_t& get_stats() { return m_stats; }
 
 private:
 	event_stats_t m_stats;
-	size_t m_top_k;
+	size_t m_top_length;
 };
 
 }} /* namespace ioremap::monitor */

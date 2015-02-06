@@ -39,7 +39,7 @@ struct monitor_config
 {
 	unsigned int	monitor_port;
 	bool			has_top;
-	size_t			top_k;
+	size_t			top_length;
 	size_t			events_size;
 	int				period_in_seconds;
 

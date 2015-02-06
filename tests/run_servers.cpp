@@ -254,8 +254,8 @@ static int run_servers(const rapidjson::Value &doc)
 	read_option(doc, "monitor", true, monitor);
 	read_option(doc, "isolated", false, isolated);
 
-	int64_t top_k, top_events_size, top_period;
-	read_option<int64_t>(doc, "top_k", 50, top_k);
+	int64_t top_length, top_events_size, top_period;
+	read_option<int64_t>(doc, "top_length", 50, top_length);
 	read_option<int64_t>(doc, "top_events_size", 1000 * 100, top_events_size);
 	read_option<int64_t>(doc, "top_period", 300, top_period);
 
@@ -313,7 +313,7 @@ static int run_servers(const rapidjson::Value &doc)
 
 		if (monitor) {
 			tests::config_data top_params = tests::config_data()
-				("top_k", top_k)
+				("top_length", top_length)
 				("events_size", top_events_size)
 				("period_in_seconds", top_period);
 			config("monitor_top", top_params);

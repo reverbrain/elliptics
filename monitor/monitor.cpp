@@ -60,7 +60,7 @@ std::unique_ptr<monitor_config> monitor_config::parse(const elliptics::config::c
 	cfg.has_top = monitor.has("top");
 	if (cfg.has_top) {
 		const elliptics::config::config top = monitor.at("top");
-		cfg.top_k = top.at<size_t>("top_k", DNET_DEFAULT_MONITOR_TOP_K);
+		cfg.top_length = top.at<size_t>("top_length", DNET_DEFAULT_MONITOR_TOP_LENGTH);
 		cfg.events_size = top.at<size_t>("events_size", DNET_DEFAULT_MONITOR_TOP_EVENTS_SIZE);
 		cfg.period_in_seconds = top.at<int>("period_in_seconds", DNET_DEFAULT_MONITOR_TOP_PERIOD);
 	}
@@ -74,7 +74,7 @@ monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 {
 	const auto monitor_cfg = get_monitor_config(n);
 	if (monitor_cfg && monitor_cfg->has_top) {
-		m_top_stats = std::make_shared<top_stats>(monitor_cfg->top_k, monitor_cfg->events_size, monitor_cfg->period_in_seconds);
+		m_top_stats = std::make_shared<top_stats>(monitor_cfg->top_length, monitor_cfg->events_size, monitor_cfg->period_in_seconds);
 	}
 
 #if defined(HAVE_HANDYSTATS) && !defined(HANDYSTATS_DISABLE)

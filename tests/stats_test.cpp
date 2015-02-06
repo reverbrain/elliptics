@@ -106,7 +106,7 @@ private:
 	time_t			m_last_access;
 };
 
-#define TOP_K 50
+#define TOP_LENGTH 50
 #define EVENTS_LIMIT 1000
 #define EVENTS_SIZE (static_cast<int64_t>(EVENTS_LIMIT * sizeof(test_event)))
 #define PERIOD_IN_SECONDS 300
@@ -114,7 +114,7 @@ private:
 static void configure_nodes(const std::string &path)
 {
     config_data top_params = config_data()
-		("top_k", TOP_K)
+		("top_length", TOP_LENGTH)
 		("events_size", EVENTS_SIZE)
 		("period_in_seconds", PERIOD_IN_SECONDS);
 
@@ -151,16 +151,16 @@ static void test_event_stats_boundary_conditions()
 	stats_t stats(EVENTS_SIZE, PERIOD_IN_SECONDS);
 	std::vector<test_event> result;
 
-	stats.get_top(TOP_K, default_time, result);
+	stats.get_top(TOP_LENGTH, default_time, result);
 	BOOST_CHECK(result.empty());
 
-	for(int i = 0; i < 2 * TOP_K; ++i) {
+	for(int i = 0; i < 2 * TOP_LENGTH; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
 
-	stats.get_top(TOP_K, default_time, result);
-	BOOST_REQUIRE_EQUAL(result.size(), TOP_K);
+	stats.get_top(TOP_LENGTH, default_time, result);
+	BOOST_REQUIRE_EQUAL(result.size(), TOP_LENGTH);
 
 	for(int i = 0; i < 4 * EVENTS_LIMIT; ++i) {
 		test_event e{std::to_string(static_cast<long long>(rand())), default_size, 1., default_time};
@@ -172,18 +172,18 @@ static void test_event_stats_boundary_conditions()
 	BOOST_REQUIRE_EQUAL(result.size(), EVENTS_LIMIT);
 
 	result.clear();
-	stats.get_top(TOP_K, expire_time, result);
+	stats.get_top(TOP_LENGTH, expire_time, result);
 	BOOST_CHECK(result.empty());
 
 	const int few_events = 5;
-	BOOST_CHECK(few_events < TOP_K);
+	BOOST_CHECK(few_events < TOP_LENGTH);
 
 	for(int i = 0; i < few_events; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
 
-	stats.get_top(TOP_K, default_time, result);
+	stats.get_top(TOP_LENGTH, default_time, result);
 	BOOST_REQUIRE_EQUAL(result.size(), few_events);
 }
 
@@ -208,36 +208,36 @@ static void test_event_stats_no_time_dependency()
 	stats_t stats_rand(EVENTS_SIZE, PERIOD_IN_SECONDS);
 	std::vector<test_event> result;
 
-	for(int i = 0; i < TOP_K; ++i) {
+	for(int i = 0; i < TOP_LENGTH; ++i) {
 		test_event e{"same", default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
 
-	stats.get_top(TOP_K, default_time, result);
+	stats.get_top(TOP_LENGTH, default_time, result);
 	BOOST_REQUIRE_EQUAL(result.size(), 1);
-	BOOST_REQUIRE_EQUAL(result.back().get_weight(), TOP_K * default_size);
+	BOOST_REQUIRE_EQUAL(result.back().get_weight(), TOP_LENGTH * default_size);
 
 	// monotonically increment event's weight within events_limit
 	std::vector<test_event> top_events;
-	for(int i = 1; i <= 3 * TOP_K; ++i) {
+	for(int i = 1; i <= 3 * TOP_LENGTH; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), i * default_size, 1., default_time};
-		if (i > 2 * TOP_K)
+		if (i > 2 * TOP_LENGTH)
 			top_events.push_back(e);
 		stats.add_event(e, e.get_time());
 	}
 
 	result.clear();
-	stats.get_top(TOP_K, default_time, result);
-	BOOST_REQUIRE_EQUAL(result.size(), TOP_K);
+	stats.get_top(TOP_LENGTH, default_time, result);
+	BOOST_REQUIRE_EQUAL(result.size(), TOP_LENGTH);
 	BOOST_REQUIRE_EQUAL(events_symmetric_diff(top_events, result), 0);
 
 	// generate events with random weights within events_limit
 	std::vector<test_event> min_heap;
-	min_heap.reserve(TOP_K);
+	min_heap.reserve(TOP_LENGTH);
 	std::function<decltype(test_event::weight_compare)> comparator_weight(&test_event::weight_compare);
 	for(int i = 0; i < EVENTS_LIMIT; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), rand(), 1., default_time};
-		if (min_heap.size() >= TOP_K) {
+		if (min_heap.size() >= TOP_LENGTH) {
 			if (min_heap.front().get_weight() < e.get_weight()) {
 				std::pop_heap(min_heap.begin(), min_heap.end(), std::not2(comparator_weight));
 				min_heap.back() = e;
@@ -251,8 +251,8 @@ static void test_event_stats_no_time_dependency()
 	}
 
 	result.clear();
-	stats_rand.get_top(TOP_K, default_time, result);
-	BOOST_REQUIRE_EQUAL(result.size(), TOP_K);
+	stats_rand.get_top(TOP_LENGTH, default_time, result);
+	BOOST_REQUIRE_EQUAL(result.size(), TOP_LENGTH);
 	BOOST_REQUIRE_EQUAL(events_symmetric_diff(min_heap, result), 0);
 
 	// check that statistics doesn't depend on order of key insertion
@@ -269,7 +269,7 @@ static void test_event_stats_no_time_dependency()
 			stats.add_event(*it, it->get_time());
 		}
 		result.clear();
-		stats.get_top(TOP_K, default_time, result);
+		stats.get_top(TOP_LENGTH, default_time, result);
 		BOOST_REQUIRE_EQUAL(result.size(), permut.size());
 		BOOST_REQUIRE_EQUAL(events_symmetric_diff(result, permut), 0);
 	} while (next_permutation(test_set.begin(), test_set.end(), test_event::key_compare_event));
@@ -291,7 +291,7 @@ static void test_event_stats_with_time_dependency()
 		stats.add_event(e, e.get_time());
 	}
 
-	stats.get_top(TOP_K, default_time + long_period, result);
+	stats.get_top(TOP_LENGTH, default_time + long_period, result);
 	BOOST_REQUIRE_EQUAL(result.size(), 1);
 	BOOST_CHECK(result.back().get_weight() <= PERIOD_IN_SECONDS * default_size);
 
@@ -299,12 +299,12 @@ static void test_event_stats_with_time_dependency()
 	test_event e{"same", default_size, 1., default_time + long_period + PERIOD_IN_SECONDS / 2};
 	stats.add_event(e, e.get_time());
 	result.clear();	
-	stats.get_top(TOP_K, e.get_time(), result);
+	stats.get_top(TOP_LENGTH, e.get_time(), result);
 	BOOST_REQUIRE_EQUAL(result.size(), 1);
 	BOOST_CHECK(result.back().get_weight() <= PERIOD_IN_SECONDS * default_size / 2);
 
 	// small key with regular frequent access must popup in top stats among heavier keys with single access
-	for(int i = 0; i < 3 * TOP_K; ++i) {
+	for(int i = 0; i < 3 * TOP_LENGTH; ++i) {
 		size_t size = i % 2 ? default_size : default_size * 10;
 		std::string key = i % 2 ? std::string("sum") : std::to_string(static_cast<long long>(i));
 
@@ -313,28 +313,28 @@ static void test_event_stats_with_time_dependency()
 	}
 
 	result.clear();	
-	stats2.get_top(TOP_K, default_time + 3 * TOP_K, result);
-	BOOST_REQUIRE_EQUAL(result.size(), TOP_K);
+	stats2.get_top(TOP_LENGTH, default_time + 3 * TOP_LENGTH, result);
+	BOOST_REQUIRE_EQUAL(result.size(), TOP_LENGTH);
 	BOOST_REQUIRE_EQUAL(*result.front().get_key(), "sum");
 	BOOST_CHECK(result.front().get_weight() > result.back().get_weight());
 	BOOST_CHECK(result.front().get_frequency() > result.back().get_frequency());
 
 	// if keys have same size and time access pattern, then keys with more frequent access must be in top
-	for(int i = 0; i < 5 * TOP_K; ++i) {
+	for(int i = 0; i < 5 * TOP_LENGTH; ++i) {
 		std::string key = std::to_string(static_cast<long long>(i));
 		for(int j = 0; j < i+1; ++j) {
 			test_event e{key, default_size, 1., default_time + j};
 			stats3.add_event(e, e.get_time());
 		}
-		if (i >= 4 * TOP_K) {
+		if (i >= 4 * TOP_LENGTH) {
 			test_event e{key, default_size, 1., default_time};
 			top_events.push_back(e);
 		}
 	}
 
 	result.clear();
-	stats3.get_top(TOP_K, default_time + 5 * TOP_K, result);
-	BOOST_REQUIRE_EQUAL(result.size(), TOP_K);
+	stats3.get_top(TOP_LENGTH, default_time + 5 * TOP_LENGTH, result);
+	BOOST_REQUIRE_EQUAL(result.size(), TOP_LENGTH);
 	BOOST_REQUIRE_EQUAL(events_symmetric_diff(top_events, result), 0);
 }
 

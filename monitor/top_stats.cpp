@@ -22,9 +22,9 @@
 
 namespace ioremap { namespace monitor {
 
-top_stats::top_stats(size_t top_k, size_t events_size, int period_in_seconds)
+top_stats::top_stats(size_t top_length, size_t events_size, int period_in_seconds)
 : m_stats(events_size, period_in_seconds),
- m_top_k(top_k)
+ m_top_length(top_length)
 {}
 
 void top_stats::update_stats(struct dnet_cmd *cmd, uint64_t size)
