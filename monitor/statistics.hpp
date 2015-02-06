@@ -252,7 +252,6 @@ public:
 	 */
 	void add_provider(stat_provider *stat, const std::string &name);
 	void remove_provider(const std::string &name);
-	std::shared_ptr<stat_provider> get_provider(const std::string &name);
 private:
 	/*!
 	 * \internal

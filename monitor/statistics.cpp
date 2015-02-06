@@ -200,17 +200,6 @@ void statistics::remove_provider(const std::string &name)
 	m_stat_providers.erase(name);
 }
 
-std::shared_ptr<stat_provider> statistics::get_provider(const std::string &name)
-{
-	{
-		boost::shared_lock<rw_lock> guard(m_provider_lock);
-		auto it = m_stat_providers.find(name);
-		if (it != m_stat_providers.end())
-			return it->second;
-	}
-	return std::shared_ptr<stat_provider>();
-}
-
 inline std::string convert_report(const rapidjson::Document &report)
 {
 	rapidjson::StringBuffer buffer;

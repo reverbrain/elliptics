@@ -31,14 +31,14 @@
 
 #include "../example/config.hpp"
 
-static ioremap::monitor::monitor* get_monitor(struct dnet_node *n) {
-	return n->monitor ? static_cast<ioremap::monitor::monitor*>(n->monitor) : NULL;
+static ioremap::monitor::monitor_config* get_monitor_config(struct dnet_node *n) {
+	using namespace ioremap::elliptics::config;
+	const auto& data = *static_cast<const config_data *>(n->config_data);
+	return data.monitor_config.get();
 }
 
 static unsigned int get_monitor_port(struct dnet_node *n) {
-	using namespace ioremap::elliptics::config;
-	const auto &data = *static_cast<const config_data *>(n->config_data);
-	const auto &monitor = data.monitor_config;
+	const auto monitor = get_monitor_config(n);
 	return monitor ? monitor->monitor_port : 0;
 }
 
@@ -47,6 +47,10 @@ static unsigned int get_monitor_port(struct dnet_node *n) {
 #endif
 
 namespace ioremap { namespace monitor {
+
+monitor* get_monitor(struct dnet_node *n) {
+	return reinterpret_cast<monitor*>(n->monitor);
+}
 
 std::unique_ptr<monitor_config> monitor_config::parse(const elliptics::config::config &monitor)
 {
@@ -68,6 +72,11 @@ monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 , m_server(*this, get_monitor_port(n), cfg->family)
 , m_statistics(*this, cfg)
 {
+	const auto monitor_cfg = get_monitor_config(n);
+	if (monitor_cfg && monitor_cfg->has_top) {
+		m_top_stats = std::make_shared<top_stats>(monitor_cfg->top_k, monitor_cfg->events_size, monitor_cfg->period_in_seconds);
+	}
+
 #if defined(HAVE_HANDYSTATS) && !defined(HANDYSTATS_DISABLE)
 	if (cfg->handystats_config != nullptr) {
 		//TODO: add parse/configuration errors logging when handystats will allow to get them
@@ -140,13 +149,10 @@ static void init_procfs_provider(struct dnet_node *n, struct dnet_config *cfg) {
 
 static void init_top_provider(struct dnet_node *n, struct dnet_config *cfg) {
 	try {
-		using namespace ioremap::elliptics::config;
-		const auto &data = *static_cast<const config_data *>(n->config_data);
-		const auto &monitor = data.monitor_config;
-		if (!monitor || !monitor->has_top)
-			return;
-
-		add_provider(n, new top_provider(n, monitor->top_k, monitor->events_size, monitor->period_in_seconds), "top");
+		const auto monitor = get_monitor(n);
+		if (monitor && monitor->get_top_stats()) {
+			add_provider(n, new top_provider(n), "top");
+		}
 	} catch (const std::exception &e) {
 		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize top_stat_provider: %s.", e.what());
 	}
@@ -177,7 +183,7 @@ int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
 }
 
 void dnet_monitor_exit(struct dnet_node *n) {
-	auto real_monitor = get_monitor(n);
+	auto real_monitor = ioremap::monitor::get_monitor(n);
 	if (real_monitor) {
 		n->monitor = NULL;
 		delete real_monitor;
@@ -200,7 +206,7 @@ void dnet_monitor_remove_provider(struct dnet_node *n, const char *name) {
 void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans,
                              const int err, const int cache,
                              const uint32_t size, const unsigned long time) {
-	auto real_monitor = get_monitor(n);
+	auto real_monitor = ioremap::monitor::get_monitor(n);
 	if (real_monitor)
 		real_monitor->get_statistics().command_counter(cmd, trans, err,
 		                                               cache, size, time);
@@ -222,7 +228,7 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, categories: %lx, monitor: %p",
 		dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), req->categories, n->monitor);
 
-	auto real_monitor = get_monitor(n);
+	auto real_monitor = ioremap::monitor::get_monitor(n);
 	if (!real_monitor)
 		return dnet_send_reply(orig, cmd, disabled_reply.c_str(), disabled_reply.size(), 0);
 

@@ -20,19 +20,18 @@
 #include "top_provider.hpp"
 #include "monitor.hpp"
 
-#include "library/elliptics.h"
-
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 #include "elliptics/interface.h"
 
 namespace ioremap { namespace monitor {
 
-top_provider::top_provider(struct dnet_node *node, size_t top_k, size_t events_size, int period_in_seconds)
-: m_node(node),
- m_stats(events_size, period_in_seconds),
- m_top_k(top_k)
-{}
+top_provider::top_provider(struct dnet_node *node)
+: m_node(node)
+{
+	auto monitor = get_monitor(node);
+	m_top_stats = monitor->get_top_stats();
+}
 
 static inline char *dnet_dump_id_str_full(const unsigned char *id)
 {
@@ -64,7 +63,8 @@ std::string top_provider::json(uint64_t categories) const {
 	auto &allocator = doc.GetAllocator();
 
 	std::vector<key_stat_event> top_size_keys;
-	m_stats.get_top(m_top_k, time(nullptr), top_size_keys);
+	auto& event_stats = m_top_stats->get_stats();
+	event_stats.get_top(m_top_stats->get_top_k(), time(nullptr), top_size_keys);
 
 	rapidjson::Value stat_array(rapidjson::kArrayType);
 	stat_array.Reserve(top_size_keys.size(), allocator);
@@ -82,35 +82,4 @@ std::string top_provider::json(uint64_t categories) const {
 	return buffer.GetString();
 }
 
-void top_provider::update_stats(struct dnet_cmd *cmd, uint64_t size)
-{
-	if (size > 0 && (cmd->cmd == DNET_CMD_LOOKUP || cmd->cmd == DNET_CMD_READ
-					 || cmd->cmd == DNET_CMD_READ_RANGE || cmd->cmd == DNET_CMD_BULK_READ)) {
-		key_stat_event event(cmd->id, size, 1., time(nullptr));
-		m_stats.add_event(event, event.get_time());
-	}
-}
-
 }} /* namespace ioremap::monitor */
-
-
-// if more than top keys statistics measured, then move this function implementation
-// to a separate unit (e.g. node_stats.{hpp,cpp}), because this unit shouldn't depend
-// on other headers (other than top_provider.hpp)
-void dnet_node_stats_update(struct dnet_node *node, struct dnet_cmd *cmd, uint64_t size)
-{
-	typedef ioremap::monitor::monitor* monitor_ptr;
-	typedef std::shared_ptr<ioremap::monitor::top_provider> top_stat_ptr;
-
-	monitor_ptr monitor = reinterpret_cast<monitor_ptr>(node->monitor);
-	if (monitor == nullptr)
-		return;
-
-	auto provider = monitor->get_statistics().get_provider("top");
-	if (provider) {
-		top_stat_ptr top_provider = std::dynamic_pointer_cast<top_stat_ptr::element_type>(provider);
-		assert(top_provider != nullptr);
-
-		top_provider->update_stats(cmd, size);
-	}
-}

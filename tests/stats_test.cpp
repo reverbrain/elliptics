@@ -130,15 +130,12 @@ static void configure_nodes(const std::string &path)
 
 static void test_top_provider_existance()
 {
-	typedef ioremap::monitor::monitor* MonitorPtr;
-	typedef std::shared_ptr<ioremap::monitor::stat_provider> StatPtr;
-
 	dnet_node *node = global_data->nodes[0].get_native();
-	MonitorPtr monitor = reinterpret_cast<MonitorPtr>(node->monitor);
-
+	auto monitor = ioremap::monitor::get_monitor(node);
 	BOOST_CHECK(monitor != nullptr);
-	StatPtr provider = monitor->get_statistics().get_provider("top");
-	BOOST_CHECK(provider != nullptr);
+
+	auto top_stats = monitor->get_top_stats();
+	BOOST_CHECK(top_stats != nullptr);
 }
 
 /****************

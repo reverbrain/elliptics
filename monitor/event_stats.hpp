@@ -22,6 +22,7 @@
 
 #include "cache/treap.hpp"
 
+#include <mutex>
 #include <algorithm>
 #include <functional> // not2
 #include <stack>
@@ -30,7 +31,7 @@ namespace ioremap { namespace monitor {
 
 class mutex_lock_policy
 {
-	typedef std::mutex mutex_type;
+	typedef std::mutex mutex_t;
 public:
 	class unique_lock {
 	public:
@@ -38,12 +39,12 @@ public:
 		: lock_(policy->get_lock())
 		{}
 	private:
-		std::unique_lock<mutex_type> lock_;
+		std::unique_lock<mutex_t> lock_;
 	};
 
-	mutex_type &get_lock() { return mut_; }
+	mutex_t &get_lock() { return mut_; }
 private:
-	mutex_type mut_;
+	mutex_t mut_;
 };
 
 class null_lock_policy
