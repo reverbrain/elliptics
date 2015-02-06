@@ -25,6 +25,7 @@
 #include <mutex>
 #include <algorithm>
 #include <functional> // not2
+#include <vector>
 #include <stack>
 
 namespace ioremap { namespace monitor {
