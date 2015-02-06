@@ -59,8 +59,8 @@ public:
 	void set_time(time_t time) { m_last_access = time; }
 
 	// treap_node_t
-	typedef typename ioremap::cache::treap_node_traits<key_stat_event>::key_type key_type;
-	typedef typename ioremap::cache::treap_node_traits<key_stat_event>::priority_type priority_type;
+	typedef ioremap::cache::treap_node_traits<key_stat_event>::key_type key_type;
+	typedef ioremap::cache::treap_node_traits<key_stat_event>::priority_type priority_type;
 
 	key_type get_key() const { return &m_id; }
 	priority_type get_priority() const { return m_last_access; }
