@@ -236,7 +236,7 @@ static void test_event_stats_no_time_dependency()
 	min_heap.reserve(TOP_LENGTH);
 	std::function<decltype(test_event::weight_compare)> comparator_weight(&test_event::weight_compare);
 	for(int i = 0; i < EVENTS_LIMIT; ++i) {
-		test_event e{std::to_string(static_cast<long long>(i)), rand(), 1., default_time};
+		test_event e{std::to_string(static_cast<long long>(i)), static_cast<uint64_t>(rand()), 1., default_time};
 		if (min_heap.size() >= TOP_LENGTH) {
 			if (min_heap.front().get_weight() < e.get_weight()) {
 				std::pop_heap(min_heap.begin(), min_heap.end(), std::not2(comparator_weight));
@@ -287,7 +287,7 @@ static void test_event_stats_with_time_dependency()
 	// old events (outside observable period of time) are omitted
 	const size_t long_period = 10 * PERIOD_IN_SECONDS;
 	for(size_t i = 0; i < long_period; ++i) {
-		test_event e{"same", default_size, 1., default_time + i};
+		test_event e{"same", default_size, 1., default_time + static_cast<time_t>(i)};
 		stats.add_event(e, e.get_time());
 	}
 
@@ -296,7 +296,7 @@ static void test_event_stats_with_time_dependency()
 	BOOST_CHECK(result.back().get_weight() <= PERIOD_IN_SECONDS * default_size);
 
 	// weight of event must be smaller after significant period of silence
-	test_event e{"same", default_size, 1., default_time + long_period + PERIOD_IN_SECONDS / 2};
+	test_event e{"same", default_size, 1., default_time + static_cast<time_t>(long_period + PERIOD_IN_SECONDS / 2)};
 	stats.add_event(e, e.get_time());
 	result.clear();	
 	stats.get_top(TOP_LENGTH, e.get_time(), result);
