@@ -57,6 +57,18 @@ public:
 	};
 };
 
+/*
+ *	This class provides statistics of events during some defined period of time.
+ * Also there are strict limitation of memory resources which could be used by
+ * instances of this class. So some information about events may be lost, if
+ * significant amount of events multiplied by event size exceeded memory limitations.
+ * Therefore statistics are computed approximately in case of lots of heavyweight events.
+ *	Any type E of event must support following methods: (get/set)_weight, (get/set)_frequency,
+ * and (get/set)_time.
+ *	Currently only get_top method implemented, which could be used for getting top k events
+ * with highest weight, where weight is approximate sum of weight of particular events during
+ * observable period of time (period_in_seconds).
+ */
 template<typename E, typename lock_policy = null_lock_policy>
 class event_stats : private lock_policy
 {
@@ -165,6 +177,16 @@ private:
 		return static_cast<size_t>(time - event->get_time()) > window_size;
 	}
 
+	/*
+	 * Basic idea of moving sum:
+	 * Let there be N events: e[1], e[2], ..., e[N];
+	 * each event e[i] has some integrable value w[i], time of event occurance t[i];
+	 * also there is a time window, every t[i] must be within this time window [current_time - window_size, current_time].
+	 * Approximate sum of w[i], i=1..N computed in following way:
+	 * sum(i) = sum(i-1) * (1.0 - (t[i] - t[i-1]) / window_size) + w[i]
+	 * sum(1) = w[1]
+	 * sum_of_all_events = sum(N)
+	 */
 	inline static double compute_expiration(time_t current_time, time_t last_time, size_t window_size) {
 		double delta = 1. - (current_time - last_time) / (double)window_size;
 		if (delta < 0.) delta = 0.;
