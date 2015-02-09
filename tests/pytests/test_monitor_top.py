@@ -27,7 +27,7 @@ except ImportError:
     import urllib2 as urllib_req
 
 
-def get_top(remote, port):
+def get_top_by_http(remote, port):
     url = 'http://' + remote + ':' + port + '/top'
     data = urllib_req.urlopen(url).read()
     json_data = zlib.decompress(data)
@@ -61,9 +61,21 @@ class TestMonitorTop:
         keys = []
         for remote, port in zip(server.remotes, server.monitors):
             remote = remote.split(':')[0]
-            response = get_top(remote, port)
+            response = get_top_by_http(remote, port)
             keys = response['top']['top_by_size']
             if has_key(test_key, keys):
                 break
         assert has_key(test_key, keys)
         check_keys_fields(keys)
+
+        self.__check_key_existance_using_session_monitor(session, test_key)
+
+    def __check_key_existance_using_session_monitor(self, session, test_key):
+        entries = session.monitor_stat(categories=elliptics.core.monitor_stat_categories.top).get()
+        keys = []
+        for entry in entries:
+            response = entry.statistics
+            keys = response['top']['top_by_size']
+            if has_key(test_key, keys):
+                break
+        assert has_key(test_key, keys)
