@@ -127,25 +127,54 @@ static void fill_backend_status(rapidjson::Value &stat_value,
 /*
  * This function is called to fill in config values read from the config for non-enabled (yet) backends.
  *
- * They are not parsed and can be invalid, like string instead of int and so on,
- * that's why it doesn't fill 'backend::config' section, but 'backend::config_template'.
+ * If config template provides API for serializing parsed config values to json
+ * it fills 'backend::config' section otherwise it uses unparsed values from original config
+ * and fills 'backend::config_template'
  *
- * After config has been enabled, @fill_backend_backend() is called instead.
+ * After backend has been enabled, @fill_backend_backend() is called instead.
  */
 static void fill_disabled_backend_config(rapidjson::Value &stat_value,
                                          rapidjson::Document::AllocatorType &allocator,
-					 const dnet_backend_info &config_backend) {
+                                         const dnet_backend_info &config_backend) {
 	rapidjson::Value backend_value(rapidjson::kObjectType);
-	rapidjson::Value config_value(rapidjson::kObjectType);
 
-	for (auto it = config_backend.options.begin(); it != config_backend.options.end(); ++it) {
-		const dnet_backend_config_entry &entry = *it;
+	/* If config template provides API for serializing parsed config values to json - use it */
+	if (config_backend.config_template.to_json) {
+		char *json_stat = NULL;
+		size_t size = 0;
 
-		rapidjson::Value tmp_val(entry.value_template.data(), allocator);
-		config_value.AddMember(entry.entry->key, tmp_val, allocator);
+		dnet_config_backend config = config_backend.config_template;
+		std::vector<char> data(config.size, '\0');
+		config.data = data.data();
+		config.log = config_backend.log.get();
+
+		for (auto it = config_backend.options.begin(); it != config_backend.options.end(); ++it) {
+			const dnet_backend_config_entry &entry = *it;
+
+			std::vector<char> tmp(entry.value_template.begin(), entry.value_template.end());
+			entry.entry->callback(&config, entry.entry->key, tmp.data());
+		}
+
+		config.to_json(&config, &json_stat, &size);
+		if (json_stat && size) {
+			rapidjson::Document config_value(&allocator);
+			config_value.Parse<0>(json_stat);
+			backend_value.AddMember("config",
+			                        static_cast<rapidjson::Value&>(config_value),
+			                        allocator);
+		}
+		free(json_stat);
+	} else {
+		rapidjson::Value config_value(rapidjson::kObjectType);
+		for (auto it = config_backend.options.begin(); it != config_backend.options.end(); ++it) {
+			const dnet_backend_config_entry &entry = *it;
+
+			rapidjson::Value tmp_val(entry.value_template.data(), allocator);
+			config_value.AddMember(entry.entry->key, tmp_val, allocator);
+		}
+		backend_value.AddMember("config_template", config_value, allocator);
 	}
 
-	backend_value.AddMember("config_template", config_value, allocator);
 	stat_value.AddMember("backend", backend_value, allocator);
 }
 
@@ -176,7 +205,6 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 
 		if (categories & DNET_MONITOR_BACKEND) {
 			fill_backend_backend(stat_value, allocator, backend);
-			stat_value["backend"]["config"].AddMember("group", config_backend.group, allocator);
 		}
 		if (categories & DNET_MONITOR_IO) {
 			fill_backend_io(stat_value, allocator, backend);
@@ -186,6 +214,10 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 		}
 	} else if (categories & DNET_MONITOR_BACKEND) {
 		fill_disabled_backend_config(stat_value, allocator, config_backend);
+	}
+
+	if (categories & DNET_MONITOR_BACKEND) {
+		stat_value["backend"]["config"].AddMember("group", config_backend.group, allocator);
 	}
 
 	return stat_value;

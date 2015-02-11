@@ -1,5 +1,6 @@
 /*
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
+ * Copytight 2015+ Kirill Smorodinnikov <shaitkir@gmail.com>
  *
  * This file is part of Elliptics.
  * 
@@ -41,26 +42,11 @@
 
 #include "common.h"
 
+#include "example/file_backend.h"
+
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
-
-struct file_backend_root
-{
-	char			*root;
-	int			root_len;
-	int			sync;
-	int			bit_num;
-
-	uint64_t		records_in_blob;
-	uint64_t		blob_size;
-	int			defrag_percentage;
-	int			defrag_timeout;
-
-	dnet_logger		*blog;
-	struct eblob_log	log;
-	struct eblob_backend	*meta;
-};
 
 static inline void file_backend_setup_file(struct file_backend_root *r, char *file,
 		unsigned int size, const unsigned char *id)
@@ -134,7 +120,7 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 		oflags |= O_APPEND;
 	else if (!io->offset)
 		oflags |= O_TRUNC;
-	
+
 	fd = open(file, oflags, 0644);
 	if (fd < 0) {
 		err = -errno;
@@ -182,7 +168,7 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	dnet_ext_io_to_list(io, &elist);
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
-	
+
 	data += sizeof(struct dnet_io_attr);
 
 	file_backend_get_dir(io->id, r->bit_num, dir);
@@ -390,7 +376,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	err = dnet_send_file_info_ts(state, cmd, fd, 0, io.size, &io.timestamp);
 	if (err)
 		goto err_out_close;
-	
+
 	err = 0;
 
 err_out_close:
@@ -609,6 +595,7 @@ static struct dnet_config_backend dnet_file_backend = {
 	.size			= sizeof(struct file_backend_root),
 	.init			= dnet_file_config_init,
 	.cleanup		= dnet_file_config_cleanup,
+	.to_json		= dnet_file_config_to_json,
 };
 
 struct dnet_config_backend *dnet_file_backend_info(void)

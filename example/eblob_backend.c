@@ -1,5 +1,6 @@
 /*
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
+ * Copytight 2015+ Kirill Smorodinnikov <shaitkir@gmail.com>
  *
  * This file is part of Elliptics.
  *
@@ -47,6 +48,7 @@
 
 #include "monitor/measure_points.h"
 
+#include "example/eblob_backend.h"
 /*
  * FIXME: __unused is used internally by glibc, so it may cause conflicts.
  */
@@ -65,12 +67,6 @@ trace_id_t get_trace_id()
 	return backend_trace_id_hook;
 }
 
-struct eblob_read_params {
-	int			fd;
-	int			pad;
-	uint64_t		offset;
-};
-
 static int eblob_read_params_compare(const void *p1, const void *p2)
 {
 	const struct eblob_read_params *r1 = p1;
@@ -88,19 +84,6 @@ static int eblob_read_params_compare(const void *p1, const void *p2)
 
 	return 0;
 }
-
-struct eblob_backend_config {
-	struct eblob_config		data;
-	struct eblob_backend		*eblob;
-	dnet_logger			*blog;
-	struct eblob_log		log;
-
-	pthread_mutex_t			last_read_lock;
-	int64_t				vm_total;		/* squared in bytes */
-	int				random_access;
-	int				last_read_index;
-	struct eblob_read_params	last_reads[100];
-};
 
 /* Pre-callback that formats arguments and calls ictl->callback */
 static int blob_iterate_callback_common(struct eblob_disk_control *dc, void *data, void *priv, int no_meta) {
@@ -1156,6 +1139,7 @@ static struct dnet_config_backend dnet_eblob_backend = {
 	.size			= sizeof(struct eblob_backend_config),
 	.init			= dnet_blob_config_init,
 	.cleanup		= dnet_blob_config_cleanup,
+	.to_json		= dnet_blob_config_to_json,
 };
 
 struct dnet_config_backend *dnet_eblob_backend_info(void)
