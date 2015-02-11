@@ -38,7 +38,8 @@ backends_stat_provider::backends_stat_provider(struct dnet_node *node)
  */
 static void fill_backend_backend(rapidjson::Value &stat_value,
                                  rapidjson::Document::AllocatorType &allocator,
-                                 const struct dnet_backend_io &backend) {
+                                 const struct dnet_backend_io &backend,
+                                 const dnet_backend_info &config_backend) {
 	char *json_stat = NULL;
 	size_t size = 0;
 	struct dnet_backend_callbacks *cb = backend.cb;
@@ -47,6 +48,7 @@ static void fill_backend_backend(rapidjson::Value &stat_value,
 		if (json_stat && size) {
 			rapidjson::Document backend_value(&allocator);
 			backend_value.Parse<0>(json_stat);
+			backend_value["config"].AddMember("group", config_backend.group, allocator);
 			stat_value.AddMember("backend",
 			                     static_cast<rapidjson::Value&>(backend_value),
 			                     allocator);
@@ -129,7 +131,7 @@ static void fill_backend_status(rapidjson::Value &stat_value,
  *
  * If config template provides API for serializing parsed config values to json
  * it fills 'backend::config' section otherwise it uses unparsed values from original config
- * and fills 'backend::config_template'
+ * and fills 'backend::config_template'.
  *
  * After backend has been enabled, @fill_backend_backend() is called instead.
  */
@@ -159,6 +161,7 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 		if (json_stat && size) {
 			rapidjson::Document config_value(&allocator);
 			config_value.Parse<0>(json_stat);
+			config_value.AddMember("group", config_backend.group, allocator);
 			backend_value.AddMember("config",
 			                        static_cast<rapidjson::Value&>(config_value),
 			                        allocator);
@@ -172,6 +175,7 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 			rapidjson::Value tmp_val(entry.value_template.data(), allocator);
 			config_value.AddMember(entry.entry->key, tmp_val, allocator);
 		}
+		config_value.AddMember("group", config_backend.group, allocator);
 		backend_value.AddMember("config_template", config_value, allocator);
 	}
 
@@ -204,7 +208,7 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 		}
 
 		if (categories & DNET_MONITOR_BACKEND) {
-			fill_backend_backend(stat_value, allocator, backend);
+			fill_backend_backend(stat_value, allocator, backend, config_backend);
 		}
 		if (categories & DNET_MONITOR_IO) {
 			fill_backend_io(stat_value, allocator, backend);
@@ -214,10 +218,6 @@ static rapidjson::Value& backend_stats_json(uint64_t categories,
 		}
 	} else if (categories & DNET_MONITOR_BACKEND) {
 		fill_disabled_backend_config(stat_value, allocator, config_backend);
-	}
-
-	if (categories & DNET_MONITOR_BACKEND) {
-		stat_value["backend"]["config"].AddMember("group", config_backend.group, allocator);
 	}
 
 	return stat_value;
