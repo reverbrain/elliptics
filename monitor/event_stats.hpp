@@ -72,8 +72,15 @@ public:
 template<typename E, typename lock_policy = null_lock_policy>
 class event_stats : private lock_policy
 {
+	// events stored in fixed-size LRU that is implemented using treap
 	typedef ioremap::cache::treap<E> treap_t;
 public:
+	/*!
+	 * \internal
+	 *
+	 * Constructor parameters: \a events_size - maximum memory available for internal data structures,
+	 * \a period_in_seconds - observable period of time
+	 */
 	event_stats(size_t events_size, int period_in_seconds)
 	: num_events(0),
 	 max_events(bytes_to_num_events(events_size)),
@@ -84,6 +91,11 @@ public:
 		clear();
 	}
 
+	/*!
+	 * \internal
+	 *
+	 * Add \a event with \a time occurence of this event to update statistics
+	 */
 	void add_event(const E &event, time_t time)
 	{
 		typename lock_policy::unique_lock lock(this);
@@ -106,6 +118,12 @@ public:
 		}
 	}
 
+	/*!
+	 * \internal
+	 *
+	 * Get top \a k events with highest weight, \a time - current time,
+	 * \a top_size - result container, that should support push_back operation and random access iterators
+	 */
 	template< typename ResultContainer >
 	void get_top(size_t k, time_t time, ResultContainer &top_size)
 	{
@@ -163,16 +181,33 @@ private:
 		return bytes / sizeof(E);
 	}
 
+	/*!
+	 * \internal
+	 *
+	 * Update \a event weight, taking into account frequency expiration (params \a time and \a window_size used)
+	 * and event \a size
+	 */
 	inline static void update_weight(E &event, time_t time, size_t window_size, size_t size) {
 		double delta = compute_expiration(time, event.get_time(), window_size);
 		event.set_weight(delta * event.get_weight() + size);
 	}
 
+	/*!
+	 * \internal
+	 *
+	 * Update \a event frequency, taking into account frequency expiration (params \a time and \a window_size used)
+	 * and event \a freq - frequency
+	 */
 	inline static void update_frequency(E &event, time_t time, size_t window_size, double freq) {
 		double delta = compute_expiration(time, event.get_time(), window_size);
 		event.set_frequency(delta * event.get_frequency() + freq);
 	}
 
+	/*!
+	 * \internal
+	 *
+	 * Check whether \a event last \a time occurance outside time window of \a window_size seconds
+	 */
 	inline static bool check_expiration(const E *event, time_t time, size_t window_size) {
 		return static_cast<size_t>(time - event->get_time()) > window_size;
 	}
