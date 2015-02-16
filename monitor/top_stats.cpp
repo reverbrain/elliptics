@@ -27,9 +27,9 @@ top_stats::top_stats(size_t top_length, size_t events_size, int period_in_second
  m_top_length(top_length)
 {}
 
-void top_stats::update_stats(struct dnet_cmd *cmd, uint64_t size)
+void top_stats::update_stats(const struct dnet_cmd *cmd, uint64_t size)
 {
-	if (size > 0 && (cmd->cmd == DNET_CMD_READ || cmd->cmd == DNET_CMD_READ_RANGE || cmd->cmd == DNET_CMD_BULK_READ)) {
+	if (size > 0 && cmd->cmd == DNET_CMD_READ) {
 		key_stat_event event(cmd->id, size, 1., time(nullptr));
 		m_stats.add_event(event, event.get_time());
 	}
@@ -37,17 +37,3 @@ void top_stats::update_stats(struct dnet_cmd *cmd, uint64_t size)
 
 }} /* namespace ioremap::monitor */
 
-
-// if more than top keys statistics measured, then move this function implementation
-// to a separate unit (e.g. node_stats.{hpp,cpp}), because this unit shouldn't depend
-// on other headers (other than top_provider.hpp)
-void dnet_node_stats_update(struct dnet_node *node, struct dnet_cmd *cmd, uint64_t size)
-{
-	auto monitor = ioremap::monitor::get_monitor(node);
-	if (monitor) {
-		auto top_stats = monitor->get_top_stats();
-		if (top_stats) {
-			top_stats->update_stats(cmd, size);
-		}
-    }
-}

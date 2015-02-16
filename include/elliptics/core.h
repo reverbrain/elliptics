@@ -85,12 +85,6 @@
 
 #define DNET_DEFAULT_CACHE_PAGES_NUMBER 1
 
-#define DNET_DEFAULT_MONITOR_TOP_LENGTH 50
-
-#define DNET_DEFAULT_MONITOR_TOP_EVENTS_SIZE (10000*100)
-
-#define DNET_DEFAULT_MONITOR_TOP_PERIOD 300
-
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #ifndef dnet_offsetof

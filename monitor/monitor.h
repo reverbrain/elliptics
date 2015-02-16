@@ -106,9 +106,9 @@ void dnet_monitor_remove_provider(struct dnet_node *n, const char *name);
  * \a size - size of data that takes a part in command execution
  * \a time - time spended on command execution
  */
-void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans,
-                             const int err, const int cache,
-                             const uint32_t size, const unsigned long time);
+void dnet_monitor_stats_update(struct dnet_node *n, const struct dnet_cmd *cmd, const int trans,
+                               const int err, const int cache,
+                               const uint32_t size, const unsigned long time);
 
 int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data);
 

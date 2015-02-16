@@ -23,6 +23,22 @@
 #include "event_stats.hpp"
 #include "library/elliptics.h"
 
+/*
+ * Default number of top keys returned by top keys statistics provider
+ */
+#define DNET_DEFAULT_MONITOR_TOP_LENGTH 50
+
+/*
+ * Default limit of memory for collecting information about events, in bytes.
+ * Event approximate size is 100 bytes, so default size should be enough for storing ~10000 events
+ */
+#define DNET_DEFAULT_MONITOR_TOP_EVENTS_SIZE 1000000
+
+/*
+ * Default top keys statistics window size in seconds, 300s = 5 minutes
+ */
+#define DNET_DEFAULT_MONITOR_TOP_PERIOD 300
+
 namespace ioremap { namespace monitor {
 
 class key_stat_event;
@@ -45,7 +61,7 @@ namespace ioremap { namespace monitor {
 class key_stat_event : public ioremap::cache::treap_node_t<key_stat_event> {
 public:
 	key_stat_event() = default;
-	key_stat_event(struct dnet_id &id, uint64_t size, double frequency, time_t last_access)
+	key_stat_event(const struct dnet_id &id, uint64_t size, double frequency, time_t last_access)
 	: m_id(id), m_size(size), m_frequency(frequency), m_last_access(last_access)
 	{}
 
@@ -92,7 +108,7 @@ class top_stats {
 public:
 	top_stats(size_t top_length, size_t events_size, int period_in_seconds);
 
-	void update_stats(struct dnet_cmd *cmd, uint64_t size);
+	void update_stats(const struct dnet_cmd *cmd, uint64_t size);
 
 	size_t get_top_length() const { return m_top_length; }
 

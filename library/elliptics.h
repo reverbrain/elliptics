@@ -481,8 +481,6 @@ void dnet_backend_command_stats_cleanup(struct dnet_backend_io *backend_io);
 void dnet_backend_command_stats_update(struct dnet_node *node, struct dnet_backend_io *backend_io,
 		struct dnet_cmd *cmd, uint64_t size, int handled_in_cache, int err, long diff);
 
-void dnet_node_stats_update(struct dnet_node *node, struct dnet_cmd *cmd, uint64_t size);
-
 struct dnet_io {
 	int			need_exit;
 

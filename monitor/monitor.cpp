@@ -203,13 +203,18 @@ void dnet_monitor_remove_provider(struct dnet_node *n, const char *name) {
 	ioremap::monitor::remove_provider(n, std::string(name));
 }
 
-void monitor_command_counter(struct dnet_node *n, const int cmd, const int trans,
-                             const int err, const int cache,
-                             const uint32_t size, const unsigned long time) {
+void dnet_monitor_stats_update(struct dnet_node *n, const struct dnet_cmd *cmd, const int trans,
+                               const int err, const int cache,
+                               const uint32_t size, const unsigned long time) {
 	auto real_monitor = ioremap::monitor::get_monitor(n);
-	if (real_monitor)
-		real_monitor->get_statistics().command_counter(cmd, trans, err,
+	if (real_monitor) {
+		real_monitor->get_statistics().command_counter(cmd->cmd, trans, err,
 		                                               cache, size, time);
+		auto top_stats = real_monitor->get_top_stats();
+		if (top_stats) {
+			top_stats->update_stats(cmd, size);
+		}
+	}
 }
 
 int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
