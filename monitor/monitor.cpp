@@ -32,8 +32,7 @@
 #include "../example/config.hpp"
 
 static ioremap::monitor::monitor_config* get_monitor_config(struct dnet_node *n) {
-	using namespace ioremap::elliptics::config;
-	const auto& data = *static_cast<const config_data *>(n->config_data);
+	const auto& data = *static_cast<const ioremap::elliptics::config::config_data *>(n->config_data);
 	return data.monitor_config.get();
 }
 

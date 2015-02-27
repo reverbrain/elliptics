@@ -38,10 +38,10 @@ namespace ioremap { namespace monitor {
 struct monitor_config
 {
 	unsigned int	monitor_port;
-	bool			has_top;
-	size_t			top_length;
-	size_t			events_size;
-	int				period_in_seconds;
+	bool		has_top;
+	size_t		top_length;
+	size_t		events_size;
+	int		period_in_seconds;
 
 	static std::unique_ptr<monitor_config> parse(const ioremap::elliptics::config::config &monitor);
 };

@@ -30,9 +30,6 @@
 #include <thread>
 #include <map>
 
-#include <boost/thread/locks.hpp>
-#include <boost/thread/shared_mutex.hpp>
-
 #include "rapidjson/document.h"
 
 #include "../library/elliptics.h"
@@ -212,7 +209,6 @@ private:
  *     generating final statistics report in json format
  */
 class statistics {
-	typedef boost::shared_mutex rw_lock;
 public:
 	/*!
 	 * \internal
@@ -293,7 +289,7 @@ private:
 	 *
 	 * Lock for controlling access to vector of external statistics provider
 	 */
-	rw_lock m_provider_lock;
+	std::mutex m_provider_lock;
 
 	std::map<std::string, std::shared_ptr<stat_provider>> m_stat_providers;
 };

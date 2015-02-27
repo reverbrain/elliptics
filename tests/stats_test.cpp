@@ -53,8 +53,7 @@ static void destroy_global_data()
 
 class test_event : public ioremap::cache::treap_node_t<test_event> {
 public:
-	test_event()
-	= default;
+	test_event() = default;
 	test_event(const std::string& id, uint64_t size, double frequency, time_t last_access)
 	: m_id(id), m_size(size), m_frequency(frequency), m_last_access(last_access)
 	{}
@@ -113,14 +112,14 @@ private:
 
 static void configure_nodes(const std::string &path)
 {
-    config_data top_params = config_data()
+	config_data top_params = config_data()
 		("top_length", TOP_LENGTH)
 		("events_size", EVENTS_SIZE)
 		("period_in_seconds", PERIOD_IN_SECONDS);
 
 	start_nodes_config start_config(results_reporter::get_stream(), std::vector<server_config>({
 		server_config::default_value().apply_options(config_data()
-		    ("group", 5)
+			("group", 5)
 			("monitor_top", top_params)
 		)
 	}), path);
@@ -128,7 +127,11 @@ static void configure_nodes(const std::string &path)
 	global_data = start_nodes(start_config);
 }
 
-static void test_top_provider_existance()
+/*
+ * Top statistics handler must exist, if "top" section in "monitor" section in config
+ * exists. Node's configuration happened in configure_node() function above.
+ */
+static void test_top_statistics_existence()
 {
 	dnet_node *node = global_data->nodes[0].get_native();
 	auto monitor = ioremap::monitor::get_monitor(node);
@@ -151,9 +154,11 @@ static void test_event_stats_boundary_conditions()
 	stats_t stats(EVENTS_SIZE, PERIOD_IN_SECONDS);
 	std::vector<test_event> result;
 
+	// get_top returns empty list, if there was no added events
 	stats.get_top(TOP_LENGTH, default_time, result);
 	BOOST_CHECK(result.empty());
 
+	// get_top returns no more events than was requested
 	for(int i = 0; i < 2 * TOP_LENGTH; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
@@ -162,6 +167,7 @@ static void test_event_stats_boundary_conditions()
 	stats.get_top(TOP_LENGTH, default_time, result);
 	BOOST_REQUIRE_EQUAL(result.size(), TOP_LENGTH);
 
+	// get_top returns no more events than EVENTS_LIMIT
 	for(int i = 0; i < 4 * EVENTS_LIMIT; ++i) {
 		test_event e{std::to_string(static_cast<long long>(rand())), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
@@ -171,10 +177,12 @@ static void test_event_stats_boundary_conditions()
 	stats.get_top(4*EVENTS_LIMIT, default_time, result);
 	BOOST_REQUIRE_EQUAL(result.size(), EVENTS_LIMIT);
 
+	// all events has been expired since expire_time elapsed
 	result.clear();
 	stats.get_top(TOP_LENGTH, expire_time, result);
 	BOOST_CHECK(result.empty());
 
+	// get_top should not return more events, than were added
 	const int few_events = 5;
 	BOOST_CHECK(few_events < TOP_LENGTH);
 
@@ -195,11 +203,15 @@ static size_t events_symmetric_diff(container_t &fst, container_t &snd)
 
 	std::vector<test_event> diff(fst.size() + snd.size());
 	auto it = std::set_symmetric_difference(fst.begin(), fst.end(),
-											snd.begin(), snd.end(),
-											diff.begin(), test_event::key_compare_event);
+					        snd.begin(), snd.end(),
+					        diff.begin(), test_event::key_compare_event);
 	return std::distance(diff.begin(), it);
 }
 
+/*
+ * Check max-heap property of event_stats. All events inserted at the same time.
+ * All events describe access to different keys.
+ */
 static void test_event_stats_no_time_dependency()
 {
 	const size_t default_size = 100;
@@ -218,6 +230,7 @@ static void test_event_stats_no_time_dependency()
 	BOOST_REQUIRE_EQUAL(result.back().get_weight(), TOP_LENGTH * default_size);
 
 	// monotonically increment event's weight within events_limit
+	// last added events are heavies, so they must appear in get_top
 	std::vector<test_event> top_events;
 	for(int i = 1; i <= 3 * TOP_LENGTH; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), i * default_size, 1., default_time};
@@ -232,6 +245,7 @@ static void test_event_stats_no_time_dependency()
 	BOOST_REQUIRE_EQUAL(events_symmetric_diff(top_events, result), 0);
 
 	// generate events with random weights within events_limit
+	// use min_heap to find top (heaviest) events
 	std::vector<test_event> min_heap;
 	min_heap.reserve(TOP_LENGTH);
 	std::function<decltype(test_event::weight_compare)> comparator_weight(&test_event::weight_compare);
@@ -256,8 +270,9 @@ static void test_event_stats_no_time_dependency()
 	BOOST_REQUIRE_EQUAL(events_symmetric_diff(min_heap, result), 0);
 
 	// check that statistics doesn't depend on order of key insertion
+	// order of insertion should not impact on get_top results
 	std::vector<test_event> test_set;
-    for(int i = 1; i < 8; ++i) {
+	for(int i = 1; i < 8; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), i * default_size, 1., default_time};
 		test_set.push_back(e);
 	}
@@ -275,6 +290,9 @@ static void test_event_stats_no_time_dependency()
 	} while (next_permutation(test_set.begin(), test_set.end(), test_event::key_compare_event));
 }
 
+/*
+ * Check max-heap property of event_stats.
+ */
 static void test_event_stats_with_time_dependency()
 {
 	const size_t default_size = 100;
@@ -284,6 +302,9 @@ static void test_event_stats_with_time_dependency()
 	stats_t stats3(EVENTS_SIZE, PERIOD_IN_SECONDS);
 	std::vector<test_event> result, top_events;
 
+	// all events describe access to the same key, but at different period of time during
+	// time window much larger than PERIOD_IN_SECONDS.
+	// Event weight increments all the time inside PERIOD_IN_SECONDS time window, but
 	// old events (outside observable period of time) are omitted
 	const size_t long_period = 10 * PERIOD_IN_SECONDS;
 	for(size_t i = 0; i < long_period; ++i) {
@@ -295,15 +316,18 @@ static void test_event_stats_with_time_dependency()
 	BOOST_REQUIRE_EQUAL(result.size(), 1);
 	BOOST_CHECK(result.back().get_weight() <= PERIOD_IN_SECONDS * default_size);
 
-	// weight of event must be smaller after significant period of silence
+	// Added single event to the "same" key
+	// after PERIOD_IN_SECONDS / 2 since last event were added (in previous test).
+	// Weight of event must be proportionally smaller after significant period of silence,
+	// because older events are outdated (outside time window)
 	test_event e{"same", default_size, 1., default_time + static_cast<time_t>(long_period + PERIOD_IN_SECONDS / 2)};
 	stats.add_event(e, e.get_time());
-	result.clear();	
+	result.clear();
 	stats.get_top(TOP_LENGTH, e.get_time(), result);
 	BOOST_REQUIRE_EQUAL(result.size(), 1);
 	BOOST_CHECK(result.back().get_weight() <= PERIOD_IN_SECONDS * default_size / 2);
 
-	// small key with regular frequent access must popup in top stats among heavier keys with single access
+	// small key "sum" with regular frequent access must popup in top stats among heavier keys with single access
 	for(int i = 0; i < 3 * TOP_LENGTH; ++i) {
 		size_t size = i % 2 ? default_size : default_size * 10;
 		std::string key = i % 2 ? std::string("sum") : std::to_string(static_cast<long long>(i));
@@ -312,7 +336,7 @@ static void test_event_stats_with_time_dependency()
 		stats2.add_event(e, e.get_time());
 	}
 
-	result.clear();	
+	result.clear();
 	stats2.get_top(TOP_LENGTH, default_time + 3 * TOP_LENGTH, result);
 	BOOST_REQUIRE_EQUAL(result.size(), TOP_LENGTH);
 	BOOST_REQUIRE_EQUAL(*result.front().get_key(), "sum");
@@ -322,6 +346,7 @@ static void test_event_stats_with_time_dependency()
 	// if keys have same size and time access pattern, then keys with more frequent access must be in top
 	for(int i = 0; i < 5 * TOP_LENGTH; ++i) {
 		std::string key = std::to_string(static_cast<long long>(i));
+		// access to i-th key occurs i times
 		for(int j = 0; j < i+1; ++j) {
 			test_event e{key, default_size, 1., default_time + j};
 			stats3.add_event(e, e.get_time());
@@ -341,7 +366,7 @@ static void test_event_stats_with_time_dependency()
 bool register_tests(test_suite *suite, node n)
 {
 	(void) n;
-	ELLIPTICS_TEST_CASE_NOARGS(test_top_provider_existance);
+	ELLIPTICS_TEST_CASE_NOARGS(test_top_statistics_existence);
 	ELLIPTICS_TEST_CASE_NOARGS(test_event_stats_boundary_conditions);
 	ELLIPTICS_TEST_CASE_NOARGS(test_event_stats_no_time_dependency);
 	ELLIPTICS_TEST_CASE_NOARGS(test_event_stats_with_time_dependency);

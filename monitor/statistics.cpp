@@ -190,13 +190,13 @@ statistics::statistics(monitor& mon, struct dnet_config *cfg) : m_monitor(mon)
 
 void statistics::add_provider(stat_provider *stat, const std::string &name)
 {
-	boost::unique_lock<rw_lock> guard(m_provider_lock);
+	std::unique_lock<std::mutex> guard(m_provider_lock);
 	m_stat_providers.insert(make_pair(name, std::shared_ptr<stat_provider>(stat)));
 }
 
 void statistics::remove_provider(const std::string &name)
 {
-	boost::unique_lock<rw_lock> guard(m_provider_lock);
+	std::unique_lock<std::mutex> guard(m_provider_lock);
 	m_stat_providers.erase(name);
 }
 
@@ -247,7 +247,7 @@ std::string statistics::report(uint64_t categories)
 #endif
 	}
 
-	boost::shared_lock<rw_lock> guard(m_provider_lock);
+	std::unique_lock<std::mutex> guard(m_provider_lock);
 	for (auto it = m_stat_providers.cbegin(), end = m_stat_providers.cend(); it != end; ++it) {
 		auto json = it->second->json(categories);
 		if (json.empty())

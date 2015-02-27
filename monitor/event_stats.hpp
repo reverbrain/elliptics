@@ -17,8 +17,8 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef EVENT_STATS_HPP
-#define EVENT_STATS_HPP
+#ifndef __DNET_MONITOR_EVENT_STATS_HPP
+#define __DNET_MONITOR_EVENT_STATS_HPP
 
 #include "cache/treap.hpp"
 
@@ -30,47 +30,8 @@
 
 namespace ioremap { namespace monitor {
 
-class mutex_lock_policy
-{
-	typedef std::mutex mutex_t;
-public:
-	class unique_lock {
-	public:
-		unique_lock(mutex_lock_policy *policy)
-		: lock_(policy->get_lock())
-		{}
-	private:
-		std::unique_lock<mutex_t> lock_;
-	};
-
-	mutex_t &get_lock() { return mut_; }
-private:
-	mutex_t mut_;
-};
-
-class null_lock_policy
-{
-public:
-	class unique_lock {
-	public:
-		unique_lock(null_lock_policy *policy) { (void) policy; }
-	};
-};
-
-/*
- *	This class provides statistics of events during some defined period of time.
- * Also there are strict limitation of memory resources which could be used by
- * instances of this class. So some information about events may be lost, if
- * significant amount of events multiplied by event size exceeded memory limitations.
- * Therefore statistics are computed approximately in case of lots of heavyweight events.
- *	Any type E of event must support following methods: (get/set)_weight, (get/set)_frequency,
- * and (get/set)_time.
- *	Currently only get_top method implemented, which could be used for getting top k events
- * with highest weight, where weight is approximate sum of weight of particular events during
- * observable period of time (period_in_seconds).
- */
-template<typename E, typename lock_policy = null_lock_policy>
-class event_stats : private lock_policy
+template<typename E>
+class event_stats
 {
 	// events stored in fixed-size LRU that is implemented using treap
 	typedef ioremap::cache::treap<E> treap_t;
@@ -82,9 +43,9 @@ public:
 	 * \a period_in_seconds - observable period of time
 	 */
 	event_stats(size_t events_size, int period_in_seconds)
-	: num_events(0),
-	 max_events(bytes_to_num_events(events_size)),
-	 period(period_in_seconds)
+	: m_num_events(0),
+	 m_max_events(bytes_to_num_events(events_size)),
+	 m_period(period_in_seconds)
 	{}
 
 	~event_stats() {
@@ -94,26 +55,27 @@ public:
 	/*!
 	 * \internal
 	 *
-	 * Add \a event with \a time occurence of this event to update statistics
+	 * Add \a event with \a time occurence of this event to update statistics.
+	 * Complexity: O(log N) on average, where N - number of containing events
 	 */
 	void add_event(const E &event, time_t time)
 	{
-		typename lock_policy::unique_lock lock(this);
-		auto it = treap.find(event.get_key());
+		std::unique_lock<std::mutex> locker(m_lock);
+		auto it = m_treap.find(event.get_key());
 		if (it) {
-			update_weight(*it, time, period, event.get_weight());
-			update_frequency(*it, time, period, 1.);
+			update_weight(*it, time, m_period, event.get_weight());
+			update_frequency(*it, time, m_period, 1.);
 			it->set_time(time);
-			treap.decrease_key(it);
+			m_treap.decrease_key(it);
 		} else {
-			if (num_events < max_events) {
-				treap.insert(new E(event));
-				++num_events;
+			if (m_num_events < m_max_events) {
+				m_treap.insert(new E(event));
+				++m_num_events;
 			} else {
-				auto t = treap.top();
-				treap.erase(t);
+				auto t = m_treap.top();
+				m_treap.erase(t);
 				*t = event;
-				treap.insert(t);
+				m_treap.insert(t);
 			}
 		}
 	}
@@ -122,23 +84,25 @@ public:
 	 * \internal
 	 *
 	 * Get top \a k events with highest weight, \a time - current time,
-	 * \a top_size - result container, that should support push_back operation and random access iterators
+	 * \a top_size - result container, that should support push_back operation and random access iterators.
+	 * Complexity: O(N * log N) worst case complexity,
+	 *             O(N * log k) average case complexity, where N - number of containing events
 	 */
 	template< typename ResultContainer >
 	void get_top(size_t k, time_t time, ResultContainer &top_size)
 	{
-		std::vector< typename treap_t::p_node_type > top_nodes;
+		std::vector<typename treap_t::p_node_type> top_nodes;
 
 		{
-			typename lock_policy::unique_lock lock(this);
-			treap_to_container(treap.top(), top_nodes);
+			std::unique_lock<std::mutex> locker(m_lock);
+			treap_to_container(m_treap.top(), top_nodes);
 
 			for (auto it = top_nodes.begin(); it != top_nodes.end(); ++it) {
 				auto n = *it;
-				if (check_expiration(n, time, period)) {
-					treap.erase(n);
+				if (check_expiration(n, time, m_period)) {
+					m_treap.erase(n);
 					delete n;
-					--num_events;
+					--m_num_events;
 				} else {
 					top_size.push_back(*n);
 				}
@@ -170,9 +134,9 @@ private:
 	}
 
 	void clear() {
-		while (!treap.empty()) {
-			auto t = treap.top();
-			treap.erase(t);
+		while (!m_treap.empty()) {
+			auto t = m_treap.top();
+			m_treap.erase(t);
 			delete t;
 		}
 	}
@@ -233,12 +197,13 @@ private:
 	}
 
 private:
-	size_t num_events;
-	size_t max_events;
-	int period;
-	treap_t treap;
+	size_t m_num_events;
+	size_t m_max_events;
+	int m_period;
+	treap_t m_treap;
+	std::mutex m_lock;
 };
 
 }}  /* namespace ioremap::monitor */
 
-#endif // EVENT_STATS_HPP
+#endif // __DNET_MONITOR_EVENT_STATS_HPP

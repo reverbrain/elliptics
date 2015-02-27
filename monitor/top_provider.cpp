@@ -33,12 +33,6 @@ top_provider::top_provider(struct dnet_node *node)
 	m_top_stats = monitor->get_top_stats();
 }
 
-static inline char *dnet_dump_id_str_full(const unsigned char *id)
-{
-	static __thread char __dnet_dump_id_str_full[2 * DNET_ID_SIZE + 1];
-	return dnet_dump_id_len_raw(id, DNET_ID_SIZE, __dnet_dump_id_str_full);
-}
-
 static void fill_top_stat(const key_stat_event &key_event,
                       rapidjson::Value &stat_array,
                       rapidjson::Document::AllocatorType &allocator) {

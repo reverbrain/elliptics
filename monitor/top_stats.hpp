@@ -112,7 +112,7 @@ public:
 
 	size_t get_top_length() const { return m_top_length; }
 
-	typedef event_stats<key_stat_event, mutex_lock_policy> event_stats_t;
+	typedef event_stats<key_stat_event> event_stats_t;
 	event_stats_t& get_stats() { return m_stats; }
 
 private:
