@@ -47,7 +47,6 @@ if (NOT BLACKHOLE_INCLUDE_DIRS)
 endif()
 include_directories(${BLACKHOLE_INCLUDE_DIRS})
 
-create_stdint(${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/monitor)
@@ -169,7 +168,6 @@ install(FILES
         include/elliptics/timer.hpp
         include/elliptics/utils.hpp
         include/elliptics/backends.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h
         include/elliptics/module_backend.h
         include/elliptics/module_backend.hpp
         include/elliptics/logger.hpp

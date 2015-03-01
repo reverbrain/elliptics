@@ -29,7 +29,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include <elliptics/typedefs.h>
 #include <elliptics/core.h>
 
 #endif
