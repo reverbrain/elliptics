@@ -1,6 +1,7 @@
 /*
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  * Copyright 2014+ Ruslan Nigmatullin <euroelessar@yandex.ru>
+ * Copyright 2015+ Yandex
  *
  * This file is part of Elliptics.
  *
@@ -1197,8 +1198,10 @@ static net_state_list_ptr dnet_check_route_table_victims(struct dnet_node *node,
 	size_t groups_count = 0;
 	pthread_mutex_lock(&node->state_lock);
 
+	struct rb_node *it;
 	struct dnet_group *g;
-	list_for_each_entry(g, &node->group_list, group_entry) {
+	for (it = rb_first(&node->group_root); it; it = rb_next(it)) {
+		g = rb_entry(it, struct dnet_group, group_entry);
 		groups[groups_count++] = g->group_id;
 
 		if (groups_count >= groups_count_limit)

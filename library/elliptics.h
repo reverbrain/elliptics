@@ -1,5 +1,6 @@
 /*
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
+ * Copyright 2015+ Yandex
  *
  * This file is part of Elliptics.
  *
@@ -360,9 +361,10 @@ void dnet_notify_exit(struct dnet_node *n);
 
 struct dnet_group
 {
-	struct list_head	group_entry;
+	struct rb_node		group_entry;
 
 	unsigned int		group_id;
+	struct dnet_node	*node;
 
 	struct list_head	idc_list;
 
@@ -567,7 +569,7 @@ struct dnet_node
 	struct dnet_addr	*addrs;
 
 	pthread_mutex_t		state_lock;
-	struct list_head	group_list;
+	struct rb_root		group_root;
 
 	/* hosts client states, i.e. those who didn't join network */
 	struct list_head	empty_state_list;
