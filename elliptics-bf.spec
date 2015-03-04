@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.3.33
+Version:	2.26.3.36
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:	python-devel
 BuildRequires:	libcocaine-core2-devel >= 0.11.2.0
 BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
-BuildRequires:	eblob-devel >= 0.22.9
+BuildRequires:	eblob-devel >= 0.22.15
 BuildRequires:  libblackhole-devel >= 0.2.3-1
 BuildRequires:	libev-devel libtool-ltdl-devel
 BuildRequires:	cmake msgpack-devel python-msgpack
@@ -143,6 +143,51 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jan 28 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.36
+- package: depend on 0.22.15+ eblob
+- logs: fixed printing trace_id at logs while receiving/sending packets
+- iterator: made iterators with `no-meta` flag to return zero timestamp.
+- 	Now if iterator faces a record with corrupted exteded header it will return a key with empty extended header.
+
+* Sat Jan 17 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.35
+- logger: let file logger to watch to its sink file and allow file to be moved/rotated
+- Indent cleanup
+
+* Tue Dec 23 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.34
+- recovery: fixed recovering keys which have several alive copies at one backend
+- tests: updated description of test_session_iterator cases
+- python: limited types of object that can be used for elliptics.Id initialization
+- stat: do not fill in backend::config object for non-enabled backends, it contains strings only, but it must be parsed instead.
+- 	Use backend::config_template object for those backends.
+- recovery: used total_size instead of size for determining record size.
+- recovery: escaped dumping keys that allready consistent in all groups
+- recovery: added recovery_speed to merge stats
+- iteration: removed double checking of ranges - keys is already filtered in eblob
+- iteration: added new iteration flag: DNET_IFLAGS_NO_META which turns off reading extended header from blob and speedups,
+- 	but all keys that will be returned by such iteration will have empty metadata (timestamp and user_flags).
+- recovery: added '-M' option to dnet_recovery which speedups iteration phases of recovery but sacrifices checking metadata.
+- 	Recovery with this option will not check metadata, will not replace old records by new ones and
+- 	will only copy some available replica of keys to groups which do not have these keys.
+- pytests: added case to test_session_iterator that check iterating with no_meta flag
+- recovery: added 'recovery_speed' and 'iteration_speed' to statistics. Both values are mesuared in records per second.
+- python: made elliptics.Id to be initialized by any iterable object and group
+- recovery: replaced cPickle by msgpack for packing intermediate results
+- recovery: added 'total_keys' statistics that shows how much keys should be recovered/processed
+- python: fixed gil_guard
+- bindings: added start_time and end_time methods for async_result: both for C++ and Python bindings.
+- 	They return timestamps when async result was created and finished.
+- 	Fixed calculation tnsec of elapsed_time.
+- config: use uint32_t for parsing group from config - disallow setting negative group.
+- Pytests: added iterator tests.
+- Pytests: moved  fixture to global conftests. Disabled srw for test cluster in test_specific_cases. Cleaned up pytests code.
+- Made dumping key enabled by default, to disable it introduced new option -> -u
+- don't add option for key dumping in dc_recovery
+- Added option for dumping into text file all iterated keys
+- Fixed code indent
+- config: do not reparse config at each backend init - only if config was modified.
+- 	Removed useless copying of an array at config methods.
+- Disable only non-disabled backends at cleanup.
+
 * Mon Nov 10 2014 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.3.33
 - lookup: extended lookup address to return dnet_addr, not address string
 - pytests: fixed broken index tests - use common cluster for all test and isolated cluster for test_special_cases

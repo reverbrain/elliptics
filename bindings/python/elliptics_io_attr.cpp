@@ -26,7 +26,7 @@ namespace ioremap { namespace elliptics { namespace python {
 elliptics_io_attr::elliptics_io_attr()
 {
 	start		= 0;
-	num			= 0;
+	num		= 0;
 	user_flags	= 0;
 	flags		= 0;
 	offset		= 0;
@@ -50,7 +50,7 @@ bp::tuple io_attr_pickle::getstate(const elliptics_io_attr& io) {
 	return bp::make_tuple(id_pickle::getstate(io.parent),
 	                      id_pickle::getstate(io.id),
 	                      time_pickle::getstate(io.time),
-	                      io.user_flags, io.size, io.flags);
+	                      io.user_flags, io.size, io.flags, io.total_size);
 }
 
 void io_attr_pickle::setstate(elliptics_io_attr& io, bp::tuple state) {
@@ -67,6 +67,7 @@ void io_attr_pickle::setstate(elliptics_io_attr& io, bp::tuple state) {
 	io.user_flags = bp::extract<uint64_t>(state[3]);
 	io.size = bp::extract<uint64_t>(state[4]);
 	io.flags = bp::extract<uint64_t>(state[5]);
+	io.total_size = bp::extract<uint64_t>(state[6]);
 }
 
 void init_elliptics_io_attr() {

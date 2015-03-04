@@ -18,20 +18,18 @@
 Wrappers for iterator and it's result container
 """
 
-import sys
 import logging
 import os
 
 from .utils.misc import logged_class, mk_container_name
 from .etime import Time
 from .range import IdRange
-from collections import namedtuple
 import traceback
-
-sys.path.insert(0, "bindings/python/")  # XXX
 import elliptics
+import time
 
 log = logging.getLogger(__name__)
+
 
 @logged_class
 class IteratorResult(object):
@@ -123,7 +121,8 @@ class IteratorResult(object):
                     results - resulting container of merged diffs.
                 1.  Goes through tuples and find tuple with minimum key and maximum timestamp in value
                 2.  Value from the tuple appends in corresponding result container.
-                3.  Goes through tuples again and for tuple with a key equal to minimum key, gets new record from iterator while it key == minimum or end of node diffs is reached.
+                3.  Goes through tuples again and for tuple with a key equal to minimum key,
+                    gets new record from iterator while it key == minimum or end of node diffs is reached.
                 4.  If for some tuple all node diffs are processed - adds number of the tuple into remove list
                 5.  After that removes from tuple list all tuples from remove list
                 6.  Repeates step 1-6 while tuple list isn't empty
@@ -311,7 +310,10 @@ class Iterator(object):
             iterated_keys = 0
             total_keys = 0
 
+            start = time.time()
+
             for num, record in enumerate(records):
+                end = time.time()
                 # TODO: Here we can add throttling
                 if record.status != 0:
                     raise RuntimeError("Iteration status check failed: {0}".format(record.status))
@@ -322,14 +324,15 @@ class Iterator(object):
                 total_keys = record.response.total_keys
 
                 if iterated_keys % batch_size == 0:
-                    yield (filtered_keys, iterated_keys, total_keys)
+                    yield (filtered_keys, iterated_keys, total_keys, start, end)
                 if record.response.status != 0 or record.response.size == 0:
                     continue
                 results[self.get_key_range_id(record.response.key)].append(record)
+            end = time.time()
 
             elapsed_time = records.elapsed_time()
             self.log.debug("Time spended for iterator: {0}/{1}".format(elapsed_time.tsec, elapsed_time.tnsec))
-            yield (filtered_keys, iterated_keys, total_keys)
+            yield (filtered_keys, iterated_keys, total_keys, start, end)
             if self.separately:
                 yield results
             else:
@@ -339,15 +342,15 @@ class Iterator(object):
                            .format(address, backend_id, repr(e), traceback.format_exc()))
             yield None
 
-
     @classmethod
     def iterate_with_stats(cls, node, eid, timestamp_range,
                            key_ranges, tmp_dir, address, group_id, backend_id, batch_size,
-                           stats, leave_file=False,
+                           stats, flags, leave_file=False,
                            separately=False):
         iterator = cls(node, group_id, separately)
         result = iterator.start(eid=eid,
                                 timestamp_range=timestamp_range,
+                                flags=flags,
                                 key_ranges=key_ranges,
                                 tmp_dir=tmp_dir,
                                 address=address,
@@ -365,9 +368,10 @@ class Iterator(object):
                 result = it
                 break
 
-            filtered_keys, iterated_keys, total_keys = it
+            filtered_keys, iterated_keys, total_keys, start, end = it
             result_len = filtered_keys
             stats.set_counter('filtered_keys', filtered_keys)
+            stats.set_counter('iteration_speed', filtered_keys / (end - start))
             stats.set_counter('iterated_keys', iterated_keys)
             stats.set_counter('total_keys', total_keys)
 
@@ -429,12 +433,3 @@ class MergeData(object):
         except StopIteration:
             self.next_value = None
             self.iter = None
-
-
-class KeyInfo(object):
-    def __init__(self, address, group_id, timestamp, size, user_flags):
-        self.address = address
-        self.group_id = group_id
-        self.timestamp = timestamp
-        self.size = size
-        self.user_flags = user_flags

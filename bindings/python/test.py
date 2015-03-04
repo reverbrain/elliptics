@@ -17,7 +17,6 @@
 # =============================================================================
 
 import sys
-sys.path.insert(0, "bindings/python/.libs/")
 import elliptics
 import binascii
 from pprint import pprint

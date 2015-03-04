@@ -50,27 +50,27 @@ enum dnet_commands {
 						 * IO attribute which will have offset and size
 						 * parameters.
 						 */
-	DNET_CMD_LIST_DEPRECATED,	/* List all objects for given node ID. Deperacted and forbidden */
+	DNET_CMD_LIST_DEPRECATED,		/* List all objects for given node ID. Deperacted and forbidden */
 	DNET_CMD_EXEC,				/* Execute given command on the remote node */
 	DNET_CMD_ROUTE_LIST,			/* Receive route table from given node */
 	DNET_CMD_STAT_DEPRECATED,		/* Gather remote VM, LA and FS statistics */
 	DNET_CMD_NOTIFY,			/* Notify when object in question was modified */
 	DNET_CMD_DEL,				/* Remove given object from the storage */
-	DNET_CMD_STAT_COUNT_DEPRECATED,	/* Gather remote per-cmd statistics */
+	DNET_CMD_STAT_COUNT_DEPRECATED,		/* Gather remote per-cmd statistics */
 	DNET_CMD_STATUS,			/* Change elliptics node status */
 	DNET_CMD_READ_RANGE,			/* Read range of objects */
 	DNET_CMD_DEL_RANGE,			/* Remove range of objects */
 	DNET_CMD_AUTH,				/* Authentification cookie check */
 	DNET_CMD_BULK_READ,			/* Read a number of ids at one time */
-	DNET_CMD_DEFRAG_DEPRECATED,			/* Start defragmentation process if backend supports it. Deprecated and forbidden */
+	DNET_CMD_DEFRAG_DEPRECATED,		/* Start defragmentation process if backend supports it. Deprecated and forbidden */
 	DNET_CMD_ITERATOR,			/* Start/stop/pause/status for server-side iterator */
 	DNET_CMD_INDEXES_UPDATE,		/* Update secondary indexes for id */
 	DNET_CMD_INDEXES_INTERNAL,		/* Update identificators table for certain secondary index. Internal usage only */
-	DNET_CMD_INDEXES_FIND,		/* Find all objects by indexes */
-	DNET_CMD_MONITOR_STAT,		/* Gather monitor json statistics */
-	DNET_CMD_UPDATE_IDS,		/* Update buckets' information */
-	DNET_CMD_BACKEND_CONTROL,	/* Special command to start or stop backends */
-	DNET_CMD_BACKEND_STATUS,	/* Special command to see current statuses of backends */
+	DNET_CMD_INDEXES_FIND,			/* Find all objects by indexes */
+	DNET_CMD_MONITOR_STAT,			/* Gather monitor json statistics */
+	DNET_CMD_UPDATE_IDS,			/* Update buckets' information */
+	DNET_CMD_BACKEND_CONTROL,		/* Special command to start or stop backends */
+	DNET_CMD_BACKEND_STATUS,		/* Special command to see current statuses of backends */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
@@ -929,9 +929,14 @@ enum {
 #define DNET_IFLAGS_KEY_RANGE		(1<<1)
 /* When set timestamp range is used */
 #define DNET_IFLAGS_TS_RANGE		(1<<2)
+/* When set iterator will return only key with empty metadata (user_flags and timestamp) */
+#define DNET_IFLAGS_NO_META		(1<<3)
+
 /* Sanity */
-#define DNET_IFLAGS_ALL			(DNET_IFLAGS_DATA	\
-		| DNET_IFLAGS_KEY_RANGE | DNET_IFLAGS_TS_RANGE)
+#define DNET_IFLAGS_ALL			(DNET_IFLAGS_DATA | \
+					 DNET_IFLAGS_KEY_RANGE | \
+					 DNET_IFLAGS_TS_RANGE | \
+					 DNET_IFLAGS_NO_META)
 
 /*
  * Defines how iterator should behave

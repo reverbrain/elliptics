@@ -18,16 +18,23 @@ __thread trace_id_t backend_trace_id_hook;
 
 namespace ioremap { namespace elliptics {
 
+typedef blackhole::sink::files_t<
+    blackhole::sink::files::boost_backend_t,
+    blackhole::sink::rotator_t<
+        blackhole::sink::files::boost_backend_t,
+        blackhole::sink::rotation::watcher::move_t
+    >
+> elliptics_file_t;
+
 file_logger::file_logger(const char *file, log_level level)
 {
 	verbosity(level);
 
 	auto formatter = blackhole::utils::make_unique<blackhole::formatter::string_t>(format());
 	formatter->set_mapper(file_logger::mapping());
-	auto sink = blackhole::utils::make_unique<blackhole::sink::files_t<>>
-		(blackhole::sink::files_t<>::config_type(file));
+	auto sink = blackhole::utils::make_unique<elliptics_file_t>(elliptics_file_t::config_type(file));
 	auto frontend = blackhole::utils::make_unique
-		<blackhole::frontend_t<blackhole::formatter::string_t, blackhole::sink::files_t<>>>
+		<blackhole::frontend_t<blackhole::formatter::string_t, elliptics_file_t>>
 			(std::move(formatter), std::move(sink));
 
 	add_frontend(std::move(frontend));

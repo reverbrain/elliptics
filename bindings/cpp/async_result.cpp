@@ -33,6 +33,7 @@ class async_result<T>::data
 		data() : total(0), finished(false)
 		{
 			dnet_current_time(&start);
+			dnet_empty_time(&end);
 		}
 
 		std::mutex lock;
@@ -154,6 +155,16 @@ size_t async_result<T>::total() const
 }
 
 template <typename T>
+dnet_time async_result<T>::start_time() const {
+	return m_data->start;
+}
+
+template <typename T>
+dnet_time async_result<T>::end_time() const {
+	return m_data->end;
+}
+
+template <typename T>
 dnet_time async_result<T>::elapsed_time() const
 {
 	dnet_time end;
@@ -165,8 +176,10 @@ dnet_time async_result<T>::elapsed_time() const
 	end.tsec -= m_data->start.tsec;
 	if (end.tnsec < m_data->start.tnsec) {
 		static const uint64_t sec = 1000 * 1000 * 1000;
-		end.tnsec = end.tnsec + sec - m_data->start.tnsec;
+		end.tnsec += sec - m_data->start.tnsec;
 		end.tsec -= 1;
+	} else {
+		end.tnsec -= m_data->start.tnsec;
 	}
 
 	return end;

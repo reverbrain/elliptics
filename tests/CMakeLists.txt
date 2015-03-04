@@ -27,8 +27,10 @@ add_library(test_common STATIC
     ../example/common.c
     ../example/config.cpp
     ../example/config_impl.cpp
+    ../example/file_backend.cpp
     ../example/file_backend.c
     ../example/backends.c
+    ../example/eblob_backend.cpp
     ../example/eblob_backend.c
     ../example/module_backend/core/module_backend_t.c
     ../example/module_backend/core/dlopen_handle_t.c
@@ -120,6 +122,7 @@ add_custom_command(TARGET test
         . bin/activate &&
         pip install pytest &&
         pip install pytest-timeout &&
+        pip install msgpack-python &&
         export LD_LIBRARY_PATH=.:.. &&
         ${TEST_ENV} py.test ${PYTESTS_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/pytests
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)

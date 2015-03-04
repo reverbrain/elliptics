@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # =============================================================================
 # 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
 # All rights reserved.
@@ -17,11 +15,7 @@
 
 import sys
 sys.path.insert(0, "")  # for running from cmake
-import pytest
-
-
-from conftest import set_property, simple_node, raises, make_session
-from server import server
+from conftest import make_session
 import elliptics
 
 
@@ -47,7 +41,6 @@ class TestSession:
         results = session.list_indexes(key).get()
         self.check_indexes_results(session, results, indexes, datas)
 
-
     def check_indexes(self, session, key, indexes, datas):
         any_results = session.find_any_indexes(indexes).get()
         self.check_find_results(session,
@@ -67,7 +60,6 @@ class TestSession:
                                 key,
                                 indexes,
                                 datas)
-
 
     def test_indexes_simple(self, server, simple_node):
         session = make_session(node=simple_node,

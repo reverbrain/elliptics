@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # =============================================================================
 # 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
 # All rights reserved.
@@ -18,10 +16,7 @@
 import sys
 sys.path.insert(0, "")  # for running from cmake
 import pytest
-
-
-from conftest import set_property, simple_node, raises, make_trace_id
-from server import server
+from conftest import raises, make_trace_id
 import elliptics
 
 EVENT = 'dnet_cpp_srw_test_app@info'

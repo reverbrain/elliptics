@@ -48,6 +48,7 @@ enum elliptics_iterator_flags {
 	iflag_data = DNET_IFLAGS_DATA,
 	iflag_key_range = DNET_IFLAGS_KEY_RANGE,
 	iflag_ts_range = DNET_IFLAGS_TS_RANGE,
+	iflag_no_meta = DNET_IFLAGS_NO_META,
 };
 
 enum elliptics_cflags {
@@ -269,6 +270,7 @@ std::string get_cmd_string(int cmd) {
 
 BOOST_PYTHON_MODULE(core)
 {
+	PyEval_InitThreads();
 	bp::docstring_options local_docstring_options(true, false, false);
 	bp::class_<error>(
 	    "ErrorInfo", "Basic error for Elliptics",
@@ -363,11 +365,13 @@ BOOST_PYTHON_MODULE(core)
 	    "default\n    There no filtering should be while iteration. All keys will be presented\n"
 	    "data\n    Iteration results should also includes objects datas\n"
 	    "key_range\n    elliptics.Id ranges should be used for filtering keys on the node while iteration\n"
-	    "ts_range\n    Time range should be used for filtering keys on the node while iteration")
+	    "ts_range\n    Time range should be used for filtering keys on the node while iteration"
+	    "no_meta\n    Iteration results will have empty key's metadata (user_flags and timestamp)")
 		.value("default", iflag_default)
 		.value("data", iflag_data)
 		.value("key_range", iflag_key_range)
 		.value("ts_range", iflag_ts_range)
+		.value("no_meta", iflag_no_meta)
 	;
 
 	bp::enum_<elliptics_iterator_types>("iterator_types",

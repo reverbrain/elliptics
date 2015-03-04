@@ -67,7 +67,7 @@ static int dnet_local_digest_transform(void *priv __unused, struct dnet_session 
 }
 
 static int dnet_local_digest_transform_file(void *priv __unused, struct dnet_session *s,
-        int fd, uint64_t offset, uint64_t size,
+		int fd, uint64_t offset, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags __unused)
 {
 	unsigned int rs = *dsize;
@@ -81,7 +81,7 @@ static int dnet_local_digest_transform_file(void *priv __unused, struct dnet_ses
 		sha512_process_bytes("\0", 1, &ctx);
 	}
 
-    sha512_file_ctx(fd, offset, size, &ctx);
+	sha512_file_ctx(fd, offset, size, &ctx);
 	sha512_finish_ctx(&ctx, hash);
 
 	dnet_transform_final(dst, hash, dsize, rs);
@@ -161,7 +161,7 @@ int dnet_crypto_init(struct dnet_node *n)
 	struct dnet_transform *t = &n->transform;
 
 	t->transform = dnet_local_digest_transform;
-    t->transform_file = dnet_local_digest_transform_file;
+	t->transform_file = dnet_local_digest_transform_file;
 	t->priv = NULL;
 
 	return 0;

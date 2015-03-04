@@ -136,6 +136,17 @@ class async_result
 		  */
 		 size_t total() const;
 
+		 /*!
+		  * Returns timestamp when async_result was created
+		  */
+		 dnet_time start_time() const;
+
+		 /*!
+		  * Returns timestamp when async_result was finished
+		  * or empty time if it hasn't been finished yet
+		  */
+		 dnet_time end_time() const;
+
 		/*!
 		 * Returns time elapsed on execution
 		 */

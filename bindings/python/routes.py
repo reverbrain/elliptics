@@ -16,15 +16,11 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-import sys
-sys.path.append('bindings/python/')
 import elliptics
-
 import argparse
 
 
 def percentage(routes):
-    from operator import itemgetter
     percentages = routes.percentages()
     for group in percentages:
         print 'Group {0}:'.format(group)

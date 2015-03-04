@@ -132,6 +132,10 @@ uint64_t read_result_get_size(read_result_entry &result)
 	return result.io_attribute()->size;
 }
 
+uint64_t read_result_get_total_size(read_result_entry &result) {
+	return result.io_attribute()->total_size;
+}
+
 elliptics_io_attr read_result_get_io(read_result_entry &result) {
 	return elliptics_io_attr(*result.io_attribute());
 }
@@ -368,6 +372,8 @@ void init_result_entry() {
 		              "Offset with which object has been read")
 		.add_property("size", read_result_get_size,
 		              "Size of read object data")
+		.add_property("total_size", read_result_get_total_size,
+		              "Total size of object data")
 		.add_property("io_attribute", read_result_get_io,
 		              "elliptics.IoAttr of read operation")
 	;

@@ -182,7 +182,7 @@ static inline const char *dnet_flags_dump_cfgflags(uint64_t flags)
 		{ DNET_CFG_JOIN_NETWORK, "join" },
 		{ DNET_CFG_NO_ROUTE_LIST, "no_route_list" },
 		{ DNET_CFG_MIX_STATES, "mix_states" },
-		{ DNET_CFG_NO_CSUM, "n_ocsum" },
+		{ DNET_CFG_NO_CSUM, "no_csum" },
 		{ DNET_CFG_RANDOMIZE_STATES, "randomize_states" },
 		{ DNET_CFG_KEEPS_IDS_IN_CLUSTER, "keeps_ids_in_cluster" },
 	};
@@ -224,7 +224,7 @@ struct dnet_backend_callbacks {
 	int			(* storage_stat_json)(void *priv, char **json_stat, size_t *size);
 
 	/* returns total elements at backend */
-	uint64_t	(* total_elements)(void *priv);
+	uint64_t		(* total_elements)(void *priv);
 
 	/* cleanups backend at exit */
 	void			(* backend_cleanup)(void *command_private);

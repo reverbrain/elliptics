@@ -22,11 +22,11 @@
 
 namespace ioremap { namespace elliptics { namespace python {
 
-static void convert_from_list(const bp::list &l, unsigned char *dst, int dlen)
+static void convert_from_list(const bp::object &obj, unsigned char *dst, int dlen)
 {
 	memset(dst, 0, dlen);
 	int i = 0;
-	for (bp::stl_input_iterator<unsigned char> it(l), end; (it != end) && (i < dlen); ++it) {
+	for (bp::stl_input_iterator<unsigned char> it(obj), end; (it != end) && (i < dlen); ++it) {
 		dst[i] = *it;
 		++i;
 	}
@@ -68,7 +68,7 @@ elliptics_id::elliptics_id(const elliptics_id &other) {
 	m_id = other.m_id;
 }
 
-elliptics_id::elliptics_id(const bp::list &id, const uint32_t &group_id) {
+elliptics_id::elliptics_id(const bp::object &id, const uint32_t &group_id) {
 	set_list_id(id);
 	set_group_id(group_id);
 }
@@ -77,7 +77,7 @@ bp::list elliptics_id::list_id() const {
 	return convert_to_list(m_id.id, sizeof(m_id.id));
 }
 
-void elliptics_id::set_list_id(const bp::list &id) {
+void elliptics_id::set_list_id(const bp::object &id) {
 	dnet_id _id;
 	convert_from_list(id, _id.id, sizeof(_id.id));
 	m_id = _id;
@@ -142,7 +142,7 @@ void id_pickle::setstate(elliptics_id& id, bp::tuple state) {
 void init_elliptics_id() {
 	bp::class_<elliptics_id>(
 	    "Id", "elliptics.Id is used as a key for all operations with Elliptics")
-		.def(bp::init<bp::list, uint32_t>(bp::args("key", "group_id"),
+		.def(bp::init<bp::object, uint32_t>(bp::args("key", "group_id"),
 		     "__init__(key, group_id)"
 		     "    Initializes elliptics.Id\n"
 		     "    -- key - list of 64 integers from [0, 255] which represents 512 bit key\n"
