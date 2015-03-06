@@ -27,7 +27,6 @@
 #include "io_stat_provider.hpp"
 #include "backends_stat_provider.hpp"
 #include "procfs_provider.hpp"
-#include "top_provider.hpp"
 
 #include "../example/config.hpp"
 
@@ -202,12 +201,12 @@ void dnet_monitor_remove_provider(struct dnet_node *n, const char *name) {
 	ioremap::monitor::remove_provider(n, std::string(name));
 }
 
-void dnet_monitor_stats_update(struct dnet_node *n, const struct dnet_cmd *cmd, const int trans,
+void dnet_monitor_stats_update(struct dnet_node *n, const struct dnet_cmd *cmd,
                                const int err, const int cache,
                                const uint32_t size, const unsigned long time) {
 	auto real_monitor = ioremap::monitor::get_monitor(n);
 	if (real_monitor) {
-		real_monitor->get_statistics().command_counter(cmd->cmd, trans, err,
+		real_monitor->get_statistics().command_counter(cmd->cmd, cmd->trans, err,
 		                                               cache, size, time);
 		auto top_stats = real_monitor->get_top_stats();
 		if (top_stats) {

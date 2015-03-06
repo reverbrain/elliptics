@@ -24,7 +24,7 @@
 
 #include "server.hpp"
 #include "statistics.hpp"
-#include "top_stats.hpp"
+#include "top.hpp"
 
 struct dnet_node;
 

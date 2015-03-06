@@ -134,7 +134,7 @@ command_stats::command_stats()
 }
 
 void command_stats::command_counter(const int orig_cmd,
-                                 const int trans,
+                                 const uint64_t trans,
                                  const int err,
                                  const int cache,
                                  const uint64_t size,
@@ -174,7 +174,7 @@ rapidjson::Value& command_stats::commands_report(dnet_node *node, rapidjson::Val
 
 
 void statistics::command_counter(const int cmd,
-                                 const int trans,
+                                 const uint64_t trans,
                                  const int err,
                                  const int cache,
                                  const uint64_t size,

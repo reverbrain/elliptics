@@ -17,9 +17,10 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DNET_MONITOR_TOP_STATS_HPP
-#define __DNET_MONITOR_TOP_STATS_HPP
+#ifndef __DNET_MONITOR_TOP_HPP
+#define __DNET_MONITOR_TOP_HPP
 
+#include "statistics.hpp"
 #include "event_stats.hpp"
 #include "library/elliptics.h"
 
@@ -99,9 +100,9 @@ public:
 
 private:
 	struct dnet_id	m_id;
-	uint64_t		m_size;
-	double			m_frequency;
-	time_t			m_last_access;
+	uint64_t	m_size;
+	double		m_frequency;
+	time_t		m_last_access;
 };
 
 class top_stats {
@@ -120,6 +121,20 @@ private:
 	size_t m_top_length;
 };
 
+/*!
+ * Provider statistics of top keys arranged by approximate traffic size and frequency
+ */
+class top_provider : public stat_provider {
+public:
+	top_provider(struct dnet_node *node);
+
+	virtual std::string json(uint64_t categories) const;
+
+private:
+	struct dnet_node *m_node;
+	std::shared_ptr<top_stats> m_top_stats;
+};
+
 }} /* namespace ioremap::monitor */
 
-#endif /* __DNET_MONITOR_TOP_STATS_HPP */
+#endif /* __DNET_MONITOR_TOP_HPP */

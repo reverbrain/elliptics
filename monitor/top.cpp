@@ -17,7 +17,7 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "top_provider.hpp"
+#include "top.hpp"
 #include "monitor.hpp"
 
 #include "rapidjson/writer.h"
@@ -25,6 +25,19 @@
 #include "elliptics/interface.h"
 
 namespace ioremap { namespace monitor {
+
+top_stats::top_stats(size_t top_length, size_t events_size, int period_in_seconds)
+: m_stats(events_size, period_in_seconds),
+ m_top_length(top_length)
+{}
+
+void top_stats::update_stats(const struct dnet_cmd *cmd, uint64_t size)
+{
+	if (size > 0 && cmd->cmd == DNET_CMD_READ) {
+		key_stat_event event(cmd->id, size, 1., time(nullptr));
+		m_stats.add_event(event, event.get_time());
+	}
+}
 
 top_provider::top_provider(struct dnet_node *node)
 : m_node(node)

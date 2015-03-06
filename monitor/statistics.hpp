@@ -174,7 +174,7 @@ public:
 	 * \a size - size of data that takes a part in command execution
 	 * \a time - time spended on command execution
 	 */
-	void command_counter(const int cmd, const int trans, const int err, const int cache,
+	void command_counter(const int cmd, const uint64_t trans, const int err, const int cache,
 	                     const uint64_t size, const unsigned long time);
 
 	/*!
@@ -237,7 +237,7 @@ public:
 	 * \a size - size of data that takes a part in command execution
 	 * \a time - time spended on command execution
 	 */
-	void command_counter(const int cmd, const int trans, const int err, const int cache,
+	void command_counter(const int cmd, const uint64_t trans, const int err, const int cache,
 	                     const uint64_t size, const unsigned long time);
 
 	/*!
