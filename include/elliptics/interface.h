@@ -199,7 +199,7 @@ struct dnet_iterator_ctl {
 	void				*iterate_private;
 	void				*callback_private;
 	int				(* callback)(void *priv, struct dnet_raw_id *key,
-			void *data, uint64_t dsize, struct dnet_ext_list *elist);
+			int fd, uint64_t data_offset, uint64_t dsize, struct dnet_ext_list *elist);
 };
 
 /*

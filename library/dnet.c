@@ -424,7 +424,7 @@ static int dnet_iterator_flow_control(struct dnet_iterator_common_private *ipriv
  * fixed-size response header.
  */
 static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
-		void *data, uint64_t dsize, struct dnet_ext_list *elist)
+					 int fd, uint64_t data_offset, uint64_t dsize, struct dnet_ext_list *elist)
 {
 	struct dnet_iterator_common_private *ipriv = priv;
 	struct dnet_iterator_response *response;
@@ -432,11 +432,12 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	uint64_t size;
 	const uint64_t fsize = dsize;
 	unsigned char *combined = NULL, *position;
+	ssize_t bytes;
 	int err = 0;
 	uint64_t iterated_keys = 0;
 
 	/* Sanity */
-	if (ipriv == NULL || key == NULL || data == NULL || elist == NULL)
+	if (ipriv == NULL || key == NULL || fd < 0 || elist == NULL)
 		return -EINVAL;
 
 	iterated_keys = atomic_inc(&ipriv->iterated_keys);
@@ -452,7 +453,6 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 
 	/* Set data to NULL in case it's not requested */
 	if (!(ipriv->req->flags & DNET_IFLAGS_DATA)) {
-		data = NULL;
 		dsize = 0;
 	}
 	size = response_size + dsize;
@@ -478,9 +478,19 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	dnet_convert_iterator_response(response);
 
 	/* Data */
-	if (data) {
+	if (dsize > 0) {
 		position += response_size;
-		memcpy(position, data, dsize);
+		while (dsize > 0) {
+			bytes = pread(fd, position, dsize, data_offset);
+			if (bytes > 0) {
+				position += bytes;
+				data_offset += bytes;
+				dsize -= bytes;
+			} else {
+				err = (bytes == -1) ? -errno : -EINTR;
+				goto err_out_exit;
+			}
+		}
 	}
 
 	/* Finally run next callback */
