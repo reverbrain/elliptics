@@ -158,7 +158,7 @@ class KeyRecover(object):
                     self.diff_groups += self.read_session.groups
                     self.run()
                 else:
-                    log.error("Failed to read key: {0} from any available group. This key couldn't be recovered now.")
+                    log.error("Failed to read key: {0} from any available group. This key couldn't be recovered now.".format(self.key))
                     self.stop(False)
                 return
 
