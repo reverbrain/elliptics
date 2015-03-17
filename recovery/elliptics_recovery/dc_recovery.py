@@ -88,6 +88,12 @@ class KeyRecover(object):
                 size = min(self.total_size, max(size, INDEX_MAGIC_NUMBER_LENGTH))
             log.debug("Reading key: {0} from groups: {1}, chunked: {2}, offset: {3}, size: {4}, total_size: {5}"
                       .format(self.key, self.read_session.groups, self.chunked, self.recovered_size, size, self.total_size))
+
+            # do not check checksum for all but the first chunk
+            if self.recovered_size != 0:
+                self.read_session.ioflags = elliptics.io_flags.nocsum
+            else:
+                self.read_session.ioflags = 0
             read_result = self.read_session.read_data(self.key,
                                                       offset=self.recovered_size,
                                                       size=size)

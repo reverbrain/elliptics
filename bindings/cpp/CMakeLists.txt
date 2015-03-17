@@ -30,7 +30,6 @@ set(ELLIPTICS_CPP_SRCS
     ../../include/elliptics/session.hpp
     ../../include/elliptics/result_entry.hpp
     ../../include/elliptics/srw.h
-    ../../include/elliptics/typedefs.h
     ../../include/elliptics/core.h
     ../../include/elliptics/debug.hpp
     ../../include/elliptics/error.hpp
