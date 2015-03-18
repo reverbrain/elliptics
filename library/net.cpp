@@ -826,6 +826,21 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		dnet_addr_container *cnt = reinterpret_cast<dnet_addr_container *>(socket->buffer);
 		int err;
 
+		/* If we are server check that connected node has the same number of addresses.
+		 * At the moment server nodes with different number of addresses can't be connected to each other.
+		 */
+		if (state.node->addr_num && (cnt->addr_num != state.node->addr_num)) {
+			err = -EINVAL;
+			dnet_log(state.node, DNET_LOG_ERROR, "%s: received dnet_addr_container "
+				"is invalid, recv-addr-num: %d, local-addr-num: %d, err: %d",
+				dnet_addr_string(&socket->addr),
+				int(cnt->addr_num),
+				state.node->addr_num,
+				err);
+			dnet_fail_socket(state, socket, err);
+			break;
+		}
+
 		if (cmd->size < sizeof(dnet_addr_container) + cnt->addr_num * sizeof(dnet_addr) + sizeof(dnet_id_container)) {
 			err = -EINVAL;
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: received dnet_addr_container "
