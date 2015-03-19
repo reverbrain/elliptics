@@ -64,6 +64,8 @@ struct dnet_backend_info
 	{
 		dnet_empty_time(&last_start);
 		last_start_err = 0;
+		memset(&config_template, 0, sizeof(config_template));
+		memset(&config, 0, sizeof(config));
 	}
 
 	dnet_backend_info(const dnet_backend_info &other) = delete;

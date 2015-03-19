@@ -36,7 +36,10 @@ int dnet_blob_config_to_json(struct dnet_config_backend *b, char **json_stat, si
 
 	doc.AddMember("blob_flags", c->data.blob_flags, allocator);
 	doc.AddMember("sync", c->data.sync, allocator);
-	doc.AddMember("data", c->data.file, allocator);
+	if (c->data.file)
+		doc.AddMember("data", c->data.file, allocator);
+	else
+		doc.AddMember("data", "", allocator);
 	doc.AddMember("blob_size", c->data.blob_size, allocator);
 	doc.AddMember("records_in_blob", c->data.records_in_blob, allocator);
 	doc.AddMember("defrag_percentage", c->data.defrag_percentage, allocator);
