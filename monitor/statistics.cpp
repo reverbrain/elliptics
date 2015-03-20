@@ -186,17 +186,21 @@ void statistics::command_counter(const int cmd,
 statistics::statistics(monitor& mon, struct dnet_config *cfg) : m_monitor(mon)
 {
 	(void) cfg;
+	const auto monitor_cfg = get_monitor_config(mon.node());
+	if (monitor_cfg && monitor_cfg->has_top) {
+		m_top_stats = std::make_shared<top_stats>(monitor_cfg->top_length, monitor_cfg->events_size, monitor_cfg->period_in_seconds);
+	}
 }
 
 void statistics::add_provider(stat_provider *stat, const std::string &name)
 {
-	std::unique_lock<std::mutex> guard(m_provider_lock);
+	std::unique_lock<std::mutex> guard(m_provider_mutex);
 	m_stat_providers.insert(make_pair(name, std::shared_ptr<stat_provider>(stat)));
 }
 
 void statistics::remove_provider(const std::string &name)
 {
-	std::unique_lock<std::mutex> guard(m_provider_lock);
+	std::unique_lock<std::mutex> guard(m_provider_mutex);
 	m_stat_providers.erase(name);
 }
 
@@ -247,7 +251,7 @@ std::string statistics::report(uint64_t categories)
 #endif
 	}
 
-	std::unique_lock<std::mutex> guard(m_provider_lock);
+	std::unique_lock<std::mutex> guard(m_provider_mutex);
 	for (auto it = m_stat_providers.cbegin(), end = m_stat_providers.cend(); it != end; ++it) {
 		auto json = it->second->json(categories);
 		if (json.empty())

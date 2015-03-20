@@ -360,7 +360,7 @@ struct config_data : public dnet_config_data
 	ioremap::elliptics::logger		logger;
 	std::vector<address>			remotes;
 	std::unique_ptr<cache::cache_config>	cache_config;
-	std::unique_ptr<monitor::monitor_config>	monitor_config;
+	std::unique_ptr<monitor::monitor_config>monitor_config;
 };
 
 } } } // namespace ioremap::elliptics::config

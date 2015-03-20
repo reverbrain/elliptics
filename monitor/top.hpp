@@ -20,7 +20,7 @@
 #ifndef __DNET_MONITOR_TOP_HPP
 #define __DNET_MONITOR_TOP_HPP
 
-#include "statistics.hpp"
+#include "stat_provider.hpp"
 #include "event_stats.hpp"
 #include "library/elliptics.h"
 
@@ -118,7 +118,7 @@ public:
 
 private:
 	event_stats_t m_stats;
-	size_t m_top_length;
+	const size_t m_top_length;
 };
 
 /*!
@@ -126,12 +126,11 @@ private:
  */
 class top_provider : public stat_provider {
 public:
-	top_provider(struct dnet_node *node);
+	top_provider(std::shared_ptr<top_stats> top_stats);
 
 	virtual std::string json(uint64_t categories) const;
 
 private:
-	struct dnet_node *m_node;
 	std::shared_ptr<top_stats> m_top_stats;
 };
 

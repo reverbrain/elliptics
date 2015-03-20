@@ -137,7 +137,7 @@ static void test_top_statistics_existence()
 	auto monitor = ioremap::monitor::get_monitor(node);
 	BOOST_CHECK(monitor != nullptr);
 
-	auto top_stats = monitor->get_top_stats();
+	auto top_stats = monitor->get_statistics().get_top_stats();
 	BOOST_CHECK(top_stats != nullptr);
 }
 

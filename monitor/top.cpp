@@ -18,8 +18,8 @@
  */
 
 #include "top.hpp"
-#include "monitor.hpp"
 
+#include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 #include "elliptics/interface.h"
@@ -39,11 +39,9 @@ void top_stats::update_stats(const struct dnet_cmd *cmd, uint64_t size)
 	}
 }
 
-top_provider::top_provider(struct dnet_node *node)
-: m_node(node)
+top_provider::top_provider(std::shared_ptr<top_stats> top_stats)
+: m_top_stats(top_stats)
 {
-	auto monitor = get_monitor(node);
-	m_top_stats = monitor->get_top_stats();
 }
 
 static void fill_top_stat(const key_stat_event &key_event,

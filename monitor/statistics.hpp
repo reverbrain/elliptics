@@ -35,36 +35,13 @@
 #include "../library/elliptics.h"
 
 #include "monitor.h"
+#include "stat_provider.hpp"
+#include "top.hpp"
+
 
 namespace ioremap { namespace monitor {
 
 class monitor;
-
-/*!
- * \internal
- *
- * Interface of statistics provider
- * Subsystems which wants to have their own statistics should create provider
- * and add it to statistics via add_provider method
- */
-class stat_provider {
-public:
-
-	/*!
-	 * \internal
-	 *
-	 * Returns json string of the real provider statistics
-	 * \a categories - categories which statistics should be included to json
-	 */
-	virtual std::string json(uint64_t categories) const = 0;
-
-	/*!
-	 * \internal
-	 *
-	 * Destructor
-	 */
-	virtual ~stat_provider() {}
-};
 
 /*!
  * \internal
@@ -248,6 +225,9 @@ public:
 	 */
 	void add_provider(stat_provider *stat, const std::string &name);
 	void remove_provider(const std::string &name);
+
+	typedef std::shared_ptr<top_stats> top_stats_ptr;
+	top_stats_ptr get_top_stats() const { return m_top_stats; }
 private:
 	/*!
 	 * \internal
@@ -289,9 +269,11 @@ private:
 	 *
 	 * Lock for controlling access to vector of external statistics provider
 	 */
-	std::mutex m_provider_lock;
+	std::mutex m_provider_mutex;
 
 	std::map<std::string, std::shared_ptr<stat_provider>> m_stat_providers;
+
+	top_stats_ptr m_top_stats;
 };
 
 }} /* namespace ioremap::monitor */

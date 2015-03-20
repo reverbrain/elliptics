@@ -24,7 +24,6 @@
 
 #include "server.hpp"
 #include "statistics.hpp"
-#include "top.hpp"
 
 struct dnet_node;
 
@@ -76,17 +75,14 @@ public:
 
 	struct dnet_node *node() { return m_node; }
 
-	typedef std::shared_ptr<top_stats> top_stats_ptr;
-	top_stats_ptr get_top_stats() const { return m_top_stats; }
-
 private:
 	struct dnet_node	*m_node;
 	server		m_server;
 	statistics	m_statistics;
-	top_stats_ptr m_top_stats;
 };
 
 monitor* get_monitor(struct dnet_node *n);
+monitor_config* get_monitor_config(struct dnet_node *n);
 
 void add_provider(struct dnet_node *n, stat_provider *provider, const std::string &name);
 void remove_provider(struct dnet_node *n, const std::string &name);

@@ -198,8 +198,8 @@ private:
 
 private:
 	size_t m_num_events;
-	size_t m_max_events;
-	int m_period;
+	const size_t m_max_events;
+	const int m_period;
 	treap_t m_treap;
 	std::mutex m_lock;
 };
