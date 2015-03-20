@@ -1,7 +1,6 @@
 /*
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  * Copyright 2014+ Ruslan Nigmatullin <euroelessar@yandex.ru>
- * Copyright 2015+ Yandex
  *
  * This file is part of Elliptics.
  *
