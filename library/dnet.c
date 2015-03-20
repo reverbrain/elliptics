@@ -478,20 +478,9 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	dnet_convert_iterator_response(response);
 
 	/* Data */
-	if (dsize > 0) {
-		position += response_size;
-		while (dsize > 0) {
-			bytes = pread(fd, position, dsize, data_offset);
-			if (bytes > 0) {
-				position += bytes;
-				data_offset += bytes;
-				dsize -= bytes;
-			} else {
-				err = (bytes == -1) ? -errno : -EINTR;
-				goto err_out_exit;
-			}
-		}
-	}
+	err = dnet_read_ll(fd, position, dsize, data_offset);
+	if (err)
+		goto err_out_exit;
 
 	/* Finally run next callback */
 	err = ipriv->next_callback(ipriv->next_private, combined, size);

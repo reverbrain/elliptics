@@ -1011,6 +1011,29 @@ static inline int dnet_empty_addr(struct dnet_addr *addr)
 	return memcmp(addr, &__empty, addr->addr_len) == 0;
 }
 
+/**
+ * dnet_read_ll() - interruption-safe wrapper for pread(2)
+ */
+static inline int dnet_read_ll(int fd, char *data, size_t size, off_t offset)
+{
+	ssize_t bytes;
+
+	while (size) {
+again:
+		bytes = pread(fd, data, size, offset);
+		if (bytes == -1) {
+			if (errno == -EINTR)
+				goto again;
+			return -errno;
+		} else if (bytes == 0)
+			return -ESPIPE;
+		data += bytes;
+		size -= bytes;
+		offset += bytes;
+	}
+	return 0;
+}
+
 #ifdef __cplusplus
 }
 #endif
