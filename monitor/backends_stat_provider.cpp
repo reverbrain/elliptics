@@ -18,6 +18,7 @@
  */
 
 #include "backends_stat_provider.hpp"
+#include "statistics.hpp"
 
 #include "library/elliptics.h"
 #include "library/backend.h"

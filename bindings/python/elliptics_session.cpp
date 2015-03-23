@@ -66,12 +66,14 @@ enum elliptics_monitor_categories {
 	elliptics_monitor_categories_backend = DNET_MONITOR_BACKEND,
 	elliptics_monitor_categories_stats = DNET_MONITOR_STATS,
 	elliptics_monitor_categories_procfs = DNET_MONITOR_PROCFS,
+	elliptics_monitor_categories_top = DNET_MONITOR_TOP,
 	elliptics_monitor_categories_all = DNET_MONITOR_CACHE |
 	                                   DNET_MONITOR_IO |
 	                                   DNET_MONITOR_COMMANDS |
 	                                   DNET_MONITOR_BACKEND |
 	                                   DNET_MONITOR_STATS |
-	                                   DNET_MONITOR_PROCFS
+	                                   DNET_MONITOR_PROCFS |
+	                                   DNET_MONITOR_TOP
 };
 
 struct write_cas_converter {
@@ -787,8 +789,9 @@ void init_elliptics_session() {
 		"io\n    Category for IO queue statistics\n"
 		"commands\n    Category for commands statistics\n"
 		"backend\n    Category for backend statistics\n"
-		"stats\n    Category for in-process runtime statistics"
-		"procfs\n    Category for system statistics about process")
+		"stats\n    Category for in-process runtime statistics\n"
+		"procfs\n    Category for system statistics about process\n"
+		"top\n    Category for statistics of top keys ordered by generated traffic\n")
 		.value("all", elliptics_monitor_categories_all)
 		.value("cache", elliptics_monitor_categories_cache)
 		.value("io", elliptics_monitor_categories_io)
@@ -796,6 +799,7 @@ void init_elliptics_session() {
 		.value("backend", elliptics_monitor_categories_backend)
 		.value("stats", elliptics_monitor_categories_stats)
 		.value("procfs", elliptics_monitor_categories_procfs)
+		.value("top", elliptics_monitor_categories_top)
 	;
 
 	bp::enum_<exec_context::final_state>("exec_context_final_states",

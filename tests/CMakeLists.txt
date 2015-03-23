@@ -56,6 +56,10 @@ add_executable(dnet_cpp_cache_test cache_test.cpp)
 set_target_properties(dnet_cpp_cache_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_cache_test ${TEST_LIBRARIES})
 
+add_executable(dnet_cpp_stats_test stats_test.cpp)
+set_target_properties(dnet_cpp_stats_test ${TEST_PROPERTIES})
+target_link_libraries(dnet_cpp_stats_test ${TEST_LIBRARIES})
+
 add_executable(dnet_cpp_capped_test capped_test.cpp)
 set_target_properties(dnet_cpp_capped_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_capped_test ${TEST_LIBRARIES})
@@ -72,7 +76,7 @@ endif()
 
 set(RUN_SERVERS_LIBRARIES ${TEST_LIBRARIES})
 
-set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_capped_test dnet_backends_test dnet_cpp_api_test)
+set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_stats_test dnet_cpp_capped_test dnet_backends_test dnet_cpp_api_test)
 set(TESTS_DEPS ${TESTS_LIST})
 
 if(WITH_COCAINE)

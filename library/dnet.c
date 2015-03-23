@@ -1022,7 +1022,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 {
 	int err = 0;
 	struct dnet_node *n = st->n;
-	unsigned long long tid = cmd->trans;
+	const unsigned long long tid = cmd->trans;
 	struct dnet_io_attr *io = NULL;
 	struct timeval start, end;
 	uint64_t iosize = 0;
@@ -1104,7 +1104,7 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	}
 
 	// we must provide real error from the backend into statistics
-	monitor_command_counter(n, cmd->cmd, tid, err, handled_in_cache, iosize, diff);
+	dnet_monitor_stats_update(n, cmd, err, handled_in_cache, iosize, diff);
 
 	err = dnet_send_ack(st, cmd, err, recursive);
 
