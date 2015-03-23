@@ -425,6 +425,11 @@ int dnet_backend_init_all(struct dnet_node *node)
 	int state = DNET_BACKEND_ENABLED;
 
 	auto &backends = node->config_data->backends->backends;
+	using namespace ioremap::elliptics::config;
+	auto &data = *static_cast<config_data *>(node->config_data);
+	auto parser = data.parse_config();
+	config cfg = parser->root();
+	const config backends_config = cfg.at("backends");
 
 	if (node->config_data->parallel_start) {
 		try {
@@ -439,10 +444,15 @@ int dnet_backend_init_all(struct dnet_node *node)
 
 			std::vector<async_backend_control_result> results;
 
-			for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
-				dnet_backend_info &backend = node->config_data->backends->backends[backend_id];
-				if (!backend.enable_at_start)
+
+			for (size_t index = 0; index < backends_config.size(); ++index) {
+				const config backend_config = backends_config.at(index);
+				const uint32_t backend_id = backend_config.at<uint32_t>("backend_id");
+				dnet_backend_info &backend = backends[backend_id];
+				if (!backend.enable_at_start) {
+					backend.parse(&data, backend_config);
 					continue;
+				}
 
 				results.emplace_back(clean_sess.enable_backend(node->st->addr, backend_id));
 			}
@@ -455,10 +465,14 @@ int dnet_backend_init_all(struct dnet_node *node)
 			return -ENOMEM;
 		}
 	} else {
-		for (size_t backend_id = 0; backend_id < backends.size(); ++backend_id) {
-			dnet_backend_info &backend = node->config_data->backends->backends[backend_id];
-			if (!backend.enable_at_start)
+		for (size_t index = 0; index < backends_config.size(); ++index) {
+			const config backend_config = backends_config.at(index);
+			const uint32_t backend_id = backend_config.at<uint32_t>("backend_id");
+			dnet_backend_info &backend = backends[backend_id];
+			if (!backend.enable_at_start) {
+				backend.parse(&data, backend_config);
 				continue;
+			}
 
 			int tmp = dnet_backend_init(node, backend_id, &state);
 			if (!tmp) {

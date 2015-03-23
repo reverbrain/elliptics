@@ -47,9 +47,6 @@ local_session::local_session(dnet_backend_io *backend, dnet_node *node) : m_back
 	if (!m_state)
 		throw std::bad_alloc();
 
-	dnet_addr addr;
-	memset(&addr, 0, sizeof(addr));
-
 	memset(m_state, 0, sizeof(dnet_net_state));
 
 	m_state->__need_exit = -1;
@@ -57,7 +54,7 @@ local_session::local_session(dnet_backend_io *backend, dnet_node *node) : m_back
 	m_state->read_s = -1;
 	m_state->accept_s = -1;
 
-	dnet_state_micro_init(m_state, node, &addr, 0);
+	dnet_state_micro_init(m_state, node, node->addrs, 0);
 	dnet_state_get(m_state);
 }
 
