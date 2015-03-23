@@ -350,17 +350,17 @@ struct config_data : public dnet_config_data
 
 	std::shared_ptr<config_parser> parse_config();
 
-	std::string				config_path;
-	std::mutex				parser_mutex;
-	std::shared_ptr<config_parser>		parser;
-	dnet_time				config_timestamp;
-	dnet_backend_info_list			backends_guard;
-	std::string				logger_value;
-	ioremap::elliptics::logger_base		logger_base;
-	ioremap::elliptics::logger		logger;
-	std::vector<address>			remotes;
-	std::unique_ptr<cache::cache_config>	cache_config;
-	std::unique_ptr<monitor::monitor_config>monitor_config;
+	std::string					config_path;
+	std::mutex					parser_mutex;
+	std::shared_ptr<config_parser>			parser;
+	dnet_time					config_timestamp;
+	dnet_backend_info_list				backends_guard;
+	std::string					logger_value;
+	ioremap::elliptics::logger_base			logger_base;
+	ioremap::elliptics::logger			logger;
+	std::vector<address>				remotes;
+	std::unique_ptr<cache::cache_config>		cache_config;
+	std::unique_ptr<monitor::monitor_config>	monitor_config;
 };
 
 } } } // namespace ioremap::elliptics::config

@@ -158,7 +158,7 @@ static void init_top_provider(struct dnet_node *n, struct dnet_config *cfg) {
 			BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: top provider loaded: top length: %lu, events size: %lu, period: %d",
 			       monitor_cfg->top_length, monitor_cfg->events_size, monitor_cfg->period_in_seconds);
 		} else {
-			BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: top provider is not loaded.");
+			BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: top provider is disabled");
 		}
 
 	} catch (const std::exception &e) {
