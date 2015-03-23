@@ -22,8 +22,6 @@
 
 #include "sha512.h"
 
-#include <elliptics/core.h>
-
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -86,22 +84,6 @@ sha512_init_ctx (struct sha512_ctx *ctx)
   ctx->buflen = 0;
 }
 
-void
-sha384_init_ctx (struct sha512_ctx *ctx)
-{
-  ctx->state[0] = u64hilo (0xcbbb9d5d, 0xc1059ed8);
-  ctx->state[1] = u64hilo (0x629a292a, 0x367cd507);
-  ctx->state[2] = u64hilo (0x9159015a, 0x3070dd17);
-  ctx->state[3] = u64hilo (0x152fecd8, 0xf70e5939);
-  ctx->state[4] = u64hilo (0x67332667, 0xffc00b31);
-  ctx->state[5] = u64hilo (0x8eb44a87, 0x68581511);
-  ctx->state[6] = u64hilo (0xdb0c2e0d, 0x64f98fa7);
-  ctx->state[7] = u64hilo (0x47b5481d, 0xbefa4fa4);
-
-  ctx->total[0] = ctx->total[1] = u64lo (0);
-  ctx->buflen = 0;
-}
-
 /* Copy the value from V into the memory location pointed to by *CP,
    If your architecture allows unaligned access, this is equivalent to
    * (__typeof__ (v) *) cp = v  */
@@ -120,18 +102,6 @@ sha512_read_ctx (const struct sha512_ctx *ctx, void *resbuf)
   char *r = resbuf;
 
   for (i = 0; i < 8; i++)
-    set_uint64 (r + i * sizeof ctx->state[0], SWAP (ctx->state[i]));
-
-  return resbuf;
-}
-
-void *
-sha384_read_ctx (const struct sha512_ctx *ctx, void *resbuf)
-{
-  int i;
-  char *r = resbuf;
-
-  for (i = 0; i < 6; i++)
     set_uint64 (r + i * sizeof ctx->state[0], SWAP (ctx->state[i]));
 
   return resbuf;
@@ -171,13 +141,6 @@ sha512_finish_ctx (struct sha512_ctx *ctx, void *resbuf)
 {
   sha512_conclude_ctx (ctx);
   return sha512_read_ctx (ctx, resbuf);
-}
-
-void *
-sha384_finish_ctx (struct sha512_ctx *ctx, void *resbuf)
-{
-  sha512_conclude_ctx (ctx);
-  return sha384_read_ctx (ctx, resbuf);
 }
 
 /* Compute SHA512 message digest for bytes read from STREAM.  The
@@ -253,19 +216,21 @@ sha512_stream (FILE *stream, void *resblock)
   return 0;
 }
 
-/* FIXME: Avoid code duplication */
+/* Compute SHA512 message digest for bytes read from file descriptor.
+   The resulting message digest number will be written into the 64
+   bytes beginning at RESBLOCK.  */
 int
-sha384_stream (FILE *stream, void *resblock)
+sha512_file (int fd, off_t offset, size_t count, void *resblock)
 {
   struct sha512_ctx ctx;
-  size_t sum;
+  size_t sum, total = 0;
 
   char *buffer = malloc (BLOCKSIZE + 72);
   if (!buffer)
-    return 1;
+    return -ENOMEM;
 
   /* Initialize the computation context.  */
-  sha384_init_ctx (&ctx);
+  sha512_init_ctx (&ctx);
 
   /* Iterate over full file contents.  */
   while (1)
@@ -273,60 +238,58 @@ sha384_stream (FILE *stream, void *resblock)
       /* We read the file in blocks of BLOCKSIZE bytes.  One call of the
          computation function processes the whole buffer so that with the
          next round of the loop another block can be read.  */
-      size_t n;
+      ssize_t n;
       sum = 0;
 
       /* Read block.  Take care for partial reads.  */
       while (1)
         {
-          n = fread (buffer + sum, 1, BLOCKSIZE - sum, stream);
+            n = pread(fd, buffer + sum, BLOCKSIZE - sum, offset);
+            if (n == -1) {
+                if (errno == EINTR) {
+                    continue;
+                } else {
+                    free (buffer);
+                    return -errno;
+                }
+            }
 
           sum += n;
+          offset += n;
 
           if (sum == BLOCKSIZE)
             break;
 
-          if (n == 0)
-            {
-              /* Check for the error flag IFF N == 0, so that we don't
-                 exit the loop after a partial read due to e.g., EAGAIN
-                 or EWOULDBLOCK.  */
-              if (ferror (stream))
-                {
-                  free (buffer);
-                  return 1;
-                }
+          if (n == 0) // eof
               goto process_partial_block;
-            }
-
-          /* We've read at least one byte, so ignore errors.  But always
-             check for EOF, since feof may be true even though N > 0.
-             Otherwise, we could end up calling fread after EOF.  */
-          if (feof (stream))
-            goto process_partial_block;
         }
 
       /* Process buffer with BLOCKSIZE bytes.  Note that
                         BLOCKSIZE % 128 == 0
        */
+      if (total + BLOCKSIZE < count) {
+          total += BLOCKSIZE;
+      } else {
+          goto process_partial_block;
+      }
       sha512_process_block (buffer, BLOCKSIZE, &ctx);
     }
 
  process_partial_block:;
 
   /* Process any remaining bytes.  */
+  sum = count - total;
   if (sum > 0)
     sha512_process_bytes (buffer, sum, &ctx);
 
   /* Construct result in desired memory.  */
-  sha384_finish_ctx (&ctx, resblock);
+  sha512_finish_ctx (&ctx, resblock);
   free (buffer);
   return 0;
 }
 
 /* Compute SHA512 message digest for bytes read from file descriptor.
-   The resulting message digest number will be written into the 64
-   bytes beginning at RESBLOCK.  */
+   The resulting message digest number will be updated in CTX.  */
 int
 sha512_file_ctx (int fd, off_t offset, size_t count, struct sha512_ctx *ctx)
 {
@@ -409,21 +372,6 @@ sha512_buffer (const char *buffer, size_t len, void *resblock)
   return sha512_finish_ctx (&ctx, resblock);
 }
 
-void *
-sha384_buffer (const char *buffer, size_t len, void *resblock)
-{
-  struct sha512_ctx ctx;
-
-  /* Initialize the computation context.  */
-  sha384_init_ctx (&ctx);
-
-  /* Process whole buffer but last len % 128 bytes.  */
-  sha512_process_bytes (buffer, len, &ctx);
-
-  /* Put result in desired memory area.  */
-  return sha384_finish_ctx (&ctx, resblock);
-}
-
 void
 sha512_process_bytes (const void *buffer, size_t len, struct sha512_ctx *ctx)
 {
@@ -456,7 +404,7 @@ sha512_process_bytes (const void *buffer, size_t len, struct sha512_ctx *ctx)
   if (len >= 128)
     {
 #if !_STRING_ARCH_unaligned
-# define alignof(type) dnet_offsetof (struct { char c; type x; }, x)
+# define alignof(type) offsetof (struct { char c; type x; }, x)
 # define UNALIGNED_P(p) (((size_t) p) % alignof (u64) != 0)
       if (UNALIGNED_P (buffer))
         while (len > 128)
