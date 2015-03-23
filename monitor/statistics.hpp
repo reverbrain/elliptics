@@ -28,42 +28,20 @@
 #include <mutex>
 #include <sstream>
 #include <thread>
+#include <map>
 
 #include "rapidjson/document.h"
 
 #include "../library/elliptics.h"
 
 #include "monitor.h"
+#include "stat_provider.hpp"
+#include "top.hpp"
+
 
 namespace ioremap { namespace monitor {
 
 class monitor;
-
-/*!
- * \internal
- *
- * Interface of statistics provider
- * Subsystems which wants to have their own statistics should create provider
- * and add it to statistics via add_provider method
- */
-class stat_provider {
-public:
-
-	/*!
-	 * \internal
-	 *
-	 * Returns json string of the real provider statistics
-	 * \a categories - categories which statistics should be included to json
-	 */
-	virtual std::string json(uint64_t categories) const = 0;
-
-	/*!
-	 * \internal
-	 *
-	 * Destructor
-	 */
-	virtual ~stat_provider() {}
-};
 
 /*!
  * \internal
@@ -173,7 +151,7 @@ public:
 	 * \a size - size of data that takes a part in command execution
 	 * \a time - time spended on command execution
 	 */
-	void command_counter(const int cmd, const int trans, const int err, const int cache,
+	void command_counter(const int cmd, const uint64_t trans, const int err, const int cache,
 	                     const uint64_t size, const unsigned long time);
 
 	/*!
@@ -236,7 +214,7 @@ public:
 	 * \a size - size of data that takes a part in command execution
 	 * \a time - time spended on command execution
 	 */
-	void command_counter(const int cmd, const int trans, const int err, const int cache,
+	void command_counter(const int cmd, const uint64_t trans, const int err, const int cache,
 	                     const uint64_t size, const unsigned long time);
 
 	/*!
@@ -247,6 +225,9 @@ public:
 	 */
 	void add_provider(stat_provider *stat, const std::string &name);
 	void remove_provider(const std::string &name);
+
+	typedef std::shared_ptr<top_stats> top_stats_ptr;
+	top_stats_ptr get_top_stats() const { return m_top_stats; }
 private:
 	/*!
 	 * \internal
@@ -290,7 +271,9 @@ private:
 	 */
 	std::mutex m_provider_mutex;
 
-	std::vector<std::pair<std::unique_ptr<stat_provider>, std::string>>	m_stat_providers;
+	std::map<std::string, std::shared_ptr<stat_provider>> m_stat_providers;
+
+	top_stats_ptr m_top_stats;
 };
 
 }} /* namespace ioremap::monitor */

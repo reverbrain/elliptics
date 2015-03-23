@@ -20,6 +20,7 @@
 #include "io_stat_provider.hpp"
 
 #include "library/elliptics.h"
+#include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 

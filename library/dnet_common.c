@@ -627,6 +627,7 @@ int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 	int num = 0;
 	struct dnet_net_state *st;
 	struct dnet_idc *idc;
+	struct rb_node *it;
 	struct dnet_group *g;
 	struct timeval start, end;
 	long diff;
@@ -634,7 +635,8 @@ int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 	gettimeofday(&start, NULL);
 
 	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
+	for (it = rb_first(&n->group_root); it; it = rb_next(it)) {
+		g = rb_entry(it, struct dnet_group, group_entry);
 		list_for_each_entry(idc, &g->idc_list, group_entry) {
 			st = idc->st;
 			if (st == n->st)

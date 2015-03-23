@@ -338,13 +338,9 @@ struct dnet_config
 	/* Config file name for handystats library */
 	const char 	*handystats_config;
 
-	/*
-	 * Monitor socket port
-	 */
-	unsigned int		monitor_port;
-
 	/* Unused. Will be removed at next major release */
-	long		__unused_1;
+	unsigned int	__unused_1;
+	long		__unused_2;
 
 	/* so that we do not change major version frequently */
 	int			reserved_for_future_use[8];
@@ -576,6 +572,12 @@ static inline char *dnet_dump_id_str(const unsigned char *id)
 {
 	static __thread char __dnet_dump_id_str[2 * DNET_ID_SIZE + 1];
 	return dnet_dump_id_len_raw(id, DNET_DUMP_NUM, __dnet_dump_id_str);
+}
+
+static inline char *dnet_dump_id_str_full(const unsigned char *id)
+{
+	static __thread char __dnet_dump_id_str_full[2 * DNET_ID_SIZE + 1];
+	return dnet_dump_id_len_raw(id, DNET_ID_SIZE, __dnet_dump_id_str_full);
 }
 
 /*

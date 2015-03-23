@@ -1,0 +1,59 @@
+\section configuration Configuration
+
+Elliptics monitor can be configurated via common dnet_ioserv config. It has special value: "monitor" which has follow schema:
+`{
+	"port": {
+		"description": "port that will be listened for HTTP requests",
+		"type": "integer" }
+}`
+Handystats has independent value: "handystats_config" that sets path to handystats config file.
+Optionally "monitor" section may contain "top" section - it enables computation of top keys statistics by elliptics process.
+If section "top" is empty, then statistics of top keys always contains empty list of keys. "top" section has follow schema:
+`{
+	"top_length": "maximum number of top keys returned by provider of top statistics",
+	"events_size": "amount of memory in bytes, available for storing events data",
+	"period_in_seconds": "only events within time window of 'period_in_seconds' seconds are considered in top keys statistics"
+}`
+
+\section http_API HTTP Monitor API
+
+Monitor HTTP server supports follow URI:
+- http://host:monitor_port/top			- Retrieves statistics of top keys ordered by generated traffic
+
+\section categories Monitor categories
+
+Monitor devides all statistics by categories. It allows client to request some part of statistics (combination of categories)
+if it is needed. Monitor provides follow categories:
+- top - statistics of top keys ordered by generated traffic
+
+\section top_statistics Top keys statistics
+
+Statistics of top keys. The json has follow schema:
+
+`"top": {
+	"description": "Statistics of top keys",
+	"type": "object",
+	"top_by_size": {
+		"description": "Statistics of top keys ordered by generated traffic",
+		"type": "array",
+		"items": {
+			"type": "object",
+			"group": {
+				"description": "group id of key",
+				"type": "number"
+			},
+			"id": {
+				"description": "key id (sha512 of file name)",
+				"type": "string"
+			},
+			"size": {
+				"description": "generated traffic",
+				"type": "number"
+			},
+			"frequency": {
+				"description": "events count during period_in_seconds time window",
+				"type": "number"
+			}
+		}
+	}
+}`

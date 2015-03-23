@@ -135,6 +135,11 @@ config_data &config_data::operator()(const std::string &name, bool value)
 	return (*this)(name, variant(value));
 }
 
+config_data &config_data::operator()(const std::string &name, const config_data &value)
+{
+	return (*this)(name, variant(value));
+}
+
 bool config_data::has_value(const std::string &name) const
 {
 	return value_impl(name);
@@ -148,8 +153,11 @@ struct stringify_visitor : public boost::static_visitor<std::string>
 		return boost::lexical_cast<std::string>(value);
 	}
 
-	std::string operator() (const std::vector<std::string> &) const
-	{
+	std::string operator() (const std::vector<std::string> &) const {
+		return std::string();
+	}
+
+	std::string operator() (const config_data &) const {
 		return std::string();
 	}
 };
@@ -158,6 +166,16 @@ std::string config_data::string_value(const std::string &name) const
 {
 	auto value = value_impl(name);
 	return value ? boost::apply_visitor(stringify_visitor(), *value) : std::string();
+}
+
+config_data::const_iterator config_data::cbegin() const
+{
+	return m_data.cbegin();
+}
+
+config_data::const_iterator config_data::cend() const
+{
+	return m_data.cend();
 }
 
 config_data &config_data::operator()(const std::string &name, const config_data::variant &value)
@@ -233,6 +251,19 @@ struct json_value_visitor : public boost::static_visitor<>
 	const char *name;
 	rapidjson::Value *object;
 	rapidjson::MemoryPoolAllocator<> *allocator;
+
+	void operator() (const config_data &value) const
+	{
+		rapidjson::Value result;
+		result.SetObject();
+
+		for (auto it = value.cbegin(); it != value.cend(); ++it) {
+			json_value_visitor visitor(it->first.c_str(), &result, allocator);
+			boost::apply_visitor(visitor, it->second);
+		}
+
+		object->AddMember(name, result, *allocator);
+	}
 
 	void operator() (const std::vector<std::string> &value) const
 	{

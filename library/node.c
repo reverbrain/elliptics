@@ -80,7 +80,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	}
 	pthread_attr_setdetachstate(&n->attr, PTHREAD_CREATE_DETACHED);
 
-	INIT_LIST_HEAD(&n->group_list);
+	n->group_root = RB_ROOT;
 	INIT_LIST_HEAD(&n->empty_state_list);
 	INIT_LIST_HEAD(&n->dht_state_list);
 	INIT_LIST_HEAD(&n->storage_state_list);
@@ -106,7 +106,7 @@ err_out_free:
 	return NULL;
 }
 
-static struct dnet_group *dnet_group_create(unsigned int group_id)
+static struct dnet_group *dnet_group_create(struct dnet_node *n, unsigned int group_id)
 {
 	struct dnet_group *g;
 
@@ -118,6 +118,7 @@ static struct dnet_group *dnet_group_create(unsigned int group_id)
 
 	atomic_init(&g->refcnt, 1);
 	g->group_id = group_id;
+	g->node = n;
 
 	INIT_LIST_HEAD(&g->idc_list);
 
@@ -133,23 +134,54 @@ void dnet_group_destroy(struct dnet_group *g)
 		fprintf(stderr, "BUG in dnet_group_destroy, reference leak.");
 		exit(-1);
 	}
-	list_del(&g->group_entry);
+	rb_erase(&g->group_entry, &g->node->group_root);
 	free(g->ids);
 	free(g);
 }
 
 static struct dnet_group *dnet_group_search(struct dnet_node *n, unsigned int group_id)
 {
-	struct dnet_group *g, *found = NULL;
+	struct rb_root *root = &n->group_root;
+	struct rb_node *it = root->rb_node;
+	struct dnet_group *g = NULL;
 
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		if (g->group_id == group_id) {
-			found = dnet_group_get(g);
-			break;
-		}
+	while (it) {
+		g = rb_entry(it, struct dnet_group, group_entry);
+
+		if (g->group_id < group_id)
+			it = it->rb_left;
+		else if (g->group_id > group_id)
+			it = it->rb_right;
+		else
+			return dnet_group_get(g);
 	}
 
-	return found;
+	return NULL;
+}
+
+int dnet_group_insert_nolock(struct dnet_node *n, struct dnet_group *a)
+{
+	struct rb_root *root = &n->group_root;
+	struct rb_node **it = &root->rb_node, *parent = NULL;
+	struct dnet_group *g = NULL;
+
+	while (*it) {
+		parent = *it;
+
+		g = rb_entry(parent, struct dnet_group, group_entry);
+
+		if (g->group_id < a->group_id)
+			it = &parent->rb_left;
+		else if (g->group_id > a->group_id)
+			it = &parent->rb_right;
+		else
+			return -EEXIST;
+	}
+
+	rb_link_node(&a->group_entry, parent, it);
+	rb_insert_color(&a->group_entry, root);
+
+	return 0;
 }
 
 static int dnet_idc_compare(const void *k1, const void *k2)
@@ -276,11 +308,13 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 
 	g = dnet_group_search(n, group_id);
 	if (!g) {
-		g = dnet_group_create(group_id);
+		g = dnet_group_create(n, group_id);
 		if (!g)
 			goto err_out_unlock;
 
-		list_add_tail(&g->group_entry, &n->group_list);
+		err = dnet_group_insert_nolock(n, g);
+		if (err)
+			goto err_out_unlock;
 	}
 
 	dnet_idc_remove_backend_nolock(st, backend->backend_id);

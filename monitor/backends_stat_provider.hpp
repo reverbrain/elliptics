@@ -20,9 +20,9 @@
 #ifndef __DNET_MONITOR_BACKENDS_STAT_PROVIDER_HPP
 #define __DNET_MONITOR_BACKENDS_STAT_PROVIDER_HPP
 
-#include "statistics.hpp"
+#include "stat_provider.hpp"
 
-struct dnet_io;
+struct dnet_node;
 
 namespace ioremap { namespace monitor {
 

@@ -17,25 +17,39 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DNET_MONITOR_IO_STAT_PROVIDER_HPP
-#define __DNET_MONITOR_IO_STAT_PROVIDER_HPP
+#ifndef __DNET_STAT_PROVIDER_HPP
+#define __DNET_STAT_PROVIDER_HPP
 
-#include "stat_provider.hpp"
-
-struct dnet_node;
+#include <string>
 
 namespace ioremap { namespace monitor {
 
-class io_stat_provider: public stat_provider {
+/*!
+ * \internal
+ *
+ * Interface of statistics provider
+ * Subsystems which wants to have their own statistics should create provider
+ * and add it to statistics via add_provider method
+ */
+class stat_provider {
 public:
-	io_stat_provider(dnet_node *n): m_node(n) {}
 
-	virtual std::string json(uint64_t categories) const;
+	/*!
+	 * \internal
+	 *
+	 * Returns json string of the real provider statistics
+	 * \a categories - categories which statistics should be included to json
+	 */
+	virtual std::string json(uint64_t categories) const = 0;
 
-private:
-	dnet_node *m_node;
+	/*!
+	 * \internal
+	 *
+	 * Destructor
+	 */
+	virtual ~stat_provider() {}
 };
 
 }} /* namespace ioremap::monitor */
 
-#endif /* __DNET_MONITOR_IO_STAT_PROVIDER_HPP */
+#endif /* __DNET_STAT_PROVIDER_HPP */

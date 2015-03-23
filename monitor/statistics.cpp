@@ -134,7 +134,7 @@ command_stats::command_stats()
 }
 
 void command_stats::command_counter(const int orig_cmd,
-                                 const int trans,
+                                 const uint64_t trans,
                                  const int err,
                                  const int cache,
                                  const uint64_t size,
@@ -174,7 +174,7 @@ rapidjson::Value& command_stats::commands_report(dnet_node *node, rapidjson::Val
 
 
 void statistics::command_counter(const int cmd,
-                                 const int trans,
+                                 const uint64_t trans,
                                  const int err,
                                  const int cache,
                                  const uint64_t size,
@@ -186,31 +186,22 @@ void statistics::command_counter(const int cmd,
 statistics::statistics(monitor& mon, struct dnet_config *cfg) : m_monitor(mon)
 {
 	(void) cfg;
+	const auto monitor_cfg = get_monitor_config(mon.node());
+	if (monitor_cfg && monitor_cfg->has_top) {
+		m_top_stats = std::make_shared<top_stats>(monitor_cfg->top_length, monitor_cfg->events_size, monitor_cfg->period_in_seconds);
+	}
 }
 
 void statistics::add_provider(stat_provider *stat, const std::string &name)
 {
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
-	m_stat_providers.emplace_back(std::unique_ptr<stat_provider>(stat), name);
+	m_stat_providers.insert(make_pair(name, std::shared_ptr<stat_provider>(stat)));
 }
-
-struct provider_remover_condition
-{
-	std::string name;
-
-	bool operator() (const std::pair<std::unique_ptr<stat_provider>, std::string> &pair)
-	{
-		return pair.second == name;
-	}
-};
 
 void statistics::remove_provider(const std::string &name)
 {
-	provider_remover_condition condition = { name };
-
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
-	auto it = std::remove_if(m_stat_providers.begin(), m_stat_providers.end(), condition);
-	m_stat_providers.erase(it, m_stat_providers.end());
+	m_stat_providers.erase(name);
 }
 
 inline std::string convert_report(const rapidjson::Document &report)
@@ -262,12 +253,12 @@ std::string statistics::report(uint64_t categories)
 
 	std::unique_lock<std::mutex> guard(m_provider_mutex);
 	for (auto it = m_stat_providers.cbegin(), end = m_stat_providers.cend(); it != end; ++it) {
-		auto json = it->first->json(categories);
+		auto json = it->second->json(categories);
 		if (json.empty())
 			continue;
 		rapidjson::Document value_doc(&allocator);
 		value_doc.Parse<0>(json.c_str());
-		report.AddMember(it->second.c_str(),
+		report.AddMember(it->first.c_str(),
 		                 allocator,
 		                 static_cast<rapidjson::Value&>(value_doc),
 		                 allocator);

@@ -27,7 +27,23 @@
 
 struct dnet_node;
 
+namespace ioremap { namespace elliptics { namespace config {
+class config;
+class config_data;
+}}}
+
 namespace ioremap { namespace monitor {
+
+struct monitor_config
+{
+	unsigned int	monitor_port;
+	bool		has_top;
+	size_t		top_length;
+	size_t		events_size;
+	int		period_in_seconds;
+
+	static std::unique_ptr<monitor_config> parse(const ioremap::elliptics::config::config &monitor);
+};
 
 class stat_provider;
 
@@ -64,6 +80,9 @@ private:
 	server		m_server;
 	statistics	m_statistics;
 };
+
+monitor* get_monitor(struct dnet_node *n);
+monitor_config* get_monitor_config(struct dnet_node *n);
 
 void add_provider(struct dnet_node *n, stat_provider *provider, const std::string &name);
 void remove_provider(struct dnet_node *n, const std::string &name);
