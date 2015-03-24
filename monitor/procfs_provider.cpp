@@ -110,6 +110,54 @@ err_out_exit:
 	return err;
 }
 
+struct proc_net_stat {
+	uint64_t rx_bytes;
+	uint64_t rx_packets;
+	uint64_t rx_errors;
+	uint64_t tx_bytes;
+	uint64_t tx_packets;
+	uint64_t tx_errors;
+};
+
+static int fill_proc_net_stat(dnet_logger *l, std::map<std::string, proc_net_stat> &st)
+{
+	char buf[256] = {'\0'};
+	char name[32] = {'\0'};
+	proc_net_stat net_stat;
+	uint64_t d;
+	FILE *f;
+	int err = 0;
+
+	f = fopen("/proc/net/dev", "r");
+	if (!f) {
+		dnet_log_only_log(l, DNET_LOG_ERROR, "Failed to open '/proc/net/dev': %s [%d].",
+				  strerror(errno), errno);
+		return -errno;
+	}
+
+	for (int i = 0; i < 2; ++i) {
+		if (!fgets(buf, sizeof(buf), f)) {
+			err = -ENOENT;
+			goto err_out_exit;
+		}
+	}
+
+	while (fgets(buf, sizeof(buf), f)) {
+		int err = sscanf(buf, "%30s %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu", name,
+				 &net_stat.rx_bytes, &net_stat.rx_packets, &net_stat.rx_errors, &d, &d, &d, &d, &d,
+				 &net_stat.tx_bytes, &net_stat.tx_packets, &net_stat.tx_errors);
+		if (err < 0)
+			goto err_out_exit;
+
+		name[strlen(name)-1] = '\0'; // erase ':' after interface name
+		st.insert(std::make_pair(name, net_stat));
+	}
+
+err_out_exit:
+	fclose(f);
+	return err;
+}
+
 procfs_provider::procfs_provider(struct dnet_node *node)
 : m_node(node)
 {}
@@ -196,6 +244,48 @@ static void fill_stat(dnet_node *node,
 	stat_value.AddMember("stat", stat_stat, allocator);
 }
 
+static void fill_net(dnet_node *node,
+                     rapidjson::Value &stat_value,
+                     rapidjson::Document::AllocatorType &allocator) {
+	rapidjson::Value net_stat(rapidjson::kObjectType);
+	int err = 0;
+	std::map<std::string, proc_net_stat> st;
+
+	err = fill_proc_net_stat(node->log, st);
+	net_stat.AddMember("error", err, allocator);
+
+	if (!err) {
+		rapidjson::Value dev_stat(rapidjson::kObjectType);
+
+		for (auto it = st.cbegin(); it != st.cend(); ++it) {
+			rapidjson::Value rx_stat(rapidjson::kObjectType);
+			rapidjson::Value tx_stat(rapidjson::kObjectType);
+			rapidjson::Value stat(rapidjson::kObjectType);
+
+			const std::string &name = it->first;
+			const proc_net_stat &ns = it->second;
+
+			rx_stat.AddMember("bytes", ns.rx_bytes, allocator);
+			rx_stat.AddMember("packets", ns.rx_packets, allocator);
+			rx_stat.AddMember("errors", ns.rx_errors, allocator);
+			stat.AddMember("receive", rx_stat, allocator);
+
+			tx_stat.AddMember("bytes", ns.tx_bytes, allocator);
+			tx_stat.AddMember("packets", ns.tx_packets, allocator);
+			tx_stat.AddMember("errors", ns.tx_errors, allocator);
+			stat.AddMember("transmit", tx_stat, allocator);
+
+			dev_stat.AddMember(name.c_str(), allocator, stat, allocator);
+		}
+
+		net_stat.AddMember("string_error", "", allocator);
+		net_stat.AddMember("net_interfaces", dev_stat, allocator);
+	} else
+		net_stat.AddMember("string_error", strerror(-err), allocator);
+
+	stat_value.AddMember("net", net_stat, allocator);
+}
+
 std::string procfs_provider::json(uint64_t categories) const {
 	if (!(categories & DNET_MONITOR_PROCFS))
 	    return std::string();
@@ -207,6 +297,7 @@ std::string procfs_provider::json(uint64_t categories) const {
 	fill_vm(m_node, doc, allocator);
 	fill_io(m_node, doc, allocator);
 	fill_stat(m_node, doc, allocator);
+	fill_net(m_node, doc, allocator);
 
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
