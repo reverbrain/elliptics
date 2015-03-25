@@ -164,7 +164,7 @@ static void test_top_list_result_limit()
 	std::vector<test_event> result;
 
 	// insert different items at the same time and with the same weight
-	for(int i = 0; i < 2 * TOP_LENGTH; ++i) {
+	for (int i = 0; i < 2 * TOP_LENGTH; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
@@ -180,11 +180,11 @@ static void test_top_list_result_boundary()
 	stats_t stats(EVENTS_SIZE, PERIOD_IN_SECONDS);
 	std::vector<test_event> result;
 
-	const int few_events = 5;
+	const size_t few_events = 5;
 	BOOST_CHECK_MESSAGE(TOP_LENGTH > few_events, "it is necessary to request more events than were added");
 
 	// insert different items at the same time and with the same weight
-	for(int i = 0; i < few_events; ++i) {
+	for (size_t i = 0; i < few_events; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
@@ -201,7 +201,7 @@ static void test_top_list_capacity_limit()
 	std::vector<test_event> result;
 
 	// insert different items at the same time and with the same weight
-	for(int i = 0; i < 4 * EVENTS_LIMIT; ++i) {
+	for (int i = 0; i < 4 * EVENTS_LIMIT; ++i) {
 		test_event e{std::to_string(static_cast<long long>(rand())), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
@@ -219,7 +219,7 @@ static void test_all_events_expiration()
 	std::vector<test_event> result;
 
 	// insert different items at the same time and with the same weight
-	for(int i = 0; i < EVENTS_LIMIT; ++i) {
+	for (int i = 0; i < EVENTS_LIMIT; ++i) {
 		test_event e{std::to_string(static_cast<long long>(rand())), default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
@@ -249,7 +249,7 @@ static void test_same_event_many_insertions()
 	std::vector<test_event> result;
 
 	// insert same items at the same time and with the same weight
-	for(int i = 0; i < TOP_LENGTH; ++i) {
+	for (int i = 0; i < TOP_LENGTH; ++i) {
 		test_event e{"same", default_size, 1., default_time};
 		stats.add_event(e, e.get_time());
 	}
@@ -269,7 +269,7 @@ static void test_insertion_with_increasing_weight()
 
 	// monotonically increment event's weight
 	std::vector<test_event> top_events;
-	for(int i = 1; i <= 3 * TOP_LENGTH; ++i) {
+	for (int i = 1; i <= 3 * TOP_LENGTH; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), i * default_size, 1., default_time};
 		if (i > 2 * TOP_LENGTH)
 			top_events.push_back(e);
@@ -292,7 +292,7 @@ static void test_insertion_with_random_weight()
 	std::vector<test_event> min_heap;
 	min_heap.reserve(TOP_LENGTH);
 	std::function<decltype(test_event::weight_compare)> comparator_weight(&test_event::weight_compare);
-	for(int i = 0; i < EVENTS_LIMIT; ++i) {
+	for (int i = 0; i < EVENTS_LIMIT; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), static_cast<uint64_t>(rand()), 1., default_time};
 		if (min_heap.size() >= TOP_LENGTH) {
 			if (min_heap.front().get_weight() < e.get_weight()) {
@@ -320,7 +320,7 @@ static void test_event_insertion_order_independence()
 
 	// check that statistics doesn't depend on order of key insertion
 	std::vector<test_event> test_set;
-	for(int i = 1; i < 8; ++i) {
+	for (int i = 1; i < 8; ++i) {
 		test_event e{std::to_string(static_cast<long long>(i)), i * default_size, 1., default_time};
 		test_set.push_back(e);
 	}
@@ -329,7 +329,7 @@ static void test_event_insertion_order_independence()
 		stats_t stats(EVENTS_SIZE, PERIOD_IN_SECONDS);
 		std::vector<test_event> result;
 		std::vector<test_event> permut(test_set);
-		for(auto it = permut.cbegin(); it != permut.cend(); ++it) {
+		for (auto it = permut.cbegin(); it != permut.cend(); ++it) {
 			stats.add_event(*it, it->get_time());
 		}
 		stats.get_top(TOP_LENGTH, default_time, result);
@@ -350,7 +350,7 @@ static void test_event_weight_attenuation()
 	// all events describe access to the same key with the same size, but at different period of time
 	// during time window much larger than PERIOD_IN_SECONDS.
 	const size_t long_period = 10 * PERIOD_IN_SECONDS;
-	for(size_t i = 0; i < long_period; ++i) {
+	for (size_t i = 0; i < long_period; ++i) {
 		test_event e{"same", default_size, 1., default_time + static_cast<time_t>(i)};
 		stats.add_event(e, e.get_time());
 	}
@@ -382,7 +382,7 @@ static void test_frequent_access_among_heavy_keys()
 
 	// half of inserted events reflects access to the "same" single key,
 	// other half of events reflects access to different keys.
-	for(int i = 0; i < 3 * TOP_LENGTH; ++i) {
+	for (int i = 0; i < 3 * TOP_LENGTH; ++i) {
 		if (i % 2) {
 			key = std::string("same");
 			size = default_size;
@@ -411,10 +411,10 @@ static void test_frequent_access()
 	std::vector<test_event> result, top_events;
 
 	// all inserted events have same size
-	for(int i = 0; i < 5 * TOP_LENGTH; ++i) {
+	for (int i = 0; i < 5 * TOP_LENGTH; ++i) {
 		std::string key = std::to_string(static_cast<long long>(i));
 		// access to i-th key occurs i+1 times
-		for(int j = 0; j < i+1; ++j) {
+		for (int j = 0; j < i+1; ++j) {
 			test_event e{key, default_size, 1., default_time + j};
 			stats.add_event(e, e.get_time());
 		}
