@@ -110,21 +110,22 @@ err_out_exit:
 	return err;
 }
 
-struct proc_net_stat {
-	uint64_t rx_bytes;
-	uint64_t rx_packets;
-	uint64_t rx_errors;
-	uint64_t tx_bytes;
-	uint64_t tx_packets;
-	uint64_t tx_errors;
+struct net_stat {
+	uint64_t bytes;
+	uint64_t packets;
+	uint64_t errors;
 };
 
-static int fill_proc_net_stat(dnet_logger *l, std::map<std::string, proc_net_stat> &st)
+struct net_interface_stat {
+	struct net_stat rx;
+	struct net_stat tx;
+};
+
+static int fill_proc_net_stat(dnet_logger *l, std::map<std::string, net_interface_stat> &st)
 {
 	char buf[256] = {'\0'};
 	char name[32] = {'\0'};
-	proc_net_stat net_stat;
-	uint64_t d;
+	net_interface_stat net_stat;
 	FILE *f;
 	int err = 0;
 
@@ -135,19 +136,24 @@ static int fill_proc_net_stat(dnet_logger *l, std::map<std::string, proc_net_sta
 		return -errno;
 	}
 
+	/* skip first 2 headers */
 	for (int i = 0; i < 2; ++i) {
 		if (!fgets(buf, sizeof(buf), f)) {
+			dnet_log_only_log(l, DNET_LOG_ERROR, "could not read header on '/proc/net/dev'");
 			err = -ENOENT;
 			goto err_out_exit;
 		}
 	}
 
 	while (fgets(buf, sizeof(buf), f)) {
-		int err = sscanf(buf, "%30s %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu", name,
-				 &net_stat.rx_bytes, &net_stat.rx_packets, &net_stat.rx_errors, &d, &d, &d, &d, &d,
-				 &net_stat.tx_bytes, &net_stat.tx_packets, &net_stat.tx_errors);
-		if (err < 0)
+		err = sscanf(buf, "%30s %lu %lu %lu %*lu %*lu %*lu %*lu %*lu %lu %lu %lu", name,
+			     &net_stat.rx.bytes, &net_stat.rx.packets, &net_stat.rx.errors,
+			     &net_stat.tx.bytes, &net_stat.tx.packets, &net_stat.tx.errors);
+		if (err < 0) {
+			dnet_log_only_log(l, DNET_LOG_ERROR, "sscanf failed on '/proc/net/dev': %s [%d].",
+					  strerror(errno), errno);
 			goto err_out_exit;
+		}
 
 		name[strlen(name)-1] = '\0'; // erase ':' after interface name
 		st.insert(std::make_pair(name, net_stat));
@@ -244,12 +250,23 @@ static void fill_stat(dnet_node *node,
 	stat_value.AddMember("stat", stat_stat, allocator);
 }
 
+static void fill_net_stat(const char *origin,
+			  const struct net_stat &ns,
+			  rapidjson::Value &stat_value,
+			  rapidjson::Document::AllocatorType &allocator) {
+	rapidjson::Value stat(rapidjson::kObjectType);
+	stat.AddMember("bytes", ns.bytes, allocator);
+	stat.AddMember("packets", ns.packets, allocator);
+	stat.AddMember("errors", ns.errors, allocator);
+	stat_value.AddMember(origin, stat, allocator);
+}
+
 static void fill_net(dnet_node *node,
                      rapidjson::Value &stat_value,
                      rapidjson::Document::AllocatorType &allocator) {
 	rapidjson::Value net_stat(rapidjson::kObjectType);
 	int err = 0;
-	std::map<std::string, proc_net_stat> st;
+	std::map<std::string, net_interface_stat> st;
 
 	err = fill_proc_net_stat(node->log, st);
 	net_stat.AddMember("error", err, allocator);
@@ -258,22 +275,13 @@ static void fill_net(dnet_node *node,
 		rapidjson::Value dev_stat(rapidjson::kObjectType);
 
 		for (auto it = st.cbegin(); it != st.cend(); ++it) {
-			rapidjson::Value rx_stat(rapidjson::kObjectType);
-			rapidjson::Value tx_stat(rapidjson::kObjectType);
 			rapidjson::Value stat(rapidjson::kObjectType);
 
 			const std::string &name = it->first;
-			const proc_net_stat &ns = it->second;
+			const net_interface_stat &ns = it->second;
 
-			rx_stat.AddMember("bytes", ns.rx_bytes, allocator);
-			rx_stat.AddMember("packets", ns.rx_packets, allocator);
-			rx_stat.AddMember("errors", ns.rx_errors, allocator);
-			stat.AddMember("receive", rx_stat, allocator);
-
-			tx_stat.AddMember("bytes", ns.tx_bytes, allocator);
-			tx_stat.AddMember("packets", ns.tx_packets, allocator);
-			tx_stat.AddMember("errors", ns.tx_errors, allocator);
-			stat.AddMember("transmit", tx_stat, allocator);
+			fill_net_stat("receive", ns.rx, stat, allocator);
+			fill_net_stat("transmit", ns.tx, stat, allocator);
 
 			dev_stat.AddMember(name.c_str(), allocator, stat, allocator);
 		}

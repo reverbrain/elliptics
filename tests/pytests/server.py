@@ -72,6 +72,7 @@ class Servers:
 
         assert self.p.poll() is None
 
+        self.config_params = config
         self.remotes = [str(x['remote']) for x in self.config['servers']]
         self.monitors = [str(x['monitor']) for x in self.config['servers']]
 
