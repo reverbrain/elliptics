@@ -55,5 +55,13 @@ Statistics of top keys. The json has follow schema:
 				"type": "number"
 			}
 		}
+	},
+	"top_result_limit": {
+		 "description": "max length of resulting list of top keys",
+		 "type": "number"
+	},
+	"period_in_seconds": {
+		 "description": "time in seconds of window for observation of events which may impact on top result",
+		 "type": "number"
 	}
 }`
