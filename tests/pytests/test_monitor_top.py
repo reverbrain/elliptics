@@ -49,6 +49,11 @@ def check_key_fields(keys):
         assert k['size']
         assert k['frequency']
 
+def check_response_fields(response):
+    '''top object must contain top_result_limit, period_in_seconds fields'''
+    assert response['top']['top_result_limit']
+    assert response['top']['period_in_seconds']
+
 class TestMonitorTop:
     '''
     This test suite does single write to a server and then checks that key of this write exists among top keys,
@@ -74,6 +79,8 @@ class TestMonitorTop:
         for remote, port in zip(server.remotes, server.monitors):
             remote = remote.split(':')[0]
             response = get_top_by_http(remote, port)
+            '''check that response contains required fields'''
+            check_response_fields(response)
             top_keys = response['top']['top_by_size']
             if has_key(test_key, top_keys):
                 break
@@ -92,6 +99,8 @@ class TestMonitorTop:
         top_keys = []
         for entry in entries:
             response = entry.statistics
+            '''check that response contains required fields'''
+            check_response_fields(response)
             top_keys = response['top']['top_by_size']
             if has_key(test_key, top_keys):
                 break

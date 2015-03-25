@@ -28,7 +28,8 @@ namespace ioremap { namespace monitor {
 
 top_stats::top_stats(size_t top_length, size_t events_size, int period_in_seconds)
 : m_stats(events_size, period_in_seconds),
- m_top_length(top_length)
+ m_top_length(top_length),
+ m_period_in_seconds(period_in_seconds)
 {}
 
 void top_stats::update_stats(const struct dnet_cmd *cmd, uint64_t size)
@@ -79,6 +80,8 @@ std::string top_provider::json(uint64_t categories) const {
 		fill_top_stat(key_stat, stat_array, allocator);
 	}
 
+	doc.AddMember("top_result_limit", m_top_stats->get_top_length(), allocator);
+	doc.AddMember("period_in_seconds", m_top_stats->get_period(), allocator);
 	doc.AddMember("top_by_size", stat_array, allocator);
 
 	rapidjson::StringBuffer buffer;
