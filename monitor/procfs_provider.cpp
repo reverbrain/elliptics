@@ -124,7 +124,6 @@ struct net_interface_stat {
 static int fill_proc_net_stat(dnet_logger *l, std::map<std::string, net_interface_stat> &st)
 {
 	char buf[256] = {'\0'};
-	char name[32] = {'\0'};
 	net_interface_stat net_stat;
 	FILE *f;
 	int err = 0;
@@ -136,7 +135,7 @@ static int fill_proc_net_stat(dnet_logger *l, std::map<std::string, net_interfac
 		return -errno;
 	}
 
-	/* skip first 2 headers */
+	// skip first 2 headers
 	for (int i = 0; i < 2; ++i) {
 		if (!fgets(buf, sizeof(buf), f)) {
 			dnet_log_only_log(l, DNET_LOG_ERROR, "could not read header on '/proc/net/dev'");
@@ -145,18 +144,24 @@ static int fill_proc_net_stat(dnet_logger *l, std::map<std::string, net_interfac
 		}
 	}
 
-	while (fgets(buf, sizeof(buf), f)) {
-		err = sscanf(buf, "%30s %lu %lu %lu %*lu %*lu %*lu %*lu %*lu %lu %lu %lu", name,
+	while (1) {
+		err = fscanf(f, "%255s %lu %lu %lu %*u %*u %*u %*u %*u %lu %lu %lu %*u %*u %*u %*u %*u", buf,
 			     &net_stat.rx.bytes, &net_stat.rx.packets, &net_stat.rx.errors,
 			     &net_stat.tx.bytes, &net_stat.tx.packets, &net_stat.tx.errors);
 		if (err < 0) {
-			dnet_log_only_log(l, DNET_LOG_ERROR, "sscanf failed on '/proc/net/dev': %s [%d].",
-					  strerror(errno), errno);
-			goto err_out_exit;
+			if (ferror(f)) {
+				dnet_log_only_log(l, DNET_LOG_ERROR, "fscanf failed on '/proc/net/dev': %s [%d].",
+						  strerror(errno), errno);
+				err = -errno;
+				goto err_out_exit;
+			} else {
+				err = 0;
+				break;
+			}
 		}
 
-		name[strlen(name)-1] = '\0'; // erase ':' after interface name
-		st.insert(std::make_pair(name, net_stat));
+		buf[strlen(buf)-1] = '\0'; // erase ':' after interface name
+		st.insert(std::make_pair(buf, net_stat));
 	}
 
 err_out_exit:
