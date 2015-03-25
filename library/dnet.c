@@ -432,7 +432,6 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	uint64_t size;
 	const uint64_t fsize = dsize;
 	unsigned char *combined = NULL, *position;
-	ssize_t bytes;
 	int err = 0;
 	uint64_t iterated_keys = 0;
 
@@ -478,7 +477,7 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	dnet_convert_iterator_response(response);
 
 	/* Data */
-	err = dnet_read_ll(fd, position, dsize, data_offset);
+	err = dnet_read_ll(fd, (char *)position, dsize, data_offset);
 	if (err)
 		goto err_out_exit;
 
