@@ -1790,7 +1790,7 @@ void init_elliptics_session() {
 		    "exec_(id_or_context=None, event, data="", src_key=-1)\n"
 		    "    Sends execution request of the given @event and @data\n"
 		    "     to the party specified by a given @id_or_context.\n"
-		    "     If @id_or_context is None then request will be sended to all nodes.\n"
+		    "     If @id_or_context is None then request will be sent to all nodes.\n"
 		    "     Returns async_exec_result.\n"
 		    "     Result contains all replies sent by nodes processing this event.\n")
 		.def("push", &elliptics_session::push,
