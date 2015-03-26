@@ -48,6 +48,13 @@ int dnet_transform_node(struct dnet_node *n, const void *src, uint64_t size, uns
 	return t->transform(t->priv, NULL, src, size, csum, (unsigned int *)&csize, 0);
 }
 
+int dnet_transform_file(struct dnet_node *n, int fd, uint64_t offset, uint64_t size, char *csum, unsigned int csize)
+{
+	struct dnet_transform *t = &n->transform;
+
+	return t->transform_file(t->priv, NULL, fd, offset, size, csum, (unsigned int *)&csize, 0);
+}
+
 int dnet_transform_raw(struct dnet_session *s, const void *src, uint64_t size, char *csum, unsigned int csize)
 {
 	struct dnet_node *n = s->node;

@@ -392,6 +392,8 @@ struct dnet_transform
 
 	int 			(* transform)(void *priv, struct dnet_session *s, const void *src, uint64_t size,
 					void *dst, unsigned int *dsize, unsigned int flags);
+	int 			(* transform_file)(void *priv, struct dnet_session *s, int fd, uint64_t offset,
+					uint64_t size, void *dst, unsigned int *dsize, unsigned int flags);
 };
 
 int dnet_crypto_init(struct dnet_node *n);
@@ -1008,6 +1010,29 @@ static inline int dnet_empty_addr(struct dnet_addr *addr)
 	static struct dnet_addr __empty;
 
 	return memcmp(addr, &__empty, addr->addr_len) == 0;
+}
+
+/**
+ * dnet_read_ll() - interruption-safe wrapper for pread(2)
+ */
+static inline int dnet_read_ll(int fd, char *data, size_t size, off_t offset)
+{
+	ssize_t bytes;
+
+	while (size) {
+again:
+		bytes = pread(fd, data, size, offset);
+		if (bytes == -1) {
+			if (errno == -EINTR)
+				goto again;
+			return -errno;
+		} else if (bytes == 0)
+			return -ESPIPE;
+		data += bytes;
+		size -= bytes;
+		offset += bytes;
+	}
+	return 0;
 }
 
 #ifdef __cplusplus

@@ -424,7 +424,7 @@ static int dnet_iterator_flow_control(struct dnet_iterator_common_private *ipriv
  * fixed-size response header.
  */
 static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
-		void *data, uint64_t dsize, struct dnet_ext_list *elist)
+					 int fd, uint64_t data_offset, uint64_t dsize, struct dnet_ext_list *elist)
 {
 	struct dnet_iterator_common_private *ipriv = priv;
 	struct dnet_iterator_response *response;
@@ -436,7 +436,7 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	uint64_t iterated_keys = 0;
 
 	/* Sanity */
-	if (ipriv == NULL || key == NULL || data == NULL || elist == NULL)
+	if (ipriv == NULL || key == NULL || fd < 0 || elist == NULL)
 		return -EINVAL;
 
 	iterated_keys = atomic_inc(&ipriv->iterated_keys);
@@ -452,7 +452,6 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 
 	/* Set data to NULL in case it's not requested */
 	if (!(ipriv->req->flags & DNET_IFLAGS_DATA)) {
-		data = NULL;
 		dsize = 0;
 	}
 	size = response_size + dsize;
@@ -478,10 +477,9 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	dnet_convert_iterator_response(response);
 
 	/* Data */
-	if (data) {
-		position += response_size;
-		memcpy(position, data, dsize);
-	}
+	err = dnet_read_ll(fd, (char *)position, dsize, data_offset);
+	if (err)
+		goto err_out_exit;
 
 	/* Finally run next callback */
 	err = ipriv->next_callback(ipriv->next_private, combined, size);
@@ -1436,7 +1434,6 @@ err_out_exit:
 int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size, void *csum, int csize)
 {
 	int err;
-	struct dnet_map_fd m;
 
 	if (!size) {
 		struct stat st;
@@ -1451,16 +1448,7 @@ int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size
 		size = st.st_size;
 	}
 
-	m.fd = fd;
-	m.size = size;
-	m.offset = offset;
-
-	err = dnet_data_map(&m);
-	if (err)
-		goto err_out_exit;
-
-	err = dnet_checksum_data(n, m.data, size, csum, csize);
-	dnet_data_unmap(&m);
+	err = dnet_transform_file(n, fd, offset, size, csum, csize);
 
 err_out_exit:
 	return err;

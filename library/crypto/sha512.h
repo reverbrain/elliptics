@@ -21,6 +21,7 @@
 # include <stdio.h>
 
 # include "u64.h"
+# include <sys/types.h> /* off_t declaration */
 
 # ifdef __cplusplus
 extern "C" {
@@ -41,7 +42,6 @@ enum { SHA512_DIGEST_SIZE = 512 / 8 };
 
 /* Initialize structure containing state of computation. */
 extern void sha512_init_ctx (struct sha512_ctx *ctx);
-extern void sha384_init_ctx (struct sha512_ctx *ctx);
 
 /* Starting with the result of former calls of this function (or the
    initialization function update the context for the next LEN bytes
@@ -62,7 +62,6 @@ extern void sha512_process_bytes (const void *buffer, size_t len,
    endian byte order, so that a byte-wise output yields to the wanted
    ASCII representation of the message digest.  */
 extern void *sha512_finish_ctx (struct sha512_ctx *ctx, void *resbuf);
-extern void *sha384_finish_ctx (struct sha512_ctx *ctx, void *resbuf);
 
 
 /* Put result from CTX in first 64 (48) bytes following RESBUF.  The result is
@@ -72,21 +71,27 @@ extern void *sha384_finish_ctx (struct sha512_ctx *ctx, void *resbuf);
    IMPORTANT: On some systems it is required that RESBUF is correctly
    aligned for a 32 bits value.  */
 extern void *sha512_read_ctx (const struct sha512_ctx *ctx, void *resbuf);
-extern void *sha384_read_ctx (const struct sha512_ctx *ctx, void *resbuf);
 
 
 /* Compute SHA512 (SHA384) message digest for bytes read from STREAM.  The
    resulting message digest number will be written into the 64 (48) bytes
    beginning at RESBLOCK.  */
 extern int sha512_stream (FILE *stream, void *resblock);
-extern int sha384_stream (FILE *stream, void *resblock);
+
+/* Compute SHA512 message digest for bytes range read from file descriptor.
+   The resulting message digest number will be written into the 64 bytes
+   beginning at RESBLOCK.  */
+extern int sha512_file (int fd, off_t offset, size_t count, void *resblock);
+
+/* Compute SHA512 message digest for bytes range read from file descriptor.
+   The resulting message digest number will be updated in CTX.  */
+extern int sha512_file_ctx (int fd, off_t offset, size_t count, struct sha512_ctx *ctx);
 
 /* Compute SHA512 (SHA384) message digest for LEN bytes beginning at BUFFER.  The
    result is always in little endian byte order, so that a byte-wise
    output yields to the wanted ASCII representation of the message
    digest.  */
 extern void *sha512_buffer (const char *buffer, size_t len, void *resblock);
-extern void *sha384_buffer (const char *buffer, size_t len, void *resblock);
 
 # ifdef __cplusplus
 }

@@ -199,7 +199,7 @@ struct dnet_iterator_ctl {
 	void				*iterate_private;
 	void				*callback_private;
 	int				(* callback)(void *priv, struct dnet_raw_id *key,
-			void *data, uint64_t dsize, struct dnet_ext_list *elist);
+			int fd, uint64_t data_offset, uint64_t dsize, struct dnet_ext_list *elist);
 };
 
 /*
@@ -709,6 +709,7 @@ int dnet_transform(struct dnet_session *s, const void *src, uint64_t size, struc
 int __attribute__((weak)) dnet_transform_node(struct dnet_node *n, const void *src, uint64_t size,
 		unsigned char *csum, int csize);
 int dnet_transform_raw(struct dnet_session *s, const void *src, uint64_t size, char *csum, unsigned int csize);
+int dnet_transform_file(struct dnet_node *n, int fd, uint64_t offset, uint64_t size, char *csum, unsigned int csize);
 
 /*
  * Transformation implementation, currently it's sha512 hash.
