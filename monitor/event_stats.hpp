@@ -120,7 +120,7 @@ private:
 	void treap_to_container(typename treap_t::p_node_type node, Container &result) const {
 		std::stack<typename treap_t::p_node_type> path;
 
-		while(node || !path.empty()) { // inorder bst traversal
+		while (node || !path.empty()) { // inorder bst traversal
 			if (node) {
 				path.push(node);
 				node = node->l;

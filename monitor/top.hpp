@@ -112,6 +112,7 @@ public:
 	void update_stats(const struct dnet_cmd *cmd, uint64_t size);
 
 	size_t get_top_length() const { return m_top_length; }
+	int get_period() const { return m_period_in_seconds; }
 
 	typedef event_stats<key_stat_event> event_stats_t;
 	event_stats_t& get_stats() { return m_stats; }
@@ -119,6 +120,7 @@ public:
 private:
 	event_stats_t m_stats;
 	const size_t m_top_length;
+	const int m_period_in_seconds;
 };
 
 /*!

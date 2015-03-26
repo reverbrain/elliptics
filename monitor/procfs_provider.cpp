@@ -110,6 +110,65 @@ err_out_exit:
 	return err;
 }
 
+struct net_stat {
+	uint64_t bytes;
+	uint64_t packets;
+	uint64_t errors;
+};
+
+struct net_interface_stat {
+	struct net_stat rx;
+	struct net_stat tx;
+};
+
+static int fill_proc_net_stat(dnet_logger *l, std::map<std::string, net_interface_stat> &st)
+{
+	char buf[256] = {'\0'};
+	net_interface_stat net_stat;
+	FILE *f;
+	int err = 0;
+
+	f = fopen("/proc/net/dev", "r");
+	if (!f) {
+		dnet_log_only_log(l, DNET_LOG_ERROR, "Failed to open '/proc/net/dev': %s [%d].",
+				  strerror(errno), errno);
+		return -errno;
+	}
+
+	// skip first 2 headers
+	for (int i = 0; i < 2; ++i) {
+		if (!fgets(buf, sizeof(buf), f)) {
+			dnet_log_only_log(l, DNET_LOG_ERROR, "could not read header on '/proc/net/dev'");
+			err = -ENOENT;
+			goto err_out_exit;
+		}
+	}
+
+	while (1) {
+		err = fscanf(f, "%255s %lu %lu %lu %*u %*u %*u %*u %*u %lu %lu %lu %*u %*u %*u %*u %*u", buf,
+			     &net_stat.rx.bytes, &net_stat.rx.packets, &net_stat.rx.errors,
+			     &net_stat.tx.bytes, &net_stat.tx.packets, &net_stat.tx.errors);
+		if (err < 0) {
+			if (ferror(f)) {
+				dnet_log_only_log(l, DNET_LOG_ERROR, "fscanf failed on '/proc/net/dev': %s [%d].",
+						  strerror(errno), errno);
+				err = -errno;
+				goto err_out_exit;
+			} else {
+				err = 0;
+				break;
+			}
+		}
+
+		buf[strlen(buf)-1] = '\0'; // erase ':' after interface name
+		st.insert(std::make_pair(buf, net_stat));
+	}
+
+err_out_exit:
+	fclose(f);
+	return err;
+}
+
 procfs_provider::procfs_provider(struct dnet_node *node)
 : m_node(node)
 {}
@@ -196,6 +255,50 @@ static void fill_stat(dnet_node *node,
 	stat_value.AddMember("stat", stat_stat, allocator);
 }
 
+static void fill_net_stat(const char *origin,
+			  const struct net_stat &ns,
+			  rapidjson::Value &stat_value,
+			  rapidjson::Document::AllocatorType &allocator) {
+	rapidjson::Value stat(rapidjson::kObjectType);
+	stat.AddMember("bytes", ns.bytes, allocator);
+	stat.AddMember("packets", ns.packets, allocator);
+	stat.AddMember("errors", ns.errors, allocator);
+	stat_value.AddMember(origin, stat, allocator);
+}
+
+static void fill_net(dnet_node *node,
+                     rapidjson::Value &stat_value,
+                     rapidjson::Document::AllocatorType &allocator) {
+	rapidjson::Value net_stat(rapidjson::kObjectType);
+	int err = 0;
+	std::map<std::string, net_interface_stat> st;
+
+	err = fill_proc_net_stat(node->log, st);
+	net_stat.AddMember("error", err, allocator);
+
+	if (!err) {
+		rapidjson::Value dev_stat(rapidjson::kObjectType);
+
+		for (auto it = st.cbegin(); it != st.cend(); ++it) {
+			rapidjson::Value stat(rapidjson::kObjectType);
+
+			const std::string &name = it->first;
+			const net_interface_stat &ns = it->second;
+
+			fill_net_stat("receive", ns.rx, stat, allocator);
+			fill_net_stat("transmit", ns.tx, stat, allocator);
+
+			dev_stat.AddMember(name.c_str(), allocator, stat, allocator);
+		}
+
+		net_stat.AddMember("string_error", "", allocator);
+		net_stat.AddMember("net_interfaces", dev_stat, allocator);
+	} else
+		net_stat.AddMember("string_error", strerror(-err), allocator);
+
+	stat_value.AddMember("net", net_stat, allocator);
+}
+
 std::string procfs_provider::json(uint64_t categories) const {
 	if (!(categories & DNET_MONITOR_PROCFS))
 	    return std::string();
@@ -207,6 +310,7 @@ std::string procfs_provider::json(uint64_t categories) const {
 	fill_vm(m_node, doc, allocator);
 	fill_io(m_node, doc, allocator);
 	fill_stat(m_node, doc, allocator);
+	fill_net(m_node, doc, allocator);
 
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
