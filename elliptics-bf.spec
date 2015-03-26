@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.4.1
+Version:	2.26.4.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Mar 27 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.4.2
+- network io handler iterates only single event, where epoll_wait() may return more than one
+- added top events settings to monitoring/top provider
+- net stats in procfs provider: rx/tx bytes, packets, error count for net interfaces
+- removed unused sha384 functions and unification with eblob cryptolib
+- mmap elimination - mmap() replaced with pread(). Corrupted filesystem may return -EIO for some reads, while
+- 	trying to access that data via mmap ends up with SIGBUS signal, which kills whole eblob user.
+
 * Mon Mar 23 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.4.1
 - json: fixed crash on generating statistics for disabled at startup backends
 - Used local node address for state in local_session: fixed invalid address at logs.

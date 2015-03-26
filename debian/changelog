@@ -1,3 +1,14 @@
+elliptics (2.26.4.2) unstable; urgency=low
+
+  * network io handler iterates only single event, where epoll_wait() may return more than one
+  * added top events settings to monitoring/top provider
+  * net stats in procfs provider: rx/tx bytes, packets, error count for net interfaces
+  * removed unused sha384 functions and unification with eblob cryptolib
+  * mmap elimination - mmap() replaced with pread(). Corrupted filesystem may return -EIO for some reads, while
+  * 	trying to access that data via mmap ends up with SIGBUS signal, which kills whole eblob user.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 27 Mar 2015 00:22:10 +0400
+
 elliptics (2.26.4.1) unstable; urgency=low
 
   * json: fixed crash on generating statistics for disabled at startup backends
