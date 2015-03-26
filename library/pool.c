@@ -833,6 +833,7 @@ static void *dnet_io_process_network(void *data_)
 	int evs_size = 1;
 	int tmp = 0;
 	int err = 0;
+	int num_events;
 	int i = 0;
 	struct timeval prev_tv, curr_tv;
 
@@ -870,16 +871,17 @@ static void *dnet_io_process_network(void *data_)
 			if (err == -EAGAIN || err == -EINTR)
 				continue;
 
-			dnet_log_err(n, "Failed to wait for IO fds");
+			dnet_log(n, DNET_LOG_ERROR, "Failed to wait for IO fds: %s [%d]", strerror(-err), err);
 			n->need_exit = err;
 			break;
 		}
 
 		// tmp will counts number of send events
 		tmp = 0;
+		num_events = err;
 		// suffles available epoll_events
-		dnet_shuffle_epoll_events(evs, err);
-		for (i = 0; i < err; ++i) {
+		dnet_shuffle_epoll_events(evs, num_events);
+		for (i = 0; i < num_events; ++i) {
 			data = evs[i].data.ptr;
 			st = data->st;
 			st->epoll_fd = nio->epoll_fd;
