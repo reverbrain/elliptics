@@ -1,3 +1,9 @@
+elliptics (2.26.4.3) unstable; urgency=low
+
+  * package: depend on 0.22.20+ eblob because of API changes
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 27 Mar 2015 19:31:37 +0400
+
 elliptics (2.26.4.2) unstable; urgency=low
 
   * network io handler iterates only single event, where epoll_wait() may return more than one

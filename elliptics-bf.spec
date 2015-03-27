@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.4.2
+Version:	2.26.4.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:	python-devel
 BuildRequires:	libcocaine-core2-devel >= 0.11.2.0
 BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
-BuildRequires:	eblob-devel >= 0.22.15
+BuildRequires:	eblob-devel >= 0.22.20
 BuildRequires:  libblackhole-devel >= 0.2.3-1
 BuildRequires:	libev-devel libtool-ltdl-devel
 BuildRequires:	cmake msgpack-devel python-msgpack
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Mar 27 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.4.3
+- package: depend on 0.22.20+ eblob because of API changes
+
 * Fri Mar 27 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.4.2
 - network io handler iterates only single event, where epoll_wait() may return more than one
 - added top events settings to monitoring/top provider
