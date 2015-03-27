@@ -286,8 +286,12 @@ void parse_options(config_data *data, const config &options)
 	dnet_set_addr(data, options.at("address", std::vector<std::string>()));
 
 	const std::vector<std::string> remotes = options.at("remote", std::vector<std::string>());
-	for (auto it = remotes.begin(); it != remotes.end(); ++it) {
-		data->remotes.emplace_back(*it);
+	for (auto it = remotes.cbegin(); it != remotes.cend(); ++it) {
+		try {
+			data->remotes.emplace_back(*it);
+		} catch (const std::exception &e) {
+			dnet_backend_log(data->cfg_state.log, DNET_LOG_ERROR, "Failed to add address to remotes: %s", e.what());
+		}
 	}
 
 	if (options.has("monitor")) {
