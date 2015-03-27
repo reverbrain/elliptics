@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.4.2
+Version:	2.26.4.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Mar 27 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.4.3
+- package: depend on 0.22.20+ eblob because of API changes
+
 * Fri Mar 27 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.4.2
 - network io handler iterates only single event, where epoll_wait() may return more than one
 - added top events settings to monitoring/top provider
