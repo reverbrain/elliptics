@@ -931,7 +931,7 @@ static void *dnet_io_process_network(void *data_)
 				// transactions may live in the tree and be accessed without locks in IO thread,
 				// IO thread is kind of 'owner' of the transaction processing
 				dnet_state_put(st);
-				continue;
+				break;
 			}
 		}
 
