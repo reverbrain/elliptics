@@ -1,3 +1,10 @@
+elliptics (2.26.4.4) unstable; urgency=low
+
+  * config: fixed bug when invalid remote (e.g. whose net address couldn't be resolved) from config leads to dnet_ioserv termination during initialization step
+  * pool: fixed crash on working with invalid evs[i].data.ptr (dnet_net_state) after releasing of this net_state on EPOLLERR at previous iteration over evs[i]
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 27 Mar 2015 20:08:47 +0400
+
 elliptics (2.26.4.3) unstable; urgency=low
 
   * package: depend on 0.22.20+ eblob because of API changes

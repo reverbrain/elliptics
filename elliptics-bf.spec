@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.4.3
+Version:	2.26.4.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Mar 27 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.4.4
+- config: fixed bug when invalid remote (e.g. whose net address couldn't be resolved) from config leads to dnet_ioserv termination during initialization step
+- pool: fixed crash on working with invalid evs[i].data.ptr (dnet_net_state) after releasing of this net_state on EPOLLERR at previous iteration over evs[i]
+
 * Fri Mar 27 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.4.3
 - package: depend on 0.22.20+ eblob because of API changes
 
