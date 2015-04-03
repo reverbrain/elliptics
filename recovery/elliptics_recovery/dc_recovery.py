@@ -214,18 +214,20 @@ class KeyRecover(object):
                 return
 
             self.stats.write += len(results)
-            self.stats.written_bytes += sum([r.size for r in results])
             if self.index_shard:
+                self.stats.written_bytes += sum([r.size for r in results])
                 log.debug("Recovered index shard at key: {0}".format(repr(self.key)))
                 self.stop(True)
                 return
 
             self.recovered_size += len(self.write_data)
+            self.stats.written_bytes += len(self.write_data) * len(results)
             self.attempt = 0
             if self.recovered_size < self.total_size:
                 self.read()
             else:
-                log.debug("Key: {0} has been successfully copied to groups: {1}".format(repr(self.key), [r.group_id for r in results]))
+                log.debug("Key: {0} has been successfully copied to groups: {1}"
+                          .format(repr(self.key), [r.group_id for r in results]))
                 self.stop(True)
         except Exception as e:
             log.error("Failed to handle write result key: {0}: {1}, traceback: {2}"
