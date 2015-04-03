@@ -18,6 +18,11 @@ import elliptics
 
 log = logging.getLogger("elliptics")
 
+formatter = logging.Formatter(
+    fmt="%(asctime)s.%(msecs)-6d %(thread)d/%(process)d %(levelname)s: %(message)s,"
+        " attrs: ['thread': '%(threadName)s', process': '%(processName)s']",
+    datefmt='%F %R:%S')
+
 
 def logged_class(klass):
     """
@@ -61,7 +66,6 @@ def init_logger():
     import sys
     log.setLevel(logging.ERROR)
     ch = logging.StreamHandler(sys.stderr)
-    ch.setFormatter(logging.Formatter(fmt='%(asctime)-15s %(processName)s %(levelname)s %(message)s',
-                                      datefmt='%d %b %y %H:%M:%S'))
+    ch.setFormatter(formatter)
     ch.setLevel(logging.ERROR)
     log.addHandler(ch)
