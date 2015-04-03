@@ -19,7 +19,7 @@ import logging
 import logging.handlers
 import traceback
 from multiprocessing import Pool
-#from memory_profiler import profile
+# from memory_profiler import profile
 
 from elliptics_recovery.route import RouteList
 from elliptics_recovery.etime import Time
@@ -28,11 +28,10 @@ from elliptics_recovery.monitor import Monitor, ALLOWED_STAT_FORMATS
 from elliptics_recovery.ctx import Ctx
 
 import elliptics
+from elliptics.log import formatter
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
-formatter = logging.Formatter(fmt='%(asctime)-15s %(processName)s %(levelname)s %(message)s',
-                              datefmt='%d %b %y %H:%M:%S')
 
 ch = logging.StreamHandler(sys.stderr)
 ch.setFormatter(formatter)
@@ -56,7 +55,7 @@ def cleanup(path):
                 os.unlink(file_name)
 
 
-#@profile
+# @profile
 def main(options, args):
     if len(args) > 1:
         raise ValueError("Too many arguments passed: {0}, expected: 1".format(len(args)))

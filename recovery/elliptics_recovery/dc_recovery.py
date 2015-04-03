@@ -24,6 +24,7 @@ from elliptics_recovery.utils.misc import load_key_data
 
 import elliptics
 from elliptics import Address
+from elliptics.log import formatter
 
 log = logging.getLogger()
 
@@ -63,7 +64,8 @@ class KeyRecover(object):
             return
 
         log.debug("Try to recover key: {0} from groups: {1} to groups: {2}: diff groups: {3}, missed groups: {4}"
-                  .format(self.key, self.same_groups, self.diff_groups + self.missed_groups, self.diff_groups, self.missed_groups))
+                  .format(self.key, self.same_groups, self.diff_groups + self.missed_groups,
+                          self.diff_groups, self.missed_groups))
 
         self.read_session.groups = self.same_groups
         self.write_session.groups = self.diff_groups + self.missed_groups
@@ -353,9 +355,6 @@ if __name__ == '__main__':
     ctx = Ctx()
 
     log.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        fmt='%(asctime)-15s %(processName)s %(levelname)s %(message)s',
-        datefmt='%d %b %y %H:%M:%S')
 
     ch = logging.StreamHandler(sys.stderr)
     ch.setFormatter(formatter)
