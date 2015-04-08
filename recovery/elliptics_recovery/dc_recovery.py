@@ -24,6 +24,7 @@ from elliptics_recovery.utils.misc import load_key_data
 
 import elliptics
 from elliptics import Address
+from elliptics.log import formatter
 
 log = logging.getLogger()
 
@@ -53,7 +54,11 @@ class KeyRecover(object):
         self.total_size = self.key_infos[0].size
         self.chunked = self.total_size > self.ctx.chunk_size
         self.recovered_size = 0
-        self.same_groups = [k.group_id for k in self.key_infos if (k.timestamp, k.size) == (self.key_infos[0].timestamp, self.key_infos[0].size)]
+
+        def same_meta(lhs, rhs):
+            return (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
+
+        self.same_groups = [k.group_id for k in self.key_infos if same_meta(k, self.key_infos[0])]
         self.key_infos = [k for k in self.key_infos if k.group_id not in self.same_groups]
         self.diff_groups += [k.group_id for k in self.key_infos]
         self.diff_groups = list(set(self.diff_groups).difference(self.same_groups))
@@ -63,7 +68,8 @@ class KeyRecover(object):
             return
 
         log.debug("Try to recover key: {0} from groups: {1} to groups: {2}: diff groups: {3}, missed groups: {4}"
-                  .format(self.key, self.same_groups, self.diff_groups + self.missed_groups, self.diff_groups, self.missed_groups))
+                  .format(self.key, self.same_groups, self.diff_groups + self.missed_groups,
+                          self.diff_groups, self.missed_groups))
 
         self.read_session.groups = self.same_groups
         self.write_session.groups = self.diff_groups + self.missed_groups
@@ -81,19 +87,18 @@ class KeyRecover(object):
                       .format(self.key, self.read_session.groups, self.chunked))
             if self.chunked:
                 size = min(self.total_size - self.recovered_size, self.ctx.chunk_size)
-            if self.recovered_size != 0:
-                self.read_session.ioflags != elliptics.io_flags.nocsum
-            else:
-                #first read should be at least INDEX_MAGIC_NUMBER_LENGTH bytes
-                size = min(self.total_size, max(size, INDEX_MAGIC_NUMBER_LENGTH))
-            log.debug("Reading key: {0} from groups: {1}, chunked: {2}, offset: {3}, size: {4}, total_size: {5}"
-                      .format(self.key, self.read_session.groups, self.chunked, self.recovered_size, size, self.total_size))
-
             # do not check checksum for all but the first chunk
             if self.recovered_size != 0:
-                self.read_session.ioflags = elliptics.io_flags.nocsum
+                self.read_session.ioflags |= elliptics.io_flags.nocsum
             else:
+                # first read should be at least INDEX_MAGIC_NUMBER_LENGTH bytes
+                size = min(self.total_size, max(size, INDEX_MAGIC_NUMBER_LENGTH))
                 self.read_session.ioflags = 0
+
+            log.debug("Reading key: {0} from groups: {1}, chunked: {2}, offset: {3}, size: {4}, total_size: {5}"
+                      .format(self.key, self.read_session.groups, self.chunked,
+                              self.recovered_size, size, self.total_size))
+
             read_result = self.read_session.read_data(self.key,
                                                       offset=self.recovered_size,
                                                       size=size)
@@ -214,18 +219,20 @@ class KeyRecover(object):
                 return
 
             self.stats.write += len(results)
-            self.stats.written_bytes += sum([r.size for r in results])
             if self.index_shard:
+                self.stats.written_bytes += sum([r.size for r in results])
                 log.debug("Recovered index shard at key: {0}".format(repr(self.key)))
                 self.stop(True)
                 return
 
             self.recovered_size += len(self.write_data)
+            self.stats.written_bytes += len(self.write_data) * len(results)
             self.attempt = 0
             if self.recovered_size < self.total_size:
                 self.read()
             else:
-                log.debug("Key: {0} has been successfully copied to groups: {1}".format(repr(self.key), [r.group_id for r in results]))
+                log.debug("Key: {0} has been successfully copied to groups: {1}"
+                          .format(repr(self.key), [r.group_id for r in results]))
                 self.stop(True)
         except Exception as e:
             log.error("Failed to handle write result key: {0}: {1}, traceback: {2}"
@@ -351,9 +358,6 @@ if __name__ == '__main__':
     ctx = Ctx()
 
     log.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        fmt='%(asctime)-15s %(processName)s %(levelname)s %(message)s',
-        datefmt='%d %b %y %H:%M:%S')
 
     ch = logging.StreamHandler(sys.stderr)
     ch.setFormatter(formatter)
