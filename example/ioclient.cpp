@@ -458,7 +458,7 @@ int main(int argc, char *argv[])
 		}
 
 		if (update_status) {
-			s.update_status(address(remote_addr, port, family), &node_status);
+			sync_node_status_result result = s.update_status(address(remote_addr, port, family), node_status);
 		}
 
 	} catch (const std::exception &e) {

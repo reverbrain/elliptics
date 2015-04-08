@@ -158,6 +158,18 @@ class monitor_stat_result_entry : public callback_result_entry
 		std::string statistics() const;
 };
 
+class node_status_result_entry : public callback_result_entry
+{
+	public:
+		node_status_result_entry();
+		node_status_result_entry(const node_status_result_entry &other);
+		~node_status_result_entry();
+
+		node_status_result_entry &operator =(const node_status_result_entry &other);
+
+		struct dnet_node_status *node_status() const;
+};
+
 class exec_context;
 class exec_callback;
 
@@ -276,6 +288,9 @@ typedef sync_generic_result sync_remove_result;
 
 typedef async_result<monitor_stat_result_entry> async_monitor_stat_result;
 typedef std::vector<monitor_stat_result_entry> sync_monitor_stat_result;
+
+typedef async_result<node_status_result_entry> async_node_status_result;
+typedef std::vector<node_status_result_entry> sync_node_status_result;
 
 typedef async_result<backend_status_result_entry> async_backend_control_result;
 typedef std::vector<backend_status_result_entry> sync_backend_control_result;

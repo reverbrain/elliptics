@@ -557,9 +557,88 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 	return trans_moved;
 }
 
+struct dnet_ping_node_private
+{
+	struct dnet_session	*session;
+	struct dnet_net_state	*net_state;
+};
+
+static int dnet_ping_stall_node_complete(struct dnet_addr *addr __unused, struct dnet_cmd *cmd, void *priv)
+{
+	struct dnet_ping_node_private *ping_private;
+	struct dnet_net_state *st;
+
+	if (!is_trans_destroyed(cmd)) {
+	        ping_private = priv;
+		st = ping_private->net_state;
+
+		dnet_session_destroy(ping_private->session);
+		free(ping_private);
+
+		if (cmd->status == -ETIMEDOUT)
+			dnet_state_reset(st, cmd->status);
+	}
+
+	return 0;
+}
+
+static int dnet_ping_stall_node(struct dnet_net_state *st)
+{
+	struct dnet_node_status node_status;
+	struct dnet_trans_control ctl;
+	struct dnet_session *sess;
+	struct dnet_ping_node_private *ping_private;
+	int err = 0;
+
+	ping_private = malloc(sizeof(struct dnet_ping_node_private));
+	if (!ping_private) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	sess = dnet_session_create(st->n);
+	if (!sess) {
+		err = -ENOMEM;
+		goto err_out_free_private;
+	}
+
+	dnet_session_set_direct_addr(sess, &st->addr);
+
+	ping_private->session = sess;
+	ping_private->net_state = st;
+
+	memset(&node_status, 0, sizeof(struct dnet_node_status));
+
+	/* this values of node_status will not affect remote node state */
+	node_status.nflags = -1;
+	node_status.status_flags = -1;
+	node_status.log_level = ~0U;
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+
+	ctl.cmd = DNET_CMD_BACKEND_STATUS;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT;
+	ctl.size = sizeof(struct dnet_node_status);
+	ctl.data = &node_status;
+
+	ctl.complete = dnet_ping_stall_node_complete;
+	ctl.priv = ping_private;
+
+	err = dnet_trans_alloc_send_state(sess, st, &ctl);
+	if (!err)
+		goto err_out_exit;
+
+	dnet_session_destroy(sess);
+err_out_free_private:
+	free(ping_private);
+err_out_exit:
+	return err;
+}
+
 static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *head)
 {
 	int trans_timeout = dnet_trans_iterate_move_transaction(st, head);
+	int err;
 
 	if (trans_timeout) {
 		st->stall++;
@@ -567,11 +646,15 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 		if (st->weight >= 2)
 			st->weight /= 10;
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%u, weight: %f",
-				dnet_state_dump_addr(st), trans_timeout, st->stall, DNET_DEFAULT_STALL_TRANSACTIONS, st->weight);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%lu, weight: %f",
+				dnet_state_dump_addr(st), trans_timeout, st->stall, st->n->stall_count, st->weight);
 
-		if (st->stall >= st->n->stall_count && st != st->n->st)
-			dnet_state_reset_nolock_noclean(st, -ETIMEDOUT, head);
+		if (st->stall >= st->n->stall_count && st != st->n->st) {
+			st->stall = 0;
+			err = dnet_ping_stall_node(st);
+			if (err)
+				dnet_log(st->n, DNET_LOG_ERROR, "dnet_ping_stall_node failed: %s [%d]", strerror(-err), err);
+		}
 	}
 }
 

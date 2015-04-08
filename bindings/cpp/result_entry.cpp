@@ -237,6 +237,30 @@ std::string monitor_stat_result_entry::statistics() const
 	DNET_DATA_END(0);
 }
 
+node_status_result_entry::node_status_result_entry()
+{}
+
+node_status_result_entry::node_status_result_entry(const node_status_result_entry &other)
+: callback_result_entry(other)
+{}
+
+node_status_result_entry::~node_status_result_entry()
+{}
+
+node_status_result_entry &node_status_result_entry::operator =(const node_status_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+struct dnet_node_status *node_status_result_entry::node_status() const
+{
+	DNET_DATA_BEGIN();
+	return data()
+		.data<struct dnet_node_status>();
+	DNET_DATA_END(sizeof(struct dnet_node_status));
+}
+
 exec_result_entry::exec_result_entry()
 {
 }

@@ -43,6 +43,10 @@ INIT_CALLBACK_TYPE(monitor_stat_result_entry,
 	DNET_CMD_MONITOR_STAT
 )
 
+INIT_CALLBACK_TYPE(node_status_result_entry,
+	DNET_CMD_STATUS
+)
+
 INIT_CALLBACK_TYPE(exec_result_entry,
 	DNET_CMD_EXEC
 )

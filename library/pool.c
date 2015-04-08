@@ -879,7 +879,7 @@ static void *dnet_io_process_network(void *data_)
 		// tmp will counts number of send events
 		tmp = 0;
 		num_events = err;
-		// suffles available epoll_events
+		// shuffles available epoll_events
 		dnet_shuffle_epoll_events(evs, num_events);
 		for (i = 0; i < num_events; ++i) {
 			data = evs[i].data.ptr;
@@ -901,13 +901,7 @@ static void *dnet_io_process_network(void *data_)
 			if (err == 0)
 				continue;
 
-			if (err == -EAGAIN && st->stall < DNET_DEFAULT_STALL_TRANSACTIONS)
-				continue;
-
-			if (err < 0 || st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
-				if (!err)
-					err = -ETIMEDOUT;
-
+			if ((err < 0 && err != -EAGAIN) || st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
 				char addr_str[128] = "no address";
 				if (n->addr_num) {
 					dnet_addr_string_raw(&n->addrs[0], addr_str, sizeof(addr_str));
