@@ -901,7 +901,7 @@ static void *dnet_io_process_network(void *data_)
 			if (err == 0)
 				continue;
 
-			if ((err < 0 && err != -EAGAIN) || st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
+			if ((err < 0 && err != -EAGAIN) || st->stall >= n->stall_count) {
 				char addr_str[128] = "no address";
 				if (n->addr_num) {
 					dnet_addr_string_raw(&n->addrs[0], addr_str, sizeof(addr_str));
