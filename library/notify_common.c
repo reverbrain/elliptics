@@ -36,9 +36,7 @@
 #include "elliptics/interface.h"
 
 static int dnet_request_notification_raw(struct dnet_session *s, struct dnet_id *id,
-	int (* complete)(struct dnet_addr *addr,
-			struct dnet_cmd *cmd,
-			void *priv),
+	transaction_callback complete,
 	void *priv, uint64_t cflags)
 {
 	struct dnet_trans_control ctl;
@@ -55,9 +53,7 @@ static int dnet_request_notification_raw(struct dnet_session *s, struct dnet_id 
 }
 
 int dnet_request_notification(struct dnet_session *s, struct dnet_id *id,
-	int (* complete)(struct dnet_addr *addr,
-			struct dnet_cmd *cmd,
-			void *priv),
+	transaction_callback complete,
 	void *priv)
 {
 	uint64_t cflags = 0;

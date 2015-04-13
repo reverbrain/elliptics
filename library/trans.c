@@ -557,8 +557,76 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 	return trans_moved;
 }
 
-static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *head)
+struct dnet_ping_node_private
 {
+	struct dnet_session	*session;
+	struct dnet_net_state	*net_state;
+};
+
+static int dnet_ping_stall_node_complete(struct dnet_addr *addr __unused, struct dnet_cmd *cmd, void *priv)
+{
+	struct dnet_ping_node_private *ping_private;
+	struct dnet_net_state *st;
+
+	if (is_trans_destroyed(cmd)) {
+	        ping_private = priv;
+		st = ping_private->net_state;
+
+		dnet_session_destroy(ping_private->session);
+		free(ping_private);
+
+		if (cmd->status == -ETIMEDOUT)
+			dnet_state_reset(st, cmd->status);
+	}
+
+	return 0;
+}
+
+static int dnet_ping_stall_node(struct dnet_net_state *st)
+{
+	struct dnet_node_status node_status;
+	struct dnet_trans_control ctl;
+	struct dnet_session *sess;
+	struct dnet_ping_node_private *ping_private;
+
+	ping_private = malloc(sizeof(struct dnet_ping_node_private));
+	if (!ping_private)
+		return -ENOMEM;
+
+	sess = dnet_session_create(st->n);
+	if (!sess) {
+		free(ping_private);
+		return -ENOMEM;
+	}
+
+	dnet_session_set_direct_addr(sess, &st->addr);
+
+	ping_private->session = sess;
+	ping_private->net_state = st;
+
+	memset(&node_status, 0, sizeof(struct dnet_node_status));
+
+	/* this values of node_status will not affect remote node state */
+	node_status.nflags = -1;
+	node_status.status_flags = -1;
+	node_status.log_level = ~0U;
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+
+	ctl.cmd = DNET_CMD_BACKEND_STATUS;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT;
+	ctl.size = sizeof(struct dnet_node_status);
+	ctl.data = &node_status;
+
+	ctl.complete = dnet_ping_stall_node_complete;
+	ctl.priv = ping_private;
+
+	return dnet_trans_alloc_send_state(sess, st, &ctl);
+}
+
+static int dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *head)
+{
+	int is_stall_state = 0;
 	int trans_timeout = dnet_trans_iterate_move_transaction(st, head);
 
 	if (trans_timeout) {
@@ -567,26 +635,62 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 		if (st->weight >= 2)
 			st->weight /= 10;
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%u, weight: %f",
-				dnet_state_dump_addr(st), trans_timeout, st->stall, DNET_DEFAULT_STALL_TRANSACTIONS, st->weight);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%lu, weight: %f",
+				dnet_state_dump_addr(st), trans_timeout, st->stall, st->n->stall_count, st->weight);
 
 		if (st->stall >= st->n->stall_count && st != st->n->st)
-			dnet_state_reset_nolock_noclean(st, -ETIMEDOUT, head);
+			is_stall_state = 1;
 	}
+
+	return is_stall_state;
 }
 
 static void dnet_check_all_states(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
+	int i, err;
+	int num_stall_state = 0;
+	int max_state_count = 0;
+	struct dnet_net_state **stall_states = NULL;
 	LIST_HEAD(head);
 
 	pthread_mutex_lock(&n->state_lock);
+	/*
+	 * It isn't possible to send a ping transaction while checking stall transactions within dnet_trans_check_stall(),
+	 * because it may invoke callback directly, where dnet_state_reset() is called that will deadlock on state_lock mutex.
+	 */
 	list_for_each_entry_safe(st, tmp, &n->dht_state_list, node_entry) {
-		dnet_trans_check_stall(st, &head);
+		++max_state_count;
+	}
+
+	if (max_state_count > 0) {
+		stall_states = malloc(max_state_count * sizeof(struct dnet_net_state *));
+		if (!stall_states) {
+			dnet_log(n, DNET_LOG_ERROR, "dnet_check_all_states: malloc failed for stall_states: %d", max_state_count);
+			pthread_mutex_unlock(&n->state_lock);
+			return;
+		}
+	}
+
+	list_for_each_entry_safe(st, tmp, &n->dht_state_list, node_entry) {
+		if (dnet_trans_check_stall(st, &head)) {
+			dnet_state_get(st);
+			stall_states[num_stall_state++] = st;
+		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
+	for (i = 0; i < num_stall_state; ++i) {
+		st = stall_states[i];
+		st->stall = 0;
+		err = dnet_ping_stall_node(st);
+		if (err)
+			dnet_log(st->n, DNET_LOG_ERROR, "dnet_ping_stall_node failed: %s [%d]", strerror(-err), err);
+		dnet_state_put(st);
+	}
+
 	dnet_trans_clean_list(&head, -ETIMEDOUT);
+	free(stall_states);
 }
 
 static void *dnet_reconnect_process(void *data)

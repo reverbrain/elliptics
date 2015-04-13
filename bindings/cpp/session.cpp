@@ -1791,15 +1791,31 @@ async_generic_result session::request_single_cmd(const transport_control &ctl)
 	return send_to_single_state(*this, ctl);
 }
 
-void session::update_status(const address &addr, dnet_node_status *status)
+async_node_status_result session::update_status(const address &addr, const dnet_node_status &status)
 {
-	scoped_trace_id guard(*this);
+	data_pointer data = data_pointer::allocate(sizeof(dnet_node_status));
+	dnet_node_status *node_status = data.data<dnet_node_status>();
+	*node_status = status;
 
-	int err = dnet_update_status(m_data->session_ptr, &addr.to_raw(), NULL, status);
+	transport_control control;
+	control.set_command(DNET_CMD_STATUS);
+	control.set_cflags(DNET_FLAGS_NEED_ACK);
+	control.set_data(data.data(), data.size());
 
-	if (err < 0) {
-		throw_error(err, "%s: failed to request set status %p", dnet_addr_string(&addr.to_raw()), status);
-	}
+	session sess = clean_clone();
+	sess.set_direct_id(addr);
+	return async_result_cast<node_status_result_entry>(*this, send_to_single_state(sess, control));
+}
+
+async_node_status_result session::request_node_status(const address &addr)
+{
+	struct dnet_node_status node_status;
+	memset(&node_status, 0, sizeof(struct dnet_node_status));
+	node_status.nflags = -1;
+	node_status.status_flags = -1;
+	node_status.log_level = ~0U;
+
+	return update_status(addr, node_status);
 }
 
 static async_backend_control_result update_backend_status(session &orig_sess, const address &addr, uint32_t backend_id, uint32_t delay,

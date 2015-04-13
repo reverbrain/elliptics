@@ -432,10 +432,9 @@ public:
 		return create_result(std::move(session::lookup(transform(id).id())));
 	}
 
-	elliptics_status update_status(const std::string &host, const int port,
-	                               const int family, elliptics_status &status) {
-		session::update_status(address(host, port, family), &status);
-		return status;
+	python_node_status_result update_status(const std::string &host, const int port,
+						const int family, const elliptics_status &status) {
+		return create_result(std::move(session::update_status(address(host, port, family), status)));
 	}
 
 	python_backend_status_result enable_backend(const std::string &host, int port, int family, uint32_t backend_id) {
