@@ -207,6 +207,16 @@ class Session(Session):
                                                  family=address.family,
                                                  backend_id=backend_id)
 
+    def start_compact(self, address, backend_id):
+        """
+        Starts compaction of backend @backend_id on @address.
+        Return elliptics.AsyncResult that provides new status of backend
+        """
+        return super(Session, self).start_compact(host=address.host,
+                                                  port=address.port,
+                                                  family=address.family,
+                                                  backend_id=backend_id)
+
     def request_backends_status(self, address):
         """
         Request statuses of all backends from @address.

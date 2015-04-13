@@ -130,6 +130,7 @@ def process_backend():
         'enable': lambda x, y, z: process_backend_control(x, y, z, elliptics.Session.enable_backend),
         'disable': lambda x, y, z: process_backend_control(x, y, z, elliptics.Session.disable_backend),
         'defrag': lambda x, y, z: process_backend_control(x, y, z, elliptics.Session.start_defrag),
+        'compact': lambda x, y, z: process_backend_control(x, y, z, elliptics.Session.start_compact),
         'make_readonly': lambda x, y, z: process_backend_control(x, y, z, elliptics.Session.make_readonly),
         'make_writable': lambda x, y, z: process_backend_control(x, y, z, elliptics.Session.make_writable),
         'status': process_backend_status,

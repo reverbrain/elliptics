@@ -752,11 +752,23 @@ int blob_defrag_status(void *priv)
 	return eblob_defrag_status(c->eblob);
 }
 
-int blob_defrag_start(void *priv)
+int blob_defrag_start(void *priv, enum dnet_backend_defrag_level level)
 {
 	struct eblob_backend_config *c = priv;
+	enum eblob_defrag_state defrag_level;
+	switch (level) {
+		case DNET_BACKEND_DEFRAG_FULL:
+			defrag_level = EBLOB_DEFRAG_STATE_DATA_SORT;
+			break;
+		case DNET_BACKEND_DEFRAG_COMPACT:
+			defrag_level = EBLOB_DEFRAG_STATE_DATA_COMPACT;
+			break;
+		default:
+			dnet_backend_log(c->blog, DNET_LOG_ERROR, "DEFRAG: unknown defragmetation level: %d", (int)level);
+			return -ENOTSUP;
+	}
 
-	int err = eblob_start_defrag(c->eblob);
+	int err = eblob_start_defrag(c->eblob, defrag_level);
 
 	dnet_backend_log(c->blog, DNET_LOG_INFO, "DEFRAG: defragmetation request: status: %d", err);
 

@@ -1802,28 +1802,48 @@ void session::update_status(const address &addr, dnet_node_status *status)
 	}
 }
 
-static async_backend_control_result update_backend_status(session &orig_sess, const address &addr, uint32_t backend_id, uint32_t delay,
-	dnet_backend_command command, const std::vector<dnet_raw_id> &ids = std::vector<dnet_raw_id>())
+struct backend_status_params
 {
-	data_pointer data = data_pointer::allocate(sizeof(dnet_backend_control) + ids.size() * sizeof(dnet_raw_id));
+	backend_status_params(session &sess, const address &address, uint32_t id_backend, dnet_backend_command cmd)
+	: orig_sess(sess),
+	 addr(address),
+	 backend_id(id_backend),
+	 command(cmd),
+	 defrag_level(DNET_BACKEND_DEFRAG_FULL),
+	 delay(0)
+	{}
+
+	session &orig_sess;
+	address addr;
+	uint32_t backend_id;
+	dnet_backend_command command;
+	dnet_backend_defrag_level defrag_level;
+	uint32_t delay;
+	std::vector<dnet_raw_id> ids;
+};
+
+static async_backend_control_result update_backend_status(const backend_status_params &params)
+{
+	data_pointer data = data_pointer::allocate(sizeof(dnet_backend_control) + params.ids.size() * sizeof(dnet_raw_id));
 	dnet_backend_control *backend_control = data.data<dnet_backend_control>();
 	memset(backend_control, 0, sizeof(dnet_backend_control));
 
-	backend_control->backend_id = backend_id;
-	backend_control->command = command;
-	backend_control->ids_count = ids.size();
-	backend_control->delay = delay;
+	backend_control->backend_id = params.backend_id;
+	backend_control->command = params.command;
+	backend_control->ids_count = params.ids.size();
+	backend_control->defrag_level = params.defrag_level;
+	backend_control->delay = params.delay;
 
-	if (!ids.empty()) {
+	if (!params.ids.empty()) {
 		data_pointer tmp = data.skip<dnet_backend_control>();
-		memcpy(tmp.data(), ids.data(), ids.size() * sizeof(dnet_raw_id));
+		memcpy(tmp.data(), params.ids.data(), params.ids.size() * sizeof(dnet_raw_id));
 	}
 
 	// We want to set random dnet_id to ensure that we won't occupy all IO threads
 	// by accident control calls for single backend.
 	dnet_id id;
 	memset(&id, 0, sizeof(id));
-	reinterpret_cast<uint32_t &>(*id.id) = backend_id;
+	reinterpret_cast<uint32_t &>(*id.id) = params.backend_id;
 	for (size_t i = sizeof(uint32_t); i < sizeof(id.id); ++i) {
 		id.id[i] = rand();
 	}
@@ -1834,44 +1854,57 @@ static async_backend_control_result update_backend_status(session &orig_sess, co
 	control.set_cflags(DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT);
 	control.set_data(data.data(), data.size());
 
-	session sess = orig_sess.clean_clone();
-	sess.set_direct_id(addr);
-	return async_result_cast<backend_status_result_entry>(orig_sess, send_to_single_state(sess, control));
+	session sess = params.orig_sess.clean_clone();
+	sess.set_direct_id(params.addr);
+	return async_result_cast<backend_status_result_entry>(params.orig_sess, send_to_single_state(sess, control));
 }
 
 async_backend_control_result session::enable_backend(const address &addr, uint32_t backend_id)
 {
-	return update_backend_status(*this, addr, backend_id, 0, DNET_BACKEND_ENABLE);
+	return update_backend_status(backend_status_params(*this, addr, backend_id, DNET_BACKEND_ENABLE));
 }
 
 async_backend_control_result session::disable_backend(const address &addr, uint32_t backend_id)
 {
-	return update_backend_status(*this, addr, backend_id, 0, DNET_BACKEND_DISABLE);
+	return update_backend_status(backend_status_params(*this, addr, backend_id, DNET_BACKEND_DISABLE));
 }
 
 async_backend_control_result session::start_defrag(const address &addr, uint32_t backend_id)
 {
-	return update_backend_status(*this, addr, backend_id, 0, DNET_BACKEND_START_DEFRAG);
+	backend_status_params params(*this, addr, backend_id, DNET_BACKEND_START_DEFRAG);
+	params.defrag_level = DNET_BACKEND_DEFRAG_FULL;
+	return update_backend_status(params);
+}
+
+async_backend_control_result session::start_compact(const address &addr, uint32_t backend_id)
+{
+	backend_status_params params(*this, addr, backend_id, DNET_BACKEND_START_DEFRAG);
+	params.defrag_level = DNET_BACKEND_DEFRAG_COMPACT;
+	return update_backend_status(params);
 }
 
 async_backend_control_result session::set_backend_ids(const address &addr, uint32_t backend_id, const std::vector<dnet_raw_id> &ids)
 {
-	return update_backend_status(*this, addr, backend_id, 0, DNET_BACKEND_SET_IDS, ids);
+	backend_status_params params(*this, addr, backend_id, DNET_BACKEND_SET_IDS);
+	params.ids = ids;
+	return update_backend_status(params);
 }
 
 async_backend_control_result session::make_readonly(const address &addr, uint32_t backend_id)
 {
-	return update_backend_status(*this, addr, backend_id, 0, DNET_BACKEND_READ_ONLY);
+	return update_backend_status(backend_status_params(*this, addr, backend_id, DNET_BACKEND_READ_ONLY));
 }
 
 async_backend_control_result session::make_writable(const address &addr, uint32_t backend_id)
 {
-	return update_backend_status(*this, addr, backend_id, 0, DNET_BACKEND_WRITEABLE);
+	return update_backend_status(backend_status_params(*this, addr, backend_id, DNET_BACKEND_WRITEABLE));
 }
 
 async_backend_control_result session::set_delay(const address &addr, uint32_t backend_id, uint32_t delay)
 {
-	return update_backend_status(*this, addr, backend_id, delay, DNET_BACKEND_CTL);
+	backend_status_params params(*this, addr, backend_id, DNET_BACKEND_CTL);
+	params.delay = delay;
+	return update_backend_status(params);
 }
 
 async_backend_status_result session::request_backends_status(const address &addr)

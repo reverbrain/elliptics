@@ -244,7 +244,7 @@ struct dnet_backend_callbacks {
 			struct dnet_iterator_request *ireq, struct dnet_iterator_range *irange);
 
 	int			(* defrag_status)(void *priv);
-	int			(* defrag_start)(void *priv);
+	int			(* defrag_start)(void *priv, enum dnet_backend_defrag_level level);
 
 	/*
 	 * Returns dir used by backend
