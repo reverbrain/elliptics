@@ -63,6 +63,94 @@ enum dnet_socket_state {
  * @ok will be set to 1 if given socket was successfully initialized (connected or made listened)
  */
 struct dnet_addr_socket {
+	dnet_addr_socket()
+	: s(-1),
+	 buffer(nullptr)
+	{}
+
+	~dnet_addr_socket() {
+		if (s >= 0)
+			close(s);
+
+		free(buffer);
+	}
+
+	static int create_socket(dnet_node *node, const dnet_addr *address, int listening) {
+		socklen_t salen;
+		sockaddr *sa;
+		dnet_net_state *st;
+		int s;
+		int err;
+
+		st = dnet_state_search_by_addr(node, address);
+		if (st) {
+			err = -EEXIST;
+
+			dnet_log(node, DNET_LOG_NOTICE, "Address %s already exists in route table",
+				 dnet_addr_string(address));
+			dnet_state_put(st);
+			return err;
+		}
+
+		salen = address->addr_len;
+		sa = (sockaddr *)address;
+
+		sa->sa_family = address->family;
+
+		s = socket(sa->sa_family, SOCK_STREAM, IPPROTO_TCP);
+		if (s < 0) {
+			err = -errno;
+
+			dnet_log_err(node, "Failed to create socket for %s: family: %d",
+				     dnet_addr_string(address), sa->sa_family);
+			return err;
+		}
+
+		fcntl(s, F_SETFL, O_NONBLOCK);
+		fcntl(s, F_SETFD, FD_CLOEXEC);
+
+		if (listening) {
+			err = 1;
+			setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &err, 4);
+
+			err = bind(s, sa, salen);
+			if (err) {
+				err = -errno;
+				dnet_log_err(node, "Failed to bind to %s",
+					     dnet_addr_string(address));
+				return err;
+			}
+
+			err = listen(s, 10240);
+			if (err) {
+				err = -errno;
+				dnet_log_err(node, "Failed to listen at %s",
+					     dnet_addr_string(address));
+				return err;
+			}
+
+			dnet_log(node, DNET_LOG_INFO, "Server is now listening at %s.",
+				 dnet_addr_string(address));
+		} else {
+			dnet_log(node, DNET_LOG_INFO, "Added %s to connect list",
+				 dnet_addr_string(address));
+		}
+
+		return s;
+	}
+
+	int init(dnet_node *node, const dnet_addr *address, int listening) {
+		s = create_socket(node, address, listening);
+		if (s < 0)
+			return s;
+
+		addr = *address;
+		ok = 0;
+		state = just_created;
+
+		return 0;
+	}
+
 	dnet_addr addr;
 	int s;
 	int ok;
@@ -75,30 +163,7 @@ struct dnet_addr_socket {
 	bool ask_route_list;
 };
 
-struct dnet_addr_socket_list
-{
-	list_head entry;
-	size_t sockets_count;
-	dnet_addr_socket sockets[0];
-};
-
-struct dnet_connect_state
-{
-	atomic_t refcnt;
-	atomic_t route_list_count;
-	pthread_mutex_t lock;
-	bool lock_inited;
-	dnet_node *node;
-	int epollfd;
-	int interruptfd;
-	dnet_join_state join;
-	size_t failed_count;
-	size_t succeed_count;
-	size_t total_count;
-	list_head sockets_list;
-	list_head sockets_queue;
-	bool finished;
-};
+typedef std::shared_ptr<dnet_addr_socket> dnet_addr_socket_ptr;
 
 static inline bool operator <(const dnet_addr &first, const dnet_addr &second)
 {
@@ -110,10 +175,46 @@ static inline bool operator ==(const dnet_addr &first, const dnet_addr &second)
 	return dnet_addr_equal(&first, &second);
 }
 
-static inline bool operator <(const dnet_addr_socket &first, const dnet_addr_socket &second)
+struct dnet_addr_socket_comparator
 {
-	return first.addr < second.addr;
-}
+	bool operator () (const dnet_addr_socket_ptr &first, const dnet_addr_socket_ptr &second) {
+		return first->addr < second->addr;
+	}
+};
+
+typedef std::set<dnet_addr_socket_ptr, dnet_addr_socket_comparator> dnet_addr_socket_set;
+
+struct dnet_connect_state
+{
+	dnet_connect_state()
+	: lock_inited(false),
+	 node(nullptr),
+	 epollfd(-1),
+	 interruptfd(-1),
+	 failed_count(0),
+	 succeed_count(0),
+	 total_count(0),
+	 finished(false)
+	{
+		atomic_set(&refcnt, 0);
+		atomic_set(&route_list_count, 0);
+	}
+
+	atomic_t refcnt;
+	atomic_t route_list_count;
+	pthread_mutex_t lock;
+	bool lock_inited;
+	dnet_node *node;
+	int epollfd;
+	int interruptfd;
+	dnet_join_state join;
+	size_t failed_count;
+	size_t succeed_count;
+	size_t total_count;
+	dnet_addr_socket_set sockets_connected;
+	dnet_addr_socket_set sockets_queue;
+	bool finished;
+};
 
 /*!
  * Adds \a addr to reconnect list, so we will try to connect to it somewhere in the future.
@@ -252,13 +353,13 @@ static bool dnet_send_nolock(dnet_connect_state &state, dnet_addr_socket *socket
 	return false;
 }
 
-dnet_connect_state *dnet_connect_state_get(dnet_connect_state *state)
+static dnet_connect_state *dnet_connect_state_get(dnet_connect_state *state)
 {
 	atomic_add(&state->refcnt, 1);
 	return state;
 }
 
-void dnet_connect_state_put(dnet_connect_state *state)
+static void dnet_connect_state_put(dnet_connect_state *state)
 {
 	if (atomic_dec_and_test(&state->refcnt)) {
 		if (state->lock_inited)
@@ -267,86 +368,8 @@ void dnet_connect_state_put(dnet_connect_state *state)
 			close(state->epollfd);
 		if (state->interruptfd >= 0)
 			close(state->interruptfd);
-		free(state);
+		delete state;
 	}
-}
-
-/*!
- * Initialize the socket, but don't connect to the address
- *
- * This function also checks if this socket already exists in route table
- */
-static int dnet_socket_init(dnet_node *node, const dnet_addr *addr, dnet_addr_socket *result, int listening)
-{
-	socklen_t salen;
-	sockaddr *sa;
-	dnet_net_state *st;
-	int err = 0;
-
-	st = dnet_state_search_by_addr(node, addr);
-	if (st) {
-		err = -EEXIST;
-
-		dnet_log(node, DNET_LOG_NOTICE, "Address %s already exists in route table",
-			dnet_addr_string(addr));
-		dnet_state_put(st);
-		goto err_out_exit;
-	}
-
-	result->addr = *addr;
-	result->ok = 0;
-	result->state = just_created;
-
-	salen = result->addr.addr_len;
-	sa = (sockaddr *)&result->addr;
-
-	sa->sa_family = result->addr.family;
-
-	result->s = socket(sa->sa_family, SOCK_STREAM, IPPROTO_TCP);
-	if (result->s < 0) {
-		err = -errno;
-
-		dnet_log_err(node, "Failed to create socket for %s: family: %d",
-			dnet_addr_string(&result->addr), sa->sa_family);
-		goto err_out_exit;
-	}
-
-	fcntl(result->s, F_SETFL, O_NONBLOCK);
-	fcntl(result->s, F_SETFD, FD_CLOEXEC);
-
-	if (listening) {
-		err = 1;
-		setsockopt(result->s, SOL_SOCKET, SO_REUSEADDR, &err, 4);
-
-		err = bind(result->s, sa, salen);
-		if (err) {
-			err = -errno;
-			dnet_log_err(node, "Failed to bind to %s",
-				dnet_addr_string(addr));
-			goto err_out_close;
-		}
-
-		err = listen(result->s, 10240);
-		if (err) {
-			err = -errno;
-			dnet_log_err(node, "Failed to listen at %s",
-				dnet_addr_string(addr));
-			goto err_out_close;
-		}
-
-		dnet_log(node, DNET_LOG_INFO, "Server is now listening at %s.",
-				dnet_addr_string(addr));
-	} else {
-		dnet_log(node, DNET_LOG_INFO, "Added %s to connect list",
-			dnet_addr_string(addr));
-	}
-
-	return 0;
-
-err_out_close:
-	close(result->s);
-err_out_exit:
-	return err;
 }
 
 /*
@@ -373,38 +396,26 @@ static bool dnet_addr_is_local(dnet_node *n, const dnet_addr *addr)
  *
  * All sockets are sorted by their address, so we are able quickly to lookup if there are already such sockets.
  */
-static dnet_addr_socket_list *dnet_socket_create_addresses(dnet_node *node, const dnet_addr *addrs, size_t addrs_count,
-	bool ask_route_list, dnet_join_state join, bool *at_least_one_exist)
+static bool dnet_socket_create_addresses(dnet_node *node, const dnet_addr *addrs, size_t addrs_count,
+					 bool ask_route_list, dnet_join_state join, bool *at_least_one_exist, dnet_addr_socket_set &result)
 {
 	*at_least_one_exist = false;
 
 	if (addrs_count == 0) {
-		return NULL;
+		return false;
 	}
-
-	dnet_addr_socket_list *result = reinterpret_cast<dnet_addr_socket_list *>(malloc(
-		sizeof(dnet_addr_socket_list) + sizeof(dnet_addr_socket) * (addrs_count)));
-	if (!result) {
-		return NULL;
-	}
-
-	memset(result, 0, sizeof(dnet_addr_socket_list) + sizeof(dnet_addr_socket) * (addrs_count));
-
-	INIT_LIST_HEAD(&result->entry);
-	result->sockets_count = 0;
 
 	for (size_t i = 0; i < addrs_count; ++i) {
-		dnet_addr_socket *socket = &result->sockets[result->sockets_count];
-		socket->ask_route_list = ask_route_list;
-
 		if (dnet_addr_is_local(node, &addrs[i]))
 			continue;
 
-		int err = dnet_socket_init(node, &addrs[i], socket, 0);
+		auto socket = std::make_shared<dnet_addr_socket>();
+		socket->ask_route_list = ask_route_list;
+		int err = socket->init(node, &addrs[i], 0);
 		if (err == 0) {
 			dnet_log(node, DNET_LOG_DEBUG, "dnet_socket_create_addresses: socket for state %s created successfully, socket: %d",
 				dnet_addr_string(&addrs[i]), socket->s);
-			++result->sockets_count;
+			result.insert(socket);
 		} else {
 			if (err == -EEXIST) {
 				*at_least_one_exist = true;
@@ -417,14 +428,7 @@ static dnet_addr_socket_list *dnet_socket_create_addresses(dnet_node *node, cons
 		}
 	}
 
-	if (result->sockets_count == 0) {
-		free(result);
-		return NULL;
-	}
-
-	std::sort(result->sockets, result->sockets + result->sockets_count);
-
-	return result;
+	return !result.empty();
 }
 
 /*!
@@ -528,7 +532,7 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 	const size_t states_num = cnt->addr_num / cnt->node_addr_num;
 
 	dnet_addr *addrs;
-	dnet_addr_socket_list *sockets;
+	dnet_addr_socket_set sockets;
 	size_t sockets_count;
 	bool added_to_queue = false;
 	bool all_exist = false;
@@ -549,19 +553,18 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 		memcpy(&addrs[i], addr, sizeof(dnet_addr));
 	}
 
-	sockets = dnet_socket_create_addresses(node, addrs, states_num, false, state->join, &all_exist);
-	if (!sockets) {
+	if (!dnet_socket_create_addresses(node, addrs, states_num, false, state->join, &all_exist, sockets)) {
 		err = -ENOMEM;
 		goto err_out_free_addrs;
 	}
 
-	sockets_count = sockets->sockets_count;
+	sockets_count = sockets.size();
 
 	pthread_mutex_lock(&state->lock);
 
 	if (!state->finished) {
 		atomic_inc(&state->route_list_count);
-		list_add(&sockets->entry, &state->sockets_queue);
+		state->sockets_queue.insert(sockets.begin(), sockets.end());
 		added_to_queue = true;
 	}
 
@@ -576,15 +579,16 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 		dnet_log(node, DNET_LOG_ERROR, "Failed to connect to additional %llu states of %llu original from route_list_recv, state: %s, state is already desotryed, adding to reconnect list",
 			sockets_count, states_num, server_addr);
 
-		for (size_t i = 0; i < sockets->sockets_count; ++i) {
-			dnet_addr_socket *socket = &sockets->sockets[i];
+		for (auto it = sockets.cbegin(); it != sockets.cend(); ++it) {
+			const dnet_addr_socket_ptr &socket = *it;
 
-			if (socket->s >= 0)
+			if (socket->s >= 0) {
 				close(socket->s);
+				socket->s = -1;
+			}
 
 			dnet_add_to_reconnect_list(node, socket->addr, -ETIMEDOUT, state->join);
 		}
-		free(sockets);
 	}
 
 err_out_free_addrs:
@@ -597,7 +601,7 @@ err_out_exit:
 /*!
  * Requests route list, every unknown node from reply will be added to state's connection queue.
  */
-void dnet_request_route_list(dnet_connect_state &state, dnet_net_state *st)
+static void dnet_request_route_list(dnet_connect_state &state, dnet_net_state *st)
 {
 	int err = dnet_recv_route_list(st, dnet_connect_route_list_complete, dnet_connect_state_get(&state));
 	if (!err) {
@@ -612,27 +616,22 @@ void dnet_request_route_list(dnet_connect_state &state, dnet_net_state *st)
  *
  * If some addresses are already in the queue - they are skipped
  */
-static void dnet_socket_connect_new_sockets(dnet_connect_state &state, dnet_addr_socket_list *list)
+static void dnet_socket_connect_new_sockets(dnet_connect_state &state, dnet_addr_socket_set &list)
 {
-	state.total_count += list->sockets_count;
+	for (auto it = list.begin(); it != list.end(); ++it) {
+		const dnet_addr_socket_ptr &socket = *it;
 
-	for (size_t i = 0; i < list->sockets_count; ++i) {
-		dnet_addr_socket *socket = &list->sockets[i];
-		bool already_exist = false;
-
-		dnet_addr_socket_list *other;
-		list_for_each_entry(other, &state.sockets_list, entry) {
-			if (std::binary_search(other->sockets, other->sockets + other->sockets_count, *socket)) {
-				already_exist = true;
-				break;
-			}
+		if (socket->s < 0) {
+			state.failed_count++;
+			continue;
 		}
 
+		const bool already_exist = state.sockets_connected.find(socket) != state.sockets_connected.end();
 		if (already_exist) {
 			dnet_log(state.node, DNET_LOG_NOTICE, "we are already connecting to %s",
 				dnet_addr_string(&socket->addr));
 
-			dnet_fail_socket(state, socket, -EEXIST, false);
+			dnet_fail_socket(state, socket.get(), -EEXIST, false);
 			continue;
 		}
 
@@ -641,26 +640,22 @@ static void dnet_socket_connect_new_sockets(dnet_connect_state &state, dnet_addr
 		socklen_t salen = socket->addr.addr_len;
 		sockaddr *sa = (sockaddr *)&socket->addr;
 
-		if (socket->s < 0) {
-			state.failed_count++;
-			continue;
-		}
-
 		int err = connect(socket->s, sa, salen);
 		if (err < 0) {
 			err = -errno;
 			if (err != -EINPROGRESS) {
 				dnet_log_err(state.node, "Failed to connect to %s",
 					dnet_addr_string(&socket->addr));
-				dnet_fail_socket(state, socket, err, false);
+				dnet_fail_socket(state, socket.get(), err, false);
 				continue;
 			}
 		}
 
-		dnet_epoll_ctl(state, socket, EPOLL_CTL_ADD, EPOLLOUT);
+		if (dnet_epoll_ctl(state, socket.get(), EPOLL_CTL_ADD, EPOLLOUT)) {
+			state.sockets_connected.insert(socket);
+			++state.total_count;
+		}
 	}
-
-	list_move_tail(&list->entry, &state.sockets_list);
 }
 
 /*!
@@ -676,23 +671,19 @@ static void dnet_socket_connect_new_sockets(dnet_connect_state &state, dnet_addr
 static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 {
 	if (ev.data.ptr == &state.interruptfd) {
-		dnet_log(state.node, DNET_LOG_NOTICE, "Caught signal from interruptfd, list: %d", list_empty_careful(&state.sockets_queue));
+		dnet_log(state.node, DNET_LOG_NOTICE, "Caught signal from interruptfd, list: %d", static_cast<int>(state.sockets_queue.empty()));
 
-		list_head local_queue;
-		dnet_addr_socket_list *list, *tmp;
-		INIT_LIST_HEAD(&local_queue);
+		dnet_addr_socket_set local_queue;
 
 		pthread_mutex_lock(&state.lock);
-		list_splice_init(&state.sockets_queue, &local_queue);
+		local_queue = std::move(state.sockets_queue);
 		pthread_mutex_unlock(&state.lock);
 
-		list_for_each_entry_safe(list, tmp, &local_queue, entry) {
-			dnet_socket_connect_new_sockets(state, list);
+		dnet_socket_connect_new_sockets(state, local_queue);
+		atomic_sub(&state.route_list_count, local_queue.size());
 
-			atomic_dec(&state.route_list_count);
-			dnet_log(state.node, DNET_LOG_NOTICE, "Received route-list reply, count: %lld, route_list_count: %lld",
-				list->sockets_count, atomic_read(&state.route_list_count));
-		}
+		dnet_log(state.node, DNET_LOG_NOTICE, "Received route-list reply, count: %llu, route_list_count: %lld",
+			 local_queue.size(), atomic_read(&state.route_list_count));
 
 		return;
 	}
@@ -935,6 +926,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 				dnet_addr_string(&socket->addr), int(id_container->backends_count), int(cnt->addr_num), idx);
 
 		free(socket->buffer);
+		socket->buffer = nullptr;
 
 		dnet_set_sockopt(state.node, socket->s);
 
@@ -1005,33 +997,22 @@ typedef std::unique_ptr<dnet_addr[], free_destroyer> net_addr_list_ptr;
  * @states_count contains number of already connected valid sockets in @states array.
  * This function sends route request to those sockets and resets the array.
  */
-static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_list, dnet_join_state join,
+static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_set &original_list, dnet_join_state join,
 	net_state_list_ptr states, size_t states_count)
 {
 	int err;
 	long timeout;
 	epoll_event ev;
 
-	dnet_connect_state *state_ptr = reinterpret_cast<dnet_connect_state *>(malloc(sizeof(dnet_connect_state)));
+	dnet_connect_state *state_ptr = new(std::nothrow) dnet_connect_state;
 	if (!state_ptr) {
 		err = -ENOMEM;
 		return err;
 	}
 
-	memset(state_ptr, 0, sizeof(*state_ptr));
-
 	dnet_connect_state &state = *state_ptr;
 	state.node = node;
-	state.failed_count = 0;
-	state.succeed_count = 0;
-	state.total_count = 0;
 	state.join = join;
-	state.finished = false;
-	state.epollfd = -1;
-	state.interruptfd = -1;
-
-	INIT_LIST_HEAD(&state.sockets_list);
-	INIT_LIST_HEAD(&state.sockets_queue);
 
 	dnet_connect_state_get(&state);
 
@@ -1077,9 +1058,8 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_
 
 	states.reset();
 
-	if (original_list)
-		dnet_socket_connect_new_sockets(state, original_list);
-	original_list = NULL;
+	dnet_socket_connect_new_sockets(state, original_list);
+	original_list.clear();
 
 	timeout = state.node->wait_ts.tv_sec * 1000 > 2000 ? state.node->wait_ts.tv_sec * 1000 : 2000;
 	while (state.succeed_count + state.failed_count < state.total_count || atomic_read(&state.route_list_count) > 0) {
@@ -1132,7 +1112,7 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_list *original_
 	pthread_mutex_lock(&state.lock);
 	state.finished = true;
 
-	list_splice_init(&state.sockets_queue, &state.sockets_list);
+	state.sockets_connected = std::move(state.sockets_queue);
 
 	pthread_mutex_unlock(&state.lock);
 
@@ -1142,30 +1122,21 @@ err_out_put:
 	if (err == 0)
 		err = -ECONNREFUSED;
 
-	dnet_addr_socket_list *list;
-	dnet_addr_socket_list *tmp;
-	list_for_each_entry_safe(list, tmp, &state.sockets_list, entry) {
-		for (size_t i = 0; i < list->sockets_count; ++i) {
-			dnet_addr_socket *socket = &list->sockets[i];
+	for (auto it = state.sockets_connected.begin(); it != state.sockets_connected.end(); ++it) {
+		const dnet_addr_socket_ptr &socket = *it;
 
-			if (socket->s < 0)
-				continue;
+		if (socket->s < 0)
+			continue;
 
-			if (!socket->ok) {
-				close(socket->s);
-				socket->s = -ETIMEDOUT;
+		if (!socket->ok) {
+			close(socket->s);
+			socket->s = -ETIMEDOUT;
 
-				dnet_log(state.node, DNET_LOG_ERROR, "Could not connect to %s because of timeout",
-					dnet_addr_string(&socket->addr));
+			dnet_log(state.node, DNET_LOG_ERROR, "Could not connect to %s because of timeout",
+				 dnet_addr_string(&socket->addr));
 
-				dnet_add_to_reconnect_list(state.node, socket->addr, -ETIMEDOUT, state.join);
-
-				continue;
-			}
+			dnet_add_to_reconnect_list(state.node, socket->addr, -ETIMEDOUT, state.join);
 		}
-
-		list_del(&list->entry);
-		free(list);
 	}
 
 	if (state.succeed_count) {
@@ -1184,17 +1155,7 @@ err_out_put:
 
 int dnet_socket_create_listening(dnet_node *node, const dnet_addr *addr)
 {
-	int err;
-	dnet_addr_socket result;
-
-	memset(&result, 0, sizeof(result));
-	err = dnet_socket_init(node, addr, &result, 1);
-
-	if (err) {
-		return err;
-	}
-
-	return result.s;
+	return dnet_addr_socket::create_socket(node, addr, 1);
 }
 
 static net_state_list_ptr dnet_check_route_table_victims(struct dnet_node *node, size_t *states_count)
@@ -1309,12 +1270,13 @@ void dnet_reconnect_and_check_route_table(dnet_node *node)
 	const bool ask_route_list = !((node->flags | flags) & DNET_CFG_NO_ROUTE_LIST);
 
 	bool all_exist = false;
-	dnet_addr_socket_list *sockets = dnet_socket_create_addresses(node, addrs.get(), addrs_count, ask_route_list, join, &all_exist);
-	if (!sockets) {
+	dnet_addr_socket_set sockets;
+	const bool sockets_created = dnet_socket_create_addresses(node, addrs.get(), addrs_count, ask_route_list, join, &all_exist, sockets);
+	if (!sockets_created) {
 		addrs.reset();
 	}
 
-	if (states_count > 0 || sockets) {
+	if (states_count > 0 || sockets_created) {
 		dnet_socket_connect(node, sockets, join, std::move(states), states_count);
 	}
 }
@@ -1342,13 +1304,13 @@ int dnet_add_state(dnet_node *node, const dnet_addr *addrs, int num, int flags)
 
 	const size_t addrs_count = num;
 	bool at_least_one_exist = false;
-	dnet_addr_socket_list *sockets = dnet_socket_create_addresses(node, addrs, addrs_count, ask_route_list, join, &at_least_one_exist);
-	if (!sockets) {
+	dnet_addr_socket_set sockets;
+	if (!dnet_socket_create_addresses(node, addrs, addrs_count, ask_route_list, join, &at_least_one_exist, sockets)) {
 		// return 0 if we failed to connect to any remote node, but there is at least one node in local route table
 		return at_least_one_exist ? 0 : -ENOMEM;
 	}
 
-	dnet_log(node, DNET_LOG_INFO, "Trying to connect to %llu states of %llu original", sockets->sockets_count, addrs_count);
+	dnet_log(node, DNET_LOG_INFO, "Trying to connect to %llu states of %llu original", sockets.size(), addrs_count);
 
 	// sockets are freed by dnet_socket_connect
 	int err = dnet_socket_connect(node, sockets, join, net_state_list_ptr(), 0);
