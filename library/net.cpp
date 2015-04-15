@@ -32,6 +32,8 @@
 
 #include <netinet/tcp.h>
 
+#include <set>
+
 #include "elliptics.h"
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
