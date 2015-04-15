@@ -261,7 +261,7 @@ void parse_options(config_data *data, const config &options)
 
 	data->cfg_state.wait_timeout = options.at("wait_timeout", 0u);
 	data->cfg_state.check_timeout = options.at("check_timeout", 0l);
-	data->cfg_state.stall_count = options.at("stall_count", 0l);
+	data->cfg_state.stall_count = options.at("stall_count", DNET_DEFAULT_STALL_TRANSACTIONS);
 	data->cfg_state.flags |= (options.at("join", false) ? DNET_CFG_JOIN_NETWORK : 0);
 	data->cfg_state.flags |= (options.at("flags", 0) & ~DNET_CFG_JOIN_NETWORK);
 	data->cfg_state.io_thread_num = options.at<unsigned>("io_thread_num");

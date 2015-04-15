@@ -87,6 +87,10 @@ void dnet_set_need_exit(struct dnet_node *n);
  * freed when transaction is completed.
  */
 
+typedef int (* transaction_callback)(struct dnet_addr *addr,
+				    struct dnet_cmd *cmd,
+				    void *priv);
+
 struct dnet_io_control {
 	/* Used as cmd->id/group_id - 'address' of the remote node */
 	struct dnet_id			id;
@@ -105,9 +109,7 @@ struct dnet_io_control {
 	 *
 	 * All parameters are releated to the received transaction reply.
 	 */
-	int 				(* complete)(struct dnet_addr *addr,
-							struct dnet_cmd *cmd,
-							void *priv);
+	transaction_callback		complete;
 
 	/*
 	 * Transaction completion private data. Will be accessible in the
@@ -658,9 +660,7 @@ static inline int dnet_id_cmp(const struct dnet_id *id1, const struct dnet_id *i
  * @complete will be invoked each time object with given @id is modified.
  */
 int dnet_request_notification(struct dnet_session *s, struct dnet_id *id,
-	int (* complete)(struct dnet_addr *state,
-			struct dnet_cmd *cmd,
-			void *priv),
+	transaction_callback complete,
 	void *priv);
 
 /*
@@ -696,9 +696,6 @@ int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *c
 int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl);
 
 int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, const int sock_type, const int proto);
-
-/* Change node status on given address or ID */
-int dnet_update_status(struct dnet_session *s, const struct dnet_addr *addr, struct dnet_id *id, struct dnet_node_status *status);
 
 /*
  * Transformation helper, which uses *ppos as an index for transformation function.
