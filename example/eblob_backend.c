@@ -768,7 +768,7 @@ int blob_defrag_start(void *priv, enum dnet_backend_defrag_level level)
 			return -ENOTSUP;
 	}
 
-	int err = eblob_start_defrag(c->eblob, defrag_level);
+	int err = eblob_start_defrag_level(c->eblob, defrag_level);
 
 	dnet_backend_log(c->blog, DNET_LOG_INFO, "DEFRAG: defragmetation request: status: %d", err);
 
