@@ -65,17 +65,20 @@ enum dnet_socket_state {
  * @ok will be set to 1 if given socket was successfully initialized (connected or made listened)
  */
 struct dnet_addr_socket {
-	dnet_addr_socket()
-	: s(-1),
-	 buffer(nullptr)
+	dnet_addr_socket(dnet_node *node, const dnet_addr *address, bool ask_route_list_arg)
+	: s(create_socket(node, address, 0)),
+	 ok(0),
+	 addr(*address),
+	 state(just_created),
+	 ask_route_list(ask_route_list_arg)
 	{}
 
 	~dnet_addr_socket() {
-		if (s >= 0)
-			close(s);
-
-		free(buffer);
+		close();
 	}
+
+	dnet_addr_socket(const dnet_addr_socket &) = delete;
+	dnet_addr_socket & operator = (const dnet_addr_socket &) = delete;
 
 	static int create_socket(dnet_node *node, const dnet_addr *address, int listening) {
 		socklen_t salen;
@@ -141,25 +144,20 @@ struct dnet_addr_socket {
 		return s;
 	}
 
-	int init(dnet_node *node, const dnet_addr *address, int listening) {
-		s = create_socket(node, address, listening);
-		if (s < 0)
-			return s;
-
-		addr = *address;
-		ok = 0;
-		state = just_created;
-
-		return 0;
+	void close() {
+		if (s >= 0) {
+			::close(s);
+			s = -1;
+		}
 	}
 
-	dnet_addr addr;
 	int s;
 	int ok;
+	dnet_addr addr;
 	dnet_socket_state state;
 	dnet_cmd io_cmd;
-	void *buffer;
-	void *io_data;
+	std::unique_ptr<char[]> buffer;
+	char *io_data;
 	size_t io_size;
 	int version[4];
 	bool ask_route_list;
@@ -200,6 +198,27 @@ struct dnet_connect_state
 	{
 		atomic_set(&refcnt, 0);
 		atomic_set(&route_list_count, 0);
+	}
+
+	~dnet_connect_state() {
+		if (lock_inited)
+			pthread_mutex_destroy(&lock);
+		if (epollfd >= 0)
+			close(epollfd);
+		if (interruptfd >= 0)
+			close(interruptfd);
+	}
+
+	dnet_connect_state *get()
+	{
+		atomic_add(&refcnt, 1);
+		return this;
+	}
+
+	void put()
+	{
+		if (atomic_dec_and_test(&refcnt))
+			delete this;
 	}
 
 	atomic_t refcnt;
@@ -346,32 +365,13 @@ static bool dnet_send_nolock(dnet_connect_state &state, dnet_addr_socket *socket
 		return false;
 	}
 
-	socket->io_data = reinterpret_cast<char *>(socket->io_data) + err;
+	socket->io_data = socket->io_data + err;
 	socket->io_size -= err;
 
 	if (socket->io_size == 0)
 		return true;
 
 	return false;
-}
-
-static dnet_connect_state *dnet_connect_state_get(dnet_connect_state *state)
-{
-	atomic_add(&state->refcnt, 1);
-	return state;
-}
-
-static void dnet_connect_state_put(dnet_connect_state *state)
-{
-	if (atomic_dec_and_test(&state->refcnt)) {
-		if (state->lock_inited)
-			pthread_mutex_destroy(&state->lock);
-		if (state->epollfd >= 0)
-			close(state->epollfd);
-		if (state->interruptfd >= 0)
-			close(state->interruptfd);
-		delete state;
-	}
 }
 
 /*
@@ -398,27 +398,23 @@ static bool dnet_addr_is_local(dnet_node *n, const dnet_addr *addr)
  *
  * All sockets are sorted by their address, so we are able quickly to lookup if there are already such sockets.
  */
-static bool dnet_socket_create_addresses(dnet_node *node, const dnet_addr *addrs, size_t addrs_count,
-					 bool ask_route_list, dnet_join_state join, bool *at_least_one_exist, dnet_addr_socket_set &result)
+static dnet_addr_socket_set dnet_socket_create_addresses(dnet_node *node, const dnet_addr *addrs, size_t addrs_count,
+					 bool ask_route_list, dnet_join_state join, bool *at_least_one_exist)
 {
+	dnet_addr_socket_set result;
 	*at_least_one_exist = false;
-
-	if (addrs_count == 0) {
-		return false;
-	}
 
 	for (size_t i = 0; i < addrs_count; ++i) {
 		if (dnet_addr_is_local(node, &addrs[i]))
 			continue;
 
-		auto socket = std::make_shared<dnet_addr_socket>();
-		socket->ask_route_list = ask_route_list;
-		int err = socket->init(node, &addrs[i], 0);
-		if (err == 0) {
+		auto socket = std::make_shared<dnet_addr_socket>(node, &addrs[i], ask_route_list);
+		if (socket->s >= 0) {
 			dnet_log(node, DNET_LOG_DEBUG, "dnet_socket_create_addresses: socket for state %s created successfully, socket: %d",
 				dnet_addr_string(&addrs[i]), socket->s);
 			result.insert(socket);
 		} else {
+			const int err = socket->s;
 			if (err == -EEXIST) {
 				*at_least_one_exist = true;
 			} else {
@@ -430,7 +426,7 @@ static bool dnet_socket_create_addresses(dnet_node *node, const dnet_addr *addrs
 		}
 	}
 
-	return !result.empty();
+	return result;
 }
 
 /*!
@@ -520,7 +516,7 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 		dnet_log(node, DNET_LOG_NOTICE, "Received route-list reply from state: %s, route_list_count: %lld",
 			server_addr, atomic_read(&state->route_list_count));
 
-		dnet_connect_state_put(state);
+	        state->put();
 		return err;
 	}
 
@@ -537,7 +533,7 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 	dnet_addr_socket_set sockets;
 	size_t sockets_count;
 	bool added_to_queue = false;
-	bool all_exist = false;
+	bool at_least_one_exist = false;
 
 	err = dnet_validate_route_list(server_addr, node, cmd);
 	if (err) {
@@ -555,8 +551,9 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 		memcpy(&addrs[i], addr, sizeof(dnet_addr));
 	}
 
-	if (!dnet_socket_create_addresses(node, addrs, states_num, false, state->join, &all_exist, sockets)) {
-		err = -ENOMEM;
+	sockets = dnet_socket_create_addresses(node, addrs, states_num, false, state->join, &at_least_one_exist);
+	if (sockets.empty()) {
+		err = at_least_one_exist ? 0 : -ENOMEM;
 		goto err_out_free_addrs;
 	}
 
@@ -584,11 +581,7 @@ static int dnet_connect_route_list_complete(dnet_addr *addr, dnet_cmd *cmd, void
 		for (auto it = sockets.cbegin(); it != sockets.cend(); ++it) {
 			const dnet_addr_socket_ptr &socket = *it;
 
-			if (socket->s >= 0) {
-				close(socket->s);
-				socket->s = -1;
-			}
-
+			socket->close();
 			dnet_add_to_reconnect_list(node, socket->addr, -ETIMEDOUT, state->join);
 		}
 	}
@@ -605,7 +598,7 @@ err_out_exit:
  */
 static void dnet_request_route_list(dnet_connect_state &state, dnet_net_state *st)
 {
-	int err = dnet_recv_route_list(st, dnet_connect_route_list_complete, dnet_connect_state_get(&state));
+	int err = dnet_recv_route_list(st, dnet_connect_route_list_complete, state.get());
 	if (!err) {
 		atomic_inc(&state.route_list_count);
 		dnet_log(state.node, DNET_LOG_NOTICE, "Sent route-list request to state: %s, route_list_count: %lld",
@@ -730,7 +723,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		dnet_convert_cmd(cmd);
 
 		socket->state = send_reverse;
-		socket->io_data = cmd;
+		socket->io_data = reinterpret_cast<char*>(cmd);
 		socket->io_size = sizeof(dnet_cmd);
 
 		// Fall through
@@ -738,7 +731,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		if (!dnet_send_nolock(state, socket))
 			break;
 
-		socket->io_data = cmd;
+		socket->io_data = reinterpret_cast<char*>(cmd);
 		socket->io_size = sizeof(dnet_cmd);
 
 		if (!dnet_epoll_ctl(state, socket, EPOLL_CTL_MOD, EPOLLIN))
@@ -797,17 +790,19 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 			state.node->indexes_shard_count = indexes_shard_count;
 		}
 
-		socket->buffer = malloc(cmd->size);
-		socket->io_data = socket->buffer;
-		socket->io_size = cmd->size;
-
-		if (!socket->buffer) {
+		char *buffer = new(std::nothrow) char[cmd->size];
+		if (!buffer) {
 			err = -ENOMEM;
 			dnet_log(state.node, DNET_LOG_ERROR, "%s: failed to allocate %llu bytes for reverse lookup data",
 					dnet_addr_string(&socket->addr), (unsigned long long)cmd->size);
 			dnet_fail_socket(state, socket, err);
 			break;
 		}
+
+		socket->buffer.reset(buffer);
+		socket->io_data = buffer;
+		socket->io_size = cmd->size;
+
 		socket->state = recv_reverse_data;
 		// Fall through
 	}
@@ -815,7 +810,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		if (!dnet_recv_nolock(state, socket))
 			break;
 
-		dnet_addr_container *cnt = reinterpret_cast<dnet_addr_container *>(socket->buffer);
+		dnet_addr_container *cnt = reinterpret_cast<dnet_addr_container *>(socket->buffer.get());
 		int err;
 
 		/* If we are server check that connected node has the same number of addresses.
@@ -850,7 +845,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 
 		size_t size = cmd->size - sizeof(dnet_addr) * cnt->addr_num - sizeof(dnet_addr_container);
 		dnet_id_container *id_container = reinterpret_cast<dnet_id_container *>(
-			reinterpret_cast<char *>(socket->buffer) + sizeof(dnet_addr) * cnt->addr_num + sizeof(dnet_addr_container)
+			socket->buffer.get() + sizeof(dnet_addr) * cnt->addr_num + sizeof(dnet_addr_container)
 		);
 
 		std::unique_ptr<dnet_backend_ids *[], free_destroyer> backends(reinterpret_cast<dnet_backend_ids **>(
@@ -927,8 +922,7 @@ static void dnet_process_socket(dnet_connect_state &state, epoll_event &ev)
 		dnet_log(state.node, DNET_LOG_NOTICE, "%s: connected: backends-num: %d, addr-num: %d, idx: %d.",
 				dnet_addr_string(&socket->addr), int(id_container->backends_count), int(cnt->addr_num), idx);
 
-		free(socket->buffer);
-		socket->buffer = nullptr;
+		socket->buffer.reset();
 
 		dnet_set_sockopt(state.node, socket->s);
 
@@ -1016,7 +1010,7 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_set &original_l
 	state.node = node;
 	state.join = join;
 
-	dnet_connect_state_get(&state);
+	state.get();
 
 	err = pthread_mutex_init(&state.lock, NULL);
 	if (err) {
@@ -1150,7 +1144,7 @@ err_out_put:
 		err = -ECONNREFUSED;
 	}
 
-	dnet_connect_state_put(&state);
+	state.put();
 
 	return err;
 }
@@ -1271,14 +1265,14 @@ void dnet_reconnect_and_check_route_table(dnet_node *node)
 
 	const bool ask_route_list = !((node->flags | flags) & DNET_CFG_NO_ROUTE_LIST);
 
-	bool all_exist = false;
-	dnet_addr_socket_set sockets;
-	const bool sockets_created = dnet_socket_create_addresses(node, addrs.get(), addrs_count, ask_route_list, join, &all_exist, sockets);
-	if (!sockets_created) {
+	bool at_least_one_exist = false;
+	auto sockets = dnet_socket_create_addresses(node, addrs.get(), addrs_count, ask_route_list, join, &at_least_one_exist);
+
+	if (sockets.empty()) {
 		addrs.reset();
 	}
 
-	if (states_count > 0 || sockets_created) {
+	if (states_count > 0 || !sockets.empty()) {
 		dnet_socket_connect(node, sockets, join, std::move(states), states_count);
 	}
 }
@@ -1306,8 +1300,8 @@ int dnet_add_state(dnet_node *node, const dnet_addr *addrs, int num, int flags)
 
 	const size_t addrs_count = num;
 	bool at_least_one_exist = false;
-	dnet_addr_socket_set sockets;
-	if (!dnet_socket_create_addresses(node, addrs, addrs_count, ask_route_list, join, &at_least_one_exist, sockets)) {
+	auto sockets = dnet_socket_create_addresses(node, addrs, addrs_count, ask_route_list, join, &at_least_one_exist);
+	if (sockets.empty()) {
 		// return 0 if we failed to connect to any remote node, but there is at least one node in local route table
 		return at_least_one_exist ? 0 : -ENOMEM;
 	}
