@@ -64,7 +64,7 @@ static void dnet_usage(char *p)
 			" -N namespace         - use this namespace for operations\n"
 			" -D object            - read latest data for given object, if -I id is specified, this field is unused\n"
 			" -C flags             - command flags\n"
-			" -d request_string    - defragmentation request: 'start' - start full defragmentation, 'compact' - start defragmentation of heavy-fragmented blobs only, 'status' - request current status\n"
+			" -d request_string    - defragmentation request: 'compact' - start defragmentation of heavily fragmented blobs (those where size of all removed records is more than defrag_percentage), 'start' - start whole defragmentation (means 'compact' and sorting of all unsorted blobs), 'status' - request current status\n"
 			" -i flags             - IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h\n"
 			" -H                   - do not hash id, use it as is\n"
 			" -b backend_id        - operate with given backend ID, it is needed for defragmentation request or backend status update\n"
