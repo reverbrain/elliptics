@@ -31,7 +31,7 @@ def convert_to_list(key):
 class Id(Id):
     def __init__(self, key, group=0):
         import types
-        if type(key) is str:
+        if isinstance(key, basestring):
             super(Id, self).__init__(convert_to_list(int(key, 16)), group)
         elif type(key) in (long, int):
             super(Id, self).__init__(convert_to_list(key), group)

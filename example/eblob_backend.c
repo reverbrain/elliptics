@@ -419,7 +419,9 @@ struct eblob_read_range_priv {
 
 static int blob_cmp_range_request(const void *req1, const void *req2)
 {
-	return memcmp(((struct eblob_range_request *)(req1))->record_key, ((struct eblob_range_request *)(req2))->record_key, EBLOB_ID_SIZE);
+	return memcmp(((struct eblob_range_request *)(req1))->record_key,
+	              ((struct eblob_range_request *)(req2))->record_key,
+	              EBLOB_ID_SIZE);
 }
 
 static int blob_read_range_callback(struct eblob_range_request *req)

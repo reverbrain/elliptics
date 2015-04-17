@@ -39,22 +39,22 @@ namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {
 enum elliptics_iterator_types {
-	itype_disk = DNET_ITYPE_DISK,
-	itype_network = DNET_ITYPE_NETWORK,
+	itype_disk	= DNET_ITYPE_DISK,
+	itype_network	= DNET_ITYPE_NETWORK,
 };
 
 enum elliptics_iterator_flags {
-	iflag_default = 0,
-	iflag_data = DNET_IFLAGS_DATA,
-	iflag_key_range = DNET_IFLAGS_KEY_RANGE,
-	iflag_ts_range = DNET_IFLAGS_TS_RANGE,
-	iflag_no_meta = DNET_IFLAGS_NO_META,
+	iflag_default	= 0,
+	iflag_data	= DNET_IFLAGS_DATA,
+	iflag_key_range	= DNET_IFLAGS_KEY_RANGE,
+	iflag_ts_range	= DNET_IFLAGS_TS_RANGE,
+	iflag_no_meta	= DNET_IFLAGS_NO_META,
 };
 
 enum elliptics_cflags {
-	cflags_default = 0,
-	cflags_direct = DNET_FLAGS_DIRECT,
-	cflags_nolock = DNET_FLAGS_NOLOCK,
+	cflags_default	= 0,
+	cflags_direct	= DNET_FLAGS_DIRECT,
+	cflags_nolock	= DNET_FLAGS_NOLOCK,
 };
 
 enum elliptics_ioflags {
@@ -74,11 +74,11 @@ enum elliptics_exceptions_policy {
 	policy_no_exceptions			= ioremap::elliptics::session::no_exceptions,
 	policy_throw_at_start			= ioremap::elliptics::session::throw_at_start,
 	policy_throw_at_wait			= ioremap::elliptics::session::throw_at_wait,
-	policy_throw_at_get				= ioremap::elliptics::session::throw_at_get,
-	policy_throw_at_iterator_end	= ioremap::elliptics::session::throw_at_iterator_end,
+	policy_throw_at_get			= ioremap::elliptics::session::throw_at_get,
+	policy_throw_at_iterator_end		= ioremap::elliptics::session::throw_at_iterator_end,
 	policy_default_exceptions		= ioremap::elliptics::session::throw_at_wait |
-									  ioremap::elliptics::session::throw_at_get |
-									  ioremap::elliptics::session::throw_at_iterator_end
+						  ioremap::elliptics::session::throw_at_get |
+						  ioremap::elliptics::session::throw_at_iterator_end
 };
 
 enum elliptics_config_flags {
@@ -86,7 +86,7 @@ enum elliptics_config_flags {
 	config_flags_no_route_list		= DNET_CFG_NO_ROUTE_LIST,
 	config_flags_mix_states			= DNET_CFG_MIX_STATES,
 	config_flags_no_csum			= DNET_CFG_NO_CSUM,
-	config_flags_randomize_states	= DNET_CFG_RANDOMIZE_STATES,
+	config_flags_randomize_states		= DNET_CFG_RANDOMIZE_STATES,
 };
 
 enum elliptics_node_status_flags {
