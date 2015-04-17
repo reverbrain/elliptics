@@ -614,17 +614,29 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	};
 	struct dnet_iterator_send_private spriv;
 	struct dnet_iterator_file_private fpriv;
-	int err;
+	int err = 0;
+
+	/* Check that backend supports iterator */
+	if (!backend->cb->iterator) {
+		err = -ENOTSUP;
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: iteration failed: backend doesn't support iteration",
+		         dnet_dump_id(&cmd->id));
+		goto err_out_exit;
+	}
 
 	/* Check flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
 		err = -ENOTSUP;
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: iteration failed: unknown iteration flags: %" PRIu64,
+		         dnet_dump_id(&cmd->id), ireq->flags);
 		goto err_out_exit;
 	}
 
 	/* Check callback type */
 	if (ireq->itype <= DNET_ITYPE_FIRST || ireq->itype >= DNET_ITYPE_LAST) {
 		err = -ENOTSUP;
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: iteration failed: unknown iteration type: %" PRIu64,
+		         dnet_dump_id(&cmd->id), ireq->itype);
 		goto err_out_exit;
 	}
 
@@ -656,9 +668,13 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 		cpriv.next_private = &fpriv;
 		/* TODO: Implement local file-based iterators */
 		err = -ENOTSUP;
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: iteration failed: type 'DNET_ITYPE_DISK' is not implemented",
+		         dnet_dump_id(&cmd->id));
 		goto err_out_exit;
 	default:
 		err = -EINVAL;
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: iteration failed: unknown iteration type: %" PRIu64,
+		         dnet_dump_id(&cmd->id), ireq->itype);
 		goto err_out_exit;
 	}
 
@@ -676,7 +692,7 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	dnet_iterator_destroy(st->n, cpriv.it);
 
 err_out_exit:
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: iteration finished: err: %d",
+	dnet_log(st->n, err ? DNET_LOG_ERROR : DNET_LOG_NOTICE, "%s: %s: iteration finished: err: %d",
 			__func__, dnet_dump_id(&cmd->id), err);
 	return err;
 }
