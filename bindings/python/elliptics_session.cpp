@@ -1401,7 +1401,7 @@ void init_elliptics_session() {
 		.def("start_compact", &elliptics_session::start_compact,
 		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id")),
 		     "start_compact(host, port, family, backend_id)\n"
-		     "    Start compaction of backend @backend_id at node addressed by @host, @port, @family\n"
+		     "    Start defragmentation of heavy-fragmented blobs only at backend @backend_id at node addressed by @host, @port, @family\n"
 		     "    Returns AsyncResult which provides new status of the backend\n\n"
 		     "    new_status = session.start_compact(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]\n"
 		     "    defrag_state = new_state.defrag_state")
