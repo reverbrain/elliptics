@@ -423,8 +423,8 @@ static int dnet_iterator_flow_control(struct dnet_iterator_common_private *ipriv
  * Also now it "prepares" data for next callback by combining data itself with
  * fixed-size response header.
  */
-static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
-					 int fd, uint64_t data_offset, uint64_t dsize, struct dnet_ext_list *elist)
+static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key, uint64_t flags,
+                                         int fd, uint64_t data_offset, uint64_t dsize, struct dnet_ext_list *elist)
 {
 	struct dnet_iterator_common_private *ipriv = priv;
 	struct dnet_iterator_response *response;
@@ -474,6 +474,7 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	response->size = fsize;
 	response->total_keys = ipriv->total_keys;
 	response->iterated_keys = iterated_keys;
+	response->flags = flags;
 	dnet_convert_iterator_response(response);
 
 	/* Data */

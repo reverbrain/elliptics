@@ -237,6 +237,16 @@ def main(options, args):
                          .format(options.wait_timeout, repr(e), traceback.format_exc()))
 
     try:
+        ctx.prepare_timeout = Time.from_epoch(options.prepare_timeout)
+    except Exception as e:
+        try:
+            ctx.prepare_timeout = Time.from_string(options.prepare_timeout).time
+        except Exception as e:
+            raise ValueError("Can't parse prepare_timeout: '{0}': {1}, traceback: {2}"
+                             .format(options.wait_timeout, repr(e), traceback.format_exc()))
+    log.info("Using timeout: {0} for uncommitted records".format(ctx.prepare_timeout))
+
+    try:
         log.info("Starting cleanup...")
         cleanup(ctx.tmp_dir)
     except Exception as e:
@@ -292,6 +302,7 @@ def main(options, args):
                 from elliptics_recovery.types.dc import main
                 result = main(ctx)
         ctx.pool.close()
+        ctx.pool.terminate()
         ctx.pool.join()
     except Exception as e:
         log.error("Recovering failed: %s, traceback: %s", repr(e), traceback.format_exc())
@@ -372,4 +383,7 @@ def run(args=None):
                       help="Recover data without meta. It is usefull only for services without data-rewriting because"
                       " with this option dnet_recovery will not check which replica of the key is newer"
                       " and will copy any replica of the key to missing groups.")
+    parser.add_option('-p', '--prepare-timeout', action='store', dest='prepare_timeout', default='1d',
+                      help='Timeout for uncommitted records (prepared, but not committed).'
+                      'Records that exceeded this timeout will be removed. [default: %default]')
     return main(*parser.parse_args(args))

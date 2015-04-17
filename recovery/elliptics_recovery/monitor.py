@@ -54,20 +54,23 @@ class StatsProxy(object):
     def counter(self, name, value):
         try:
             self.queue.put_nowait((self.prefix, self.COUNTER, name, value))
-        except Exception as e:
-            self.log.error("Got an error during counter update: {0}".format(e))
+        except:
+            self.log.exception('Failed to update counter')
+            raise
 
     def set_counter(self, name, value):
         try:
             self.queue.put_nowait((self.prefix, self.SET_COUNTER, name, value))
-        except Exception as e:
-            self.log.error("Got an error during counter update: {0}".format(e))
+        except:
+            self.log.exception('Failed to set counter')
+            raise
 
     def timer(self, name, milestone):
         try:
             self.queue.put_nowait((self.prefix, self.TIMER, name, milestone, datetime.now()))
-        except Exception as e:
-            self.log.error("Got an error during timer update: {0}".format(e))
+        except:
+            self.log.exception('Failed to update timer')
+            raise
 
     def __getitem__(self, item):
         prefix = item
@@ -145,13 +148,11 @@ class Monitor(object):
         while not self.__shutdown_request:
             try:
                 data = self.queue.get(block=True, timeout=1)
-            except EOFError:
-                break
             except Queue.Empty:
                 continue
-            except Exception as e:
-                self.log.error("Failed to wait on queue: {0}".format(e))
-                continue
+            except:
+                self.log.exception('Failed to wait on queue')
+                break
 
             try:
                 prefix = data[0]

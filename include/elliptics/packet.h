@@ -1008,6 +1008,10 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 	dnet_convert_time(&r->time_end);
 }
 
+
+/* Common record flags */
+#define DNET_RECORD_FLAGS_UNCOMMITTED	(1<<0) /* The record was prepared but hasn't been committed */
+
 /*
  * Iterator response
  * TODO: Maybe it's better to include whole ehdr in response
@@ -1019,10 +1023,11 @@ struct dnet_iterator_response
 	int				status;		/* Response status */
 	struct dnet_time		timestamp;	/* Timestamp from extended header */
 	uint64_t			user_flags;	/* User flags set in extended header */
-	uint64_t			size;
-	uint64_t			iterated_keys;
-	uint64_t			total_keys;
-	uint64_t			reserved[2];
+	uint64_t			size;		/* Size of the record */
+	uint64_t			iterated_keys;	/* Number of keys that has been iterated */
+	uint64_t			total_keys;	/* Total number of keys that will be iterated */
+	uint64_t			flags;		/* Combination of DNET_RECORD_FLAGS_* */
+	uint64_t			reserved[1];
 } __attribute__ ((packed));
 
 static inline void dnet_convert_iterator_response(struct dnet_iterator_response *r)
@@ -1033,6 +1038,7 @@ static inline void dnet_convert_iterator_response(struct dnet_iterator_response 
 	r->size = dnet_bswap64(r->size);
 	r->iterated_keys = dnet_bswap64(r->iterated_keys);
 	r->total_keys = dnet_bswap64(r->total_keys);
+	r->flags = dnet_bswap64(r->flags);
 	dnet_convert_time(&r->timestamp);
 }
 

@@ -85,6 +85,13 @@ static int eblob_read_params_compare(const void *p1, const void *p2)
 	return 0;
 }
 
+static uint64_t eblob_convert_dctl_flags(uint64_t dctl_flags) {
+	uint64_t ret = 0;
+	if (dctl_flags & BLOB_DISK_CTL_UNCOMMITTED)
+		ret |= DNET_RECORD_FLAGS_UNCOMMITTED;
+	return ret;
+}
+
 /* Pre-callback that formats arguments and calls ictl->callback */
 static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, uint64_t data_offset, void *priv, int no_meta) {
 	struct dnet_iterator_ctl *ictl = priv;
@@ -125,7 +132,8 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 		size -= sizeof(struct dnet_ext_list_hdr);
 	}
 
-	err = ictl->callback(ictl->callback_private, (struct dnet_raw_id *)&dc->key,
+	err = ictl->callback(ictl->callback_private,
+	                     (struct dnet_raw_id *)&dc->key, eblob_convert_dctl_flags(dc->flags),
 	                     fd, data_offset, size, &elist);
 
 	dnet_ext_list_destroy(&elist);
@@ -149,6 +157,14 @@ static int blob_iterate_callback_with_meta(struct eblob_disk_control *dc,
 		struct eblob_ram_control *rctl __unused,
 		int fd, uint64_t data_offset, void *priv, void *thread_priv __unused) {
 	return blob_iterate_callback_common(dc, fd, data_offset, priv, 0);
+}
+
+static int blob_lookup(struct eblob_backend *b, struct eblob_key *key, enum eblob_read_flavour csum, struct eblob_write_control *wc) {
+	int err = eblob_read_return(b, key, csum, wc);
+	/* Uncommitted records can be read, so fail lookup with ENOENT */
+	if (err == 0 && wc->flags & BLOB_DISK_CTL_UNCOMMITTED)
+		err = -ENOENT;
+	return err;
 }
 
 static int blob_write(struct eblob_backend_config *c, void *state,
@@ -293,10 +309,10 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	if (io->flags & DNET_IO_FLAGS_NOCSUM)
 		csum = EBLOB_READ_NOCSUM;
 
-	err = eblob_read_return(b, &key, csum, &wc);
+	err = blob_lookup(b, &key, csum, &wc);
 	if (err < 0) {
 		dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-read-fd: READ: %d: %s",
-			dnet_dump_id_str(io->id), err, strerror(-err));
+		                 dnet_dump_id_str(io->id), err, strerror(-err));
 		goto err_out_exit;
 	}
 
@@ -443,8 +459,7 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 		io.offset = req->requested_offset;
 
 		/* FIXME: This is slow! */
-		err = eblob_read_return(req->back, (struct eblob_key *)req->record_key,
-				EBLOB_READ_NOCSUM, &wc);
+		err = blob_lookup(req->back, (struct eblob_key *)req->record_key, EBLOB_READ_NOCSUM, &wc);
 		if (err)
 			goto err_out_exit;
 
@@ -664,7 +679,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	dnet_ext_list_init(&elist);
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
-	err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc);
+	err = blob_lookup(b, &key, EBLOB_READ_NOCSUM, &wc);
 	if (err < 0) {
 		dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read: %d: %s.",
 				dnet_dump_id(&cmd->id), err, strerror(-err));
@@ -719,7 +734,7 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 	int err;
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc);
+	err = blob_lookup(b, &key, EBLOB_READ_NOCSUM, &wc);
 	if (err < 0) {
 		dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read: %d: %s.",
 							dnet_dump_id_str(id->id), err, strerror(-err));

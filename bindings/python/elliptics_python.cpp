@@ -58,16 +58,20 @@ enum elliptics_cflags {
 };
 
 enum elliptics_ioflags {
-	ioflags_default = 0,
-	ioflags_append = DNET_IO_FLAGS_APPEND,
-	ioflags_prepare = DNET_IO_FLAGS_PREPARE,
-	ioflags_commit = DNET_IO_FLAGS_COMMIT,
-	ioflags_overwrite = DNET_IO_FLAGS_OVERWRITE,
-	ioflags_nocsum = DNET_IO_FLAGS_NOCSUM,
-	ioflags_plain_write = DNET_IO_FLAGS_PLAIN_WRITE,
-	ioflags_cache = DNET_IO_FLAGS_CACHE,
-	ioflags_cache_only = DNET_IO_FLAGS_CACHE_ONLY,
-	ioflags_cache_remove_from_disk = DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK,
+	ioflags_default			= 0,
+	ioflags_append			= DNET_IO_FLAGS_APPEND,
+	ioflags_prepare			= DNET_IO_FLAGS_PREPARE,
+	ioflags_commit			= DNET_IO_FLAGS_COMMIT,
+	ioflags_overwrite		= DNET_IO_FLAGS_OVERWRITE,
+	ioflags_nocsum			= DNET_IO_FLAGS_NOCSUM,
+	ioflags_plain_write		= DNET_IO_FLAGS_PLAIN_WRITE,
+	ioflags_cache			= DNET_IO_FLAGS_CACHE,
+	ioflags_cache_only		= DNET_IO_FLAGS_CACHE_ONLY,
+	ioflags_cache_remove_from_disk	= DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK,
+};
+
+enum elliptics_record_flags {
+	record_flags_uncommitted	= DNET_RECORD_FLAGS_UNCOMMITTED
 };
 
 enum elliptics_exceptions_policy {
@@ -422,6 +426,12 @@ BOOST_PYTHON_MODULE(core)
 		.value("cache", ioflags_cache)
 		.value("cache_only", ioflags_cache_only)
 		.value("cache_remove_from_disk", ioflags_cache_remove_from_disk)
+	;
+
+	bp::enum_<elliptics_record_flags>("record_flags",
+		"Bit flags which specifies state of the record at the backend\n\n"
+		"uncommitted\n    The record is uncommitted so it can't be read but can be writted and committed")
+		.value("uncommitted", record_flags_uncommitted)
 	;
 
 	bp::enum_<blackhole::defaults::severity>("log_level",

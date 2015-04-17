@@ -114,13 +114,16 @@ def skip_key_data(ctx, key_data):
     Checks that all groups are presented in key_data and
     all key_datas have equal timestamp and user_flags
     '''
-    count = len(key_data[1])
+    committed = lambda info: not (info.flags & elliptics.record_flags.uncommitted)
+    count = sum(map(committed, key_data[1]))
     if count < len(ctx.groups):
         return False
     assert count == len(ctx.groups)
 
     first = key_data[1][0]
-    return all(((k.timestamp, k.user_flags) == (first.timestamp, first.user_flags) for k in key_data[1]))
+
+    same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size, lhs.user_flags) == (rhs.timestamp, rhs.size, rhs.user_flags)
+    return all(same_meta(info, first) for info in key_data[1])
 
 
 def merge_results(arg):
@@ -151,19 +154,10 @@ def merge_results(arg):
 
             while len(heap):
                 min_data = heapq.heappop(heap)
-                key_data = (min_data.value.key,
-                            [KeyInfo(min_data.address,
-                                     min_data.group_id,
-                                     min_data.value.timestamp,
-                                     min_data.value.size,
-                                     min_data.value.user_flags)])
+                key_data = (min_data.key, [min_data.key_info])
                 same_datas = [min_data]
-                while len(heap) and min_data.value.key == heap[0].value.key:
-                    key_data[1].append(KeyInfo(heap[0].address,
-                                               heap[0].group_id,
-                                               heap[0].value.timestamp,
-                                               heap[0].value.size,
-                                               heap[0].value.user_flags))
+                while len(heap) and min_data.key == heap[0].key:
+                    key_data[1].append(heap[0].key_info)
                     same_datas.append(heapq.heappop(heap))
 
                 # skip keys that already exist and equal in all groups
@@ -254,7 +248,8 @@ def main(ctx):
     try:
         ctx.stats.timer('main', 'iterating')
         log.info("Start iterating {0} nodes in the pool".format(len(ranges)))
-        results = ctx.pool.map(iterate_node, ((ctx.portable(), addr[0], addr[1], ranges[addr]) for addr in ranges))
+        iresults = ctx.pool.imap(iterate_node, ((ctx.portable(), addr[0], addr[1], ranges[addr]) for addr in ranges))
+        results = list(iresults)
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
         ctx.stats.timer('main', 'finished')
@@ -267,7 +262,8 @@ def main(ctx):
 
     try:
         log.info("Merging iteration results from different nodes")
-        results = ctx.pool.map(merge_results, ((ctx.portable(), ) + x for x in results.items()))
+        iresults = ctx.pool.imap(merge_results, ((ctx.portable(), ) + x for x in results.items()))
+        results = list(iresults)
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
         ctx.stats.timer('main', 'finished')
@@ -326,7 +322,8 @@ def lookup_keys(ctx):
                                                  ctx.groups[i],
                                                  result.timestamp,
                                                  result.total_size,
-                                                 result.user_flags))
+                                                 result.user_flags,
+                                                 result.flags))
                     except Exception, e:
                         log.debug("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"
                                   .format(id, ctx.groups[i], repr(e), traceback.format_exc()))

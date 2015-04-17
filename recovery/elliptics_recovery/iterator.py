@@ -21,7 +21,7 @@ Wrappers for iterator and it's result container
 import logging
 import os
 
-from .utils.misc import logged_class, mk_container_name
+from .utils.misc import logged_class, mk_container_name, KeyInfo
 from .etime import Time
 from .range import IdRange
 import traceback
@@ -158,9 +158,10 @@ class IteratorResult(object):
         heap = []
         for d in results:
             try:
+                filename = os.path.join(tmp_dir, mk_container_name(d.address, d.backend_id, "merge_"))
                 heapq.heappush(heap,
                                MergeData(d,
-                                         IteratorResult.from_filename(os.path.join(tmp_dir, mk_container_name(d.address, d.backend_id, "merge_")),
+                                         IteratorResult.from_filename(filename,
                                                                       address=d.address,
                                                                       backend_id=d.backend_id,
                                                                       group_id=d.group_id,
@@ -208,7 +209,11 @@ class IteratorResult(object):
             return None
         container_file = open(filename, 'r+')
         container_file.seek(0, 2)
-        result = cls.from_info(container_file.fileno(), is_sorted, container_file.tell(), tmp_dir=tmp_dir, filename=filename, **kwargs)
+        result = cls.from_info(container_file.fileno(),
+                               is_sorted,
+                               container_file.tell(),
+                               tmp_dir=tmp_dir,
+                               filename=filename, **kwargs)
         result.__file = container_file  # Save it from python's gc
         return result
 
@@ -317,7 +322,7 @@ class Iterator(object):
                 # TODO: Here we can add throttling
                 if record.status != 0:
                     raise RuntimeError("Iteration status check failed: {0}".format(record.status))
-                #skipping keepalive responses
+                # skipping keepalive responses
                 if record.response.status == 0:
                     filtered_keys = num + 1
                 iterated_keys = record.response.iterated_keys
@@ -426,10 +431,23 @@ class MergeData(object):
             return
 
         try:
-            while cmp(self.value.key, self.next_value.key) == 0:
-                if cmp(self.value.timestamp, self.next_value.timestamp) < 0:
+            while self.value.key == self.next_value.key:
+                if self.value.timestamp < self.next_value.timestamp:
                     self.value = self.next_value
                 self.next_value = next(self.iter)
         except StopIteration:
             self.next_value = None
             self.iter = None
+
+    @property
+    def key(self):
+        return self.value.key
+
+    @property
+    def key_info(self):
+        return KeyInfo(self.address,
+                       self.group_id,
+                       self.value.timestamp,
+                       self.value.size,
+                       self.value.user_flags,
+                       self.value.flags)

@@ -48,9 +48,10 @@ class Recovery(object):
     with optional check that group doesn't have or have an older version of the key.
     If Recovery was inited with callback then this callback will be called when all work is done.
     '''
-    def __init__(self, key, timestamp, size, address, backend_id, group, ctx, node, check=True, callback=None):
+    def __init__(self, key, timestamp, flags, size, address, backend_id, group, ctx, node, check=True, callback=None):
         self.key = key
         self.key_timestamp = timestamp
+        self.key_flags = flags
         self.address = address
         self.backend_id = backend_id
         self.group = group
@@ -66,7 +67,6 @@ class Recovery(object):
         self.attempt = 0
         self.total_size = size
         self.recovered_size = 0
-        self.just_remove = False
         # if size of object more that size of one chunk than file should be read/written in chunks
         self.chunked = self.total_size > self.ctx.chunk_size
         self.check = check
@@ -75,8 +75,12 @@ class Recovery(object):
         log.debug("Created Recovery object for key: {0}, node: {1}/{2}".format(repr(key), address, backend_id))
 
     def run(self):
-        log.debug("Recovering key: {0}, node: {1}/{2}"
-                  .format(repr(self.key), self.address, self.backend_id))
+        log.info("Recovering key: {0}, node: {1}/{2}".format(repr(self.key), self.address, self.backend_id))
+        if self.key_flags & elliptics.record_flags.uncommitted:
+            log.info('Key: {0} is uncommitted. Remove it'.format(self.key))
+            self.remove()
+            self.stats.skipped += 1
+            return
         address, _, backend_id = self.ctx.routes.filter_by_group(self.group).get_id_routes(self.key)[0]
         if (address, backend_id) == (self.address, self.backend_id):
             log.debug("Key: {0} already on the right node: {1}/{2}"
@@ -169,8 +173,14 @@ class Recovery(object):
             self.Stop(False)
 
     def remove(self):
-        if not self.ctx.safe:
-            log.debug("Removing key: {0} from node: {1}/{2}".format(repr(self.key), self.address, self.backend_id))
+        if self.ctx.safe or self.ctx.dry_run:
+            if self.ctx.safe:
+                log.info("Safe mode is turned on. Skip removing key: {0}".format(repr(self.key)))
+            else:
+                log.info("Dry-run mode is turned on. Skip removing key: {0}.".format(repr(self.key)))
+            self.stop(True)
+        else:
+            log.info("Removing key: {0} from node: {1}/{2}".format(repr(self.key), self.address, self.backend_id))
             # remove object directly from address by using RemoveDirect
             RemoveDirect(self.address,
                          self.backend_id,
@@ -179,20 +189,14 @@ class Recovery(object):
                          self.ctx,
                          self.node,
                          self.onremove).run()
-        else:
-            self.stop(True)
 
     def onlookup(self, result, stats):
         try:
             self.stats += stats
             if result and self.key_timestamp < result.timestamp:
-                self.just_remove = True
                 log.debug("Key: {0} on node: {1}/{2} is newer. Just removing it from node: {3}/{4}."
                           .format(repr(self.key), self.dest_address, self.dest_backend_id,
                                   self.address, self.backend_id))
-                if self.ctx.dry_run:
-                    log.debug("Dry-run mode is turned on. Skipping removing stage.")
-                    return
                 self.attempt = 0
                 self.remove()
                 return
@@ -363,6 +367,7 @@ def recover(ctx, address, backend_id, group, node, results, stats):
             rec = Recovery(key=response.key,
                            timestamp=response.timestamp,
                            size=response.size,
+                           flags=response.flags,
                            address=address,
                            backend_id=backend_id,
                            group=group,
@@ -405,7 +410,7 @@ def process_node_backend(ctx, address, backend_id, group, ranges):
         return True
 
     stats.timer('process', 'dump_keys')
-    dump_path = os.path.join(ctx.tmp_dir, 'dump_{0}'.format(address))
+    dump_path = os.path.join(ctx.tmp_dir, 'dump_{0}.{1}'.format(address, backend_id))
     log.debug("Dump iterated keys to file: {0}".format(dump_path))
     with open(dump_path, 'w') as dump_f:
         for r in results:
@@ -619,6 +624,7 @@ class DumpRecover(object):
         self.recover_result = Recovery(key=self.id,
                                        timestamp=self.timestamp,
                                        size=self.size,
+                                       flags=0,
                                        address=self.recover_address,
                                        backend_id=self.recover_backend_id,
                                        group=self.group,
@@ -714,7 +720,8 @@ def dump_main(ctx):
 
     try:
         # processes each group in separated process
-        results = ctx.pool.map(dump_process_group, ((ctx.portable(), g) for g in groups))
+        iresults = ctx.pool.imap(dump_process_group, ((ctx.portable(), g) for g in groups))
+        results = list(iresults)
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
         ctx.stats.timer('main', 'finished')
