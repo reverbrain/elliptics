@@ -616,6 +616,12 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	struct dnet_iterator_file_private fpriv;
 	int err;
 
+	/* Check that backend supports iterator */
+	if (!backend->cb->iterator) {
+		err = -ENOTSUP;
+		goto err_out_exit;
+	}
+
 	/* Check flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
 		err = -ENOTSUP;
