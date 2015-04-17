@@ -113,6 +113,13 @@ enum dnet_backend_state {
 enum dnet_backend_defrag_state {
 	DNET_BACKEND_DEFRAG_NOT_STARTED,
 	DNET_BACKEND_DEFRAG_IN_PROGRESS,
+	DNET_BACKEND_INDEX_SORT_IN_PROGRESS,
+	DNET_BACKEND_COMPACT_IN_PROGRESS,
+};
+
+enum dnet_backend_defrag_level {
+	DNET_BACKEND_DEFRAG_FULL = 0,
+	DNET_BACKEND_DEFRAG_COMPACT,
 };
 
 /*
@@ -322,7 +329,8 @@ struct dnet_backend_control
 {
 	uint32_t backend_id;
 	uint32_t command;
-	uint64_t reserved[7];
+	uint32_t reserved[13];
+	uint32_t defrag_level;
 	uint32_t delay;
 	uint32_t ids_count;
 	struct dnet_raw_id ids[0];

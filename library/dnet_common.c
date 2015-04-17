@@ -193,10 +193,14 @@ const char *dnet_backend_state_string(uint32_t state)
 const char *dnet_backend_defrag_state_string(uint32_t state)
 {
 	switch ((enum dnet_backend_defrag_state)state) {
-		case DNET_BACKEND_DEFRAG_IN_PROGRESS:
-			return "in-progress";
 		case DNET_BACKEND_DEFRAG_NOT_STARTED:
 			return "not-started";
+		case DNET_BACKEND_DEFRAG_IN_PROGRESS:
+			return "defrag in-progress";
+		case DNET_BACKEND_INDEX_SORT_IN_PROGRESS:
+			return "indexsort in-progress";
+		case DNET_BACKEND_COMPACT_IN_PROGRESS:
+			return "compact in-progress";
 		default:
 			return "unknown";
 	}

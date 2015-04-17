@@ -641,7 +641,7 @@ static int dnet_cmd_backend_control_dangerous(struct dnet_net_state *st, struct 
 		break;
 	case DNET_BACKEND_START_DEFRAG:
 		if (cb.defrag_start) {
-			err = cb.defrag_start(cb.command_private);
+			err = cb.defrag_start(cb.command_private, static_cast<enum dnet_backend_defrag_level>(control->defrag_level));
 		} else {
 			err = -ENOTSUP;
 		}
