@@ -830,6 +830,7 @@ static void *dnet_io_process_network(void *data_)
 	struct dnet_net_state *st;
 	struct epoll_event *evs = malloc(sizeof(struct epoll_event));
 	struct epoll_event *evs_tmp = NULL;
+	struct timespec ts;
 	int evs_size = 1;
 	int tmp = 0;
 	int err = 0;
@@ -940,7 +941,13 @@ static void *dnet_io_process_network(void *data_)
 			// wait condition variable - io queues has a free slot or some socket has something to send
 			pthread_mutex_lock(&n->io->full_lock);
 			n->io->blocked = 1;
-			pthread_cond_wait(&n->io->full_wait, &n->io->full_lock);
+			while (!n->need_exit) {
+				gettimeofday(&curr_tv, NULL);
+				ts.tv_sec = curr_tv.tv_sec + 1;
+				ts.tv_nsec = curr_tv.tv_usec * 1000;
+				if (pthread_cond_timedwait(&n->io->full_wait, &n->io->full_lock, &ts) == 0)
+					break;
+			}
 			n->io->blocked = 0;
 			pthread_mutex_unlock(&n->io->full_lock);
 		}
