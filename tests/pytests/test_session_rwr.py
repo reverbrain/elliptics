@@ -13,6 +13,7 @@
 # GNU General Public License for more details.
 # =============================================================================
 
+import os
 import sys
 sys.path.insert(0, "")  # for running from cmake
 import pytest
@@ -62,6 +63,14 @@ def checked_bulk_read(session, keys, data):
     check_read_results(results, len(keys), data, session)
 
 
+def check_key_unavailability(session, key):
+    with pytest.raises(elliptics.NotFoundError):
+        session.read_data(key=key).get()
+
+    with pytest.raises(elliptics.NotFoundError):
+        session.lookup(key=key).get()
+
+
 class TestSession:
     @pytest.mark.parametrize('key, data', [
                              ('', ''),
@@ -82,8 +91,8 @@ class TestSession:
             pytest.fail('Failed: DID NOT RAISE')
 
     @pytest.mark.parametrize('key, data, exception', [
-                             #('', '', elliptics.core.NotFoundError),
-                             #('all_group_key_1', '', elliptics.core.NotFoundError),
+                             # ('', '', elliptics.core.NotFoundError),
+                             # ('all_group_key_1', '', elliptics.core.NotFoundError),
                              ('', 'data', None),
                              ('all_group_key_2', 'data', None),
                              ("all_group_key_3", '309u8ryeygwvfgadd0u9g8y0ahbg8',
@@ -241,11 +250,120 @@ class TestSession:
             assert r[0].address == addr
 
         pos_id = elliptics.Id(format(i, 'x'))
-        prepare_size = 1<<10
+        prepare_size = 1 << 10
         data = 'a' + 'b' * (prepare_size - 2) + 'c'
 
-        session.write_prepare(pos_id, data[0], 0, 1<<10).get()
+        session.write_prepare(pos_id, data[0], 0, 1 << 10).get()
         session.write_plain(pos_id, data[1:-1], 1).get()
         session.write_commit(pos_id, data[-1], prepare_size - 1, prepare_size).get()
 
         assert session.read_data(pos_id).get()[0].data == data
+
+    def test_prepare_plain_commit_simple(self, server, simple_node):
+        '''
+        Description:
+            simple write_prepare/write_plain/write_commit with checking data correctness and accessibility
+        Steps:
+            write_prepare for some key without data
+            check that the key is not accessible
+            write_plain for the key with some data
+            check that the key is not accessible
+            write_commit for the key without data
+            check that the key is accessible and data is correct
+        '''
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_prepare_plain_commit_simple')
+
+        # test data
+        test_group = session.routes.groups()[0]
+        test_key = 'test_prepare_plain_commit_simple.key'
+        test_data_size = 1024
+        test_data = os.urandom(test_data_size)
+
+        session.groups = [test_group]
+
+        session.write_prepare(key=test_key,
+                              data='',
+                              remote_offset=0,
+                              psize=test_data_size).get()
+
+        check_key_unavailability(session, test_key)
+
+        session.write_plain(key=test_key,
+                            data=test_data,
+                            remote_offset=0).get()
+
+        check_key_unavailability(session, test_key)
+
+        session.write_commit(key=test_key,
+                             data='',
+                             remote_offset=0,
+                             csize=test_data_size).get()
+
+        checked_read(session, test_key, test_data)
+
+    def test_prepare_plain_commit_with_restarting_backend(self, server, simple_node):
+        '''
+        Description:
+            write_plain/write_commit can be made if corresponding backend was restarted after write_prepare.
+        Steps:
+            write_prepare for test_key and test_data
+            check that test_key is not accessible
+            restart backend: disable & enable it
+            write_plain for test_key with test_data2
+            check that test_key is not accessible
+            restart backend: disable & enable it
+            write_commit test_key with test_data3
+            check that test_key is accessible and data is correct
+        '''
+        session = make_session(node=simple_node,
+                               test_name='TestSession.test_prepare_plain_commit_with_restarting_backend')
+
+        # test data
+        test_group = session.routes.groups()[0]
+        test_key = 'test_prepare_plain_commit_with_restarting_backend.key'
+        test_data_size = 1024
+        test_data = os.urandom(test_data_size)
+        test_data2 = os.urandom(test_data_size)
+        test_data3 = os.urandom(test_data_size)
+
+        session.groups = [test_group]
+
+        results = session.write_prepare(key=test_key,
+                                        data=test_data,
+                                        remote_offset=0,
+                                        psize=test_data_size).get()
+
+        test_address = results[0].address
+        test_backend = results[0].backend_id
+
+        check_key_unavailability(session, test_key)
+
+        session.disable_backend(test_address, test_backend).get()
+        session.enable_backend(test_address, test_backend).get()
+
+        check_key_unavailability(session, test_key)
+
+        results = session.write_plain(key=test_key,
+                                      data=test_data2,
+                                      remote_offset=0).get()
+
+        assert results[0].address == test_address
+        assert results[0].backend_id == test_backend
+
+        check_key_unavailability(session, test_key)
+
+        session.disable_backend(test_address, test_backend).get()
+        session.enable_backend(test_address, test_backend).get()
+
+        check_key_unavailability(session, test_key)
+
+        results = session.write_commit(key=test_key,
+                                       data=test_data3,
+                                       remote_offset=0,
+                                       csize=test_data_size).get()
+
+        assert results[0].address == test_address
+        assert results[0].backend_id == test_backend
+
+        checked_read(session, test_key, test_data3)

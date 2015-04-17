@@ -15,6 +15,7 @@
 # GNU General Public License for more details.
 # =============================================================================
 
+import os
 import sys
 sys.path.insert(0, "")  # for running from cmake
 import pytest
@@ -150,7 +151,7 @@ def recovery(one_node, remotes, backend_id, address, groups,
     assert run(args) == 0
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="class", autouse=True)
 def scope():
     '''
     Scope fixture for sharing info between test cases.
@@ -227,7 +228,7 @@ class TestRecovery:
         scope.disabled_backends = []
         scope.init_routes = session.routes.filter_by_groups(groups)
 
-        #disables backends from other than scope.test_group group from all node
+        # disables backends from other than scope.test_group group from all node
         res = []
         for group in session.routes.groups()[1:]:
             addr_back = session.routes.filter_by_group(group).addresses_with_backends()
@@ -236,11 +237,11 @@ class TestRecovery:
 
         routes = session.routes.filter_by_group(scope.test_group)
 
-        #chooses one backend from one node to leave it enabled
+        # chooses one backend from one node to leave it enabled
         scope.test_address = routes[0].address
         scope.test_backend = routes[0].backend_id
 
-        #disables all other backends from that groups.
+        # disables all other backends from that groups.
         addr_back = routes.addresses_with_backends()
         for address, backend in addr_back:
             if (address, backend) != (scope.test_address, scope.test_backend):
@@ -249,9 +250,9 @@ class TestRecovery:
         for r, backend in res:
             check_backend_status(r.get(), backend, state=0)
 
-        #checks that routes contains only chosen backend address.
+        # checks that routes contains only chosen backend address.
         assert session.routes.addresses_with_backends() == ((scope.test_address, scope.test_backend),)
-        #checks that routes contains only chosen backend group
+        # checks that routes contains only chosen backend group
         assert session.routes.groups() == (scope.test_group, )
 
     def test_prepare_data(self, server, simple_node):
@@ -618,3 +619,439 @@ class TestRecovery:
                                test_name='TestRecovery.test_checks_all_enabled',
                                test_namespace=self.namespace)
         assert set(scope.init_routes.addresses()) == set(session.routes.addresses())
+
+
+def remove_files(pattern):
+    '''
+    Removes files by path pattern
+    '''
+    import glob
+    for fl in glob.iglob(pattern):
+        if os.path.isfile(fl):
+            print 'Removing:', fl
+            os.remove(fl)
+
+
+def remove_all_blobs(session):
+    '''
+    requests monitor stats, gets blob's path pattern for each backends from all nodes and
+    removes all blobs
+    '''
+    results = session.monitor_stat(categories=elliptics.monitor_stat_categories.backend).get()
+    for result in results:
+        backends = result.statistics['backends']
+        for backend in backends:
+            data_path = backends[backend]['backend']['config']['data']
+            remove_files(data_path + '*')
+
+
+def disable_backends(session, addresses_with_backends):
+    '''
+    Disables all enabled backends at all nodes
+    '''
+    res = []
+    for address, backend in addresses_with_backends:
+        res.append((session.disable_backend(address, backend), backend))
+
+    for r, backend in res:
+        check_backend_status(r.get(), backend, state=0)
+
+
+def enable_backends(session, addresses_with_backends):
+    '''
+    Enables all specified backends at specified node
+    '''
+    res = []
+    for address, backend in addresses_with_backends:
+        res.append((session.enable_backend(address, backend), backend))
+
+    for r, backend in res:
+        check_backend_status(r.get(), backend, state=1)
+
+
+class KeyShifter:
+    '''
+    Class that allows to generate incremental keys from base key
+    '''
+    def __init__(self, base_key):
+        '''
+        Saves int values of base_key
+        '''
+        self.__base_key__ = int(str(base_key), 16)
+
+    def get(self, shift):
+        '''
+        Returns elliptics.Id got by shifting base_key
+        '''
+        return elliptics.Id('%x' % (self.__base_key__ + shift))
+
+
+def make_test_data(timestamps, dest_count):
+    '''
+    Generates and returns list of cases. Each case is a list of Variant(action, timestamp)
+    for each destination (backend or group) that will be done through the case.
+    '''
+    from collections import namedtuple
+    from itertools import product
+    Variant = namedtuple('Variant', ['action', 'timestamp'])
+
+    actions = [elliptics.Session.write_prepare, elliptics.Session.write_data]
+
+    variants = [None] + [Variant(action, ts) for action, ts in product(actions, timestamps)]
+    return list(product(variants, repeat=dest_count))
+
+
+@pytest.mark.incremental
+class TestMerge:
+    '''
+        Description:
+            checks that merge correctly recovers keys with different combination of replicas in both
+            hidden and real backends.
+        Steps:
+        setup:
+            disable all backends
+            remove all blobs
+            enable 2 backends from group 1
+            prepare keys on both backend for recovery
+        recover;
+            run merge recovery
+        check:
+            check via reading all keys accessibility and data correctness
+        teardown:
+            disable enabled backends
+            remove all blobs
+            enable all backends
+    '''
+    data = os.urandom(1024)
+    cur_ts = elliptics.Time.now()
+    old_ts = elliptics.Time(cur_ts.tsec - 24 * 60 * 60, cur_ts.tnsec)
+    new_ts = elliptics.Time(cur_ts.tsec + 24 * 60 * 60, cur_ts.tnsec)
+
+    def get_result(self, case):
+        '''
+        Estimates result for the case
+        '''
+        assert len(case) == 2
+        if case[0] is None or \
+           case[0].action == elliptics.Session.write_prepare:
+            if case[1] is None or \
+               case[1].action == elliptics.Session.write_prepare:
+                return None
+            else:
+                return case[1].timestamp
+        else:
+            assert case[0].action == elliptics.Session.write_data
+            if case[1] is None or \
+               case[1].action == elliptics.Session.write_prepare or \
+               case[1].timestamp < case[0].timestamp:
+                return case[0].timestamp
+            else:
+                return case[1].timestamp
+
+    def make_action(self, key, session, (method, ts), backend):
+        '''
+        Makes action `method` against session for key, ts, self.data and backend.
+        Returns AsyncResult with ts and backend that will be used for checking results
+        '''
+        args = {'data': self.data,
+                'key': key}
+
+        if method == elliptics.Session.write_prepare:
+            args['remote_offset'] = 0
+            args['psize'] = len(self.data)
+        elif method == elliptics.Session.write_data:
+            args['offset'] = 0
+
+        session.timestamp = ts
+        return (method(session, **args), ts, backend)
+
+    def prepare_test_data(self):
+        '''
+        Make prepared actions from test_data list and checks that all actions was succeeded.
+        '''
+        results = []
+        for i, actions in enumerate(self.scope.test_data):
+            key = self.scope.keyshifter.get(i)
+            for j, backend in enumerate(self.scope.backends):
+                if actions[j]:
+                    results.append(self.make_action(key,
+                                                    self.test_sessions[j],
+                                                    actions[j],
+                                                    backend))
+
+        for r, ts, backend in results:
+            result = r.get()
+            assert len(result) == 1
+            assert result[0].timestamp == ts
+            assert result[0].backend_id == backend
+
+    def get_first_backend_key(self):
+        '''
+        Returns first key of the range that could be used in test.
+        Test requires incremental keys that belong to second backend according to route-list.
+        '''
+        group_routes = self.scope.routes.filter_by_group(self.scope.group)
+        address_routes = group_routes.filter_by_address(self.scope.address)
+        backend_ranges = address_routes.get_address_backend_ranges(self.scope.address, self.scope.backends[1])
+        assert len(backend_ranges) > 0
+        first_range = backend_ranges[0]
+        id2int = lambda id: int(str(id), 16)
+        assert id2int(first_range[1]) - id2int(first_range[0]) > len(self.scope.test_data)
+        return first_range[0]
+
+    def test_setup(self, server, simple_node):
+        '''
+        Initial test cases that prepare test cluster before running recovery. It includes:
+        1. preparing whole test class scope - making session, choosing node and backends etc.
+        2. initial cleanup - disabling all backends at all nodes and removing all blobs
+        3. enabling backends that will be used at test
+        4. running initial actions from test_data - preparing keys on both backends
+        '''
+        self.scope = scope
+        self.scope.session = make_session(node=simple_node,
+                                          test_name='TestMerge')
+
+        self.scope.routes = self.scope.session.routes
+        self.scope.group = self.scope.routes.groups()[0]
+        self.scope.session.groups = [self.scope.group]
+        self.scope.address = self.scope.routes.addresses()[0]
+        group_routes = self.scope.routes.filter_by_group(self.scope.group)
+        self.scope.backends = group_routes.get_address_backends(self.scope.address)[:2]
+        self.scope.timestamp = elliptics.Time.now()
+        self.scope.test_data = make_test_data(timestamps=[self.old_ts, self.cur_ts, self.new_ts],
+                                              dest_count=len(self.scope.backends))
+        self.scope.keyshifter = KeyShifter(self.get_first_backend_key())
+
+        self.test_sessions = []
+        for backend in self.scope.backends:
+            self.test_sessions.append(self.scope.session.clone())
+            self.test_sessions[-1].set_direct_id(self.scope.address, backend)
+
+        disable_backends(self.scope.session, self.scope.session.routes.addresses_with_backends())
+        remove_all_blobs(self.scope.session)
+
+        enable_backends(self.scope.session, [(self.scope.address, b) for b in self.scope.backends])
+
+        self.prepare_test_data()
+
+    def test_recovery(self, server, simple_node):
+        '''
+        Runs recovery and checks recovery result
+        '''
+        recovery(one_node=False,
+                 remotes=map(elliptics.Address.from_host_port_family, server.remotes),
+                 backend_id=None,
+                 address=scope.address,
+                 groups=(scope.group,),
+                 session=scope.session.clone(),
+                 rtype=RECOVERY.MERGE,
+                 no_meta=False,
+                 log_file='merge_with_uncommitted_keys.log',
+                 tmp_dir='merge_with_uncommitted_keys')
+
+    def test_check(self, server, simple_node):
+        '''
+        Checks that all keys from test_data are in correct state - have correct timestamp and availability.
+        '''
+        results = []
+        for i, case in enumerate(scope.test_data):
+            results.append((
+                scope.session.read_data(scope.keyshifter.get(i)),
+                i))
+
+        for r, case_num in results:
+            case = scope.test_data[case_num]
+            check_ts = self.get_result(case)
+            if check_ts is None:
+                with pytest.raises(elliptics.NotFoundError):
+                    r.get()
+            else:
+                check_key = scope.keyshifter.get(case_num)
+                result = r.get()
+                assert len(result) == 1
+                result = result[0]
+                assert result.id == check_key
+                assert result.backend_id == scope.backends[1]
+                assert result.timestamp == check_ts
+                assert result.data == self.data
+
+    def test_teardown(self, server, simple_node):
+        '''
+        Cleanup test that makes follow:
+        1. disables all backends
+        2. removes all blobs
+        3. enables all backends on all nodes
+        '''
+        disable_backends(scope.session, scope.session.routes.addresses_with_backends())
+        remove_all_blobs(scope.session)
+        enable_backends(scope.session, scope.routes.addresses_with_backends())
+
+
+@pytest.mark.incremental
+class TestDC:
+    '''
+        Description:
+            checks that dc correctly recovers keys with different combination of replicas in 3 groups
+        Steps:
+        setup:
+            disable all backends
+            remove all blobs
+            enable all backends
+            prepare keys in groups for recovery
+        recover;
+            run dc recovery
+        check:
+            check by reading all keys accessibility and data correctness
+        teardown:
+            disable enabled backends
+            remove all blobs
+            enable all backends
+    '''
+    data = os.urandom(1024)
+    cur_ts = elliptics.Time.now()
+    old_ts = elliptics.Time(cur_ts.tsec - 24 * 60 * 60, cur_ts.tnsec)
+    new_ts = elliptics.Time(cur_ts.tsec + 24 * 60 * 60, cur_ts.tnsec)
+
+    def get_result(self, case):
+        '''
+        Estimates result for the case
+        '''
+        timestamps = [c.timestamp for c in case if c]
+        if len(timestamps) < 1:
+            return [None] * len(case)
+        max_ts = max(timestamps)
+        if all(c.action == elliptics.Session.write_prepare for c in case if c and c.timestamp == max_ts):
+            if max_ts == self.old_ts:
+                return [None] * len(case)
+            else:
+                get_ts = lambda c: c.timestamp if c and c.action == elliptics.Session.write_data else None
+                return map(get_ts, case)
+        else:
+            return [max_ts] * len(case)
+
+    def make_action(self, key, session, (method, ts), group):
+        '''
+        Makes action `method` against session for key, ts, self.data and backend.
+        Returns AsyncResult with ts and backend that will be used for checking results
+        '''
+        args = {'data': self.data,
+                'key': key}
+
+        if method == elliptics.Session.write_prepare:
+            args['remote_offset'] = 0
+            args['psize'] = len(self.data)
+        elif method == elliptics.Session.write_data:
+            args['offset'] = 0
+
+        tmp_session = session.clone()
+        tmp_session.groups = [group]
+        tmp_session.timestamp = ts
+        return (method(tmp_session, **args), ts, group)
+
+    def prepare_test_data(self):
+        '''
+        Make prepared actions from test_data list and checks that all actions was succeeded.
+        '''
+        results = []
+        for i, actions in enumerate(self.scope.test_data):
+            key = self.scope.keyshifter.get(i)
+            for j, group in enumerate(self.scope.groups):
+                if actions[j]:
+                    results.append(self.make_action(key,
+                                                    self.scope.session,
+                                                    actions[j],
+                                                    group))
+
+        for r, ts, group in results:
+            result = r.get()
+            assert len(result) == 1
+            assert result[0].timestamp == ts
+            assert result[0].group_id == group
+
+    def test_setup(self, server, simple_node):
+        '''
+        Initial test cases that prepare test cluster before running recovery. It includes:
+        1. preparing whole test class scope - making session, choosing node and backends etc.
+        2. initial cleanup - disabling all backends at all nodes and removing all blobs
+        3. enabling backends that will be used at test
+        4. running initial actions from test_data - preparing keys on both backends
+        '''
+        self.scope = scope
+        self.scope.session = make_session(node=simple_node,
+                                          test_name='TestDC')
+        self.scope.keyshifter = KeyShifter(elliptics.Id(0))
+        self.scope.routes = self.scope.session.routes
+        self.scope.groups = self.scope.routes.groups()[:3]
+        self.scope.test_data = make_test_data(timestamps=[self.old_ts, self.cur_ts, self.new_ts],
+                                              dest_count=len(self.scope.groups))
+
+        disable_backends(self.scope.session, self.scope.session.routes.addresses_with_backends())
+        remove_all_blobs(self.scope.session)
+
+        enable_backends(self.scope.session, self.scope.routes.addresses_with_backends())
+
+        self.prepare_test_data()
+
+    def test_recovery(self, server, simple_node):
+        '''
+        Runs recovery and checks recovery result
+        '''
+        recovery(one_node=False,
+                 remotes=scope.routes.addresses(),
+                 backend_id=None,
+                 address=scope.routes.addresses()[0],
+                 groups=scope.groups,
+                 session=scope.session.clone(),
+                 rtype=RECOVERY.DC,
+                 log_file='dc_with_uncommitted_keys.log',
+                 tmp_dir='dc_with_uncommitted_keys')
+
+    def test_check(self, server, simple_node):
+        '''
+        Checks that all keys from test_data are in correct state - have correct timestamp and availability.
+        '''
+        sessions = []
+        for g in scope.groups:
+            sessions.append(scope.session.clone())
+            sessions[-1].groups = [g]
+
+        results = []
+        for i, case in enumerate(scope.test_data):
+            key = scope.keyshifter.get(i)
+            groups_results = []
+            for g in scope.groups:
+                session = scope.session.clone()
+                session.groups = [g]
+                groups_results.append(session.read_data(key))
+            results.append((
+                groups_results,
+                i))
+
+        for groups_results, case_num in results:
+            case = scope.test_data[case_num]
+            check_ts = self.get_result(case)
+            check_key = scope.keyshifter.get(case_num)
+            assert len(check_ts) == len(groups_results)
+            for i in range(len(check_ts)):
+                if check_ts[i] is None:
+                    with pytest.raises(elliptics.NotFoundError):
+                        groups_results[i].get()
+                else:
+                    result = groups_results[i].get()
+                    assert len(result) == 1
+                    result = result[0]
+                    assert result.id == check_key
+                    assert result.group_id == scope.groups[i]
+                    assert result.timestamp == check_ts[i]
+                    assert result.data == self.data
+
+    def test_teardown(self, server, simple_node):
+        '''
+        Cleanup test that makes follow:
+        1. disables all backends
+        2. removes all blobs
+        3. enables all backends on all nodes
+        '''
+        disable_backends(scope.session, scope.session.routes.addresses_with_backends())
+        remove_all_blobs(scope.session)
+        enable_backends(scope.session, scope.routes.addresses_with_backends())
