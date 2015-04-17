@@ -682,7 +682,7 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	dnet_iterator_destroy(st->n, cpriv.it);
 
 err_out_exit:
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: iteration finished: err: %d",
+	dnet_log(st->n, err ? DNET_LOG_ERROR : DNET_LOG_NOTICE, "%s: %s: iteration finished: err: %d",
 			__func__, dnet_dump_id(&cmd->id), err);
 	return err;
 }
