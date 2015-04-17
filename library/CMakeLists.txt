@@ -33,8 +33,8 @@ set(ELLIPTICS_SRCS
 
 if (HAVE_MODULE_BACKEND_SUPPORT)
     list(APPEND ELLIPTICS_SRCS
-	../example/module_backend/core/module_backend_t.c
-	../example/module_backend/core/dlopen_handle_t.c)
+        ../example/module_backend/core/module_backend_t.c
+        ../example/module_backend/core/dlopen_handle_t.c)
 
     list(APPEND ELLIPTICS_LIBRARIES dl)
 endif()
