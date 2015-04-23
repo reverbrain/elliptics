@@ -626,7 +626,7 @@ static void dnet_socket_connect_new_sockets(const dnet_connect_state_ptr &state,
 
 		const bool already_exist = state->sockets_connected.find(socket) != state->sockets_connected.end();
 		if (already_exist) {
-			dnet_log(state->node, DNET_LOG_NOTICE, "we are already connecting to %s",
+			dnet_log(state->node, DNET_LOG_NOTICE, "we are already connected to %s",
 				dnet_addr_string(&socket->addr));
 
 			dnet_fail_socket(state, socket.get(), -EEXIST, false);
