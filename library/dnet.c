@@ -636,7 +636,7 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	/* Check callback type */
 	if (ireq->itype <= DNET_ITYPE_FIRST || ireq->itype >= DNET_ITYPE_LAST) {
 		err = -ENOTSUP;
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: iteration failed: unknown iteration type: %" PRIu64,
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: iteration failed: unknown iteration type: %" PRIu32,
 		         dnet_dump_id(&cmd->id), ireq->itype);
 		goto err_out_exit;
 	}
@@ -674,7 +674,7 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 		goto err_out_exit;
 	default:
 		err = -EINVAL;
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: iteration failed: unknown iteration type: %" PRIu64,
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: iteration failed: unknown iteration type: %" PRIu32,
 		         dnet_dump_id(&cmd->id), ireq->itype);
 		goto err_out_exit;
 	}
