@@ -37,6 +37,7 @@
 #include "elliptics.h"
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
+#include "common.hpp"
 
 #undef dnet_log
 #undef dnet_log_error
@@ -224,6 +225,8 @@ struct dnet_connect_state
 };
 
 typedef std::shared_ptr<dnet_connect_state> dnet_connect_state_ptr;
+
+typedef std::vector<dnet_addr> net_addr_list;
 
 /*!
  * Adds \a addr to reconnect list, so we will try to connect to it somewhere in the future.
@@ -494,7 +497,7 @@ public:
 	static int complete_wrapper(dnet_addr *addr, dnet_cmd *cmd, void *priv)
 	{
 		auto handler = reinterpret_cast<dnet_request_route_list_handler *>(priv);
-		int err = handler->complete(addr, cmd);
+		int err = safe_call(handler, &dnet_request_route_list_handler::complete, addr, cmd);
 		if (is_trans_destroyed(cmd))
 			delete handler;
 		return err;
@@ -532,7 +535,7 @@ private:
 		dnet_addr_container *cnt = reinterpret_cast<dnet_addr_container *>(cmd + 1);
 		const size_t states_num = cnt->addr_num / cnt->node_addr_num;
 
-		std::unique_ptr<dnet_addr[]> addrs;
+		std::vector<dnet_addr> addrs(states_num);
 		dnet_addr_socket_set sockets;
 		size_t sockets_count;
 		bool added_to_queue = false;
@@ -543,18 +546,12 @@ private:
 			goto err_out_exit;
 		}
 
-		addrs.reset(new(std::nothrow) dnet_addr[states_num]);
-		if (!addrs) {
-			err = -ENOMEM;
-			goto err_out_exit;
-		}
-
 		for (size_t i = 0; i < states_num; ++i) {
-			dnet_addr *addr = &cnt->addrs[i * cnt->node_addr_num + st->idx];
-			memcpy(&addrs[i], addr, sizeof(dnet_addr));
+			const dnet_addr *addr = &cnt->addrs[i * cnt->node_addr_num + st->idx];
+			addrs[i] = *addr;
 		}
 
-		sockets = dnet_socket_create_addresses(node, addrs.get(), states_num, false, m_state->join, &at_least_one_exist);
+		sockets = dnet_socket_create_addresses(node, &addrs[0], addrs.size(), false, m_state->join, &at_least_one_exist);
 		if (sockets.empty()) {
 			err = at_least_one_exist ? 0 : -ENOMEM;
 			goto err_out_exit;
@@ -985,7 +982,6 @@ struct net_state_list_destroyer
 };
 
 typedef std::unique_ptr<dnet_net_state *[], net_state_list_destroyer> net_state_list_ptr;
-typedef std::unique_ptr<dnet_addr[], free_destroyer> net_addr_list_ptr;
 
 /*!
  * Asynchornously connects to nodes from original_list, asks them route_list, if needed,
@@ -1217,23 +1213,18 @@ static net_state_list_ptr dnet_check_route_table_victims(struct dnet_node *node,
 	return route_list_states;
 }
 
-static net_addr_list_ptr dnet_reconnect_victims(struct dnet_node *node, size_t *addrs_count, int *flags)
+static net_addr_list dnet_reconnect_victims(struct dnet_node *node, int *flags)
 {
-	*addrs_count = 0;
+	net_addr_list addrs;
 
-	pthread_mutex_lock(&node->reconnect_lock);
+	dnet_pthread_lock_guard locker(node->reconnect_lock);
 
-	net_addr_list_ptr addrs(reinterpret_cast<dnet_addr *>(calloc(node->reconnect_num, sizeof(dnet_addr))));
-
-	if (!addrs) {
-		pthread_mutex_unlock(&node->reconnect_lock);
-		return addrs;
-	}
+	addrs.reserve(node->reconnect_num);
 
 	struct dnet_addr_storage *ast, *tmp;
 	list_for_each_entry_safe(ast, tmp, &node->reconnect_list, reconnect_entry) {
 		list_del_init(&ast->reconnect_entry);
-		addrs[(*addrs_count)++] = ast->addr;
+		addrs.push_back(ast->addr);
 
 		if (ast->__join_state == DNET_JOIN)
 			(*flags) |= DNET_CFG_JOIN_NETWORK;
@@ -1241,20 +1232,16 @@ static net_addr_list_ptr dnet_reconnect_victims(struct dnet_node *node, size_t *
 		free(ast);
 	}
 
-
-	pthread_mutex_unlock(&node->reconnect_lock);
-
 	return addrs;
 }
 
 void dnet_reconnect_and_check_route_table(dnet_node *node)
 {
 	size_t states_count = 0;
-	size_t addrs_count = 0;
 	int flags = 0;
 
 	net_state_list_ptr states = dnet_check_route_table_victims(node, &states_count);
-	net_addr_list_ptr addrs = dnet_reconnect_victims(node, &addrs_count, &flags);
+	net_addr_list addrs = dnet_reconnect_victims(node, &flags);
 
 	dnet_join_state join = DNET_WANT_RECONNECT;
 	if (node->flags & DNET_CFG_JOIN_NETWORK)
@@ -1263,10 +1250,10 @@ void dnet_reconnect_and_check_route_table(dnet_node *node)
 	const bool ask_route_list = !((node->flags | flags) & DNET_CFG_NO_ROUTE_LIST);
 
 	bool at_least_one_exist = false;
-	auto sockets = dnet_socket_create_addresses(node, addrs.get(), addrs_count, ask_route_list, join, &at_least_one_exist);
+	auto sockets = dnet_socket_create_addresses(node, &addrs[0], addrs.size(), ask_route_list, join, &at_least_one_exist);
 
 	if (sockets.empty()) {
-		addrs.reset();
+		addrs.clear();
 	}
 
 	if (states_count > 0 || !sockets.empty()) {
