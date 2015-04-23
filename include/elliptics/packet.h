@@ -1009,8 +1009,21 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 }
 
 
-/* Common record flags */
-#define DNET_RECORD_FLAGS_UNCOMMITTED	(1<<0) /* The record was prepared but hasn't been committed */
+/* eblob record flags */
+#define DNET_RECORD_FLAGS_REMOVE		(1<<0)
+#define DNET_RECORD_FLAGS_NOCSUM		(1<<1)
+#define DNET_RECORD_FLAGS_APPEND		(1<<4)
+/*
+ * This flag is set for records that are written in so-called extended format -
+ * records that have additional header before data - it's somewhat obscure and
+ * changes blob behaviour in various ways. Only user of this flag is elliptics.
+ */
+#define DNET_RECORD_FLAGS_EXTHDR		(1<<6)
+/*
+ * This flag is set for records that were prepared but haven't been commmitted yet.
+ * Such records doesn't available for read but can be committed even after restart.
+ */
+#define DNET_RECORD_FLAGS_UNCOMMITTED		(1<<7)
 
 /*
  * Iterator response

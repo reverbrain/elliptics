@@ -85,13 +85,6 @@ static int eblob_read_params_compare(const void *p1, const void *p2)
 	return 0;
 }
 
-static uint64_t eblob_convert_dctl_flags(uint64_t dctl_flags) {
-	uint64_t ret = 0;
-	if (dctl_flags & BLOB_DISK_CTL_UNCOMMITTED)
-		ret |= DNET_RECORD_FLAGS_UNCOMMITTED;
-	return ret;
-}
-
 /* Pre-callback that formats arguments and calls ictl->callback */
 static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, uint64_t data_offset, void *priv, int no_meta) {
 	struct dnet_iterator_ctl *ictl = priv;
@@ -133,7 +126,7 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 	}
 
 	err = ictl->callback(ictl->callback_private,
-	                     (struct dnet_raw_id *)&dc->key, eblob_convert_dctl_flags(dc->flags),
+	                     (struct dnet_raw_id *)&dc->key, dc->flags,
 	                     fd, data_offset, size, &elist);
 
 	dnet_ext_list_destroy(&elist);

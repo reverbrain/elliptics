@@ -71,7 +71,11 @@ enum elliptics_ioflags {
 };
 
 enum elliptics_record_flags {
-	record_flags_uncommitted	= DNET_RECORD_FLAGS_UNCOMMITTED
+	record_flags_remove		= DNET_RECORD_FLAGS_REMOVE,
+	record_flags_nocsum		= DNET_RECORD_FLAGS_NOCSUM,
+	record_flags_append		= DNET_RECORD_FLAGS_APPEND,
+	record_flags_exthdr		= DNET_RECORD_FLAGS_EXTHDR,
+	record_flags_uncommitted	= DNET_RECORD_FLAGS_UNCOMMITTED,
 };
 
 enum elliptics_exceptions_policy {
@@ -430,7 +434,15 @@ BOOST_PYTHON_MODULE(core)
 
 	bp::enum_<elliptics_record_flags>("record_flags",
 		"Bit flags which specifies state of the record at the backend\n\n"
+		"remove\n    The record is removed\n"
+		"nocsum\n    The record is written without csum\n"
+		"append\n    The record is written via append\n"
+		"exthdr\n    The record is written with extended header"
 		"uncommitted\n    The record is uncommitted so it can't be read but can be writted and committed")
+		.value("remove", record_flags_remove)
+		.value("nocsum", record_flags_nocsum)
+		.value("append", record_flags_append)
+		.value("exthdr", record_flags_exthdr)
 		.value("uncommitted", record_flags_uncommitted)
 	;
 
