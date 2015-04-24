@@ -793,8 +793,8 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 			state->node->indexes_shard_count = indexes_shard_count;
 		}
 
-		char *buffer = new(std::nothrow) char[cmd->size];
-		if (!buffer) {
+		socket->buffer.reset(new(std::nothrow) char[cmd->size]);
+		if (!socket->buffer) {
 			err = -ENOMEM;
 			dnet_log(state->node, DNET_LOG_ERROR, "%s: failed to allocate %llu bytes for reverse lookup data",
 					dnet_addr_string(&socket->addr), (unsigned long long)cmd->size);
@@ -802,8 +802,7 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 			break;
 		}
 
-		socket->buffer.reset(buffer);
-		socket->io_data = buffer;
+		socket->io_data = socket->buffer.get();
 		socket->io_size = cmd->size;
 
 		socket->state = recv_reverse_data;
