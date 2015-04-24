@@ -828,13 +828,13 @@ static void *dnet_io_process_network(void *data_)
 	struct dnet_node *n = nio->n;
 	struct dnet_net_epoll_data *data;
 	struct dnet_net_state *st;
-	struct epoll_event *evs = malloc(sizeof(struct epoll_event));
+	int evs_size = 100;
+	struct epoll_event *evs = malloc(evs_size * sizeof(struct epoll_event));
 	struct epoll_event *evs_tmp = NULL;
 	struct timespec ts;
-	int evs_size = 1;
 	int tmp = 0;
 	int err = 0;
-	int num_events;
+	int num_events = 0;
 	int i = 0;
 	struct timeval prev_tv, curr_tv;
 
@@ -851,10 +851,9 @@ static void *dnet_io_process_network(void *data_)
 	gettimeofday(&prev_tv, NULL);
 
 	while (!n->need_exit) {
-		// get current number of states
-		tmp = dnet_node_state_num(n);
-		if (evs_size < tmp) {
-			tmp *= 2; // tries to increase number of epoll_events
+		// check if epoll possibly has more events to process then evs_size
+		if (num_events >= evs_size) {
+			tmp = 2 * evs_size; // tries to increase number of epoll_events
 			evs_tmp = (struct epoll_event *)realloc(evs, sizeof(struct epoll_event) * tmp);
 			if (evs_tmp) {
 				evs = evs_tmp;
