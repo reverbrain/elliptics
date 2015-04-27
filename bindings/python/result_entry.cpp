@@ -332,6 +332,8 @@ void init_result_entry() {
 		              "Status of iterated key:\n"
 		              "0 - common key\n"
 		              "1 - keepalive response")
+		.add_property("flags", &dnet_iterator_response::flags,
+		              "Backend's flags of the record")
 	;
 
 	bp::class_<read_result_entry, bp::bases<callback_result_entry> >("ReadResultEntry")

@@ -269,7 +269,6 @@ class RemoveDirect(DirectOperation):
                 return
 
             self.stats.remove += 1
-            #self.stats.removed_bytes += self.total_size
             self.callback(True, self.stats)
         except Exception as e:
             log.error("Onremove exception: {0}, traceback: {1}"
@@ -279,12 +278,13 @@ class RemoveDirect(DirectOperation):
 
 
 class KeyInfo(object):
-    def __init__(self, address, group_id, timestamp, size, user_flags):
+    def __init__(self, address, group_id, timestamp, size, user_flags, flags):
         self.address = address
         self.group_id = group_id
         self.timestamp = timestamp
         self.size = size
         self.user_flags = user_flags
+        self.flags = flags
 
     def dump(self):
         return (
@@ -292,7 +292,8 @@ class KeyInfo(object):
             self.group_id,
             (self.timestamp.tsec, self.timestamp.tnsec),
             self.size,
-            self.user_flags)
+            self.user_flags,
+            self.flags)
 
     @classmethod
     def load(cls, data):
@@ -300,7 +301,8 @@ class KeyInfo(object):
                    data[1],
                    elliptics.Time(data[2][0], data[2][1]),
                    data[3],
-                   data[4])
+                   data[4],
+                   data[5])
 
 
 def dump_key_data(key_data, file):

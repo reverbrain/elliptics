@@ -69,7 +69,7 @@ set_target_properties(dnet_backends_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_backends_test ${TEST_LIBRARIES})
 
 
-set(PYTESTS_FLAGS "-l" "-x" "--timeout=300" "--durations=10")
+set(PYTESTS_FLAGS "-v" "-l" "-x" "--timeout=1200" "--durations=20")
 if(NOT WITH_COCAINE)
     list(APPEND PYTESTS_FLAGS "--without-cocaine")
 endif()

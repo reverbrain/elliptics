@@ -131,7 +131,8 @@ def make_session(node, test_name, test_namespace=None):
 
 @pytest.fixture(scope='session')
 def elliptics_client(request):
-    ''' Initializes client connection to elliptics.
+    '''
+    Initializes client connection to elliptics.
     Returns Session object.
     '''
     remote = request.config.option.remotes
@@ -144,7 +145,7 @@ def elliptics_client(request):
     # return client
 
 
-@pytest.fixture(scope="session")
+@pytest.yield_fixture(scope="session")
 def server(request):
     groups = [int(g) for g in request.config.option.groups.split(',')]
 
@@ -156,8 +157,6 @@ def server(request):
     request.config.option.remotes = servers.remotes
     request.config.option.monitors = servers.monitors
 
-    def fin():
-        servers.stop()
-    request.addfinalizer(fin)
+    yield servers
 
-    return servers
+    servers.stop()

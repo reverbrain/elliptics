@@ -346,7 +346,7 @@ def categories_combination():
     return list(set(combinations))
 
 
-class TestSession:
+class TestMonitor:
     def test_monitor_stat(self, server, simple_node):
         '''Simply get all statistics from all nodes and check that statistics is valid dict'''
         session = make_session(node=simple_node,
