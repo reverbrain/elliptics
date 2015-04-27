@@ -68,10 +68,6 @@ static elliptics_time iterator_response_get_timestamp(dnet_iterator_response *re
 	return elliptics_time(response->timestamp);
 }
 
-static uint64_t iterator_response_get_size(dnet_iterator_response *response) {
-	return response->size;
-}
-
 std::string read_result_get_data(read_result_entry &result)
 {
 	return result.file().to_string();
