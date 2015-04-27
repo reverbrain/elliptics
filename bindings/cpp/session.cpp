@@ -2514,15 +2514,6 @@ async_read_result session::bulk_read(const std::vector<dnet_io_attr> &ios_vector
 	return result;
 }
 
-namespace {
-bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const dnet_io_attr &io2) {
-	int cmp;
-
-	cmp = dnet_id_cmp_str(io1.id, io2.id);
-	return cmp < 0;
-}
-}
-
 async_read_result session::bulk_read(const std::vector<std::string> &keys)
 {
 	std::vector<dnet_io_attr> ios;
