@@ -396,20 +396,6 @@ void dnet_route_list_destroy(dnet_route_list *route)
 	delete route;
 }
 
-template <typename Method, typename... Args>
-static int safe_call(dnet_route_list *route, Method method, Args &&...args)
-{
-	try {
-		if (route)
-			return (route->*method)(std::forward<Args>(args)...);
-		return 0;
-	} catch (std::bad_alloc &) {
-		return -ENOMEM;
-	} catch (...) {
-		return -EINVAL;
-	}
-}
-
 int dnet_route_list_reverse_lookup(dnet_net_state *st, dnet_cmd *cmd, void *data)
 {
 	return safe_call(st->n->route, &dnet_route_list::on_reverse_lookup, st, cmd, data);
