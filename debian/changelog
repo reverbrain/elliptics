@@ -1,3 +1,9 @@
+elliptics (2.26.5.1) unstable; urgency=low
+
+  * network: fixed bug with negative route_list_count
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 28 Apr 2015 20:15:12 +0400
+
 elliptics (2.26.5.0) unstable; urgency=low
 
   * network: don't use dnet_node_state_num() to estimate number of ready events in epol

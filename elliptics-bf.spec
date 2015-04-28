@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.5.0
+Version:	2.26.5.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Apr 28 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.5.1
+- network: fixed bug with negative route_list_count
+
 * Mon Apr 27 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.5.0
 - network: don't use dnet_node_state_num() to estimate number of ready events in epol
 - pytests: added tests that checks new flag elliptics.record_flags.uncommitted:
