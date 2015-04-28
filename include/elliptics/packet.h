@@ -100,6 +100,7 @@ enum dnet_backend_command {
 	DNET_BACKEND_READ_ONLY,
 	DNET_BACKEND_WRITEABLE,
 	DNET_BACKEND_CTL,		// change internal parameters like delay
+	DNET_BACKEND_STOP_DEFRAG
 };
 
 enum dnet_backend_state {

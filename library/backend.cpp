@@ -646,6 +646,13 @@ static int dnet_cmd_backend_control_dangerous(struct dnet_net_state *st, struct 
 			err = -ENOTSUP;
 		}
 		break;
+	case DNET_BACKEND_STOP_DEFRAG:
+		if (cb.defrag_stop) {
+			err = cb.defrag_stop(cb.command_private);
+		} else {
+			err = -ENOTSUP;
+		}
+		break;
 	case DNET_BACKEND_SET_IDS:
 		err = dnet_backend_set_ids(st->n, control->backend_id, control->ids, control->ids_count);
 		break;

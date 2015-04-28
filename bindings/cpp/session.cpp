@@ -1899,6 +1899,11 @@ async_backend_control_result session::start_compact(const address &addr, uint32_
 	return update_backend_status(params);
 }
 
+async_backend_control_result session::stop_defrag(const address &addr, uint32_t backend_id)
+{
+	return update_backend_status(backend_status_params(*this, addr, backend_id, DNET_BACKEND_STOP_DEFRAG));
+}
+
 async_backend_control_result session::set_backend_ids(const address &addr, uint32_t backend_id, const std::vector<dnet_raw_id> &ids)
 {
 	backend_status_params params(*this, addr, backend_id, DNET_BACKEND_SET_IDS);
