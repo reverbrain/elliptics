@@ -197,7 +197,7 @@ struct dnet_connect_state
 	 total_count(0),
 	 finished(false)
 	{
-		atomic_set(&route_list_count, 0);
+		atomic_set(&route_request_count, 0);
 	}
 
 	~dnet_connect_state() {
@@ -209,7 +209,7 @@ struct dnet_connect_state
 			close(interruptfd);
 	}
 
-	atomic_t route_list_count;
+	atomic_t route_request_count;
 	pthread_mutex_t lock;
 	bool lock_inited;
 	dnet_node *node;
@@ -517,11 +517,11 @@ private:
 			if (cmd)
 				err = cmd->status;
 
-			atomic_dec(&m_state->route_list_count);
+			atomic_dec(&m_state->route_request_count);
 			dnet_interrupt_epoll(*m_state);
 
-			dnet_log(node, DNET_LOG_NOTICE, "Received route-list reply from state: %s, route_list_count: %lld",
-				 server_addr, atomic_read(&m_state->route_list_count));
+			dnet_log(node, DNET_LOG_NOTICE, "Received route-list reply from state: %s, route_request_count: %lld",
+				 server_addr, atomic_read(&m_state->route_request_count));
 
 			return err;
 		}
@@ -562,7 +562,6 @@ private:
 		pthread_mutex_lock(&m_state->lock);
 
 		if (!m_state->finished) {
-			atomic_inc(&m_state->route_list_count);
 			m_state->sockets_queue.insert(sockets.begin(), sockets.end());
 			added_to_queue = true;
 		}
@@ -572,10 +571,10 @@ private:
 		if (added_to_queue) {
 			dnet_interrupt_epoll(*m_state);
 
-			dnet_log(node, DNET_LOG_INFO, "Trying to connect to additional %llu states of %llu original from route_list_recv, state: %s, route_list_count: %lld",
-				 sockets_count, states_num, server_addr, atomic_read(&m_state->route_list_count));
+			dnet_log(node, DNET_LOG_INFO, "Trying to connect to additional %llu states of %llu original from route_list_recv, state: %s, route_request_count: %lld",
+				 sockets_count, states_num, server_addr, atomic_read(&m_state->route_request_count));
 		} else {
-			dnet_log(node, DNET_LOG_ERROR, "Failed to connect to additional %llu states of %llu original from route_list_recv, state: %s, state is already desotryed, adding to reconnect list",
+			dnet_log(node, DNET_LOG_ERROR, "Failed to connect to additional %llu states of %llu original from route_list_recv, state: %s, state is already destroyed, adding to reconnect list",
 				 sockets_count, states_num, server_addr);
 
 			for (auto it = sockets.cbegin(); it != sockets.cend(); ++it) {
@@ -603,9 +602,9 @@ static void dnet_request_route_list(const dnet_connect_state_ptr &state, dnet_ne
 	auto handler = new dnet_request_route_list_handler(state);
 	int err = dnet_recv_route_list(st, dnet_request_route_list_handler::complete_wrapper, handler);
 	if (!err) {
-		atomic_inc(&state->route_list_count);
-		dnet_log(state->node, DNET_LOG_NOTICE, "Sent route-list request to state: %s, route_list_count: %lld",
-			dnet_state_dump_addr(st), atomic_read(&state->route_list_count));
+		atomic_inc(&state->route_request_count);
+		dnet_log(state->node, DNET_LOG_NOTICE, "Sent route-list request to state: %s, route_request_count: %lld",
+			dnet_state_dump_addr(st), atomic_read(&state->route_request_count));
 	}
 }
 
@@ -678,10 +677,9 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 		pthread_mutex_unlock(&state->lock);
 
 		dnet_socket_connect_new_sockets(state, local_queue);
-		atomic_sub(&state->route_list_count, local_queue.size());
 
-		dnet_log(state->node, DNET_LOG_NOTICE, "Received route-list reply, count: %llu, route_list_count: %lld",
-			 local_queue.size(), atomic_read(&state->route_list_count));
+		dnet_log(state->node, DNET_LOG_NOTICE, "Received route-list reply, count: %llu, route_request_count: %lld",
+			 local_queue.size(), atomic_read(&state->route_request_count));
 
 		return;
 	}
@@ -1052,7 +1050,8 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_set &original_l
 	original_list.clear();
 
 	timeout = state->node->wait_ts.tv_sec * 1000 > 2000 ? state->node->wait_ts.tv_sec * 1000 : 2000;
-	while (state->succeed_count + state->failed_count < state->total_count || atomic_read(&state->route_list_count) > 0) {
+	while (state->succeed_count + state->failed_count < state->total_count ||
+	       atomic_read(&state->route_request_count) > 0 || !state->sockets_queue.empty()) {
 		const size_t num = 128;
 		size_t ready_num;
 		epoll_event events[num];
