@@ -453,6 +453,10 @@ public:
 		return create_result(std::move(session::start_compact(address(host, port, family), backend_id)));
 	}
 
+	python_backend_status_result stop_defrag(const std::string &host, int port, int family, uint32_t backend_id) {
+		return create_result(std::move(session::stop_defrag(address(host, port, family), backend_id)));
+	}
+
 	python_backend_status_result set_backend_ids(const std::string &host, int port, int family, uint32_t backend_id, const bp::api::object &ids) {
 		std::vector<dnet_raw_id> std_ids;
 		std_ids.reserve(bp::len(ids));
@@ -1403,6 +1407,14 @@ void init_elliptics_session() {
 		     "    Start defragmentation of heavy-fragmented blobs only at backend @backend_id at node addressed by @host, @port, @family\n"
 		     "    Returns AsyncResult which provides new status of the backend\n\n"
 		     "    new_status = session.start_compact(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]\n"
+		     "    defrag_state = new_state.defrag_state")
+
+		.def("stop_defrag", &elliptics_session::stop_defrag,
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id")),
+		     "stop_defrag(host, port, family, backend_id)\n"
+		     "    Stop defragmentation at backend @backend_id at node addressed by @host, @port, @family\n"
+		     "    Returns AsyncResult which provides new status of the backend\n\n"
+		     "    new_status = session.stop_defrag(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0).get()[0].backends[0]\n"
 		     "    defrag_state = new_state.defrag_state")
 
 		.def("set_backend_ids", &elliptics_session::set_backend_ids,
