@@ -785,6 +785,13 @@ int blob_defrag_start(void *priv, enum dnet_backend_defrag_level level)
 	return err;
 }
 
+int blob_defrag_stop(void *priv)
+{
+	struct eblob_backend_config *c = priv;
+
+	return eblob_stop_defrag(c->eblob);
+}
+
 static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
 	FORMATTED(HANDY_TIMER_SCOPE, ("eblob_backend.cmd.%s", dnet_cmd_string(cmd->cmd)));
@@ -1118,6 +1125,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b)
 	b->cb.iterator = dnet_eblob_iterator;
 
 	b->cb.defrag_start = blob_defrag_start;
+	b->cb.defrag_stop = blob_defrag_stop;
 	b->cb.defrag_status = blob_defrag_status;
 
 	return 0;
