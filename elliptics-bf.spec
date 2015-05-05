@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.5.1
+Version:	2.26.5.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed May 06 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.5.2
+- package: depend on 0.22.22+ eblob which brings defrag stop command
+- network: fixed bug with when total_count < failed_count in dnet_socket_connect_new_sockets()
+- dnet_client, ioclient: added stop_defrag command
+
 * Tue Apr 28 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.5.1
 - network: fixed bug with negative route_list_count
 

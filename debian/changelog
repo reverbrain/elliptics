@@ -1,3 +1,11 @@
+elliptics (2.26.5.2) unstable; urgency=low
+
+  * package: depend on 0.22.22+ eblob which brings defrag stop command
+  * network: fixed bug with when total_count < failed_count in dnet_socket_connect_new_sockets()
+  * dnet_client, ioclient: added stop_defrag command
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 06 May 2015 00:46:45 +0400
+
 elliptics (2.26.5.1) unstable; urgency=low
 
   * network: fixed bug with negative route_list_count
