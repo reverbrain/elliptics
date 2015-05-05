@@ -212,31 +212,78 @@ static void dnet_idc_remove_nolock(struct dnet_idc *idc)
 
 	qsort(g->ids,  g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
 
-	list_del(&idc->state_entry);
+	if (idc->state_entry.rb_parent_color) {
+		rb_erase(&idc->state_entry, &idc->st->idc_root);
+		idc->state_entry.rb_parent_color = 0;
+	}
 	list_del(&idc->group_entry);
 	dnet_group_put(g);
 	free(idc);
 }
 
+struct dnet_idc *dnet_idc_search_backend(struct dnet_net_state *st, int backend_id)
+{
+	struct rb_root *root = &st->idc_root;
+	struct rb_node *n = root->rb_node;
+	struct dnet_idc *idc;
+
+	while (n) {
+		idc = rb_entry(n, struct dnet_idc, state_entry);
+
+		if (idc->backend_id < backend_id)
+			n = n->rb_left;
+		else if (idc->backend_id > backend_id)
+			n = n->rb_right;
+		else
+			return idc;
+	}
+
+	return NULL;
+}
+
+int dnet_idc_insert(struct dnet_net_state *st, struct dnet_idc *idc_new)
+{
+	struct rb_root *root = &st->idc_root;
+	struct rb_node **n = &root->rb_node, *parent = NULL;
+	struct dnet_idc *idc;
+
+	while (*n) {
+		parent = *n;
+
+		idc = rb_entry(parent, struct dnet_idc, state_entry);
+
+		if (idc->backend_id < idc_new->backend_id)
+			n = &parent->rb_left;
+		else if (idc->backend_id > idc_new->backend_id)
+			n = &parent->rb_right;
+		else
+			return -EEXIST;
+	}
+
+	rb_link_node(&idc_new->state_entry, parent, n);
+	rb_insert_color(&idc_new->state_entry, root);
+	return 0;
+}
+
 void dnet_idc_remove_backend_nolock(struct dnet_net_state *st, int backend_id)
 {
-	struct dnet_idc *idc, *tmp;
-
-	list_for_each_entry_safe(idc, tmp, &st->idc_list, state_entry) {
-		if (idc->backend_id == backend_id) {
-			dnet_idc_remove_nolock(idc);
-		}
+	struct dnet_idc *idc = dnet_idc_search_backend(st, backend_id);
+	if (idc) {
+		dnet_idc_remove_nolock(idc);
 	}
 }
 
 static void dnet_idc_remove_all(struct dnet_net_state *st)
 {
 	struct dnet_idc *idc;
-	struct dnet_idc *tmp;
+	struct rb_node *rb_node, *next;
 
-	list_for_each_entry_safe(idc, tmp, &st->idc_list, state_entry) {
+	for (rb_node = rb_first(&st->idc_root); rb_node != NULL; rb_node = next) {
+		idc = rb_entry(rb_node, struct dnet_idc, state_entry);
+
+		next = rb_next(rb_node);
 		dnet_idc_remove_nolock(idc);
-	}
+        }
 }
 
 int dnet_state_set_server_prio(struct dnet_net_state *st)
@@ -296,7 +343,6 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	memset(idc, 0, sizeof(struct dnet_idc));
 
 	INIT_LIST_HEAD(&idc->group_entry);
-	INIT_LIST_HEAD(&idc->state_entry);
 
 	for (i=0; i<id_num; ++i) {
 		struct dnet_state_id *sid = &idc->ids[i];
@@ -346,7 +392,7 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	idc->group = g;
 	idc->backend_id = backend->backend_id;
 
-	list_add_tail(&idc->state_entry, &st->idc_list);
+	dnet_idc_insert(st, idc);
 	list_add_tail(&idc->group_entry, &g->idc_list);
 
 	if (dnet_log_enabled(n->log, DNET_LOG_DEBUG)) {

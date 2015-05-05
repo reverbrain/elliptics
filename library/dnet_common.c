@@ -514,6 +514,7 @@ int dnet_send_cmd(struct dnet_session *s,
 	struct dnet_net_state *st;
 	struct dnet_idc *idc;
 	int num = 0, i, found_group;
+	struct rb_node *it;
 	struct dnet_group *g;
 	struct dnet_trans_control ctl;
 
@@ -575,7 +576,9 @@ int dnet_send_cmd(struct dnet_session *s,
 			if (st == n->st)
 				continue;
 
-			list_for_each_entry(idc, &st->idc_list, state_entry) {
+			for (it = rb_first(&st->idc_root); it; it = rb_next(it)) {
+				idc = rb_entry(it, struct dnet_idc, state_entry);
+
 				g = idc->group;
 
 				found_group = 0;
@@ -886,6 +889,7 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries) {
 	struct dnet_idc *idc;
 	struct dnet_route_entry *tmp_entries;
 	struct dnet_route_entry *entry;
+	struct rb_node *it;
 	int size = 0, count = 0, err = 0;
 	int i;
 
@@ -893,7 +897,8 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries) {
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(st, &n->dht_state_list, node_entry) {
-		list_for_each_entry(idc, &st->idc_list, state_entry) {
+		for (it = rb_first(&st->idc_root); it; it = rb_next(it)) {
+			idc = rb_entry(it, struct dnet_idc, state_entry);
 
 			size += idc->id_num;
 

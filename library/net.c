@@ -948,7 +948,7 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 
 	INIT_LIST_HEAD(&st->node_entry);
 	INIT_LIST_HEAD(&st->storage_state_entry);
-	INIT_LIST_HEAD(&st->idc_list);
+	st->idc_root = RB_ROOT;
 
 	st->trans_root = RB_ROOT;
 	st->timer_root = RB_ROOT;

@@ -158,8 +158,8 @@ struct dnet_net_state
 	struct list_head	node_entry;
 	// To store at node::storage_state_list (List of all network-active states, used for unsheduling process)
 	struct list_head	storage_state_entry;
-	// To store list of all idc connected with this state
-	struct list_head	idc_list;
+	// Mapping backend_id -> struct dnet_idc
+	struct rb_root		idc_root;
 
 	struct dnet_node	*n;
 
@@ -233,7 +233,7 @@ struct dnet_state_id {
 };
 
 struct dnet_idc {
-	struct list_head	state_entry;
+	struct rb_node		state_entry;
 	struct list_head	group_entry;
 	struct dnet_net_state	*st;
 	int			backend_id;
@@ -242,6 +242,8 @@ struct dnet_idc {
 	struct dnet_state_id	ids[];
 };
 
+struct dnet_idc *dnet_idc_search_backend(struct dnet_net_state *st, int backend_id);
+int dnet_idc_insert(struct dnet_net_state *st, struct dnet_idc *idc);
 void dnet_idc_remove_backend_nolock(struct dnet_net_state *st, int backend_id);
 int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *ids);
 void dnet_idc_destroy_nolock(struct dnet_net_state *st);
