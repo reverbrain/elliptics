@@ -615,6 +615,8 @@ static void dnet_request_route_list(const dnet_connect_state_ptr &state, dnet_ne
  */
 static void dnet_socket_connect_new_sockets(const dnet_connect_state_ptr &state, dnet_addr_socket_set &list)
 {
+	state->total_count += list.size();
+
 	for (auto it = list.begin(); it != list.end(); ++it) {
 		const dnet_addr_socket_ptr &socket = *it;
 
@@ -650,7 +652,6 @@ static void dnet_socket_connect_new_sockets(const dnet_connect_state_ptr &state,
 
 		if (dnet_epoll_ctl(state, socket.get(), EPOLL_CTL_ADD, EPOLLOUT)) {
 			state->sockets_connected.insert(socket);
-			++state->total_count;
 		}
 	}
 }

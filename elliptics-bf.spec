@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.5.1
+Version:	2.26.5.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:	python-devel
 BuildRequires:	libcocaine-core2-devel >= 0.11.2.0
 BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
-BuildRequires:	eblob-devel >= 0.22.21
+BuildRequires:	eblob-devel >= 0.22.22
 BuildRequires:  libblackhole-devel >= 0.2.3-1
 BuildRequires:	libev-devel libtool-ltdl-devel
 BuildRequires:	cmake msgpack-devel python-msgpack
@@ -143,6 +143,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed May 06 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.5.2
+- package: depend on 0.22.22+ eblob which brings defrag stop command
+- network: fixed bug with when total_count < failed_count in dnet_socket_connect_new_sockets()
+- dnet_client, ioclient: added stop_defrag command
+
 * Tue Apr 28 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.5.1
 - network: fixed bug with negative route_list_count
 
