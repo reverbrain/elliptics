@@ -39,7 +39,6 @@ void dump_states_stats(rapidjson::Value &stat, struct dnet_node *n, rapidjson::D
 		state_value.AddMember("send_queue_size", atomic_read(&st->send_queue_size), allocator)
 		           .AddMember("la", st->la, allocator)
 		           .AddMember("free", (uint64_t)st->free, allocator)
-		           .AddMember("weight", st->weight, allocator)
 		           .AddMember("stall", st->stall, allocator)
 		           .AddMember("join_state", st->__join_state, allocator);
 

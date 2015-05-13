@@ -215,11 +215,9 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
 {
 	struct dnet_trans *t;
 
-	t = malloc(sizeof(struct dnet_trans) + size);
+	t = calloc(1, sizeof(struct dnet_trans) + size);
 	if (!t)
 		goto err_out_exit;
-
-	memset(t, 0, sizeof(struct dnet_trans) + size);
 
 	t->alloc_size = size;
 	t->n = n;
@@ -274,8 +272,10 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 		if (t->cmd.status != -ETIMEDOUT) {
 			if (st->stall) {
-				dnet_log(st->n, DNET_LOG_INFO, "%s: reseting state stall counter: weight: %f",
-						dnet_state_dump_addr(st), st->weight);
+				double backend_weight = 0.;
+				dnet_get_backend_weight(t->st, t->cmd.backend_id, &backend_weight);
+				dnet_log(st->n, DNET_LOG_INFO, "%s: reseting state stall counter: weight: %f, backend_id: %d",
+					 dnet_state_dump_addr(st), backend_weight, t->cmd.backend_id);
 			}
 
 			st->stall = 0;
@@ -289,12 +289,16 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			struct dnet_io_attr *local_io = (struct dnet_io_attr *)(local_cmd + 1);
 			struct timeval io_tv;
 			char time_str[64];
-			double old_weight = st->weight;
+			double old_backend_weight = 0.;
+			double new_backend_weight = 0.;
 
 			if (st && (t->cmd.status == 0) && !(local_io->flags & DNET_IO_FLAGS_CACHE) && local_io->size) {
-				double norm = (double)diff / (double)local_io->size;
-
-				st->weight = 1.0 / ((1.0 / st->weight + norm) / 2.0);
+				const int err = dnet_get_backend_weight(st, t->cmd.backend_id, &old_backend_weight);
+				if (!err) {
+					const double norm = (double)diff / (double)local_io->size;
+					new_backend_weight = 1.0 / ((1.0 / old_backend_weight + norm) / 2.0);
+					dnet_set_backend_weight( st, t->cmd.backend_id, new_backend_weight );
+				}
 			}
 
 			io_tv.tv_sec = local_io->timestamp.tsec;
@@ -309,7 +313,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 				(unsigned long long)local_io->offset, (unsigned long long)local_io->size, (unsigned long long)local_io->total_size,
 				(unsigned long long)local_io->user_flags,
 				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec,
-				old_weight, st->weight);
+				old_backend_weight, new_backend_weight);
 		}
 
 		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s/%d, stall: %d, "
@@ -382,6 +386,7 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	struct dnet_node *n = st->n;
 	struct dnet_cmd *cmd;
 	struct dnet_trans *t;
+	double backend_weight = 0.;
 	int err;
 
 	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) + ctl->size);
@@ -404,6 +409,8 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	t->command = cmd->cmd;
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
+	dnet_get_backend_weight(st, cmd->backend_id, &backend_weight);
+
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
 	if (ctl->size && ctl->data)
@@ -419,11 +426,14 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	req.hsize = sizeof(struct dnet_cmd) + ctl->size;
 	req.fd = -1;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send %s trans: %llu -> %s, weight: %f.",
+	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send %s trans: %llu -> %s, weight: %f, backend_id: %d",
 			dnet_dump_id(&cmd->id),
 			dnet_cmd_string(ctl->cmd),
 			(unsigned long long)t->trans,
-			dnet_addr_string(&t->st->addr), t->st->weight);
+			dnet_addr_string(&t->st->addr),
+			backend_weight,
+			cmd->backend_id
+		);
 
 	err = dnet_trans_send(t, &req);
 	if (err)
@@ -485,6 +495,29 @@ void dnet_trans_clean_list(struct list_head *head, int error)
 		}
 
 		dnet_trans_put(t);
+	}
+}
+
+void dnet_update_stall_backend_weights(struct list_head *stall_transactions)
+{
+	struct dnet_trans *t, *tmp;
+	struct dnet_net_state *st;
+	double old_weight, new_weight;
+
+	list_for_each_entry_safe(t, tmp, stall_transactions, trans_list_entry) {
+		st = t->st;
+
+		const int err = dnet_get_backend_weight(st, t->cmd.backend_id, &old_weight);
+		if (!err) {
+			new_weight = old_weight;
+			if (old_weight >= 2.) {
+				new_weight = old_weight / 10.;
+				dnet_set_backend_weight( st, t->cmd.backend_id, new_weight );
+			}
+
+			dnet_log(st->n, DNET_LOG_INFO, "%s: TIMEOUT: update backend weight: backend_id: %d, weight: %f -> %f",
+				 dnet_state_dump_addr(st), t->cmd.backend_id, old_weight, new_weight);
+		}
 	}
 }
 
@@ -632,11 +665,8 @@ static int dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *h
 	if (trans_timeout) {
 		st->stall++;
 
-		if (st->weight >= 2)
-			st->weight /= 10;
-
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%lu, weight: %f",
-				dnet_state_dump_addr(st), trans_timeout, st->stall, st->n->stall_count, st->weight);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%lu",
+				dnet_state_dump_addr(st), trans_timeout, st->stall, st->n->stall_count);
 
 		if (st->stall >= st->n->stall_count && st != st->n->st)
 			is_stall_state = 1;
@@ -679,6 +709,8 @@ static void dnet_check_all_states(struct dnet_node *n)
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
+
+	dnet_update_stall_backend_weights(&head);
 
 	for (i = 0; i < num_stall_state; ++i) {
 		st = stall_states[i];

@@ -160,6 +160,7 @@ struct dnet_net_state
 	struct list_head	storage_state_entry;
 	// Mapping backend_id -> struct dnet_idc
 	struct rb_root		idc_root;
+	pthread_rwlock_t        idc_lock;
 
 	struct dnet_node	*n;
 
@@ -209,7 +210,6 @@ struct dnet_net_state
 
 	int			la;
 	unsigned long long	free;
-	double			weight;
 
 	struct dnet_stat_count	stat[__DNET_CMD_MAX];
 
@@ -237,12 +237,12 @@ struct dnet_idc {
 	struct list_head	group_entry;
 	struct dnet_net_state	*st;
 	int			backend_id;
+	double			weight;
 	struct dnet_group	*group;
 	int			id_num;
 	struct dnet_state_id	ids[];
 };
 
-struct dnet_idc *dnet_idc_search_backend(struct dnet_net_state *st, int backend_id);
 int dnet_idc_insert(struct dnet_net_state *st, struct dnet_idc *idc);
 void dnet_idc_remove_backend_nolock(struct dnet_net_state *st, int backend_id);
 int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *ids);
@@ -264,6 +264,8 @@ void dnet_state_remove_nolock(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, const struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, const struct dnet_id *id);
 ssize_t dnet_state_search_backend(struct dnet_node *n, const struct dnet_id *id);
+int dnet_get_backend_weight(struct dnet_net_state *st, int backend_id, double *weight);
+void dnet_set_backend_weight(struct dnet_net_state *st, int backend_id, double weight);
 struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, const struct dnet_id *id, int *backend_id);
 struct dnet_net_state *dnet_node_state(struct dnet_node *n);
 

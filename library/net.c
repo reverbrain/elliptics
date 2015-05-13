@@ -944,11 +944,16 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 	st->n = n;
 
 	st->la = 1;
-	st->weight = DNET_STATE_DEFAULT_WEIGHT;
 
 	INIT_LIST_HEAD(&st->node_entry);
 	INIT_LIST_HEAD(&st->storage_state_entry);
 	st->idc_root = RB_ROOT;
+	err = pthread_rwlock_init(&st->idc_lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_log_err(n, "Failed to initialize idc_lock lock: err: %d", err);
+		goto err_out;
+	}
 
 	st->trans_root = RB_ROOT;
 	st->timer_root = RB_ROOT;
@@ -1246,6 +1251,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 
 	dnet_state_send_clean(st);
 
+	pthread_rwlock_destroy(&st->idc_lock);
 	pthread_mutex_destroy(&st->send_lock);
 	pthread_mutex_destroy(&st->trans_lock);
 

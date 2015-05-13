@@ -221,7 +221,7 @@ static void dnet_idc_remove_nolock(struct dnet_idc *idc)
 	free(idc);
 }
 
-struct dnet_idc *dnet_idc_search_backend(struct dnet_net_state *st, int backend_id)
+static struct dnet_idc *dnet_idc_search_backend_nolock(struct dnet_net_state *st, int backend_id)
 {
 	struct rb_root *root = &st->idc_root;
 	struct rb_node *n = root->rb_node;
@@ -267,9 +267,11 @@ int dnet_idc_insert(struct dnet_net_state *st, struct dnet_idc *idc_new)
 
 void dnet_idc_remove_backend_nolock(struct dnet_net_state *st, int backend_id)
 {
-	struct dnet_idc *idc = dnet_idc_search_backend(st, backend_id);
+	struct dnet_idc *idc = dnet_idc_search_backend_nolock(st, backend_id);
 	if (idc) {
+		pthread_rwlock_wrlock(&st->idc_lock);
 		dnet_idc_remove_nolock(idc);
+		pthread_rwlock_unlock(&st->idc_lock);
 	}
 }
 
@@ -278,12 +280,14 @@ static void dnet_idc_remove_all(struct dnet_net_state *st)
 	struct dnet_idc *idc;
 	struct rb_node *rb_node, *next;
 
+	pthread_rwlock_wrlock(&st->idc_lock);
 	for (rb_node = rb_first(&st->idc_root); rb_node != NULL; rb_node = next) {
 		idc = rb_entry(rb_node, struct dnet_idc, state_entry);
 
 		next = rb_next(rb_node);
 		dnet_idc_remove_nolock(idc);
-        }
+	}
+	pthread_rwlock_unlock(&st->idc_lock);
 }
 
 int dnet_state_set_server_prio(struct dnet_net_state *st)
@@ -391,8 +395,11 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	idc->st = st;
 	idc->group = g;
 	idc->backend_id = backend->backend_id;
+	idc->weight = DNET_STATE_DEFAULT_WEIGHT;
 
+	pthread_rwlock_wrlock(&st->idc_lock);
 	dnet_idc_insert(st, idc);
+	pthread_rwlock_unlock(&st->idc_lock);
 	list_add_tail(&idc->group_entry, &g->idc_list);
 
 	if (dnet_log_enabled(n->log, DNET_LOG_DEBUG)) {
@@ -591,6 +598,34 @@ ssize_t dnet_state_search_backend(struct dnet_node *n, const struct dnet_id *id)
 	pthread_mutex_unlock(&n->state_lock);
 
 	return backend_id;
+}
+
+int dnet_get_backend_weight(struct dnet_net_state *st, int backend_id, double *weight)
+{
+	struct dnet_idc *idc;
+	int err = -ENOENT;
+
+	pthread_rwlock_rdlock(&st->idc_lock);
+	idc = dnet_idc_search_backend_nolock(st, backend_id);
+	if (idc) {
+		err = 0;
+		*weight = idc->weight;
+	}
+	pthread_rwlock_unlock(&st->idc_lock);
+
+	return err;
+}
+
+void dnet_set_backend_weight(struct dnet_net_state *st, int backend_id, double weight)
+{
+	struct dnet_idc *idc;
+
+	pthread_rwlock_rdlock(&st->idc_lock);
+	idc = dnet_idc_search_backend_nolock(st, backend_id);
+	if (idc) {
+		idc->weight = weight;
+	}
+	pthread_rwlock_unlock(&st->idc_lock);
 }
 
 struct dnet_net_state *dnet_state_get_first_with_backend(struct dnet_node *n, const struct dnet_id *id, int *backend_id)
