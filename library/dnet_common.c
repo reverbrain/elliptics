@@ -401,14 +401,14 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	request_addr = dnet_state_addr(t->st);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: %s, size: %llu, offset: %llu, "
-			"fd: %d, local_offset: %llu -> %s weight: %f, backend_id: %d, wait-ts: %ld, ioflags: %s",
+			"fd: %d, local_offset: %llu -> %s/%d weight: %f, wait-ts: %ld, ioflags: %s",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
 			dnet_cmd_string(ctl->cmd), dnet_flags_dump_cflags(cmd->flags),
 			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
 			ctl->fd,
 			(unsigned long long)ctl->local_offset,
-		        dnet_addr_string(&t->st->addr), backend_weight, cmd->backend_id,
+		        dnet_addr_string(&t->st->addr), cmd->backend_id, backend_weight,
 			t->wait_ts.tv_sec,
 			dnet_flags_dump_ioflags(ctl->io.flags));
 
