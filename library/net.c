@@ -951,7 +951,7 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 	err = pthread_rwlock_init(&st->idc_lock, NULL);
 	if (err) {
 		err = -err;
-		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize idc_lock lock: err: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize idc mutex: err: %d", err);
 		goto err_out;
 	}
 
@@ -964,7 +964,7 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 	if (err) {
 		err = -err;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize transaction mutex: %d", err);
-		goto err_out;
+		goto err_out_idc_destroy;
 	}
 
 	INIT_LIST_HEAD(&st->send_list);
@@ -996,6 +996,8 @@ err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
 err_out_trans_destroy:
 	pthread_mutex_destroy(&st->trans_lock);
+err_out_idc_destroy:
+	pthread_rwlock_destroy(&st->idc_lock);
 err_out:
 	return err;
 }
@@ -1052,11 +1054,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		}
 	}
 
-	st = malloc(sizeof(struct dnet_net_state));
+	st = calloc(1, sizeof(struct dnet_net_state));
 	if (!st)
 		goto err_out_close;
-
-	memset(st, 0, sizeof(struct dnet_net_state));
 
 	st->idx = idx;
 

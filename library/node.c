@@ -362,7 +362,7 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 
 		err = dnet_group_insert_nolock(n, g);
 		if (err)
-			goto err_out_unlock;
+			goto err_out_unlock_put;
 	}
 
 	dnet_idc_remove_backend_nolock(st, backend->backend_id);
