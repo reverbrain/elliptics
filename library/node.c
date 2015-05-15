@@ -239,7 +239,7 @@ static struct dnet_idc *dnet_idc_search_backend_nolock(struct dnet_net_state *st
 	return NULL;
 }
 
-int dnet_idc_insert(struct dnet_net_state *st, struct dnet_idc *idc_new)
+int dnet_idc_insert_nolock(struct dnet_net_state *st, struct dnet_idc *idc_new)
 {
 	struct rb_root *root = &st->idc_root;
 	struct rb_node **n = &root->rb_node, *parent = NULL;
@@ -396,7 +396,7 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	idc->weight = DNET_STATE_DEFAULT_WEIGHT;
 
 	pthread_rwlock_wrlock(&st->idc_lock);
-	dnet_idc_insert(st, idc);
+	dnet_idc_insert_nolock(st, idc);
 	pthread_rwlock_unlock(&st->idc_lock);
 	list_add_tail(&idc->group_entry, &g->idc_list);
 
