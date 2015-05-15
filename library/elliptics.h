@@ -160,6 +160,7 @@ struct dnet_net_state
 	struct list_head	storage_state_entry;
 	// Mapping backend_id -> struct dnet_idc
 	struct rb_root		idc_root;
+	// idc_lock is guard of idc_root structure, not values of idc_root items
 	pthread_rwlock_t        idc_lock;
 
 	struct dnet_node	*n;
@@ -232,6 +233,7 @@ struct dnet_state_id {
 	struct dnet_idc		*idc;
 };
 
+/* container of dnet_state_id */
 struct dnet_idc {
 	struct rb_node		state_entry;
 	struct list_head	group_entry;
