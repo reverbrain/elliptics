@@ -468,13 +468,11 @@ struct dnet_wait *dnet_wait_alloc(int cond)
 	int err;
 	struct dnet_wait *w;
 
-	w = malloc(sizeof(struct dnet_wait));
+	w = calloc(1, sizeof(struct dnet_wait));
 	if (!w) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-
-	memset(w, 0, sizeof(struct dnet_wait));
 
 	err = pthread_cond_init(&w->wait, NULL);
 	if (err)

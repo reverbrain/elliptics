@@ -90,14 +90,12 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	}
 
 	total_size = sizeof(struct dnet_addr_cmd) + states_num * n->addr_num * sizeof(struct dnet_addr);
-	acmd = malloc(total_size);
+	acmd = calloc(1, total_size);
 
 	if (!acmd) {
 		pthread_mutex_unlock(&n->state_lock);
 		return -ENOMEM;
 	}
-
-	memset(acmd, 0, total_size);
 
 //	cmd = &acmd->cmd;
 	acmd->cnt.addr_num = states_num * n->addr_num;
@@ -286,11 +284,9 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsign
 	void *data;
 	int err;
 
-	c = malloc(sizeof(struct dnet_cmd) + size);
+	c = calloc(1, sizeof(struct dnet_cmd) + size);
 	if (!c)
 		return -ENOMEM;
-
-	memset(c, 0, sizeof(struct dnet_cmd) + size);
 
 	data = c + 1;
 	*c = *cmd;
@@ -1158,13 +1154,11 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	gettimeofday(&start_tv, NULL);
 
-	c = malloc(hsize);
+	c = calloc(1, hsize);
 	if (!c) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-
-	memset(c, 0, hsize);
 
 	rio = (struct dnet_io_attr *)(c + 1);
 

@@ -310,11 +310,10 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64
 		total_size += it->ids.size() * sizeof(dnet_raw_id);
 	}
 
-	void *buffer = std::malloc(total_size);
+	void *buffer = std::calloc(1, total_size);
 	if (!buffer)
 		return -ENOMEM;
 	std::unique_ptr<void, free_destroyer> buffer_guard(buffer);
-	memset(buffer, 0, total_size);
 
 	dnet_cmd *cmd = reinterpret_cast<dnet_cmd *>(buffer);
 	cmd->id = *id;

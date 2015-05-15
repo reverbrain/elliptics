@@ -167,7 +167,7 @@ int dnet_notify_init(struct dnet_node *n)
 		err = pthread_rwlock_init(&b->notify_lock, NULL);
 		if (err) {
 			err = -err;
-			dnet_log_err(n, "Failed to initialize %d'th bucket lock: err: %d", i, err);
+			dnet_log(n, DNET_LOG_ERROR, "Failed to initialize %d'th bucket lock: err: %d", i, err);
 			goto err_out_free;
 		}
 	}

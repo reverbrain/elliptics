@@ -951,7 +951,7 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 	err = pthread_rwlock_init(&st->idc_lock, NULL);
 	if (err) {
 		err = -err;
-		dnet_log_err(n, "Failed to initialize idc_lock lock: err: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize idc_lock lock: err: %d", err);
 		goto err_out;
 	}
 
@@ -963,7 +963,7 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 	err = pthread_mutex_init(&st->trans_lock, NULL);
 	if (err) {
 		err = -err;
-		dnet_log_err(n, "Failed to initialize transaction mutex: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize transaction mutex: %d", err);
 		goto err_out;
 	}
 
@@ -971,14 +971,14 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 	err = pthread_mutex_init(&st->send_lock, NULL);
 	if (err) {
 		err = -err;
-		dnet_log_err(n, "Failed to initialize send mutex: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize send mutex: %d", err);
 		goto err_out_trans_destroy;
 	}
 
 	err = pthread_cond_init(&st->send_wait, NULL);
 	if (err) {
 		err = -err;
-		dnet_log_err(n, "Failed to initialize send cond: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize send cond: %d", err);
 		goto err_out_send_destroy;
 	}
 

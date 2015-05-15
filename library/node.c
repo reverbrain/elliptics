@@ -34,12 +34,10 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	struct dnet_node *n;
 	int err;
 
-	n = malloc(sizeof(struct dnet_node));
+	n = calloc(1, sizeof(struct dnet_node));
 	if (!n) {
 		goto err_out_free;
 	}
-
-	memset(n, 0, sizeof(struct dnet_node));
 
 	atomic_init(&n->trans, 0);
 
@@ -49,7 +47,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	err = pthread_mutex_init(&n->state_lock, NULL);
 	if (err) {
-		dnet_log_err(n, "Failed to initialize state lock: err: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize state lock: err: %d", err);
 		goto err_out_free;
 	}
 
@@ -68,14 +66,14 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	err = pthread_mutex_init(&n->reconnect_lock, NULL);
 	if (err) {
 		err = -err;
-		dnet_log_err(n, "Failed to initialize reconnection lock: err: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize reconnection lock: err: %d", err);
 		goto err_out_destroy_counter;
 	}
 
 	err = pthread_attr_init(&n->attr);
 	if (err) {
 		err = -err;
-		dnet_log_err(n, "Failed to initialize pthread attributes: err: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize pthread attributes: err: %d", err);
 		goto err_out_destroy_reconnect_lock;
 	}
 	pthread_attr_setdetachstate(&n->attr, PTHREAD_CREATE_DETACHED);
