@@ -239,6 +239,7 @@ struct start_nodes_config {
 	bool fork;
 	bool monitor;
 	bool isolated;
+	int client_node_flags;
 
 	start_nodes_config(std::ostream &debug_stream, const std::vector<server_config> &&configs, const std::string &path);
 };
