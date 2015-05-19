@@ -123,7 +123,16 @@ def main(options, args):
 
     try:
         ctx.log_file = os.path.join(ctx.tmp_dir, options.elliptics_log)
-        ctx.log_level = int(options.elliptics_log_level)
+        try:
+            ctx.log_level = int(options.elliptics_log_level)
+        except:
+            ctx.log_level = options.elliptics_log_level
+
+        if isinstance(ctx.log_level, int):
+            ctx.log_level = elliptics.log_level.values[ctx.log_level]
+        else:
+            ctx.log_level = elliptics.log_level.names[ctx.log_level]
+
         ctx.dump_keys = options.dump_keys
         if options.debug:
             ch.setLevel(logging.DEBUG)
