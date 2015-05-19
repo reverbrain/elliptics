@@ -55,6 +55,25 @@ def cleanup(path):
                 os.unlink(file_name)
 
 
+def get_routes(ctx):
+    log.debug('Requesting routes')
+
+    log.debug("Creating logger")
+    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+
+    log.debug("Creating node")
+    node = elliptics_create_node(address=ctx.address,
+                                 elog=elog,
+                                 wait_timeout=ctx.wait_timeout,
+                                 remotes=ctx.remotes)
+
+    log.debug("Creating session for: {0}".format(ctx.address))
+    session = elliptics_create_session(node=node, group=0)
+
+    log.debug("Parsing routing table")
+    return RouteList.from_session(session)
+
+
 # @profile
 def main(options, args):
     if len(args) > 1:
@@ -259,22 +278,7 @@ def main(options, args):
 
     log.debug("Using following context:\n{0}".format(ctx))
 
-    log.debug("Setting up elliptics client")
-
-    log.debug("Creating logger")
-    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
-
-    log.debug("Creating node")
-    node = elliptics_create_node(address=ctx.address,
-                                 elog=elog,
-                                 wait_timeout=ctx.wait_timeout,
-                                 remotes=ctx.remotes)
-
-    log.debug("Creating session for: {0}".format(ctx.address))
-    session = elliptics_create_session(node=node, group=0)
-
-    log.debug("Parsing routing table")
-    ctx.routes = RouteList.from_session(session)
+    ctx.routes = get_routes(ctx)
     log.debug("Parsed routing table:\n{0}".format(ctx.routes))
     if not ctx.routes:
         raise RuntimeError("No routes was parsed from session")
