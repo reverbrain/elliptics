@@ -71,19 +71,32 @@ static void configure_nodes(const std::string &path)
 	global_data = start_nodes(start_config);
 }
 
-static void set_backends_delay_for_group(session &sess, int group)
+static void set_backends_delay_for_group(session &sess, int group, int delay)
 {
 	for (size_t i = 0; i < nodes_count; ++i) {
 		for (size_t j = 0; j < backends_count; ++j) {
 			const size_t node_id = (group - 1) * nodes_count + i;
 			const server_node &node = global_data->nodes[node_id];
-			sess.set_delay(node.remote(), j, backend_delay);
+			sess.set_delay(node.remote(), j, delay);
 		}
 	}
 }
 
+// Writing of keys to all groups updates backend weights for every backend they
+// were written. Writes to slow backend leads to significant reduction of this
+// backend weigth comparing to faster ones.
+// read_data() uses backend weights to choose fastest group via dnet_mix_states().
+//
+// Following test checks this mechanics by reading of previously written keys and
+// checking read distribution among backends. Slow backend simulated by setting artificial delay.
+// Expected outcome should be that reads would be rarely sent to that slow backend.
+//
+// We define "rarely" as no more than 1% of total reads. This value was empirically found.
 static void test_backend_weights(session &sess)
 {
+	// set backends delay to simulate slow backends i/o behaviour for particular group
+	set_backends_delay_for_group(sess, slow_group_id, backend_delay);
+
 	const int num_keys = 10;
 	for (int i = 0; i < num_keys; ++i) {
 		const key id = std::string("key_") + std::to_string(static_cast<long long>(i));
@@ -112,14 +125,14 @@ static void test_backend_weights(session &sess)
 			      "Too much reads from slow group (it means that backend weights are not working or backend hardware is extremely slow): "
 			      "num_slow_group_reads: " + std::to_string(static_cast<long long>(num_slow_group_reads)) +
 			      ", max_reads_from_slow_group: " + std::to_string(static_cast<long long>(max_reads_from_slow_group)));
+
+	set_backends_delay_for_group(sess, slow_group_id, 0);
 }
 
 
 bool register_tests(test_suite *suite, node n)
 {
-	auto sess = create_session(n, { 1, 2, 3 }, 0, 0);
-	set_backends_delay_for_group(sess, slow_group_id);
-	ELLIPTICS_TEST_CASE(test_backend_weights, sess);
+	ELLIPTICS_TEST_CASE(test_backend_weights, create_session(n, { 1, 2, 3 }, 0, 0));
 
 	return true;
 }
