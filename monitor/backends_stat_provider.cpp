@@ -166,6 +166,7 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 			                        allocator);
 		}
 		free(json_stat);
+		config.cleanup(&config);
 	} else {
 		rapidjson::Value config_value(rapidjson::kObjectType);
 		for (auto it = config_backend.options.begin(); it != config_backend.options.end(); ++it) {
