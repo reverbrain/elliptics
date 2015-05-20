@@ -988,7 +988,9 @@ static void eblob_backend_cleanup(void *priv)
 {
 	struct eblob_backend_config *c = priv;
 
-	eblob_cleanup(c->eblob);
+	if (c->eblob) {
+		eblob_cleanup(c->eblob);
+	}
 
 	pthread_mutex_destroy(&c->last_read_lock);
 	free(c->data.file);
