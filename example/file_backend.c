@@ -414,7 +414,8 @@ static int file_backend_command_handler(void *state, void *priv, struct dnet_cmd
 	return err;
 }
 
-static int dnet_file_set_bit_number(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_file_set_bit_number(struct dnet_config_backend *b,
+                                    const char *key __unused, const char *value)
 {
 	struct file_backend_root *r = b->data;
 
@@ -422,7 +423,8 @@ static int dnet_file_set_bit_number(struct dnet_config_backend *b, char *key __u
 	return 0;
 }
 
-static int dnet_file_set_records_in_blob(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_file_set_records_in_blob(struct dnet_config_backend *b,
+	                                 const char *key __unused, const char *value)
 {
 	struct file_backend_root *r = b->data;
 
@@ -430,7 +432,8 @@ static int dnet_file_set_records_in_blob(struct dnet_config_backend *b, char *ke
 	return 0;
 }
 
-static int dnet_file_set_blob_size(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_file_set_blob_size(struct dnet_config_backend *b,
+                                   const char *key __unused, const char *value)
 {
 	struct file_backend_root *r = b->data;
 	uint64_t val = strtoul(value, NULL, 0);
@@ -448,7 +451,8 @@ static int dnet_file_set_blob_size(struct dnet_config_backend *b, char *key __un
 	return 0;
 }
 
-static int dnet_file_set_defrag_timeout(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_file_set_defrag_timeout(struct dnet_config_backend *b,
+                                        const char *key __unused, const char *value)
 {
 	struct file_backend_root *r = b->data;
 
@@ -456,7 +460,8 @@ static int dnet_file_set_defrag_timeout(struct dnet_config_backend *b, char *key
 	return 0;
 }
 
-static int dnet_file_set_defrag_percentage(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_file_set_defrag_percentage(struct dnet_config_backend *b,
+                                           const char *key __unused, const char *value)
 {
 	struct file_backend_root *r = b->data;
 
@@ -464,7 +469,8 @@ static int dnet_file_set_defrag_percentage(struct dnet_config_backend *b, char *
 	return 0;
 }
 
-static int dnet_file_set_sync(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_file_set_sync(struct dnet_config_backend *b,
+                              const char *key __unused, const char *value)
 {
 	struct file_backend_root *r = b->data;
 
@@ -472,7 +478,8 @@ static int dnet_file_set_sync(struct dnet_config_backend *b, char *key __unused,
 	return 0;
 }
 
-static int dnet_file_set_root(struct dnet_config_backend *b, char *key __unused, char *root)
+static int dnet_file_set_root(struct dnet_config_backend *b,
+                              const char *key __unused, const char *root)
 {
 	struct file_backend_root *r = b->data;
 	int err;
