@@ -231,7 +231,17 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-			err = eblob_write_commit(b, &key, io->num + ehdr_size, flags);
+			uint64_t csize = io->num + ehdr_size;
+			if (io->flags & DNET_IO_FLAGS_PREPARE) {
+				// client has set PREPARE, PLAIN_WRITE and COMMIT flags,
+				// there is no way he could write more data than io->size,
+				// thus it is an error to commit more than io->size + io->offset,
+				// otherwise it will commit empty (zeroed) space (io->num) as data
+				//
+				// this set of flags is used to reserve disk (not data) space for future updates
+				csize = io->size + io->offset + ehdr_size;
+			}
+			err = eblob_write_commit(b, &key, csize, flags);
 			if (err) {
 				dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: "
 						"size: %" PRIu64 ": %s %d", dnet_dump_id_str(io->id),
