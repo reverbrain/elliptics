@@ -353,6 +353,7 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	struct dnet_addr *request_addr = NULL;
 	uint64_t size = ctl->io.size;
 	uint64_t tsize = sizeof(struct dnet_io_attr) + sizeof(struct dnet_cmd);
+	double backend_weight = 0.;
 	int err;
 
 	if (ctl->cmd == DNET_CMD_READ)
@@ -396,17 +397,18 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	}
 
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
+	dnet_get_backend_weight(t->st, cmd->backend_id, &backend_weight);
 	request_addr = dnet_state_addr(t->st);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: %s, size: %llu, offset: %llu, "
-			"fd: %d, local_offset: %llu -> %s weight: %f, wait-ts: %ld, ioflags: %s",
+			"fd: %d, local_offset: %llu -> %s/%d weight: %f, wait-ts: %ld, ioflags: %s",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
 			dnet_cmd_string(ctl->cmd), dnet_flags_dump_cflags(cmd->flags),
 			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
 			ctl->fd,
 			(unsigned long long)ctl->local_offset,
-			dnet_addr_string(&t->st->addr), t->st->weight,
+		        dnet_addr_string(&t->st->addr), cmd->backend_id, backend_weight,
 			t->wait_ts.tv_sec,
 			dnet_flags_dump_ioflags(ctl->io.flags));
 
@@ -466,13 +468,11 @@ struct dnet_wait *dnet_wait_alloc(int cond)
 	int err;
 	struct dnet_wait *w;
 
-	w = malloc(sizeof(struct dnet_wait));
+	w = calloc(1, sizeof(struct dnet_wait));
 	if (!w) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-
-	memset(w, 0, sizeof(struct dnet_wait));
 
 	err = pthread_cond_init(&w->wait, NULL);
 	if (err)
@@ -514,6 +514,7 @@ int dnet_send_cmd(struct dnet_session *s,
 	struct dnet_net_state *st;
 	struct dnet_idc *idc;
 	int num = 0, i, found_group;
+	struct rb_node *it;
 	struct dnet_group *g;
 	struct dnet_trans_control ctl;
 
@@ -570,12 +571,16 @@ int dnet_send_cmd(struct dnet_session *s,
 		}
 		pthread_mutex_unlock(&n->state_lock);
 	} else {
+		// TODO: refactor code below
 		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(st, &n->dht_state_list, node_entry) {
 			if (st == n->st)
 				continue;
 
-			list_for_each_entry(idc, &st->idc_list, state_entry) {
+			pthread_rwlock_rdlock(&st->idc_lock);
+			for (it = rb_first(&st->idc_root); it; it = rb_next(it)) {
+				idc = rb_entry(it, struct dnet_idc, state_entry);
+
 				g = idc->group;
 
 				found_group = 0;
@@ -593,6 +598,7 @@ int dnet_send_cmd(struct dnet_session *s,
 
 				break;
 			}
+			pthread_rwlock_unlock(&st->idc_lock);
 		}
 		pthread_mutex_unlock(&n->state_lock);
 	}
@@ -771,7 +777,7 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 	struct dnet_node *n = s->node;
 	struct dnet_weight *weights;
 	int *groups;
-	int group_num, i, num;
+	int group_num, i, num, backend_id;
 	struct dnet_net_state *st;
 
 	if (!s->group_num)
@@ -806,14 +812,15 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 		for (i = 0, num = 0; i < group_num; ++i) {
 			id->group_id = groups[i];
 
-			st = dnet_state_get_first(n, id);
+			st = dnet_state_get_first_with_backend(n, id, &backend_id);
 			if (st) {
-				weights[num].weight = st->weight;
-				weights[num].group_id = id->group_id;
+				const int err = dnet_get_backend_weight(st, backend_id, &weights[num].weight);
+				if (!err) {
+					weights[num].group_id = id->group_id;
+					num++;
+				}
 
 				dnet_state_put(st);
-
-				num++;
 			}
 		}
 	}
@@ -886,6 +893,7 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries) {
 	struct dnet_idc *idc;
 	struct dnet_route_entry *tmp_entries;
 	struct dnet_route_entry *entry;
+	struct rb_node *it;
 	int size = 0, count = 0, err = 0;
 	int i;
 
@@ -893,7 +901,9 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries) {
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(st, &n->dht_state_list, node_entry) {
-		list_for_each_entry(idc, &st->idc_list, state_entry) {
+		pthread_rwlock_rdlock(&st->idc_lock);
+		for (it = rb_first(&st->idc_root); it; it = rb_next(it)) {
+			idc = rb_entry(it, struct dnet_idc, state_entry);
 
 			size += idc->id_num;
 
@@ -916,6 +926,7 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries) {
 				dnet_state_dump_addr(st), dnet_dump_id_str(idc->ids[0].raw.id),
 				idc->group->group_id, idc->backend_id, idc);
 		}
+		pthread_rwlock_unlock(&st->idc_lock);
 	}
 	pthread_mutex_unlock(&n->state_lock);
 

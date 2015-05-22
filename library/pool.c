@@ -170,13 +170,11 @@ int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n
 
 	pthread_mutex_lock(&place->lock);
 
-	place->pool = malloc(sizeof(struct dnet_work_pool));
+	place->pool = calloc(1, sizeof(struct dnet_work_pool));
 	if (!place->pool) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-
-	memset(place->pool, 0, sizeof(struct dnet_work_pool));
 
 	err = pthread_mutex_init(&place->pool->lock, NULL);
 	if (err) {

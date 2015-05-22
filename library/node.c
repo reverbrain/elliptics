@@ -34,12 +34,10 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	struct dnet_node *n;
 	int err;
 
-	n = malloc(sizeof(struct dnet_node));
+	n = calloc(1, sizeof(struct dnet_node));
 	if (!n) {
 		goto err_out_free;
 	}
-
-	memset(n, 0, sizeof(struct dnet_node));
 
 	atomic_init(&n->trans, 0);
 
@@ -49,7 +47,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	err = pthread_mutex_init(&n->state_lock, NULL);
 	if (err) {
-		dnet_log_err(n, "Failed to initialize state lock: err: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize state lock: err: %d", err);
 		goto err_out_free;
 	}
 
@@ -68,14 +66,14 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	err = pthread_mutex_init(&n->reconnect_lock, NULL);
 	if (err) {
 		err = -err;
-		dnet_log_err(n, "Failed to initialize reconnection lock: err: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize reconnection lock: err: %d", err);
 		goto err_out_destroy_counter;
 	}
 
 	err = pthread_attr_init(&n->attr);
 	if (err) {
 		err = -err;
-		dnet_log_err(n, "Failed to initialize pthread attributes: err: %d", err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize pthread attributes: err: %d", err);
 		goto err_out_destroy_reconnect_lock;
 	}
 	pthread_attr_setdetachstate(&n->attr, PTHREAD_CREATE_DETACHED);
@@ -212,31 +210,82 @@ static void dnet_idc_remove_nolock(struct dnet_idc *idc)
 
 	qsort(g->ids,  g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
 
-	list_del(&idc->state_entry);
+	if (idc->state_entry.rb_parent_color) {
+		rb_erase(&idc->state_entry, &idc->st->idc_root);
+		idc->state_entry.rb_parent_color = 0;
+	}
 	list_del(&idc->group_entry);
 	dnet_group_put(g);
 	free(idc);
 }
 
+static struct dnet_idc *dnet_idc_search_backend_nolock(struct dnet_net_state *st, int backend_id)
+{
+	struct rb_root *root = &st->idc_root;
+	struct rb_node *n = root->rb_node;
+	struct dnet_idc *idc;
+
+	while (n) {
+		idc = rb_entry(n, struct dnet_idc, state_entry);
+
+		if (idc->backend_id < backend_id)
+			n = n->rb_left;
+		else if (idc->backend_id > backend_id)
+			n = n->rb_right;
+		else
+			return idc;
+	}
+
+	return NULL;
+}
+
+int dnet_idc_insert_nolock(struct dnet_net_state *st, struct dnet_idc *idc_new)
+{
+	struct rb_root *root = &st->idc_root;
+	struct rb_node **n = &root->rb_node, *parent = NULL;
+	struct dnet_idc *idc;
+
+	while (*n) {
+		parent = *n;
+
+		idc = rb_entry(parent, struct dnet_idc, state_entry);
+
+		if (idc->backend_id < idc_new->backend_id)
+			n = &parent->rb_left;
+		else if (idc->backend_id > idc_new->backend_id)
+			n = &parent->rb_right;
+		else
+			return -EEXIST;
+	}
+
+	rb_link_node(&idc_new->state_entry, parent, n);
+	rb_insert_color(&idc_new->state_entry, root);
+	return 0;
+}
+
 void dnet_idc_remove_backend_nolock(struct dnet_net_state *st, int backend_id)
 {
-	struct dnet_idc *idc, *tmp;
-
-	list_for_each_entry_safe(idc, tmp, &st->idc_list, state_entry) {
-		if (idc->backend_id == backend_id) {
-			dnet_idc_remove_nolock(idc);
-		}
+	struct dnet_idc *idc = dnet_idc_search_backend_nolock(st, backend_id);
+	if (idc) {
+		pthread_rwlock_wrlock(&st->idc_lock);
+		dnet_idc_remove_nolock(idc);
+		pthread_rwlock_unlock(&st->idc_lock);
 	}
 }
 
 static void dnet_idc_remove_all(struct dnet_net_state *st)
 {
 	struct dnet_idc *idc;
-	struct dnet_idc *tmp;
+	struct rb_node *rb_node, *next;
 
-	list_for_each_entry_safe(idc, tmp, &st->idc_list, state_entry) {
+	pthread_rwlock_wrlock(&st->idc_lock);
+	for (rb_node = rb_first(&st->idc_root); rb_node != NULL; rb_node = next) {
+		idc = rb_entry(rb_node, struct dnet_idc, state_entry);
+
+		next = rb_next(rb_node);
 		dnet_idc_remove_nolock(idc);
 	}
+	pthread_rwlock_unlock(&st->idc_lock);
 }
 
 int dnet_state_set_server_prio(struct dnet_net_state *st)
@@ -296,7 +345,6 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	memset(idc, 0, sizeof(struct dnet_idc));
 
 	INIT_LIST_HEAD(&idc->group_entry);
-	INIT_LIST_HEAD(&idc->state_entry);
 
 	for (i=0; i<id_num; ++i) {
 		struct dnet_state_id *sid = &idc->ids[i];
@@ -314,7 +362,7 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 
 		err = dnet_group_insert_nolock(n, g);
 		if (err)
-			goto err_out_unlock;
+			goto err_out_unlock_put;
 	}
 
 	dnet_idc_remove_backend_nolock(st, backend->backend_id);
@@ -345,8 +393,11 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	idc->st = st;
 	idc->group = g;
 	idc->backend_id = backend->backend_id;
+	idc->weight = DNET_STATE_DEFAULT_WEIGHT;
 
-	list_add_tail(&idc->state_entry, &st->idc_list);
+	pthread_rwlock_wrlock(&st->idc_lock);
+	dnet_idc_insert_nolock(st, idc);
+	pthread_rwlock_unlock(&st->idc_lock);
 	list_add_tail(&idc->group_entry, &g->idc_list);
 
 	if (dnet_log_enabled(n->log, DNET_LOG_DEBUG)) {
@@ -545,6 +596,34 @@ ssize_t dnet_state_search_backend(struct dnet_node *n, const struct dnet_id *id)
 	pthread_mutex_unlock(&n->state_lock);
 
 	return backend_id;
+}
+
+int dnet_get_backend_weight(struct dnet_net_state *st, int backend_id, double *weight)
+{
+	struct dnet_idc *idc;
+	int err = -ENOENT;
+
+	pthread_rwlock_rdlock(&st->idc_lock);
+	idc = dnet_idc_search_backend_nolock(st, backend_id);
+	if (idc) {
+		err = 0;
+		*weight = idc->weight;
+	}
+	pthread_rwlock_unlock(&st->idc_lock);
+
+	return err;
+}
+
+void dnet_set_backend_weight(struct dnet_net_state *st, int backend_id, double weight)
+{
+	struct dnet_idc *idc;
+
+	pthread_rwlock_rdlock(&st->idc_lock);
+	idc = dnet_idc_search_backend_nolock(st, backend_id);
+	if (idc) {
+		idc->weight = weight;
+	}
+	pthread_rwlock_unlock(&st->idc_lock);
 }
 
 struct dnet_net_state *dnet_state_get_first_with_backend(struct dnet_node *n, const struct dnet_id *id, int *backend_id)

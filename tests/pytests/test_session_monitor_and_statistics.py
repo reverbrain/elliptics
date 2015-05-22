@@ -142,7 +142,6 @@ class MonitorStatsChecker:
             assert state_io['send_queue_size'] >= 0
             assert state_io['la'] >= 0
             assert state_io['free'] >= 0
-            assert state_io['weight'] >= 0
             assert state_io['stall'] >= 0
             assert state_io['join_state'] >= 0
 
