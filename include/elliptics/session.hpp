@@ -532,6 +532,11 @@ class session
 		 *       After commit server marks the object by \a id as complete and it becomes accessible.
 		 *       csize could be less then prepared place size. In this case object will be truncated by csize.
 		 *       But csize shouldn't be more then size of prepared place.
+		 *
+		 *       It is possible to specify PREPARE/PLAIN_WRITE/COMMIT flags simultaneously (not via this API,
+		 *       but using @write_data(const dnet_io_control &ctl). In this case commit size will be equal
+		 *       to actual number of bytes written by client, but size of the reserved on disk area will be equal
+		 *       to prepare size.
 		 */
 		async_write_result write_commit(const key &id, const argument_data &file, uint64_t remote_offset, uint64_t csize);
 
