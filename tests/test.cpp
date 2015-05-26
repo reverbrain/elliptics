@@ -421,6 +421,53 @@ static void test_append(session &sess)
 	}
 }
 
+/*
+ * Simultaneously set PREPARE/PLAIN_WRITE/COMMIT flags.
+ * Data read must be equal to what was written.
+ *
+ * Depending on backend, reserved space may be higher.
+ * This test was added to fix eblob write (see commit 57deaf6c77d1fcfc06f22b004fa4e1f895438789),
+ * where it committed exactly the size specified in io.num, i.e. prepare size.
+ * If it was higher than io.size (data size), then bunch of zeroes were added to the data.
+ */
+static void test_prepare_commit_simultaneously(session &sess)
+{
+	const std::string data = "prepare + commit data";
+	size_t prepare_size = 1024*1024;
+	std::string k = "prepare-commit-key." + lexical_cast(rand());
+
+	data_pointer dp = data_pointer::from_raw((char *)data.c_str(), data.size());
+
+	session s = sess.clone();
+
+	key id(k);
+	s.transform(id);
+
+	dnet_io_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+	dnet_current_time(&ctl.io.timestamp);
+
+	ctl.cflags = s.get_cflags();
+	ctl.data = dp.data();
+
+	ctl.io.flags = s.get_ioflags() | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE | DNET_IO_FLAGS_COMMIT;
+	ctl.io.user_flags = s.get_user_flags();
+	ctl.io.offset = 0;
+	ctl.io.size = dp.size();
+	ctl.io.num = prepare_size;
+
+	memcpy(&ctl.id, &id.id(), sizeof(ctl.id));
+
+	ctl.fd = -1;
+
+	ELLIPTICS_REQUIRE(write_result, s.write_data(ctl));
+	ELLIPTICS_REQUIRE(read_result, s.read_data(k, 0, 0));
+
+	read_result_entry read_entry = read_result.get_one();
+	BOOST_REQUIRE_EQUAL(read_entry.file().to_string(), data);
+}
+
 static void test_read_write_offsets(session &sess)
 {
 	const std::string key = "read-write-test";
@@ -1407,6 +1454,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_prepare_commit, create_session(n, {1, 2}, 0, 0), "prepare-commit-test-2", 0, 1);
 	ELLIPTICS_TEST_CASE(test_prepare_commit, create_session(n, {1, 2}, 0, 0), "prepare-commit-test-3", 1, 0);
 	ELLIPTICS_TEST_CASE(test_prepare_commit, create_session(n, {1, 2}, 0, 0), "prepare-commit-test-4", 1, 1);
+	ELLIPTICS_TEST_CASE(test_prepare_commit_simultaneously, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_bulk_write, create_session(n, {1, 2}, 0, 0), 1000);
 	ELLIPTICS_TEST_CASE(test_bulk_read, create_session(n, {1, 2}, 0, 0), 1000);
 	ELLIPTICS_TEST_CASE(test_bulk_remove, create_session(n, {1, 2}, 0, 0), 1000);
