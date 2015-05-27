@@ -50,8 +50,8 @@ int backend_storage_size(struct dnet_config_backend *b, const char *root)
 	err = statvfs(root, &s);
 	if (err) {
 		err = -errno;
-		dnet_backend_log(b->log, DNET_LOG_ERROR, "Failed to get VFS statistics of '%s': %s [%d].",
-				root, strerror(errno), errno);
+		dnet_backend_log(b->log, DNET_LOG_NOTICE, "Failed to get VFS statistics of '%s': %s [%d].",
+		                 root, strerror(errno), errno);
 		return err;
 	}
 
