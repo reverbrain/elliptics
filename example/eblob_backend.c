@@ -988,12 +988,9 @@ static void eblob_backend_cleanup(void *priv)
 {
 	struct eblob_backend_config *c = priv;
 
-	if (c->eblob) {
-		eblob_cleanup(c->eblob);
-	}
+	eblob_cleanup(c->eblob);
 
 	pthread_mutex_destroy(&c->last_read_lock);
-	free(c->data.file);
 }
 
 static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl, struct dnet_iterator_request *ireq, struct dnet_iterator_range *irange)
@@ -1154,7 +1151,10 @@ static void dnet_blob_config_cleanup(struct dnet_config_backend *b)
 {
 	struct eblob_backend_config *c = b->data;
 
-	eblob_backend_cleanup(c);
+	if (c->eblob)
+		eblob_backend_cleanup(c);
+
+	free(c->data.file);
 }
 
 static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
