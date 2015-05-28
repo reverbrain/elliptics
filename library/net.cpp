@@ -1102,7 +1102,8 @@ static int dnet_socket_connect(dnet_node *node, dnet_addr_socket_set &original_l
 	pthread_mutex_lock(&state->lock);
 	state->finished = true;
 
-	state->sockets_connected = std::move(state->sockets_queue);
+	state->sockets_connected.insert( state->sockets_queue.begin(), state->sockets_queue.end() );
+	state->sockets_queue.clear();
 
 	pthread_mutex_unlock(&state->lock);
 
@@ -1111,6 +1112,11 @@ err_out_put:
 
 	if (err == 0)
 		err = -ECONNREFUSED;
+
+	dnet_log(state->node, DNET_LOG_INFO, "dnet_socket_connect: succeed_count: %llu, failed_count: %llu, total_count: %llu"
+		 ", sockets_connected: %llu, sockets_queue: %llu, states_count: %llu, err: %d",
+		 state->succeed_count, state->failed_count, state->total_count, state->sockets_connected.size(),
+		 state->sockets_queue.size(), states_count, err);
 
 	for (auto it = state->sockets_connected.begin(); it != state->sockets_connected.end(); ++it) {
 		const dnet_addr_socket_ptr &socket = *it;
