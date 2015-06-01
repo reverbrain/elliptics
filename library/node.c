@@ -70,11 +70,18 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_destroy_counter;
 	}
 
+	err = pthread_rwlock_init(&n->test_settings_lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize test settings lock: err: %d", err);
+		goto err_out_destroy_reconnect_lock;
+	}
+
 	err = pthread_attr_init(&n->attr);
 	if (err) {
 		err = -err;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize pthread attributes: err: %d", err);
-		goto err_out_destroy_reconnect_lock;
+		goto err_out_destroy_test_settings;
 	}
 	pthread_attr_setdetachstate(&n->attr, PTHREAD_CREATE_DETACHED);
 
@@ -91,6 +98,8 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	return n;
 
+err_out_destroy_test_settings:
+	pthread_rwlock_destroy(&n->test_settings_lock);
 err_out_destroy_reconnect_lock:
 	pthread_mutex_destroy(&n->reconnect_lock);
 err_out_destroy_counter:
@@ -815,10 +824,12 @@ void dnet_node_cleanup_common_resources(struct dnet_node *n)
 		list_del(&it->reconnect_entry);
 		free(it);
 	}
+	pthread_rwlock_destroy(&n->test_settings_lock);
 	pthread_mutex_destroy(&n->reconnect_lock);
 
 	dnet_wait_put(n->wait);
 
+	free(n->test_settings);
 	free(n->route_addr);
 }
 

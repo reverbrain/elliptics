@@ -35,7 +35,9 @@ add_library(test_common STATIC
     ../example/module_backend/core/module_backend_t.c
     ../example/module_backend/core/dlopen_handle_t.c
     test_base.hpp
-    test_base.cpp)
+    test_base.cpp
+    test_session.hpp
+    test_session.cpp)
 set_target_properties(test_common ${TEST_PROPERTIES})
 set(TEST_COMMON_LIBRARIES elliptics elliptics_client elliptics_cocaine elliptics_cpp dl ${Boost_LIBRARIES})
 if(WITH_COCAINE)
@@ -72,6 +74,10 @@ add_executable(dnet_weights_test weights_test.cpp)
 set_target_properties(dnet_weights_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_weights_test ${TEST_LIBRARIES})
 
+add_executable(dnet_reconnect_test reconnect_test.cpp)
+set_target_properties(dnet_reconnect_test ${TEST_PROPERTIES})
+target_link_libraries(dnet_reconnect_test ${TEST_LIBRARIES})
+
 
 set(PYTESTS_FLAGS "-v" "-l" "-x" "--timeout=1200" "--durations=20")
 if(NOT WITH_COCAINE)
@@ -80,7 +86,7 @@ endif()
 
 set(RUN_SERVERS_LIBRARIES ${TEST_LIBRARIES})
 
-set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_stats_test dnet_cpp_capped_test dnet_backends_test dnet_weights_test dnet_cpp_api_test)
+set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_stats_test dnet_cpp_capped_test dnet_backends_test dnet_weights_test dnet_reconnect_test dnet_cpp_api_test)
 set(TESTS_DEPS ${TESTS_LIST})
 
 if(WITH_COCAINE)

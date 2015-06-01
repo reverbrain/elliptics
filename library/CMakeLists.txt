@@ -11,6 +11,7 @@ set(ELLIPTICS_CLIENT_SRCS
     pool.c
     rbtree.c
     trans.c
+    tests.c
     common.cpp
     ../bindings/cpp/logger.cpp
     )
