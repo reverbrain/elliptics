@@ -72,7 +72,7 @@ static void dnet_module_config_cleanup(struct dnet_config_backend *b)
 	module_backend_cleanup(module_backend);
 }
 
-int read_config_string(char *value, char **result)
+int read_config_string(const char *value, char **result)
 {
 	int err;
 	char *value_copy = strdup(value);
@@ -87,7 +87,7 @@ err_out_exit:
 		return err;
 }
 
-int read_config_entry(struct dnet_config_backend *b, char *key, char *value)
+int read_config_entry(struct dnet_config_backend *b, const char *key, const char *value)
 {
 	struct module_backend_t *module_backend = b->data;
 	struct module_backend_config_t *backend_config = &module_backend->config;
