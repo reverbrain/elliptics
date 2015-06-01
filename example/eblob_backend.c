@@ -1147,10 +1147,25 @@ err_out_exit:
 	return err;
 }
 
+
+/*
+ * dnet_blob_config_cleanup() stops and cleans up eblob if it is needed and
+ * frees memory allocated by config.
+ * There are 3 stages of backend:
+ *   1. config parsing
+ *   2. eblob initialization
+ *   3. cleaning up eblob and config
+ * In common case backend goes throught all 3 steps.
+ * But there is specific case (backends_stat_provider.cpp: @fill_disabled_backend_config()):
+ *   monitor subsystem for disabled backends makes only 1 and 3 stages and skips stage 2.
+ *   So when monitor makes stage 3, it has uninitialized eblob and
+ *   should cleanus up only config data.
+ */
 static void dnet_blob_config_cleanup(struct dnet_config_backend *b)
 {
 	struct eblob_backend_config *c = b->data;
 
+	/* do not cleans up eblob if it hasn't been initialized */
 	if (c->eblob)
 		eblob_backend_cleanup(c);
 
