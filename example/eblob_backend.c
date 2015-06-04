@@ -824,7 +824,8 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 	return err;
 }
 
-static int dnet_blob_set_sync(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_sync(struct dnet_config_backend *b,
+                              const char *key __unused, const char *value)
 {
 	struct eblob_backend_config *c = b->data;
 
@@ -832,7 +833,8 @@ static int dnet_blob_set_sync(struct dnet_config_backend *b, char *key __unused,
 	return 0;
 }
 
-static int dnet_blob_set_data(struct dnet_config_backend *b, char *key __unused, char *file)
+static int dnet_blob_set_data(struct dnet_config_backend *b,
+                              const char *key __unused, const char *file)
 {
 	struct eblob_backend_config *c = b->data;
 	int err;
@@ -860,7 +862,8 @@ static int dnet_blob_set_data(struct dnet_config_backend *b, char *key __unused,
 	return 0;
 }
 
-static int dnet_blob_set_blob_size(struct dnet_config_backend *b, char *key, char *value)
+static int dnet_blob_set_blob_size(struct dnet_config_backend *b,
+                                   const char *key, const char *value)
 {
 	struct eblob_backend_config *c = b->data;
 	uint64_t val = strtoul(value, NULL, 0);
@@ -882,7 +885,8 @@ static int dnet_blob_set_blob_size(struct dnet_config_backend *b, char *key, cha
 	return 0;
 }
 
-static int dnet_blob_set_index_block_size(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_index_block_size(struct dnet_config_backend *b,
+                                          const char *key __unused, const char *value)
 {
 	struct eblob_backend_config *c = b->data;
 
@@ -890,7 +894,8 @@ static int dnet_blob_set_index_block_size(struct dnet_config_backend *b, char *k
 	return 0;
 }
 
-static int dnet_blob_set_index_block_bloom_length(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_index_block_bloom_length(struct dnet_config_backend *b,
+                                                  const char *key __unused, const char *value)
 {
 	struct eblob_backend_config *c = b->data;
 
@@ -898,14 +903,16 @@ static int dnet_blob_set_index_block_bloom_length(struct dnet_config_backend *b,
 	return 0;
 }
 
-static int dnet_blob_set_periodic_timeout(struct dnet_config_backend *b, char *key __unused, char *value) {
+static int dnet_blob_set_periodic_timeout(struct dnet_config_backend *b,
+                                          const char *key __unused, const char *value) {
 	struct eblob_backend_config *c = b->data;
 
 	c->data.periodic_timeout = strtoul(value, NULL, 0);
 	return 0;
 }
 
-static int dnet_blob_set_records_in_blob(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_records_in_blob(struct dnet_config_backend *b,
+                                         const char *key __unused, const char *value)
 {
 	struct eblob_backend_config *c = b->data;
 	uint64_t val = strtoul(value, NULL, 0);
@@ -914,7 +921,8 @@ static int dnet_blob_set_records_in_blob(struct dnet_config_backend *b, char *ke
 	return 0;
 }
 
-static int dnet_blob_set_defrag_timeout(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_defrag_timeout(struct dnet_config_backend *b,
+                                        const char *key __unused, const char *value)
 {
 	struct eblob_backend_config *c = b->data;
 
@@ -922,7 +930,8 @@ static int dnet_blob_set_defrag_timeout(struct dnet_config_backend *b, char *key
 	return 0;
 }
 
-static int dnet_blob_set_defrag_time(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_defrag_time(struct dnet_config_backend *b,
+                                     const char *key __unused, const char *value)
 {
 	struct eblob_backend_config *c = b->data;
 
@@ -930,7 +939,8 @@ static int dnet_blob_set_defrag_time(struct dnet_config_backend *b, char *key __
 	return 0;
 }
 
-static int dnet_blob_set_defrag_splay(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_defrag_splay(struct dnet_config_backend *b,
+                                      const char *key __unused, const char *value)
 {
 	struct eblob_backend_config *c = b->data;
 
@@ -938,7 +948,8 @@ static int dnet_blob_set_defrag_splay(struct dnet_config_backend *b, char *key _
 	return 0;
 }
 
-static int dnet_blob_set_defrag_percentage(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_defrag_percentage(struct dnet_config_backend *b,
+                                           const char *key __unused, const char *value)
 {
 	struct eblob_backend_config *c = b->data;
 
@@ -946,7 +957,8 @@ static int dnet_blob_set_defrag_percentage(struct dnet_config_backend *b, char *
 	return 0;
 }
 
-static int dnet_blob_set_blob_flags(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_blob_flags(struct dnet_config_backend *b,
+                                    const char *key __unused, const char *value)
 {
 	struct eblob_backend_config *c = b->data;
 
@@ -979,7 +991,6 @@ static void eblob_backend_cleanup(void *priv)
 	eblob_cleanup(c->eblob);
 
 	pthread_mutex_destroy(&c->last_read_lock);
-	free(c->data.file);
 }
 
 static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl, struct dnet_iterator_request *ireq, struct dnet_iterator_range *irange)
@@ -1136,11 +1147,29 @@ err_out_exit:
 	return err;
 }
 
+
+/*
+ * dnet_blob_config_cleanup() stops and cleans up eblob if it is needed and
+ * frees memory allocated by config.
+ * There are 3 stages of backend:
+ *   1. config parsing
+ *   2. eblob initialization
+ *   3. cleaning up eblob and config
+ * In common case backend goes throught all 3 steps.
+ * But there is specific case (backends_stat_provider.cpp: @fill_disabled_backend_config()):
+ *   monitor subsystem for disabled backends makes only 1 and 3 stages and skips stage 2.
+ *   So when monitor makes stage 3, it has uninitialized eblob and
+ *   should cleanus up only config data.
+ */
 static void dnet_blob_config_cleanup(struct dnet_config_backend *b)
 {
 	struct eblob_backend_config *c = b->data;
 
-	eblob_backend_cleanup(c);
+	/* do not cleans up eblob if it hasn't been initialized */
+	if (c->eblob)
+		eblob_backend_cleanup(c);
+
+	free(c->data.file);
 }
 
 static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {

@@ -153,9 +153,7 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 
 		for (auto it = config_backend.options.begin(); it != config_backend.options.end(); ++it) {
 			const dnet_backend_config_entry &entry = *it;
-
-			std::vector<char> tmp(entry.value_template.begin(), entry.value_template.end());
-			entry.entry->callback(&config, entry.entry->key, tmp.data());
+			entry.entry->callback(&config, entry.entry->key, entry.value_template.data());
 		}
 
 		config.to_json(&config, &json_stat, &size);
@@ -168,6 +166,7 @@ static void fill_disabled_backend_config(rapidjson::Value &stat_value,
 			                        allocator);
 		}
 		free(json_stat);
+		config.cleanup(&config);
 	} else {
 		rapidjson::Value config_value(rapidjson::kObjectType);
 		for (auto it = config_backend.options.begin(); it != config_backend.options.end(); ++it) {

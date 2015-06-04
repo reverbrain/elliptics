@@ -65,7 +65,8 @@ static inline char *file_backend_get_dir(const unsigned char *id, uint64_t bit_n
 struct dnet_config_backend;
 struct dnet_config_entry {
 	char		key[64];
-	int		(*callback)(struct dnet_config_backend *b, char *key, char *value);
+	int		(*callback)(struct dnet_config_backend *b,
+	                            const char *key, const char *value);
 };
 
 struct dnet_config_backend {

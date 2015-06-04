@@ -275,11 +275,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, int *state)
 
 	for (auto it = backend.options.begin(); it != backend.options.end(); ++it) {
 		const dnet_backend_config_entry &entry = *it;
-		/*
-		 * Copy value data into temporal buffer, since callback can modify it.
-		 */
-		std::vector<char> tmp(entry.value_template.begin(), entry.value_template.end());
-		entry.entry->callback(&backend.config, entry.entry->key, tmp.data());
+		entry.entry->callback(&backend.config, entry.entry->key, entry.value_template.data());
 	}
 
 	err = backend.config.init(&backend.config);
