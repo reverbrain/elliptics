@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.5.2
+Version:	2.26.5.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,29 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jun 04 2015 Kirill Smorodinnikov <shaitkir@gmail.com> - 2.26.5.3
+- logs: changed level of 'Failed to get VFS statistics' to NOTICE because it spams log and isn't caused by critical error.
+- network: sockets are lost from node's reconnect list after dropped connection to net state (after stall_count timeout)
+- tests: added description of backend weights test
+- recovery: allowed to use string value for '-L/--log-level'
+- recovery: moved gathering of route list into get_routes() at main process - made temporary node/session be freed after the route list is received.
+- tests: new backend weights test
+- more comments
+- logs: changed format of backend_id
+- renamed dnet_idc_insert -> dnet_idc_insert_nolock
+- fixed incorrect releasing of resources
+- logs, optimization: use dnet_log instead of dnet_log_error after error on pthread_* & some malloc+memset -> calloc
+- network: calculate & use connection weight by backend
+- backends: used const pointers for key/value arguments of dnet_config_entry callback - remove useless copying of value.
+- backend: eblob: made `eblob_backend_cleanup` to call `eblob_cleanup` only if eblob was initialized
+- monitor: fixed memory leaks of `dnet_config_backend` internals - added calling `cleanup()`.
+- fix: moved checking c->eblob into `dnet_blob_config_cleanup` - `eblob_backend_cleanup` should not be called if the backend wasn't proper initialized.
+- docs: added description to dnet_blob_config_cleanup().
+- updated missed module_backend functions.
+- eblob: when using prepare+plain_write+commit flags, commit number of written bytes, not number of allocated bytes on disk
+- session: added prepare/write/commit tuple description
+- tests: added simultaneous prepare/write/commit test
+
 * Wed May 06 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.5.2
 - package: depend on 0.22.22+ eblob which brings defrag stop command
 - network: fixed bug with when total_count < failed_count in dnet_socket_connect_new_sockets()
