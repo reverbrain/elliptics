@@ -1,3 +1,4 @@
+#include <limits>
 #include "test_session.hpp"
 #include "library/elliptics.h"
 #include "library/tests.h"
@@ -31,7 +32,7 @@ void test_session::toggle_all_command_send(bool enable_send)
 
 	dnet_node *n = m_session.get_native_node();
 	dnet_node_get_test_settings(n, &settings);
-	settings.commands_mask = enable_send ? 0 : UINT64_MAX;
+	settings.commands_mask = enable_send ? 0 : std::numeric_limits<uint64_t>::max();
 	dnet_node_set_test_settings(n, &settings);
 }
 
