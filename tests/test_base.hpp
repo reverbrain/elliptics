@@ -240,6 +240,9 @@ struct start_nodes_config {
 	bool monitor;
 	bool isolated;
 	int client_node_flags;
+	int client_wait_timeout;
+	int client_check_timeout;
+	int client_stall_count;
 
 	start_nodes_config(std::ostream &debug_stream, const std::vector<server_config> &&configs, const std::string &path);
 };

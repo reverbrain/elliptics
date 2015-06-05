@@ -717,7 +717,7 @@ static void create_cocaine_config(const std::string &config_path, const std::str
 	out.write(config_text.c_str(), config_text.size());
 }
 
-static void start_client_nodes(int node_flags, const nodes_data::ptr &data, std::ostream &debug_stream, const std::vector<std::string> &remotes);
+static void start_client_nodes(const start_nodes_config &start_config, const nodes_data::ptr &data, const std::vector<std::string> &remotes);
 
 start_nodes_config::start_nodes_config(std::ostream &debug_stream, const std::vector<server_config> &&configs, const std::string &path)
 : debug_stream(debug_stream)
@@ -727,6 +727,8 @@ start_nodes_config::start_nodes_config(std::ostream &debug_stream, const std::ve
 , monitor(true)
 , isolated(false)
 , client_node_flags(0)
+, client_wait_timeout(0)
+, client_stall_count(0)
 {}
 
 nodes_data::ptr start_nodes(start_nodes_config &start_config) {
@@ -953,7 +955,7 @@ nodes_data::ptr start_nodes(start_nodes_config &start_config) {
 			remotes.push_back(data->nodes[i].remote().to_string_with_family());
 		}
 
-		start_client_nodes(start_config.client_node_flags, data, start_config.debug_stream, remotes);
+		start_client_nodes(start_config, data, remotes);
 	} catch (std::exception &e) {
 		start_config.debug_stream << "Failed to connect to servers: " << e.what() << std::endl;
 		throw;
@@ -966,11 +968,8 @@ nodes_data::ptr start_nodes(start_nodes_config &start_config) {
 
 #endif // NO_SERVER
 
-static void start_client_nodes(int node_flags, const nodes_data::ptr &data,
-			       std::ostream &debug_stream, const std::vector<std::string> &remotes)
+static void start_client_nodes(const start_nodes_config &start_config, const nodes_data::ptr &data, const std::vector<std::string> &remotes)
 {
-	(void) debug_stream;
-
 	data->logger.reset(new logger_base);
 	if (!data->directory.path().empty()) {
 		const std::string path = data->directory.path() + "/client.log";
@@ -979,7 +978,10 @@ static void start_client_nodes(int node_flags, const nodes_data::ptr &data,
 
 	dnet_config config;
 	memset(&config, 0, sizeof(config));
-	config.flags = node_flags;
+	config.flags = start_config.client_node_flags;
+	config.wait_timeout = start_config.client_wait_timeout;
+	config.check_timeout = start_config.client_check_timeout;
+	config.stall_count = start_config.client_stall_count;
 
 	data->node.reset(new node(logger(*data->logger, blackhole::log::attributes_t()), config));
 	for (size_t i = 0; i < remotes.size(); ++i) {
@@ -993,10 +995,12 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<std::s
 		throw std::runtime_error("Remotes list is empty");
 	}
 
+	start_nodes_config start_config(debug_stream, std::move(std::vector<server_config>()), path);
+
 	nodes_data::ptr data = std::make_shared<nodes_data>();
 	data->directory = directory_handler(path, false);
-	const int node_flags = 0;
-	start_client_nodes(node_flags, data, debug_stream, remotes);
+
+	start_client_nodes(start_config, data, remotes);
 	return data;
 }
 

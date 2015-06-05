@@ -62,6 +62,7 @@ extern "C" {
 #define __unused	__attribute__ ((unused))
 #endif
 
+struct dnet_test_settings;
 struct dnet_node;
 struct dnet_group;
 struct dnet_net_state;
@@ -668,6 +669,14 @@ struct dnet_node
 	void			*monitor;
 
 	struct dnet_config_data *config_data;
+
+	/*
+	 * Test settings allows injection of leverages to control some
+	 * low-level elliptics behaviour for testing purposes only
+	 */
+	struct dnet_test_settings *test_settings;
+	/* Lock for test_settings */
+	pthread_rwlock_t	test_settings_lock;
 };
 
 

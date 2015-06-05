@@ -35,6 +35,7 @@
 #include "elliptics/interface.h"
 
 #include "../monitor/measure_points.h"
+#include "tests.h"
 
 #ifndef POLLRDHUP
 #define POLLRDHUP 0x2000
@@ -411,6 +412,7 @@ static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t
 int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 {
 	struct dnet_net_state *st = req->st;
+	struct dnet_test_settings test_settings;
 	int err;
 
 	dnet_trans_get(t);
@@ -421,6 +423,10 @@ int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 		dnet_trans_timestamp(st, t);
 	pthread_mutex_unlock(&st->trans_lock);
 	if (err)
+		goto err_out_put;
+
+	if (t->n->test_settings && !dnet_node_get_test_settings(t->n, &test_settings) &&
+	    test_settings.commands_mask & (1 << t->command))
 		goto err_out_put;
 
 	err = dnet_io_req_queue(st, req);
