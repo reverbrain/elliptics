@@ -1,3 +1,10 @@
+elliptics (2.26.5.4) unstable; urgency=low
+
+  * backend: added parsing backend_id by eblob_backend
+  * compilation warning fix on precise (undefined UINT64_MAX)
+
+ -- Kirill Smorodinnikov <shaitkir@gmail.com>  Mon, 15 Jun 2015 13:30:33 +0400
+
 elliptics (2.26.5.3) unstable; urgency=low
 
   * logs: changed level of 'Failed to get VFS statistics' to NOTICE because it spams log and isn't caused by critical error.

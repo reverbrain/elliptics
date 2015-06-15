@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.5.3
+Version:	2.26.5.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jun 15 2015 Kirill Smorodinnikov <shaitkir@gmail.com> - 2.26.5.4
+- backend: added parsing backend_id by eblob_backend
+- compilation warning fix on precise (undefined UINT64_MAX)
+
 * Thu Jun 04 2015 Kirill Smorodinnikov <shaitkir@gmail.com> - 2.26.5.3
 - logs: changed level of 'Failed to get VFS statistics' to NOTICE because it spams log and isn't caused by critical error.
 - network: sockets are lost from node's reconnect list after dropped connection to net state (after stall_count timeout)
