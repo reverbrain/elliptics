@@ -1,3 +1,9 @@
+elliptics (2.26.5.5) unstable; urgency=low
+
+  * iterator: force reading header of uncommitted records
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 24 Jun 2015 19:08:55 +0400
+
 elliptics (2.26.5.4) unstable; urgency=low
 
   * backend: added parsing backend_id by eblob_backend

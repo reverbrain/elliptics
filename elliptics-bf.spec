@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.5.4
+Version:	2.26.5.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jun 24 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.5.5
+- iterator: force reading header of uncommitted records
+
 * Mon Jun 15 2015 Kirill Smorodinnikov <shaitkir@gmail.com> - 2.26.5.4
 - backend: added parsing backend_id by eblob_backend
 - compilation warning fix on precise (undefined UINT64_MAX)
