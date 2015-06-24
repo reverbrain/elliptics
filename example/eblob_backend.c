@@ -101,7 +101,12 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 
 	/* If it's an extended record - extract header, move data pointer */
 	if (dc->flags & BLOB_DISK_CTL_EXTHDR) {
-		if (!no_meta) {
+		/*
+		 * Skip reading/extracting header of completed records if iterator is run with no_meta.
+		 * Header of uncommitted records should be read in any cases for correct recovery.
+		 */
+		if (!no_meta ||
+		    (dc->flags & BLOB_DISK_CTL_UNCOMMITTED)) {
 			err = dnet_ext_hdr_read(&ehdr, fd, data_offset);
 			if (!err) {
 				dnet_ext_hdr_to_list(&ehdr, &elist);
