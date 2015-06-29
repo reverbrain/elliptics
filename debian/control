@@ -5,7 +5,7 @@ Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
 Build-Depends:	cdbs,
 		cmake (>= 2.6),
 		debhelper (>= 7.0.50~),
-		eblob (>= 0.22.22),
+		eblob (>= 0.23.0),
 		blackhole-dev (>= 0.2.3-1),
 		libboost-dev,
 		libboost-iostreams-dev,
@@ -31,7 +31,7 @@ XS-Python-Version: >= 2.6
 
 Package: elliptics
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.22.22), elliptics-client (= ${Source-Version}), libcocaine-core2, handystats (>= 1.10.0)
+Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.23.0), elliptics-client (= ${Source-Version}), libcocaine-core2, handystats (>= 1.10.0)
 Replaces: elliptics-2.10, srw
 Provides: elliptics-2.10
 Description: Distributed hash table storage
