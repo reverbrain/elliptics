@@ -113,6 +113,10 @@ elliptics_io_attr read_result_get_io(read_result_entry &result) {
 	return elliptics_io_attr(*result.io_attribute());
 }
 
+uint64_t read_result_get_record_flags(read_result_entry &result) {
+	return result.io_attribute()->record_flags;
+}
+
 std::string lookup_result_get_storage_address(const lookup_result_entry &result)
 {
 	return std::string(dnet_addr_string(result.storage_address()));
@@ -143,6 +147,10 @@ elliptics_id lookup_result_get_checksum(const lookup_result_entry &result)
 std::string lookup_result_get_filepath(const lookup_result_entry &result)
 {
 	return std::string(result.file_path());
+}
+
+uint64_t lookup_result_get_record_flags(const lookup_result_entry &result) {
+	return result.file_info()->record_flags;
 }
 
 std::string exec_context_get_event(exec_context &context)
@@ -311,7 +319,7 @@ void init_result_entry() {
 	;
 
 	bp::class_<dnet_iterator_response>("IteratorResultResponse",
-			bp::no_init)
+	                                   bp::no_init)
 		.add_property("key", iterator_response_get_key,
 		              "elliptics.Id of iterated key")
 		.add_property("timestamp", iterator_response_get_timestamp,
@@ -328,7 +336,7 @@ void init_result_entry() {
 		              "Status of iterated key:\n"
 		              "0 - common key\n"
 		              "1 - keepalive response")
-		.add_property("flags", &dnet_iterator_response::flags,
+		.add_property("record_flags", &dnet_iterator_response::flags,
 		              "Backend's flags of the record")
 	;
 
@@ -351,6 +359,8 @@ void init_result_entry() {
 		              "Total size of object data")
 		.add_property("io_attribute", read_result_get_io,
 		              "elliptics.IoAttr of read operation")
+		.add_property("record_flags", read_result_get_record_flags,
+		              "combination of elliptics.record_flags.*")
 	;
 
 	bp::class_<lookup_result_entry, bp::bases<callback_result_entry> >("LookupResultEntry")
@@ -365,6 +375,8 @@ void init_result_entry() {
 		              "elliptics.Id checksum of object")
 		.add_property("filepath", lookup_result_get_filepath,
 		              "path to object in the backend")
+		.add_property("record_flags", lookup_result_get_record_flags,
+		              "combination of elliptics.record_floags.*")
 	;
 
 	bp::class_<exec_context>("ExecContext")

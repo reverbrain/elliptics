@@ -747,7 +747,9 @@ struct dnet_io_attr
 	 */
 	uint64_t		total_size;
 
-	uint64_t		reserved1;
+	/* Combination of DNET_RECORD_FLAGS_* */
+	uint64_t		record_flags;
+
 	uint32_t		reserved2;
 
 	uint32_t		flags;
@@ -810,7 +812,7 @@ struct dnet_file_info {
 	int			flen;		/* filename length, which goes after this structure */
 	unsigned char		checksum[DNET_CSUM_SIZE];
 
-	uint64_t		cache_size;	/* size of file in cache */
+	uint64_t		record_flags;	/* combination of DNET_RECORD_FLAGS_* */
 	uint64_t		size;		/* size of file on disk */
 	uint64_t		offset;		/* offset of file on disk */
 
@@ -821,6 +823,7 @@ static inline void dnet_convert_file_info(struct dnet_file_info *info)
 {
 	info->flen = dnet_bswap32(info->flen);
 
+	info->record_flags = dnet_bswap64(info->record_flags);
 	info->size = dnet_bswap64(info->size);
 	info->offset = dnet_bswap64(info->offset);
 
@@ -829,6 +832,7 @@ static inline void dnet_convert_file_info(struct dnet_file_info *info)
 
 static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat *st)
 {
+	info->record_flags = 0;
 	info->size = st->st_size;
 	info->offset = 0;
 
@@ -1025,6 +1029,9 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
  * Such records doesn't available for read but can be committed even after restart.
  */
 #define DNET_RECORD_FLAGS_UNCOMMITTED		(1<<7)
+
+/* This flags is set for records that is checksummed by chunks */
+#define DNET_RECORD_FLAGS_CHUNKED_CSUM		(1<<8)
 
 /*
  * Iterator response

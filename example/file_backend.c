@@ -373,7 +373,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	if (err)
 		goto err_out_close;
 
-	err = dnet_send_file_info_ts(state, cmd, fd, 0, io.size, &io.timestamp);
+	err = dnet_send_file_info_ts(state, cmd, fd, 0, io.size, &io.timestamp, 0);
 	if (err)
 		goto err_out_close;
 

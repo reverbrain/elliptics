@@ -1269,7 +1269,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 
 	flen = err;
 
-	addr = malloc(sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen);
+	addr = calloc(1, sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen);
 	if (!addr) {
 		err = -ENOMEM;
 		goto err_out_free_file;
@@ -1331,8 +1331,8 @@ err_out_exit:
  * @offset should be set not to offset within given record,
  * but offset within file descriptor
  */
-int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
-		uint64_t offset, int64_t size, struct dnet_time *timestamp)
+int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd, uint64_t offset, int64_t size,
+                           struct dnet_time *timestamp, uint64_t record_flags)
 {
 	struct dnet_net_state *st = state;
 	struct dnet_file_info *info;
@@ -1365,8 +1365,9 @@ int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
 	dnet_fill_state_addr(state, a);
 	dnet_convert_addr(a);
 
-	info->offset = offset;
+	info->record_flags = record_flags;
 	info->size = size;
+	info->offset = offset;
 	info->mtime = *timestamp;
 	info->flen = flen;
 	memcpy(info + 1, file, flen);
