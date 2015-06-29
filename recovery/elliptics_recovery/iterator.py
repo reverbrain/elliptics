@@ -450,4 +450,4 @@ class MergeData(object):
                        self.value.timestamp,
                        self.value.size,
                        self.value.user_flags,
-                       self.value.flags)
+                       self.value.record_flags)

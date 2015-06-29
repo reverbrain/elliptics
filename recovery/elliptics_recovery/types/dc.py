@@ -323,7 +323,7 @@ def lookup_keys(ctx):
                                                  result.timestamp,
                                                  result.total_size,
                                                  result.user_flags,
-                                                 result.flags))
+                                                 result.record_flags))
                     except Exception, e:
                         log.debug("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"
                                   .format(id, ctx.groups[i], repr(e), traceback.format_exc()))

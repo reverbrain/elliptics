@@ -36,6 +36,7 @@ class KeyRecover(object):
         self.complete = threading.Event()
         self.stats = RecoverStat()
         self.key = key
+        self.key_flags = 0
         self.key_infos = key_infos
         self.diff_groups = []
         self.missed_groups = list(missed_groups)
@@ -64,7 +65,7 @@ class KeyRecover(object):
         same_uncommitted = [info for info in same_infos if info.flags & elliptics.record_flags.uncommitted]
         if same_uncommitted == same_infos:
             # if all such keys have exceeded prepare timeout - remove all replicas
-            # else skip recovering because the key is under writting and can be committed in nearest future.
+            # else skip recovering because the key is under writing and can be committed in nearest future.
             same_groups = [info.group_id for info in same_infos]
             if same_infos[0].timestamp < self.ctx.prepare_timeout:
                 self.remove_session.groups = [info.group_id for info in self.key_infos]
@@ -92,6 +93,7 @@ class KeyRecover(object):
 
         same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
         same_infos = [info for info in self.key_infos if same_meta(info, same_infos[0])]
+        self.key_flags = same_infos[0].flags
 
         self.same_groups = [info.group_id for info in same_infos]
         self.key_infos = [info for info in self.key_infos if info.group_id not in self.same_groups]
@@ -125,7 +127,11 @@ class KeyRecover(object):
                 size = min(self.total_size - self.recovered_size, self.ctx.chunk_size)
             # do not check checksum for all but the first chunk
             if self.recovered_size != 0:
-                self.read_session.ioflags |= elliptics.io_flags.nocsum
+                if self.key_flags & elliptics.record_flags.chunked_csum:
+                    # if record was checksummed by chunks there is no need to disable checksum verification
+                    self.read_session.ioflags &= ~elliptics.io_flags.nocsum
+                else:
+                    self.read_session.ioflags |= elliptics.io_flags.nocsum
             else:
                 # first read should be at least INDEX_MAGIC_NUMBER_LENGTH bytes
                 size = min(self.total_size, max(size, INDEX_MAGIC_NUMBER_LENGTH))
@@ -243,6 +249,7 @@ class KeyRecover(object):
                 self.write_session.timestamp = results[-1].timestamp
                 self.read_session.ioflags |= elliptics.io_flags.nocsum
                 self.read_session.groups = [results[-1].group_id]
+                self.key_flags = results[-1].record_flags
                 if self.total_size != results[-1].total_size:
                     self.total_size = results[-1].total_size
                     self.chunked = self.total_size > self.ctx.chunk_size

@@ -128,8 +128,12 @@ class Recovery(object):
                 # size of chunk that should be read/written next
                 size = min(self.total_size - self.recovered_size, self.ctx.chunk_size)
             if self.recovered_size != 0:
-                # if it is not first chunk then do not check checksum on read
-                self.direct_session.ioflags |= elliptics.io_flags.nocsum
+                if self.key_flags & elliptics.record_flags.chunked_csum:
+                    # if record was checksummed by chunks there is no need to disable checksum verification
+                    self.direct_session.ioflags &= ~elliptics.io_flags.nocsum
+                else:
+                    # if it is not first chunk then do not check checksum on read
+                    self.direct_session.ioflags |= elliptics.io_flags.nocsum
             self.direct_session.read_data(self.key,
                                           offset=self.recovered_size,
                                           size=size).connect(self.onread)
@@ -243,6 +247,7 @@ class Recovery(object):
             if self.recovered_size == 0:
                 self.session.user_flags = results[0].user_flags
                 self.session.timestamp = results[0].timestamp
+                self.key_flags = results[0].record_flags
                 if self.total_size != results[0].total_size:
                     self.total_size = results[0].total_size
                     self.chunked = self.total_size > self.ctx.chunk_size
@@ -367,7 +372,7 @@ def recover(ctx, address, backend_id, group, node, results, stats):
             rec = Recovery(key=response.key,
                            timestamp=response.timestamp,
                            size=response.size,
-                           flags=response.flags,
+                           flags=response.record_flags,
                            address=address,
                            backend_id=backend_id,
                            group=group,
@@ -587,7 +592,6 @@ class DumpRecover(object):
         self.lookup_results.append(result)
         if len(self.lookup_results) == self.lookups_count:
             self.check()
-            self.async_lookups = None
 
     def check(self):
         # finds timestamp of newest object
@@ -605,7 +609,7 @@ class DumpRecover(object):
         max_size = max([r.total_size for r in results])
         log.debug("Max size of latest replicas for key: {0}: {1}".format(repr(self.id), max_size))
         # filters newest objects with max size
-        results = [(r.address, r.backend_id) for r in results if r.total_size == max_size]
+        results = [(r.address, r.backend_id, r.record_flags) for r in results if r.total_size == max_size]
         if (self.address, self.backend_id) in results:
             log.debug("Node: {0} already has the latest version of key: {1}."
                       .format(self.address, repr(self.id), self.group))
@@ -615,7 +619,7 @@ class DumpRecover(object):
             # if destination node has outdated object - recovery it from one of filtered nodes
             self.timestamp = max_ts
             self.size = max_size
-            self.recover_address, self.recover_backend_id = results[0]
+            self.recover_address, self.recover_backend_id, self.key_flags = results[0]
             log.debug("Node: {0} has the newer version of key: {1}. Recovering it on node: {2}"
                       .format(self.recover_address, repr(self.id), self.address))
             self.recover()
@@ -624,7 +628,7 @@ class DumpRecover(object):
         self.recover_result = Recovery(key=self.id,
                                        timestamp=self.timestamp,
                                        size=self.size,
-                                       flags=0,
+                                       flags=self.key_flags,
                                        address=self.recover_address,
                                        backend_id=self.recover_backend_id,
                                        group=self.group,
