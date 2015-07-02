@@ -31,6 +31,7 @@ elliptics_io_attr::elliptics_io_attr()
 	flags		= 0;
 	offset		= 0;
 	size		= 0;
+	record_flags	= 0;
 }
 
 elliptics_io_attr::elliptics_io_attr(const dnet_io_attr &io)
@@ -50,7 +51,7 @@ bp::tuple io_attr_pickle::getstate(const elliptics_io_attr& io) {
 	return bp::make_tuple(id_pickle::getstate(io.parent),
 	                      id_pickle::getstate(io.id),
 	                      time_pickle::getstate(io.time),
-	                      io.user_flags, io.size, io.flags, io.total_size);
+	                      io.user_flags, io.size, io.flags, io.total_size, io.record_flags);
 }
 
 void io_attr_pickle::setstate(elliptics_io_attr& io, bp::tuple state) {
@@ -68,6 +69,7 @@ void io_attr_pickle::setstate(elliptics_io_attr& io, bp::tuple state) {
 	io.size = bp::extract<uint64_t>(state[4]);
 	io.flags = bp::extract<uint64_t>(state[5]);
 	io.total_size = bp::extract<uint64_t>(state[6]);
+	io.record_flags = bp::extract<uint64_t>(state[7]);
 }
 
 void init_elliptics_io_attr() {
@@ -106,6 +108,8 @@ void init_elliptics_io_attr() {
 		    "io_flags.size = len('object data')")
 		.def_readwrite("total_size", &dnet_io_attr::total_size,
 		    "Total size of the object being read.")
+		.def_readwrite("record_flags", &dnet_io_attr::record_flags,
+		    "combination of elliptics.record_flags.*")
 		.def_pickle(io_attr_pickle())
 	;
 }
