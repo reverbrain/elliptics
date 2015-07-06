@@ -2195,6 +2195,7 @@ async_iterator_result session::iterator(const key &id, const data_pointer& reque
 		async_iterator_result result(*this);
 		async_result_handler<iterator_result_entry> handler(result);
 		handler.complete(create_error(-ENXIO, "iterator: groups list is empty"));
+		return result;
 	}
 
 	transform(id);
