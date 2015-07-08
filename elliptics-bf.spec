@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.5.5
+Version:	2.26.6.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jul 09 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.6.0
+- iterator: fixed segfault on start_iterator without specified groups
+- eblob: updated eblob version
+- recovery: added using record_flags from read, lookup and iterator results for correct recovering of keys checksummed by chunks
+- eblob: added support of new eblob checksums
+
 * Wed Jun 24 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.5.5
 - iterator: force reading header of uncommitted records
 

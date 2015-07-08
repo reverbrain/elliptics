@@ -1,3 +1,12 @@
+elliptics (2.26.6.0) unstable; urgency=low
+
+  * iterator: fixed segfault on start_iterator without specified groups
+  * eblob: updated eblob version
+  * recovery: added using record_flags from read, lookup and iterator results for correct recovering of keys checksummed by chunks
+  * eblob: added support of new eblob checksums
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 09 Jul 2015 02:00:46 +0400
+
 elliptics (2.26.5.5) unstable; urgency=low
 
   * iterator: force reading header of uncommitted records
