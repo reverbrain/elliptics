@@ -525,7 +525,7 @@ struct dnet_locks_entry {
 	struct list_head	lock_list_entry;
 	pthread_mutex_t		lock;
 	pthread_cond_t		wait;
-	struct dnet_raw_id	id;
+	struct dnet_id		id;
 	int			locked;
 	atomic_t		refcnt;
 };

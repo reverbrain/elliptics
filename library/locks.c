@@ -103,6 +103,17 @@ err_out_exit:
 	return err;
 }
 
+/*
+ * Two keys with same id and different group_id should not interfere with each other
+ */
+static inline int dnet_locks_entry_compare(const struct dnet_locks_entry *entry, const struct dnet_id *id)
+{
+	if (entry->id.group_id != id->group_id) {
+		return entry->id.group_id < id->group_id ? -1 : 1;
+	}
+	return memcmp(entry->id.id, id->id, DNET_ID_SIZE);
+}
+
 static struct dnet_locks_entry *dnet_oplock_search_nolock(struct dnet_node *n, struct dnet_id *id)
 {
 	struct rb_root *root = &n->locks->lock_tree;
@@ -113,7 +124,7 @@ static struct dnet_locks_entry *dnet_oplock_search_nolock(struct dnet_node *n, s
 	while (node) {
 		entry = rb_entry(node, struct dnet_locks_entry, lock_tree_entry);
 
-		cmp = memcmp(entry->id.id, id->id, DNET_ID_SIZE);
+		cmp = dnet_locks_entry_compare(entry, id);
 		if (cmp < 0)
 			node = node->rb_left;
 		else if (cmp > 0)
@@ -137,7 +148,7 @@ static int dnet_oplock_insert_nolock(struct dnet_node *n, struct dnet_locks_entr
 
 		t = rb_entry(parent, struct dnet_locks_entry, lock_tree_entry);
 
-		cmp = memcmp(t->id.id, a->id.id, DNET_ID_SIZE);
+		cmp = dnet_locks_entry_compare(t, &a->id);
 		if (cmp < 0)
 			node = &parent->rb_left;
 		else if (cmp > 0)
@@ -184,7 +195,7 @@ static struct dnet_locks_entry *dnet_oplock_ensure(struct dnet_node *n, struct d
 		entry->locked = 0;
 		atomic_init(&entry->refcnt, 1);
 
-		memcpy(entry->id.id, id->id, sizeof(entry->id.id));
+		memcpy(&entry->id, id, sizeof(entry->id));
 
 		dnet_oplock_insert_nolock(n, entry);
 	} else {
