@@ -32,6 +32,37 @@ def logged_class(klass):
     return klass
 
 
+def convert_elliptics_log_level(level):
+    '''
+    Converts elliptics.log_level into logging log level
+    '''
+    if level <= elliptics.log_level.debug:
+        return logging.DEBUG
+    elif level <= elliptics.log_level.info:
+        return logging.INFO
+    elif level <= elliptics.log_level.warning:
+        return logging.WARNING
+    elif level <= elliptics.log_level.error:
+        return logging.ERROR
+    else:
+        return logging.ERROR
+
+def convert_logging_log_level(level):
+    '''
+    Converts logging log level into elliptics.log_level
+    '''
+    if level <= logging.DEBUG:
+        return elliptics.log_level.debug
+    elif level <= logging.INFO:
+        return elliptics.log_level.info
+    elif level <= logging.WARNING:
+        return elliptics.log_level.warning
+    elif level <= logging.CRITICAL:
+        return elliptics.log_level.ERROR
+    else:
+        return elliptics.log_level.error
+
+
 class Handler(logging.Handler):
     def __init__(self, path, level):
         logging.Handler.__init__(self)

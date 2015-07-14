@@ -471,7 +471,7 @@ if __name__ == '__main__':
 
     ch = logging.StreamHandler(sys.stderr)
     ch.setFormatter(formatter)
-    ch.setLevel(logging.INFO)
+    ch.setLevel(logging.WARNING)
     log.addHandler(ch)
 
     if not os.path.exists(ctx.tmp_dir):
@@ -489,16 +489,17 @@ if __name__ == '__main__':
         ctx.merged_filename = os.path.join(ctx.tmp_dir,
                                            options.merged_filename)
 
-        ch.setLevel(logging.WARNING)
-        if options.debug:
-            ch.setLevel(logging.DEBUG)
-
         # FIXME: It may be inappropriate to use one log for both
         # elliptics library and python app, esp. in presence of auto-rotation
         fh = logging.FileHandler(ctx.log_file)
         fh.setFormatter(formatter)
-        fh.setLevel(logging.DEBUG)
+        fh.setLevel(convert_elliptics_log_level(ctx.log_level))
         log.addHandler(fh)
+        log.setLevel(convert_elliptics_log_level(ctx.log_level))
+
+        if options.debug:
+            log.setLevel(logging.DEBUG)
+            ch.setLevel(logging.DEBUG)
     except Exception as e:
         raise ValueError("Can't parse log_level: '{0}': {1}, traceback: {2}"
                          .format(options.elliptics_log_level, repr(e), traceback.format_exc()))

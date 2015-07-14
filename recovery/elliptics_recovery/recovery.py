@@ -26,6 +26,7 @@ from elliptics_recovery.etime import Time
 from elliptics_recovery.utils.misc import elliptics_create_node, elliptics_create_session, worker_init
 from elliptics_recovery.monitor import Monitor, ALLOWED_STAT_FORMATS
 from elliptics_recovery.ctx import Ctx
+from elliptics.log import convert_elliptics_log_level
 
 import elliptics
 from elliptics.log import formatter
@@ -35,7 +36,7 @@ log.setLevel(logging.DEBUG)
 
 ch = logging.StreamHandler(sys.stderr)
 ch.setFormatter(formatter)
-ch.setLevel(logging.INFO)
+ch.setLevel(logging.WARNING)
 log.addHandler(ch)
 
 TYPE_MERGE = 'merge'
@@ -140,15 +141,18 @@ def main(options, args):
             ctx.log_level = elliptics.log_level.names[ctx.log_level]
 
         ctx.dump_keys = options.dump_keys
-        if options.debug:
-            ch.setLevel(logging.DEBUG)
 
         # FIXME: It may be inappropriate to use one log for both
         # elliptics library and python app, esp. in presence of auto-rotation
         fh = logging.FileHandler(ctx.log_file)
         fh.setFormatter(formatter)
-        fh.setLevel(logging.DEBUG)
+        fh.setLevel(convert_elliptics_log_level(ctx.log_level))
         log.addHandler(fh)
+        log.setLevel(convert_elliptics_log_level(ctx.log_level))
+
+        if options.debug:
+            ch.setLevel(logging.DEBUG)
+            log.setLevel(logging.DEBUG)
     except Exception as e:
         raise ValueError("Can't parse log_level: '{0}': {1}, traceback: {2}"
                          .format(options.elliptics_log_level, repr(e), traceback.format_exc()))
