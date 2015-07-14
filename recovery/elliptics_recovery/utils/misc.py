@@ -92,6 +92,9 @@ def worker_init():
 # common class for collecting statistics of recovering one key
 class RecoverStat(object):
     def __init__(self):
+        self.reset()
+
+    def reset(self):
         self.skipped = 0
         self.lookup = 0
         self.lookup_failed = 0
@@ -154,6 +157,8 @@ class RecoverStat(object):
             stats.counter('local_removes_old_bytes', self.remove_old_bytes)
         if self.merged_indexes:
             stats.counter("merged_indexes", self.merged_indexes)
+
+        self.reset()
 
     def __add__(self, b):
         ret = RecoverStat()
