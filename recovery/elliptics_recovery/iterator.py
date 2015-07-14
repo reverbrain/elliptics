@@ -306,7 +306,6 @@ class Iterator(object):
                                                   flags,
                                                   timestamp_range[0],
                                                   timestamp_range[1])
-            filtered_keys = 0
             iterated_keys = 0
             total_keys = 0
 
@@ -317,14 +316,12 @@ class Iterator(object):
                 # TODO: Here we can add throttling
                 if record.status != 0:
                     raise RuntimeError("Iteration status check failed: {0}".format(record.status))
-                # skipping keepalive responses
-                if record.response.status == 0:
-                    filtered_keys = num + 1
+
                 iterated_keys = record.response.iterated_keys
                 total_keys = record.response.total_keys
 
                 if iterated_keys % batch_size == 0:
-                    yield (filtered_keys, iterated_keys, total_keys, start, end)
+                    yield (iterated_keys, total_keys, start, end)
                 if record.response.status != 0 or record.response.size == 0:
                     continue
                 results[self.get_key_range_id(record.response.key)].append(record)
@@ -332,7 +329,7 @@ class Iterator(object):
 
             elapsed_time = records.elapsed_time()
             self.log.debug("Time spended for iterator: {0}/{1}".format(elapsed_time.tsec, elapsed_time.tnsec))
-            yield (filtered_keys, iterated_keys, total_keys, start, end)
+            yield (iterated_keys, total_keys, start, end)
             if self.separately:
                 yield results
             else:
@@ -368,10 +365,9 @@ class Iterator(object):
                 result = it
                 break
 
-            filtered_keys, iterated_keys, total_keys, start, end = it
-            result_len = filtered_keys
-            stats.set_counter('filtered_keys', filtered_keys)
-            stats.set_counter('iteration_speed', filtered_keys / (end - start))
+            iterated_keys, total_keys, start, end = it
+            result_len = iterated_keys
+            stats.set_counter('iteration_speed', round(iterated_keys / (end - start), 2))
             stats.set_counter('iterated_keys', iterated_keys)
             stats.set_counter('total_keys', total_keys)
 

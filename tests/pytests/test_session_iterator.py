@@ -36,14 +36,13 @@ def format_result(node, backend, result, counter):
         result.id)
 
 
-def format_stat(node, backend, result, counter):
+def format_stat(node, backend, result):
     '''
     Formats and returns string that represents iteration progress.
     '''
-    return "node: {0}/{1}: filtered_keys: {2} iterated_keys: {3}, total_keys: {4}".format(
+    return "node: {0}/{1}: iterated_keys: {2}, total_keys: {3}".format(
         node,
         backend,
-        counter,
         result.response.iterated_keys,
         result.response.total_keys)
 
@@ -74,7 +73,7 @@ def check_iterator_results(node, backend, iterator, session, node_id, no_meta=Fa
             session.continue_iterator(node_id, result.id)
 
         counter += 1
-        print format_result(node, backend, result, counter)
+        print format_result(node, backend, result)
 
 
 def convert_ranges(ranges):
