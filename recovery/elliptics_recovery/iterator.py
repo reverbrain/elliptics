@@ -125,7 +125,7 @@ class IteratorResult(object):
                     gets new record from iterator while it key == minimum or end of node diffs is reached.
                 4.  If for some tuple all node diffs are processed - adds number of the tuple into remove list
                 5.  After that removes from tuple list all tuples from remove list
-                6.  Repeates step 1-6 while tuple list isn't empty
+                6.  Repeats step 1-6 while tuple list isn't empty
         """
         results = [d for d in results if d and len(d) != 0]
         if len(results) == 1:
@@ -144,12 +144,6 @@ class IteratorResult(object):
         elif len(results) != 0:
             return cls.__merge__(results, tmp_dir)
         return None
-
-    @classmethod
-    def combine(cls, results, tmp_dir):
-        results = [d for d in results if d and len(d) != 0]
-        if len(results) == 1:
-            import shutil
 
     @classmethod
     def __merge__(cls, results, tmp_dir):

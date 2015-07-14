@@ -688,7 +688,7 @@ def dump_process_group((ctx, group)):
                                  remotes=ctx.remotes)
     ret = True
     with open(ctx.dump_file, 'r') as dump:
-        #splits ids from dump file in batchs and recovers it
+        # splits ids from dump file in batchs and recovers it
         for batch_id, batch in groupby(enumerate(dump), key=lambda x: x[0] / ctx.batch_size):
             recovers = []
             rs = RecoverStat()
