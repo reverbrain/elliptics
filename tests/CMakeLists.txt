@@ -134,6 +134,7 @@ add_custom_command(TARGET test
     POST_BUILD
     COMMAND virtualenv -p "${PYTHON_EXECUTABLE}" . &&
         . bin/activate &&
+        pip install argparse &&
         pip install pytest &&
         pip install pytest-timeout &&
         pip install msgpack-python &&
