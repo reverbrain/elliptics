@@ -455,6 +455,8 @@ struct dnet_work_pool {
 	pthread_mutex_t		lock;
 	pthread_cond_t		wait;
 	struct dnet_work_io	*wio_list;
+
+	void			*request_fetcher;
 };
 
 struct dnet_work_pool_place

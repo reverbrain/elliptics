@@ -9,6 +9,7 @@ set(ELLIPTICS_CLIENT_SRCS
     node.c
     notify_common.c
     pool.c
+    request_fetcher.cpp
     rbtree.c
     trans.c
     tests.c

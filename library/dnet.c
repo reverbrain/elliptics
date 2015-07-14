@@ -1044,11 +1044,6 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	HANDY_TIMER_SCOPE(recursive ? "io.cmd_recursive" : "io.cmd");
 	FORMATTED(HANDY_TIMER_SCOPE, ("io.cmd%s.%s", (recursive ? "_recursive" : ""), dnet_cmd_string(cmd->cmd)));
 
-	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
-		FORMATTED(HANDY_TIMER_SCOPE, ("io.cmd.%s.lock_time", dnet_cmd_string(cmd->cmd)));
-		dnet_oplock(n, &cmd->id);
-	}
-
 	gettimeofday(&start, NULL);
 
 	err = dnet_process_cmd_without_backend_raw(st, cmd, data);
@@ -1118,9 +1113,6 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	dnet_monitor_stats_update(n, cmd, err, handled_in_cache, iosize, diff);
 
 	err = dnet_send_ack(st, cmd, err, recursive);
-
-	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
-		dnet_opunlock(n, &cmd->id);
 
 	dnet_stat_inc(st->stat, cmd->cmd, err);
 	if (st->__join_state == DNET_JOIN)

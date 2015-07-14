@@ -30,6 +30,7 @@
 #include "elliptics/interface.h"
 #include "../monitor/monitor.h"
 #include "../monitor/measure_points.h"
+#include "request_fetcher.h"
 
 static char *dnet_work_io_mode_string[] = {
 	[DNET_WORK_IO_MODE_BLOCKING] = "BLOCKING",
@@ -75,6 +76,8 @@ void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
 
 	pthread_mutex_destroy(&place->pool->lock);
 	pthread_cond_destroy(&place->pool->wait);
+
+	dnet_destroy_request_fetcher(place->pool->request_fetcher);
 
 	free(place->pool->wio_list);
 	free(place->pool);
@@ -167,48 +170,55 @@ int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n
 	struct dnet_backend_io *io, int num, int mode, void *(* process)(void *))
 {
 	int err;
+	struct dnet_work_pool *pool;
 
 	pthread_mutex_lock(&place->lock);
 
-	place->pool = calloc(1, sizeof(struct dnet_work_pool));
-	if (!place->pool) {
+	place->pool = pool = calloc(1, sizeof(struct dnet_work_pool));
+	if (!pool) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
-	err = pthread_mutex_init(&place->pool->lock, NULL);
+	err = pthread_mutex_init(&pool->lock, NULL);
 	if (err) {
 		err = -err;
 		goto err_out_free;
 	}
 
-	err = pthread_cond_init(&place->pool->wait, NULL);
+	err = pthread_cond_init(&pool->wait, NULL);
 	if (err) {
 		err = -err;
 		goto err_out_mutex_destroy;
 	}
 
-	place->pool->num = 0;
-	place->pool->mode = mode;
-	place->pool->n = n;
-	place->pool->io = io;
-	INIT_LIST_HEAD(&place->pool->list);
-	list_stat_init(&place->pool->list_stats);
+	pool->num = 0;
+	pool->mode = mode;
+	pool->n = n;
+	pool->io = io;
+	INIT_LIST_HEAD(&pool->list);
+	list_stat_init(&pool->list_stats);
 
-	err = dnet_work_pool_grow(n, place->pool, num, process);
+	err = dnet_work_pool_grow(n, pool, num, process);
 	if (err)
 		goto err_out_cond_destroy;
+
+	pool->request_fetcher = dnet_create_request_fetcher(pool->num);
+	if (!pool->request_fetcher) {
+		err = -ENOMEM;
+		goto err_out_cond_destroy;
+	}
 
 	pthread_mutex_unlock(&place->lock);
 
 	return err;
 
 err_out_cond_destroy:
-	pthread_cond_destroy(&place->pool->wait);
+	pthread_cond_destroy(&pool->wait);
 err_out_mutex_destroy:
-	pthread_mutex_destroy(&place->pool->lock);
+	pthread_mutex_destroy(&pool->lock);
 err_out_free:
-	free(place->pool);
+	free(pool);
 err_out_exit:
 	pthread_mutex_unlock(&place->lock);
 	return err;
@@ -973,50 +983,6 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 	n->st = NULL;
 }
 
-static struct dnet_io_req *take_request(struct dnet_work_io *wio)
-{
-	struct dnet_work_pool *pool = wio->pool;
-	struct dnet_io_req *it = NULL, *tmp;
-	struct dnet_cmd *cmd;
-	uint64_t trans;
-	int i;
-	int ok;
-
-	if (!list_empty(&wio->list)) {
-		it = list_first_entry(&wio->list, struct dnet_io_req, req_entry);
-		cmd = it->header;
-		trans = cmd->trans;
-		wio->trans = trans;
-		return it;
-	}
-
-	list_for_each_entry_safe(it, tmp, &pool->list, req_entry) {
-		cmd = it->header;
-		trans = cmd->trans;
-		ok = 1;
-
-		/* This is not a transaction reply, process it right now */
-		if (!(cmd->flags & DNET_FLAGS_REPLY))
-			return it;
-
-		for (i = 0; i < pool->num; ++i) {
-			 /* Someone claimed transaction @tid */
-			if (pool->wio_list[i].trans == trans) {
-				list_move_tail(&it->req_entry, &pool->wio_list[i].list);
-				ok = 0;
-				break;
-			}
-		}
-
-		if (ok) {
-			wio->trans = trans;
-			return it;
-		}
-	}
-
-	return NULL;
-}
-
 void *dnet_io_process(void *data_)
 {
 	struct dnet_work_io *wio = data_;
@@ -1053,29 +1019,9 @@ void *dnet_io_process(void *data_)
 
 		pthread_mutex_lock(&pool->lock);
 
-		/*
-		 * Comment below is only related to client IO threads processing replies from the server.
-		 *
-		 * At any given moment of time it is forbidden for 2 IO threads to process replies for the same transaction.
-		 * This may lead to the situation, when thread 1 processes final ack, while thread 2 is being handling received data.
-		 * Thread 1 will free resources, which leads thread 2 to crash the whole process.
-		 *
-		 * Thus any transaction may only be processed on single thread at any given time.
-		 * But it is possible to ping-pong transaction between multiple IO threads as long as each IO thread
-		 * processes different transaction reply simultaneously.
-		 *
-		 * We must set current thread index to -1 to highlight that current thread currently does not perform any task,
-		 * so it can be assigned any transaction reply, if it is not already claimed by another thread.
-		 *
-		 * If we leave here previously processed transaction id, we might stuck, since all threads will wait for those
-		 * transactions they are assigned to, thus not allowing any further process, since no thread will be able to
-		 * process current request and move to the next one.
-		 */
-		wio->trans = ~0ULL;
-
-		if (!(r = take_request(wio))) {
+		if (!(r = dnet_take_request(wio))) {
 			err = pthread_cond_timedwait(&pool->wait, &pool->lock, &ts);
-			if ((r = take_request(wio)))
+			if ((r = dnet_take_request(wio)))
 				err = 0;
 		}
 
@@ -1111,6 +1057,10 @@ void *dnet_io_process(void *data_)
 			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, dnet_cmd_string(cmd->cmd));
 
 		dnet_node_unset_trace_id();
+
+		pthread_mutex_lock(&pool->lock);
+		dnet_release_request(wio, r);
+		pthread_mutex_unlock(&pool->lock);
 
 		dnet_io_req_free(r);
 		dnet_state_put(st);
