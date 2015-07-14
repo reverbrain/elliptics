@@ -125,7 +125,7 @@ class IteratorResult(object):
                     gets new record from iterator while it key == minimum or end of node diffs is reached.
                 4.  If for some tuple all node diffs are processed - adds number of the tuple into remove list
                 5.  After that removes from tuple list all tuples from remove list
-                6.  Repeates step 1-6 while tuple list isn't empty
+                6.  Repeats step 1-6 while tuple list isn't empty
         """
         results = [d for d in results if d and len(d) != 0]
         if len(results) == 1:
@@ -144,12 +144,6 @@ class IteratorResult(object):
         elif len(results) != 0:
             return cls.__merge__(results, tmp_dir)
         return None
-
-    @classmethod
-    def combine(cls, results, tmp_dir):
-        results = [d for d in results if d and len(d) != 0]
-        if len(results) == 1:
-            import shutil
 
     @classmethod
     def __merge__(cls, results, tmp_dir):
@@ -239,9 +233,10 @@ class Iterator(object):
     Wrapper on top of elliptics new iterator and it's result container
     """
 
-    def __init__(self, node, group, separately=False):
+    def __init__(self, node, group, separately=False, trace_id=0):
         self.session = elliptics.Session(node)
         self.session.groups = [group]
+        self.session.trace_id = trace_id
         self.separately = separately
 
     def get_key_range_id(self, key):
@@ -311,7 +306,6 @@ class Iterator(object):
                                                   flags,
                                                   timestamp_range[0],
                                                   timestamp_range[1])
-            filtered_keys = 0
             iterated_keys = 0
             total_keys = 0
 
@@ -322,14 +316,12 @@ class Iterator(object):
                 # TODO: Here we can add throttling
                 if record.status != 0:
                     raise RuntimeError("Iteration status check failed: {0}".format(record.status))
-                # skipping keepalive responses
-                if record.response.status == 0:
-                    filtered_keys = num + 1
+
                 iterated_keys = record.response.iterated_keys
                 total_keys = record.response.total_keys
 
                 if iterated_keys % batch_size == 0:
-                    yield (filtered_keys, iterated_keys, total_keys, start, end)
+                    yield (iterated_keys, total_keys, start, end)
                 if record.response.status != 0 or record.response.size == 0:
                     continue
                 results[self.get_key_range_id(record.response.key)].append(record)
@@ -337,7 +329,7 @@ class Iterator(object):
 
             elapsed_time = records.elapsed_time()
             self.log.debug("Time spended for iterator: {0}/{1}".format(elapsed_time.tsec, elapsed_time.tnsec))
-            yield (filtered_keys, iterated_keys, total_keys, start, end)
+            yield (iterated_keys, total_keys, start, end)
             if self.separately:
                 yield results
             else:
@@ -351,8 +343,8 @@ class Iterator(object):
     def iterate_with_stats(cls, node, eid, timestamp_range,
                            key_ranges, tmp_dir, address, group_id, backend_id, batch_size,
                            stats, flags, leave_file=False,
-                           separately=False):
-        iterator = cls(node, group_id, separately)
+                           separately=False, trace_id=0):
+        iterator = cls(node, group_id, separately, trace_id=trace_id)
         result = iterator.start(eid=eid,
                                 timestamp_range=timestamp_range,
                                 flags=flags,
@@ -373,10 +365,9 @@ class Iterator(object):
                 result = it
                 break
 
-            filtered_keys, iterated_keys, total_keys, start, end = it
-            result_len = filtered_keys
-            stats.set_counter('filtered_keys', filtered_keys)
-            stats.set_counter('iteration_speed', filtered_keys / (end - start))
+            iterated_keys, total_keys, start, end = it
+            result_len = iterated_keys
+            stats.set_counter('iteration_speed', round(iterated_keys / (end - start), 2))
             stats.set_counter('iterated_keys', iterated_keys)
             stats.set_counter('total_keys', total_keys)
 

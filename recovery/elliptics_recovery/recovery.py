@@ -26,6 +26,7 @@ from elliptics_recovery.etime import Time
 from elliptics_recovery.utils.misc import elliptics_create_node, elliptics_create_session, worker_init
 from elliptics_recovery.monitor import Monitor, ALLOWED_STAT_FORMATS
 from elliptics_recovery.ctx import Ctx
+from elliptics.log import convert_elliptics_log_level
 
 import elliptics
 from elliptics.log import formatter
@@ -35,7 +36,7 @@ log.setLevel(logging.DEBUG)
 
 ch = logging.StreamHandler(sys.stderr)
 ch.setFormatter(formatter)
-ch.setLevel(logging.INFO)
+ch.setLevel(logging.WARNING)
 log.addHandler(ch)
 
 TYPE_MERGE = 'merge'
@@ -68,7 +69,7 @@ def get_routes(ctx):
                                  remotes=ctx.remotes)
 
     log.debug("Creating session for: {0}".format(ctx.address))
-    session = elliptics_create_session(node=node, group=0)
+    session = elliptics_create_session(node=node, group=0, trace_id=ctx.trace_id)
 
     log.debug("Parsing routing table")
     return RouteList.from_session(session)
@@ -92,6 +93,12 @@ def main(options, args):
     ctx.one_node = bool(options.one_node)
     ctx.custom_recover = options.custom_recover
     ctx.no_meta = options.no_meta and (options.timestamp is None)
+
+    try:
+        ctx.trace_id = int(options.trace_id, 16)
+    except Exception as e:
+        raise ValueError("Can't parse -T/--trace-id: '{0}': {1}, traceback: {2}"
+                         .format(options.trace_id, repr(e), traceback.format_exc()))
 
     if ctx.custom_recover:
         ctx.custom_recover = os.path.abspath(ctx.custom_recover)
@@ -134,15 +141,18 @@ def main(options, args):
             ctx.log_level = elliptics.log_level.names[ctx.log_level]
 
         ctx.dump_keys = options.dump_keys
-        if options.debug:
-            ch.setLevel(logging.DEBUG)
 
         # FIXME: It may be inappropriate to use one log for both
         # elliptics library and python app, esp. in presence of auto-rotation
         fh = logging.FileHandler(ctx.log_file)
         fh.setFormatter(formatter)
-        fh.setLevel(logging.DEBUG)
+        fh.setLevel(convert_elliptics_log_level(ctx.log_level))
         log.addHandler(fh)
+        log.setLevel(convert_elliptics_log_level(ctx.log_level))
+
+        if options.debug:
+            ch.setLevel(logging.DEBUG)
+            log.setLevel(logging.DEBUG)
     except Exception as e:
         raise ValueError("Can't parse log_level: '{0}': {1}, traceback: {2}"
                          .format(options.elliptics_log_level, repr(e), traceback.format_exc()))
@@ -399,4 +409,6 @@ def run(args=None):
     parser.add_option('-p', '--prepare-timeout', action='store', dest='prepare_timeout', default='1d',
                       help='Timeout for uncommitted records (prepared, but not committed).'
                       'Records that exceeded this timeout will be removed. [default: %default]')
+    parser.add_option('-T', '--trace-id', action='store', dest="trace_id", default='0',
+                      help='Marks all recovery commands by trace_id at both recovery and server logs. This option accepts hex strings. [default: %default]')
     return main(*parser.parse_args(args))

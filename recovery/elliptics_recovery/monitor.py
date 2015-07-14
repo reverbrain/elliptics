@@ -177,8 +177,10 @@ class Monitor(object):
                     counter = getattr(stats.counter, name)
                     if value > 0:
                         counter.success = value
-                    else:
+                    elif value < 0:
                         counter.failures = -value
+                    else:
+                        counter.success, counter.failures = 0, 0
                 elif flavour == StatsProxy.TIMER:
                     _, _, name, milestone, ts = data
                     timer = getattr(stats.timer, name, ts)

@@ -30,6 +30,12 @@ class RECOVERY:
     DC = 2
 
 
+def cleanup_logger():
+    from logging import getLogger
+    log = getLogger()
+    log.handlers = []
+
+
 def check_backend_status(result, backend_id, state, defrag_state=0, last_start_err=0):
     '''
     Checks one backends status
@@ -149,6 +155,8 @@ def recovery(one_node, remotes, backend_id, address, groups,
         args += ['dc']
 
     assert run(args) == 0
+
+    cleanup_logger()
 
 
 @pytest.fixture(scope="class", autouse=True)

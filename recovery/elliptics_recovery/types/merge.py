@@ -30,10 +30,9 @@ import os
 from itertools import groupby
 import traceback
 import threading
-import time
 
 from ..etime import Time
-from ..utils.misc import elliptics_create_node, RecoverStat, LookupDirect, RemoveDirect
+from ..utils.misc import elliptics_create_node, RecoverStat, LookupDirect, RemoveDirect, WindowedRecovery
 from ..route import RouteList
 from ..iterator import Iterator
 from ..range import IdRange
@@ -57,10 +56,12 @@ class Recovery(object):
         self.group = group
         self.node = node
         self.direct_session = elliptics.Session(node)
+        self.direct_session.trace_id = ctx.trace_id
         self.direct_session.set_direct_id(self.address, self.backend_id)
         self.direct_session.groups = [group]
         self.session = elliptics.Session(node)
         self.session.groups = [group]
+        self.session.trace_id = ctx.trace_id
         self.ctx = ctx
         self.stats = RecoverStat()
         self.result = True
@@ -344,7 +345,8 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
                                                          batch_size=ctx.batch_size,
                                                          stats=stats,
                                                          flags=flags,
-                                                         leave_file=False)
+                                                         leave_file=False,
+                                                         trace_id=ctx.trace_id)
         if result is None:
             return None
         log.info("Iterator {0}/{1} obtained: {2} record(s)"
@@ -356,36 +358,51 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
         return None
 
 
+class WindowedMerge(WindowedRecovery):
+    def __init__(self, ctx, address, backend_id, group, node, results, stats):
+        super(WindowedMerge, self).__init__(ctx, stats)
+        self.address = address
+        self.backend_id = backend_id
+        self.group = group
+        self.node = node
+        self.results = iter(results)
+
+    def run_one(self):
+        try:
+            response = None
+            with self.lock:
+                response = next(self.results)
+                self.recovers_in_progress += 1
+            Recovery(key=response.key,
+                     timestamp=response.timestamp,
+                     size=response.size,
+                     flags=response.record_flags,
+                     address=self.address,
+                     backend_id=self.backend_id,
+                     group=self.group,
+                     ctx=self.ctx,
+                     node=self.node,
+                     callback=self.callback).run()
+            return True
+        except StopIteration:
+            pass
+        return False
+
+
 def recover(ctx, address, backend_id, group, node, results, stats):
     if results is None or len(results) < 1:
         log.warning("Recover skipped iterator results are empty for node: {0}/{1}"
                     .format(address, backend_id))
         return True
 
-    ret = True
-    start = time.time()
-    processed_keys = 0
-    for batch_id, batch in groupby(enumerate(results), key=lambda x: x[0] / ctx.batch_size):
-        recovers = []
-        rs = RecoverStat()
-        for _, response in batch:
-            rec = Recovery(key=response.key,
-                           timestamp=response.timestamp,
-                           size=response.size,
-                           flags=response.record_flags,
-                           address=address,
-                           backend_id=backend_id,
-                           group=group,
-                           ctx=ctx,
-                           node=node)
-            rec.run()
-            recovers.append(rec)
-        for r in recovers:
-            ret &= r.succeeded()
-            rs += r.stats
-        processed_keys += len(recovers)
-        rs.apply(stats)
-        stats.set_counter("recovery_speed", processed_keys / (time.time() - start))
+    ret = WindowedMerge(ctx=ctx,
+                        address=address,
+                        backend_id=backend_id,
+                        group=group,
+                        node=node,
+                        results=results,
+                        stats=stats).run()
+
     return ret
 
 
@@ -685,7 +702,7 @@ def dump_process_group((ctx, group)):
                                  remotes=ctx.remotes)
     ret = True
     with open(ctx.dump_file, 'r') as dump:
-        #splits ids from dump file in batchs and recovers it
+        # splits ids from dump file in batchs and recovers it
         for batch_id, batch in groupby(enumerate(dump), key=lambda x: x[0] / ctx.batch_size):
             recovers = []
             rs = RecoverStat()
