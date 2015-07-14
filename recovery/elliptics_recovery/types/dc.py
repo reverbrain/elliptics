@@ -70,7 +70,8 @@ def iterate_node(arg):
             stats=stats,
             flags=flags,
             leave_file=True,
-            separately=True)
+            separately=True,
+            trace_id=ctx.trace_id)
         if results is None or results_len == 0:
             return None
 
@@ -303,6 +304,7 @@ def lookup_keys(ctx):
                                  io_thread_num=1,
                                  remotes=ctx.remotes)
     session = elliptics.Session(node)
+    session.trace_id = ctx.trace_id
     filename = os.path.join(ctx.tmp_dir, 'merged_result')
     with open(filename, 'w') as merged_f:
         with open(ctx.dump_file, 'r') as dump_f:

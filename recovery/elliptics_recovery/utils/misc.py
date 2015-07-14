@@ -73,11 +73,12 @@ def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_time
     return node
 
 
-def elliptics_create_session(node=None, group=None, cflags=elliptics.command_flags.default):
+def elliptics_create_session(node=None, group=None, cflags=elliptics.command_flags.default, trace_id=0):
     log.debug("Creating session: {0}@{1}.{2}".format(node, group, cflags))
     session = elliptics.Session(node)
     session.groups = [group]
     session.cflags = cflags
+    session.trace_id = trace_id
     return session
 
 
@@ -189,6 +190,7 @@ class DirectOperation(object):
         self.session.exceptions_policy = elliptics.core.exceptions_policy.no_exceptions
         # makes session direct to the address
         self.session.set_direct_id(address, backend_id)
+        self.session.trace_id = ctx.trace_id
         # sets groups
         self.session.groups = [group]
         self.id = id

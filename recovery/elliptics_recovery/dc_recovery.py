@@ -42,11 +42,17 @@ class KeyRecover(object):
         self.missed_groups = list(missed_groups)
 
         self.read_session = elliptics.Session(node)
+        self.read_session.trace_id = ctx.trace_id
         self.read_session.set_filter(elliptics.filters.all)
+
         self.write_session = elliptics.Session(node)
+        self.write_session.trace_id = ctx.trace_id
         self.write_session.set_checker(elliptics.checkers.all)
+
         self.remove_session = elliptics.Session(node)
+        self.remove_session.trace_id = ctx.trace_id
         self.remove_session.set_checker(elliptics.checkers.all)
+
         self.result = False
         self.attempt = 0
 

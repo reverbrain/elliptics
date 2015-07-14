@@ -57,10 +57,12 @@ class Recovery(object):
         self.group = group
         self.node = node
         self.direct_session = elliptics.Session(node)
+        self.direct_session.trace_id = ctx.trace_id
         self.direct_session.set_direct_id(self.address, self.backend_id)
         self.direct_session.groups = [group]
         self.session = elliptics.Session(node)
         self.session.groups = [group]
+        self.session.trace_id = ctx.trace_id
         self.ctx = ctx
         self.stats = RecoverStat()
         self.result = True
@@ -344,7 +346,8 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
                                                          batch_size=ctx.batch_size,
                                                          stats=stats,
                                                          flags=flags,
-                                                         leave_file=False)
+                                                         leave_file=False,
+                                                         trace_id=ctx.trace_id)
         if result is None:
             return None
         log.info("Iterator {0}/{1} obtained: {2} record(s)"

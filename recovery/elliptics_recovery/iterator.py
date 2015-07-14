@@ -239,9 +239,10 @@ class Iterator(object):
     Wrapper on top of elliptics new iterator and it's result container
     """
 
-    def __init__(self, node, group, separately=False):
+    def __init__(self, node, group, separately=False, trace_id=0):
         self.session = elliptics.Session(node)
         self.session.groups = [group]
+        self.session.trace_id = trace_id
         self.separately = separately
 
     def get_key_range_id(self, key):
@@ -351,8 +352,8 @@ class Iterator(object):
     def iterate_with_stats(cls, node, eid, timestamp_range,
                            key_ranges, tmp_dir, address, group_id, backend_id, batch_size,
                            stats, flags, leave_file=False,
-                           separately=False):
-        iterator = cls(node, group_id, separately)
+                           separately=False, trace_id=0):
+        iterator = cls(node, group_id, separately, trace_id=trace_id)
         result = iterator.start(eid=eid,
                                 timestamp_range=timestamp_range,
                                 flags=flags,
