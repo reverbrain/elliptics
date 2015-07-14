@@ -20,20 +20,21 @@ import os
 import traceback
 import errno
 
-from elliptics_recovery.utils.misc import elliptics_create_node, RecoverStat, validate_index, INDEX_MAGIC_NUMBER_LENGTH
-from elliptics_recovery.utils.misc import load_key_data
+from elliptics_recovery.utils.misc import elliptics_create_node, RecoverStat, validate_index
+from elliptics_recovery.utils.misc import INDEX_MAGIC_NUMBER_LENGTH, load_key_data, WindowedRecovery
 
 import elliptics
 from elliptics import Address
-from elliptics.log import formatter
+from elliptics.log import formatter, convert_elliptics_log_level
 
 log = logging.getLogger()
 
 
 class KeyRecover(object):
-    def __init__(self, ctx, key, key_infos, missed_groups, node):
+    def __init__(self, ctx, key, key_infos, missed_groups, node, callback):
         self.ctx = ctx
         self.complete = threading.Event()
+        self.callback = callback
         self.stats = RecoverStat()
         self.key = key
         self.key_flags = 0
@@ -123,6 +124,7 @@ class KeyRecover(object):
         self.result = result
         log.debug("Finished recovering key: {0} with result: {1}".format(self.key, self.result))
         self.complete.set()
+        self.callback(self.result, self.stats)
 
     def read(self):
         try:
@@ -377,52 +379,39 @@ def iterate_key(filepath, groups):
                       .format(key, len(key_infos), len(groups)))
 
 
+class WindowedDC(WindowedRecovery):
+    def __init__(self, ctx, node):
+        super(WindowedDC, self).__init__(ctx, ctx.stats['recover'])
+        self.node = node
+        self.keys = iterate_key(self.ctx.merged_filename, self.ctx.groups)
+
+    def run_one(self):
+        try:
+            key = None
+            with self.lock:
+                key = next(self.keys)
+                self.recovers_in_progress += 1
+            KeyRecover(self.ctx, *key, node=self.node, callback=self.callback)
+            return True
+        except StopIteration:
+            pass
+        return False
+
+
 def recover(ctx):
-    from itertools import islice
-    import time
-    ret = True
     stats = ctx.stats['recover']
 
     stats.timer('recover', 'started')
-
-    it = iterate_key(ctx.merged_filename, ctx.groups)
-
-    elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     node = elliptics_create_node(address=ctx.address,
-                                 elog=elog,
+                                 elog=elliptics.Logger(ctx.log_file, int(ctx.log_level)),
                                  wait_timeout=ctx.wait_timeout,
                                  net_thread_num=4,
-                                 io_thread_num=1,
+                                 io_thread_num=24,
                                  remotes=ctx.remotes)
-    processed_keys = 0
-    start = time.time()
-    while 1:
-        batch = tuple(islice(it, ctx.batch_size))
-        if not batch:
-            break
-        recovers = []
-        rs = RecoverStat()
-        for val in batch:
-            rec = KeyRecover(ctx, *val, node=node)
-            recovers.append(rec)
-        successes, failures = 0, 0
-        for r in recovers:
-            r.wait()
-            ret &= r.succeeded()
-            rs += r.stats
-            if r.succeeded():
-                successes += 1
-            else:
-                failures += 1
-        processed_keys += successes + failures
-        rs.apply(stats)
-        stats.counter('recovered_keys', successes)
-        ctx.stats.counter('recovered_keys', successes)
-        stats.counter('recovered_keys', -failures)
-        ctx.stats.counter('recovered_keys', -failures)
-        stats.set_counter('recovery_speed', processed_keys / (time.time() - start))
+    result = WindowedDC(ctx, node).run()
     stats.timer('recover', 'finished')
-    return ret
+
+    return result
 
 
 if __name__ == '__main__':

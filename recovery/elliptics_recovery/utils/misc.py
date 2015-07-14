@@ -23,6 +23,7 @@ import errno
 import traceback
 import struct
 import elliptics
+import time
 
 
 def logged_class(klass):
@@ -319,3 +320,50 @@ def load_key_data(filepath):
         unpacker = msgpack.Unpacker(input_file)
         for data in unpacker:
             yield (elliptics.Id(data[0], 0), tuple(KeyInfo.load(d) for d in data[1]))
+
+
+class WindowedRecovery(object):
+    def __init__(self, ctx, stats):
+        import threading
+        self.ctx = ctx
+        self.stats = stats
+
+        self.lock = threading.Lock()
+        self.complete = threading.Event()
+        self.result = True
+        self.recovers_in_progress = 0
+        self.processed_keys = 0
+
+    def run(self):
+        self.start_time = time.time()
+
+        for i in xrange(self.ctx.batch_size):
+            if not self.run_one():
+                break
+
+        while not self.complete.is_set():
+            self.complete.wait()
+
+        speed = self.processed_keys / (time.time() - self.start_time)
+        self.stats.set_counter('recovery_speed', round(speed, 2))
+        self.stats.set_counter('recovers_in_progress', self.recovers_in_progress)
+        return self.result
+
+    def callback(self, result, stat):
+        self.run_one()
+        last = False
+        with self.lock:
+            self.result &= result
+            self.processed_keys += 1
+            self.recovers_in_progress -= 1
+            last = self.recovers_in_progress == 0
+
+        stat.apply(self.stats)
+        speed = self.processed_keys / (time.time() - self.start_time)
+        self.stats.set_counter('recovery_speed', round(speed, 2))
+        self.stats.set_counter('recovers_in_progress', self.recovers_in_progress)
+        self.stats.counter('recovered_keys', 1 if result else -1)
+        self.ctx.stats.counter('recovered_keys', 1 if result else -1)
+
+        if last:
+            self.complete.set()

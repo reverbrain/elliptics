@@ -127,53 +127,61 @@ def skip_key_data(ctx, key_data):
     return all(same_meta(info, first) for info in key_data[1])
 
 
-def merge_results(arg):
+def merged_results(ctx, results):
     import heapq
+    results = [IteratorResult.load_filename(filename=r[0],
+                                            address=r[1],
+                                            backend_id=r[2],
+                                            group_id=r[3],
+                                            is_sorted=True,
+                                            tmp_dir=ctx.tmp_dir)
+               for r in results]
 
+    heap = []
+    for r in results:
+        try:
+            heapq.heappush(heap, MergeData(r, None))
+        except StopIteration:
+            pass
+
+    while len(heap):
+        min_data = heapq.heappop(heap)
+        key_data = (min_data.key, [min_data.key_info])
+        same_datas = [min_data]
+        while len(heap) and min_data.key == heap[0].key:
+            key_data[1].append(heap[0].key_info)
+            same_datas.append(heapq.heappop(heap))
+
+        # skip keys that already exist and equal in all groups
+        if not skip_key_data(ctx, key_data):
+            yield key_data
+
+        for i in same_datas:
+            try:
+                i.next()
+                heapq.heappush(heap, i)
+            except StopIteration:
+                pass
+
+
+
+def merge_results(arg):
     ctx, range_id, results = arg
     log.debug("Merging iteration results of range: {0}".format(range_id))
-    results = [IteratorResult.load_filename(
-        filename=r[0],
-        address=r[1],
-        backend_id=r[2],
-        group_id=r[3],
-        is_sorted=True,
-        tmp_dir=ctx.tmp_dir)
-        for r in results]
-    filename = os.path.join(ctx.tmp_dir, 'merge_{0}'.format(range_id))
-    dump_filename = os.path.join(ctx.tmp_dir, 'dump_{0}'.format(range_id))
-    keys_counter = 0
+
+    filename = os.path.join(ctx.tmp_dir, 'merge_%d' % (range_id))
+    dump_filename = os.path.join(ctx.tmp_dir, 'dump_%d' % (range_id))
+
+    counter = 0
     with open(filename, 'w') as f:
         with open(dump_filename, 'w') as df:
-            heap = []
+            for key_data in merged_results(ctx, results):
+                counter += 1
+                dump_key_data(key_data, f)
+                if ctx.dump_keys:
+                    df.write('{0}\n'.format(key_data[0]))
 
-            for d in results:
-                try:
-                    heapq.heappush(heap, MergeData(d, None))
-                except StopIteration:
-                    pass
-
-            while len(heap):
-                min_data = heapq.heappop(heap)
-                key_data = (min_data.key, [min_data.key_info])
-                same_datas = [min_data]
-                while len(heap) and min_data.key == heap[0].key:
-                    key_data[1].append(heap[0].key_info)
-                    same_datas.append(heapq.heappop(heap))
-
-                # skip keys that already exist and equal in all groups
-                if not skip_key_data(ctx, key_data):
-                    keys_counter += 1
-                    dump_key_data(key_data, f)
-                    if ctx.dump_keys:
-                        df.write('{0}\n'.format(key_data[0]))
-                for i in same_datas:
-                    try:
-                        i.next()
-                        heapq.heappush(heap, i)
-                    except StopIteration:
-                        pass
-    ctx.stats.counter("total_keys", keys_counter)
+    ctx.stats.counter("total_keys", counter)
     return filename, dump_filename
 
 
