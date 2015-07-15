@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.6.0
+Version:	2.26.6.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,25 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jul 15 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.6.1
+- recovery: monitor: fixed metrics: 'local_read_bytes', 'remote_written_bytes' etc
+- recovery: recover keys by window not by batch - closes
+- 	Previous logic - recovery gets batch of keys, recovers them in parallel,
+- 	wait until all recovers are finished and goes to next batch of keys
+- 	Current logic - recovery starts to recover batch of keys in parallel,
+- 	as soon as recovering of any key is finished, succeessfuly or not,
+- 	it starts to recover next key
+- recovery: removed 'filtered_keys' from logs and stats - it is always equal to iterated_keys
+- recovery: monitor: fixed set_counter for 0
+- recovery: removed unused code and fixed comments
+- test: cleanup logger after each recovery - fixed mixing logs from different recoveries
+- recovery: use '-L' option for all recovery logs
+- recovery: decreased level of stderr logs to WARNING
+- recovery: added '-T/--trace-id' option to dnet_recovery - allows to mark servers' logs connected with recovery
+- python: added `trace_bit` to elliptics.Session
+- build: fixed build on rhel
+- oplocks: use dnet_id instead of dnet_raw_id for taking into account group_id
+
 * Thu Jul 09 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.6.0
 - iterator: fixed segfault on start_iterator without specified groups
 - eblob: updated eblob version

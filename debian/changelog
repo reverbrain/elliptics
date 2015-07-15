@@ -1,3 +1,25 @@
+elliptics (2.26.6.1) unstable; urgency=low
+
+  * recovery: monitor: fixed metrics: 'local_read_bytes', 'remote_written_bytes' etc
+  * recovery: recover keys by window not by batch - closes
+  * 	Previous logic - recovery gets batch of keys, recovers them in parallel,
+  * 	wait until all recovers are finished and goes to next batch of keys
+  * 	Current logic - recovery starts to recover batch of keys in parallel,
+  * 	as soon as recovering of any key is finished, succeessfuly or not,
+  * 	it starts to recover next key
+  * recovery: removed 'filtered_keys' from logs and stats - it is always equal to iterated_keys
+  * recovery: monitor: fixed set_counter for 0
+  * recovery: removed unused code and fixed comments
+  * test: cleanup logger after each recovery - fixed mixing logs from different recoveries
+  * recovery: use '-L' option for all recovery logs
+  * recovery: decreased level of stderr logs to WARNING
+  * recovery: added '-T/--trace-id' option to dnet_recovery - allows to mark servers' logs connected with recovery
+  * python: added `trace_bit` to elliptics.Session
+  * build: fixed build on rhel
+  * oplocks: use dnet_id instead of dnet_raw_id for taking into account group_id
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 15 Jul 2015 17:22:37 +0400
+
 elliptics (2.26.6.0) unstable; urgency=low
 
   * iterator: fixed segfault on start_iterator without specified groups
