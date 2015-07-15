@@ -4,13 +4,19 @@
 dnet_request_fetcher::dnet_request_fetcher(int num_pool_threads)
 {
 	m_locked_keys.reserve(num_pool_threads);
+	for (int i = 0; i < num_pool_threads; ++i) {
+		auto entry = new(std::nothrow) dnet_locks_entry;
+		m_lock_pool.push_back(entry);
+	}
 }
 
-/*
-TODO: refactor & write comments
-TODO: do not copy dnet_id, use std::unordered_set<struct dnet_id *> ?
-TODO: deadbeaf in locks.c
- */
+dnet_request_fetcher::~dnet_request_fetcher()
+{
+	for (auto it = m_lock_pool.begin(); it != m_lock_pool.end(); ++it) {
+		delete *it;
+	}
+}
+
 dnet_io_req *dnet_request_fetcher::take_request(dnet_work_io *wio)
 {
 	dnet_work_pool *pool = wio->pool;
@@ -53,28 +59,29 @@ dnet_io_req *dnet_request_fetcher::take_request(dnet_work_io *wio)
 			if (cmd->flags & DNET_FLAGS_NOLOCK)
 				return it;
 
+			std::unique_lock<std::mutex> lock(m_mutex);
 			if (m_locked_keys.count(cmd->id) == 0) {
-				m_locked_keys.insert(cmd->id);
+				auto lock_entry = take_lock_entry();
+				m_locked_keys.insert(std::make_pair(cmd->id, lock_entry));
 				return it;
-			} else
-				continue;
-		}
-
-		trans = cmd->trans;
-		bool trans_in_process = false;
-
-		for (int i = 0; i < pool->num; ++i) {
-			 /* Someone claimed transaction @tid */
-			if (pool->wio_list[i].trans == trans) {
-				list_move_tail(&it->req_entry, &pool->wio_list[i].list);
-				trans_in_process = true;
-				break;
 			}
-		}
+		} else {
+			trans = cmd->trans;
+			bool trans_in_process = false;
 
-		if (!trans_in_process) {
-			wio->trans = trans;
-			return it;
+			for (int i = 0; i < pool->num; ++i) {
+				/* Someone claimed transaction @tid */
+				if (pool->wio_list[i].trans == trans) {
+					list_move_tail(&it->req_entry, &pool->wio_list[i].list);
+					trans_in_process = true;
+					break;
+				}
+			}
+
+			if (!trans_in_process) {
+				wio->trans = trans;
+				return it;
+			}
 		}
 	}
 
@@ -86,8 +93,49 @@ void dnet_request_fetcher::release_request(const dnet_io_req *req)
 	auto cmd = reinterpret_cast<const dnet_cmd *>(req->header);
 	if (!(cmd->flags & DNET_FLAGS_REPLY) &&
 	    !(cmd->flags & DNET_FLAGS_NOLOCK)) {
-		m_locked_keys.erase(cmd->id);
+		release_key(&cmd->id);
 	}
+}
+
+void dnet_request_fetcher::lock_key(const dnet_id *id)
+{
+	std::unique_lock<std::mutex> lock(m_mutex);
+	while (1) {
+		auto it = m_locked_keys.find(*id);
+		if (it == m_locked_keys.end())
+			break;
+
+		auto lock_entry = it->second;
+		lock_entry->unlock_event.wait_for(lock, std::chrono::seconds(1));
+	}
+	auto lock_entry = take_lock_entry();
+	m_locked_keys.insert(std::make_pair(*id, lock_entry));
+}
+
+void dnet_request_fetcher::release_key(const dnet_id *id)
+{
+	std::unique_lock<std::mutex> lock(m_mutex);
+	auto it = m_locked_keys.find(*id);
+	auto lock_entry = it->second;
+	m_locked_keys.erase(it);
+	put_lock_entry(lock_entry);
+	lock_entry->unlock_event.notify_one();
+}
+
+dnet_locks_entry *dnet_request_fetcher::take_lock_entry()
+{
+	if (m_lock_pool.empty()) {
+		auto entry = new(std::nothrow) dnet_locks_entry;
+		m_lock_pool.push_back(entry);
+	}
+	auto entry = m_lock_pool.front();
+	m_lock_pool.pop_front();
+	return entry;
+}
+
+void dnet_request_fetcher::put_lock_entry(dnet_locks_entry *entry)
+{
+	m_lock_pool.push_back(entry);
 }
 
 
@@ -101,6 +149,21 @@ void dnet_release_request(struct dnet_work_io *wio, const struct dnet_io_req *re
 {
 	auto fetcher = reinterpret_cast<dnet_request_fetcher*>(wio->pool->request_fetcher);
 	fetcher->release_request(req);
+}
+
+void dnet_oplock(struct dnet_backend_io *backend, const struct dnet_id *id)
+{
+	auto pool = backend->pool.recv_pool.pool;
+	auto fetcher = reinterpret_cast<dnet_request_fetcher*>(pool->request_fetcher);
+	fetcher->lock_key(id);
+}
+
+void dnet_opunlock(struct dnet_backend_io *backend, const struct dnet_id *id)
+{
+	auto pool = backend->pool.recv_pool.pool;
+	auto fetcher = reinterpret_cast<dnet_request_fetcher*>(pool->request_fetcher);
+	fetcher->release_key(id);
+	pthread_cond_signal(&pool->wait);
 }
 
 void *dnet_create_request_fetcher(int num_pool_threads)

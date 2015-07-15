@@ -18,7 +18,6 @@ set(ELLIPTICS_CLIENT_SRCS
     )
 set(ELLIPTICS_SRCS
     dnet.c
-    locks.c
     notify.c
     server.c
     route.cpp

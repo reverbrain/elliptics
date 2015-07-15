@@ -133,16 +133,10 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 		int s;
 		struct dnet_addr la;
 
-		err = dnet_locks_init(n, 1024);
-		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "failed to init locks: %s %d", strerror(-err), err);
-			goto err_out_addr_cleanup;
-		}
-
 		n->route = dnet_route_list_create(n);
 		if (!n->route) {
 			dnet_log(n, DNET_LOG_ERROR, "failed to create route list: %s %d", strerror(-err), err);
-			goto err_out_locks_destroy;
+			goto err_out_addr_cleanup;
 		}
 
 		err = dnet_create_addr(&la, NULL, cfg->port, cfg->family);
@@ -207,8 +201,6 @@ err_out_state_destroy:
 	dnet_state_put(n->st);
 err_out_route_list_destroy:
 	dnet_route_list_destroy(n->route);
-err_out_locks_destroy:
-	dnet_locks_destroy(n);
 err_out_addr_cleanup:
 	dnet_local_addr_cleanup(n);
 err_out_notify_exit:
@@ -249,7 +241,6 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_srw_cleanup(n);
 
 	dnet_counter_destroy(n);
-	dnet_locks_destroy(n);
 	dnet_local_addr_cleanup(n);
 	dnet_notify_exit(n);
 

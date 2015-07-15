@@ -1058,9 +1058,7 @@ void *dnet_io_process(void *data_)
 
 		dnet_node_unset_trace_id();
 
-		pthread_mutex_lock(&pool->lock);
 		dnet_release_request(wio, r);
-		pthread_mutex_unlock(&pool->lock);
 
 		dnet_io_req_free(r);
 		dnet_state_put(st);

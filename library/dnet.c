@@ -761,14 +761,6 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	}
 
-	/*
-	 * we have to drop io lock, otherwise it will be grabbed again in dnet_process_cmd_raw() being recursively called
-	 * Lock will be taken again after loop has been finished
-	 */
-	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
-		dnet_opunlock(st->n, &cmd->id);
-	}
-
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: starting BULK_READ for %d commands",
 		dnet_dump_id(&cmd->id), (int) count);
 
@@ -784,10 +776,6 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 			err = 0;
 		else if (err == -1)
 			err = ret;
-	}
-
-	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
-		dnet_oplock(st->n, &cmd->id);
 	}
 
 	return err;
