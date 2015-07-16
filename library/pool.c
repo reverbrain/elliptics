@@ -30,7 +30,7 @@
 #include "elliptics/interface.h"
 #include "../monitor/monitor.h"
 #include "../monitor/measure_points.h"
-#include "request_fetcher.h"
+#include "request_queue.h"
 
 static char *dnet_work_io_mode_string[] = {
 	[DNET_WORK_IO_MODE_BLOCKING] = "BLOCKING",
@@ -60,11 +60,6 @@ void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
 	}
 
 
-	list_for_each_entry_safe(r, tmp, &place->pool->list, req_entry) {
-		list_del(&r->req_entry);
-		dnet_io_req_free(r);
-	}
-
 	for (i = 0; i < place->pool->num; ++i) {
 		wio = &place->pool->wio_list[i];
 
@@ -75,9 +70,8 @@ void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
 	}
 
 	pthread_mutex_destroy(&place->pool->lock);
-	pthread_cond_destroy(&place->pool->wait);
 
-	dnet_destroy_request_fetcher(place->pool->request_fetcher);
+	dnet_destroy_request_queue(place->pool->request_queue);
 
 	free(place->pool->wio_list);
 	free(place->pool);
@@ -148,14 +142,6 @@ static int dnet_work_pool_place_init(struct dnet_work_pool_place *pool)
 		goto err_out_exit;
 	}
 
-	err = pthread_cond_init(&pool->wait, NULL);
-	if (err) {
-		err = -err;
-		goto err_out_mutex_destroy;
-	}
-
-err_out_mutex_destroy:
-	pthread_mutex_destroy(&pool->lock);
 err_out_exit:
 	return err;
 }
@@ -163,7 +149,6 @@ err_out_exit:
 static void dnet_work_pool_place_cleanup(struct dnet_work_pool_place *pool)
 {
 	pthread_mutex_destroy(&pool->lock);
-	pthread_cond_destroy(&pool->wait);
 }
 
 int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n,
@@ -186,35 +171,25 @@ int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n
 		goto err_out_free;
 	}
 
-	err = pthread_cond_init(&pool->wait, NULL);
-	if (err) {
-		err = -err;
-		goto err_out_mutex_destroy;
-	}
-
 	pool->num = 0;
 	pool->mode = mode;
 	pool->n = n;
 	pool->io = io;
-	INIT_LIST_HEAD(&pool->list);
-	list_stat_init(&pool->list_stats);
+
+	pool->request_queue = dnet_create_request_queue(pool->num);
+	if (!pool->request_queue) {
+		err = -ENOMEM;
+		goto err_out_mutex_destroy;
+	}
 
 	err = dnet_work_pool_grow(n, pool, num, process);
 	if (err)
-		goto err_out_cond_destroy;
-
-	pool->request_fetcher = dnet_create_request_fetcher(pool->num);
-	if (!pool->request_fetcher) {
-		err = -ENOMEM;
-		goto err_out_cond_destroy;
-	}
+		goto err_out_mutex_destroy;
 
 	pthread_mutex_unlock(&place->lock);
 
 	return err;
 
-err_out_cond_destroy:
-	pthread_cond_destroy(&pool->wait);
 err_out_mutex_destroy:
 	pthread_mutex_destroy(&pool->lock);
 err_out_free:
@@ -335,13 +310,7 @@ void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 		backend_place && backend_place->pool->io ? (ssize_t)backend_place->pool->io->backend_id : (ssize_t)-1,
 		cmd->backend_id);
 
-	pthread_mutex_lock(&pool->lock);
-
-	list_add_tail(&r->req_entry, &pool->list);
-	list_stat_size_increase(&pool->list_stats, 1);
-
-	pthread_mutex_unlock(&pool->lock);
-	pthread_cond_signal(&pool->wait);
+	dnet_push_request(pool, r);
 
 	pthread_mutex_unlock(&place->lock);
 
@@ -775,12 +744,15 @@ err_out_exit:
 static void dnet_check_work_pool_place(struct dnet_work_pool_place *place, uint64_t *list_size, uint64_t *threads_count)
 {
 	struct dnet_work_pool *pool;
+	struct list_stat stats;
 
 	pthread_mutex_lock(&place->lock);
 	pool = place->pool;
 	if (pool) {
+		dnet_get_pool_list_stats(pool, &stats);
+		*list_size += stats.list_size;
+
 		pthread_mutex_lock(&pool->lock);
-		*list_size += pool->list_stats.list_size;
 		*threads_count += pool->num;
 		pthread_mutex_unlock(&pool->lock);
 	}
@@ -989,10 +961,7 @@ void *dnet_io_process(void *data_)
 	struct dnet_work_pool *pool = wio->pool;
 	struct dnet_node *n = pool->n;
 	struct dnet_net_state *st;
-	struct timespec ts;
-	struct timeval tv;
 	struct dnet_io_req *r;
-	int err;
 	struct dnet_cmd *cmd;
 	int nonblocking = (pool->mode == DNET_WORK_IO_MODE_NONBLOCKING);
 	char thread_stat_id[255];
@@ -1010,30 +979,11 @@ void *dnet_io_process(void *data_)
 
 
 	while (!n->need_exit && (!pool->io || !pool->io->need_exit)) {
-		r = NULL;
-		err = 0;
-
-		gettimeofday(&tv, NULL);
-		ts.tv_sec = tv.tv_sec + 1;
-		ts.tv_nsec = tv.tv_usec * 1000;
-
-		pthread_mutex_lock(&pool->lock);
-
-		if (!(r = dnet_take_request(wio))) {
-			err = pthread_cond_timedwait(&pool->wait, &pool->lock, &ts);
-			if ((r = dnet_take_request(wio)))
-				err = 0;
-		}
-
-		if (r) {
-			list_del_init(&r->req_entry);
-			list_stat_size_decrease(&pool->list_stats, 1);
-			pthread_cond_broadcast(&n->io->full_wait);
-		}
-		pthread_mutex_unlock(&pool->lock);
-
-		if (!r || err)
+		r = dnet_pop_request(wio);
+		if (!r)
 			continue;
+
+		pthread_cond_broadcast(&n->io->full_wait);
 
 		HANDY_COUNTER_DECREMENT("io.input.queue.size", 1);
 
@@ -1051,7 +1001,7 @@ void *dnet_io_process(void *data_)
 			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, dnet_cmd_string(cmd->cmd), r->hsize, r->dsize, dnet_work_io_mode_str(pool->mode),
 			pool->io ? (ssize_t)pool->io->backend_id : (ssize_t)-1);
 
-		err = dnet_process_recv(pool->io, st, r);
+		dnet_process_recv(pool->io, st, r);
 
 		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: processed IO event: %p, cmd: %s",
 			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, dnet_cmd_string(cmd->cmd));
@@ -1059,7 +1009,6 @@ void *dnet_io_process(void *data_)
 		dnet_node_unset_trace_id();
 
 		dnet_release_request(wio, r);
-
 		dnet_io_req_free(r);
 		dnet_state_put(st);
 

@@ -22,6 +22,7 @@
 
 #include "library/elliptics.h"
 #include "library/backend.h"
+#include "library/request_queue.h"
 
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
@@ -71,12 +72,16 @@ static void fill_backend_io(rapidjson::Value &stat_value,
                             const struct dnet_backend_io &backend) {
 	rapidjson::Value io_value(rapidjson::kObjectType);
 
+	struct list_stat stats;
+
 	rapidjson::Value blocking_stat(rapidjson::kObjectType);
-	dump_list_stats(blocking_stat, backend.pool.recv_pool.pool->list_stats, allocator);
+	dnet_get_pool_list_stats(backend.pool.recv_pool.pool, &stats);
+	dump_list_stats(blocking_stat, stats, allocator);
 	io_value.AddMember("blocking", blocking_stat, allocator);
 
 	rapidjson::Value nonblocking_stat(rapidjson::kObjectType);
-	dump_list_stats(nonblocking_stat, backend.pool.recv_pool_nb.pool->list_stats, allocator);
+	dnet_get_pool_list_stats(backend.pool.recv_pool_nb.pool, &stats);
+	dump_list_stats(nonblocking_stat, stats, allocator);
 	io_value.AddMember("nonblocking", nonblocking_stat, allocator);
 
 	stat_value.AddMember("io", io_value, allocator);

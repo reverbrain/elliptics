@@ -19,7 +19,7 @@
 #endif
 
 #include "slru_cache.hpp"
-#include "library/request_fetcher.h"
+#include "library/request_queue.h"
 #include <cassert>
 
 #include "monitor/measure_points.h"

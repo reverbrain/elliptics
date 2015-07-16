@@ -20,6 +20,7 @@
 #include "io_stat_provider.hpp"
 
 #include "library/elliptics.h"
+#include "library/request_queue.h"
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
@@ -52,16 +53,20 @@ std::string io_stat_provider::json(uint64_t categories) const {
 	if (!(categories & DNET_MONITOR_IO))
 		return std::string();
 
+	struct list_stat stats;
+
 	rapidjson::Document doc;
 	doc.SetObject();
 	auto &allocator = doc.GetAllocator();
 
 	rapidjson::Value blocking_stat(rapidjson::kObjectType);
-	dump_list_stats(blocking_stat, m_node->io->pool.recv_pool.pool->list_stats, allocator);
+	dnet_get_pool_list_stats(m_node->io->pool.recv_pool.pool, &stats);
+	dump_list_stats(blocking_stat, stats, allocator);
 	doc.AddMember("blocking", blocking_stat, allocator);
 
 	rapidjson::Value nonblocking_stat(rapidjson::kObjectType);
-	dump_list_stats(nonblocking_stat, m_node->io->pool.recv_pool_nb.pool->list_stats, allocator);
+	dnet_get_pool_list_stats(m_node->io->pool.recv_pool_nb.pool, &stats);
+	dump_list_stats(nonblocking_stat, stats, allocator);
 	doc.AddMember("nonblocking", nonblocking_stat, allocator);
 
 	rapidjson::Value output_stat(rapidjson::kObjectType);
