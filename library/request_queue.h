@@ -8,7 +8,12 @@
 #include <unordered_map>
 #include <condition_variable>
 #include <mutex>
-#include <atomic>
+#if __GNUC__ == 4 && __GNUC_MINOR__ < 5
+#  include <cstdatomic>
+#else
+#  include <atomic>
+#endif
+
 
 namespace std
 {
