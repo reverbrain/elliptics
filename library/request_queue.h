@@ -43,7 +43,7 @@ struct dnet_locks_entry
 class dnet_request_queue
 {
 public:
-	dnet_request_queue(int num_pool_threads);
+	dnet_request_queue();
 	~dnet_request_queue();
 
 	void push_request(dnet_io_req *req);
@@ -77,7 +77,7 @@ private:
 extern "C" {
 #endif // __cplusplus
 
-void *dnet_create_request_queue(int num_pool_threads);
+void *dnet_create_request_queue();
 void dnet_destroy_request_queue(void *queue);
 
 void dnet_push_request(struct dnet_work_pool *pool, struct dnet_io_req *req);

@@ -176,7 +176,7 @@ int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n
 	pool->n = n;
 	pool->io = io;
 
-	pool->request_queue = dnet_create_request_queue(pool->num);
+	pool->request_queue = dnet_create_request_queue();
 	if (!pool->request_queue) {
 		err = -ENOMEM;
 		goto err_out_mutex_destroy;

@@ -1,16 +1,10 @@
 #include "request_queue.h"
 
 
-dnet_request_queue::dnet_request_queue(int num_pool_threads)
+dnet_request_queue::dnet_request_queue()
 : m_queue_size(0)
 {
 	INIT_LIST_HEAD(&m_queue);
-
-	m_locked_keys.reserve(num_pool_threads);
-	for (int i = 0; i < num_pool_threads; ++i) {
-		auto entry = new(std::nothrow) dnet_locks_entry;
-		m_lock_pool.push_back(entry);
-	}
 }
 
 dnet_request_queue::~dnet_request_queue()
@@ -226,9 +220,9 @@ void dnet_get_pool_list_stats(struct dnet_work_pool *pool, struct list_stat *sta
 	queue->get_list_stats(stats);
 }
 
-void *dnet_create_request_queue(int num_pool_threads)
+void *dnet_create_request_queue()
 {
-	return new(std::nothrow) dnet_request_queue(num_pool_threads);
+	return new(std::nothrow) dnet_request_queue;
 }
 
 void dnet_destroy_request_queue(void *queue)
