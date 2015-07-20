@@ -71,7 +71,7 @@ private:
 
 	std::unordered_map<dnet_id, dnet_locks_entry *> m_locked_keys;
 	std::list<dnet_locks_entry *> m_lock_pool;
-	std::mutex m_mutex;
+	std::mutex m_locks_mutex;
 };
 
 extern "C" {

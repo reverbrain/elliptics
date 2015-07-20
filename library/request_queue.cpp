@@ -82,6 +82,8 @@ dnet_io_req *dnet_request_queue::take_request(dnet_work_io *wio)
 		return it;
 	}
 
+	std::unique_lock<std::mutex> lock(m_locks_mutex);
+
 	list_for_each_entry_safe(it, tmp, &m_queue, req_entry) {
 		auto cmd = reinterpret_cast<const dnet_cmd *>(it->header);
 
@@ -90,7 +92,6 @@ dnet_io_req *dnet_request_queue::take_request(dnet_work_io *wio)
 			if (cmd->flags & DNET_FLAGS_NOLOCK)
 				return it;
 
-			std::unique_lock<std::mutex> lock(m_mutex);
 			if (m_locked_keys.count(cmd->id) == 0) {
 				auto lock_entry = take_lock_entry();
 				m_locked_keys.insert(std::make_pair(cmd->id, lock_entry));
@@ -130,7 +131,7 @@ void dnet_request_queue::release_request(const dnet_io_req *req)
 
 void dnet_request_queue::lock_key(const dnet_id *id)
 {
-	std::unique_lock<std::mutex> lock(m_mutex);
+	std::unique_lock<std::mutex> lock(m_locks_mutex);
 	while (1) {
 		auto it = m_locked_keys.find(*id);
 		if (it == m_locked_keys.end())
@@ -151,12 +152,14 @@ void dnet_request_queue::unlock_key(const dnet_id *id)
 
 void dnet_request_queue::release_key(const dnet_id *id)
 {
-	std::unique_lock<std::mutex> lock(m_mutex);
+	std::unique_lock<std::mutex> lock(m_locks_mutex);
 	auto it = m_locked_keys.find(*id);
-	auto lock_entry = it->second;
-	m_locked_keys.erase(it);
-	put_lock_entry(lock_entry);
-	lock_entry->unlock_event.notify_one();
+	if (it != m_locked_keys.end()) {
+		auto lock_entry = it->second;
+		m_locked_keys.erase(it);
+		put_lock_entry(lock_entry);
+		lock_entry->unlock_event.notify_one();
+	}
 }
 
 dnet_locks_entry *dnet_request_queue::take_lock_entry()
