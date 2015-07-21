@@ -127,7 +127,18 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 		}
 
 		data_offset += sizeof(struct dnet_ext_list_hdr);
-		size -= sizeof(struct dnet_ext_list_hdr);
+
+		/*
+		 * When record is not yet committed (it was allocated on disk via write_prepare and optional write_plain),
+		 * its @data_size is zero and removing this header size ends up with negative size converted back to
+		 * very large positive number (0xffffffffffffffd0)
+		 *
+		 * @data_offset above is safe, since actually eblob had allocated all needed space,
+		 * it just hasn't yet filled eblob_disk_control
+		 */
+		if (!(dc->flags & BLOB_DISK_CTL_UNCOMMITTED)) {
+			size -= sizeof(struct dnet_ext_list_hdr);
+		}
 	}
 
 	err = ictl->callback(ictl->callback_private,
