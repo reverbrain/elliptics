@@ -71,7 +71,7 @@ void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
 
 	pthread_mutex_destroy(&place->pool->lock);
 
-	dnet_destroy_request_queue(place->pool->request_queue);
+	dnet_request_queue_destroy(place->pool->request_queue);
 
 	free(place->pool->wio_list);
 	free(place->pool);
@@ -176,7 +176,7 @@ int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n
 	pool->n = n;
 	pool->io = io;
 
-	pool->request_queue = dnet_create_request_queue();
+	pool->request_queue = dnet_request_queue_create();
 	if (!pool->request_queue) {
 		err = -ENOMEM;
 		goto err_out_mutex_destroy;
@@ -979,7 +979,7 @@ void *dnet_io_process(void *data_)
 
 
 	while (!n->need_exit && (!pool->io || !pool->io->need_exit)) {
-		r = dnet_pop_request(wio);
+		r = dnet_pop_request(wio, thread_stat_id);
 		if (!r)
 			continue;
 

@@ -1,4 +1,5 @@
 #include "request_queue.h"
+#include "monitor/measure_points.h"
 
 
 dnet_request_queue::dnet_request_queue()
@@ -30,14 +31,14 @@ void dnet_request_queue::push_request(dnet_io_req *req)
 	m_queue_wait.notify_one();
 }
 
-dnet_io_req *dnet_request_queue::pop_request(dnet_work_io *wio)
+dnet_io_req *dnet_request_queue::pop_request(dnet_work_io *wio, const char *thread_stat_id)
 {
 	std::unique_lock<std::mutex> lock(m_queue_mutex);
 
-	auto r = take_request(wio);
+	auto r = take_request(wio, thread_stat_id);
 	if (!r) {
 		m_queue_wait.wait_for(lock, std::chrono::seconds(1));
-		r = take_request(wio);
+		r = take_request(wio, thread_stat_id);
 	}
 
 	if (r) {
@@ -48,8 +49,10 @@ dnet_io_req *dnet_request_queue::pop_request(dnet_work_io *wio)
 	return r;
 }
 
-dnet_io_req *dnet_request_queue::take_request(dnet_work_io *wio)
+dnet_io_req *dnet_request_queue::take_request(dnet_work_io *wio, const char *thread_stat_id)
 {
+	FORMATTED(HANDY_TIMER_SCOPE, ("pool.%s.search_trans_time", thread_stat_id));
+
 	dnet_work_pool *pool = wio->pool;
 	dnet_io_req *it, *tmp;
 	uint64_t trans;
@@ -190,11 +193,11 @@ void dnet_push_request(struct dnet_work_pool *pool, struct dnet_io_req *req)
 	queue->push_request(req);
 }
 
-struct dnet_io_req *dnet_pop_request(struct dnet_work_io *wio)
+struct dnet_io_req *dnet_pop_request(struct dnet_work_io *wio, const char *thread_stat_id)
 {
 	struct dnet_work_pool *pool = wio->pool;
 	auto queue = reinterpret_cast<dnet_request_queue*>(pool->request_queue);
-	return queue->pop_request(wio);
+	return queue->pop_request(wio, thread_stat_id);
 }
 
 void dnet_release_request(struct dnet_work_io *wio, const struct dnet_io_req *req)
@@ -223,12 +226,12 @@ void dnet_get_pool_list_stats(struct dnet_work_pool *pool, struct list_stat *sta
 	queue->get_list_stats(stats);
 }
 
-void *dnet_create_request_queue()
+void *dnet_request_queue_create()
 {
 	return new(std::nothrow) dnet_request_queue;
 }
 
-void dnet_destroy_request_queue(void *queue)
+void dnet_request_queue_destroy(void *queue)
 {
 	delete reinterpret_cast<dnet_request_queue*>(queue);
 }

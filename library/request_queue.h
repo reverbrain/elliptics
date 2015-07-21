@@ -48,7 +48,7 @@ public:
 
 	void push_request(dnet_io_req *req);
 
-	dnet_io_req *pop_request(dnet_work_io *wio);
+	dnet_io_req *pop_request(dnet_work_io *wio, const char *thread_stat_id);
 	void release_request(const dnet_io_req *req);
 
 	void lock_key(const dnet_id *id);
@@ -57,7 +57,7 @@ public:
 	void get_list_stats(struct list_stat *stats) const;
 
 private:
-	dnet_io_req *take_request(dnet_work_io *wio);
+	dnet_io_req *take_request(dnet_work_io *wio, const char *thread_stat_id);
 	void release_key(const dnet_id *id);
 	dnet_locks_entry *take_lock_entry();
 	void put_lock_entry(dnet_locks_entry *entry);
@@ -77,11 +77,11 @@ private:
 extern "C" {
 #endif // __cplusplus
 
-void *dnet_create_request_queue();
-void dnet_destroy_request_queue(void *queue);
+void *dnet_request_queue_create();
+void dnet_request_queue_destroy(void *queue);
 
 void dnet_push_request(struct dnet_work_pool *pool, struct dnet_io_req *req);
-struct dnet_io_req *dnet_pop_request(struct dnet_work_io *wio);
+struct dnet_io_req *dnet_pop_request(struct dnet_work_io *wio, const char *thread_stat_id);
 void dnet_release_request(struct dnet_work_io *wio, const struct dnet_io_req *req);
 
 void dnet_get_pool_list_stats(struct dnet_work_pool *pool, struct list_stat *stats);
