@@ -35,7 +35,6 @@ static size_t backends_count = 1;
 
 static server_config default_value(int group)
 {
-	// Minimize number of threads
 	server_config server = server_config::default_value();
 	server.options
 		("io_thread_num", 8)
@@ -68,35 +67,49 @@ static void configure_nodes(const std::string &path)
 	global_data = start_nodes(start_config);
 }
 
-static void test_writes_consecution(session &sess)
+/*
+ * Multiple writes with same key must be processed in the same order as
+ * they were initiated by client.
+ *
+ * Following test checks this mechanics by calling write_cas() with data containing
+ * counter that is incremented after every write_cas() and checking that previosly stored
+ * counter is one unit less than current counter. Also this test writes multiple different
+ * keys (with repetitions) in different order, thereby modelling real workload case.
+ */
+static void test_write_order_execution(session &sess)
 {
-	const int num_writes_of_particular_key = 5;
-	const int num_keys = 10;
+	const int num_write_repetitions = 5;
+	const int num_different_keys = 10;
 	std::vector<std::pair<key, int>> keys;
-	for (int i = 0; i < num_keys; ++i) {
+	for (int i = 0; i < num_different_keys; ++i) {
 		key id(std::to_string(static_cast<unsigned long long>(i)));
-		for (int j = 0; j < num_writes_of_particular_key; ++j) {
+		for (int j = 0; j < num_write_repetitions; ++j) {
 			keys.push_back(std::make_pair(id, i));
 		}
 	}
 
 	std::vector<async_write_result> results(keys.size());
-	dnet_id id;
+	dnet_id old_csum;
 
 	const int num_iterations = 30;
 	for (int i = 0; i < num_iterations; ++i) {
-		std::vector<int> write_counter(num_keys, 0);
+		// every key is associated with counter, which is initialized by zero
+		std::vector<int> write_counter(num_different_keys, 0);
+
 		std::random_shuffle(keys.begin(), keys.end());
 
 		for (size_t j = 0; j < keys.size(); ++j) {
+			// increment counter associated with key identified by key_id
 			const int key_id = keys[j].second;
-			const int cnt = write_counter[key_id]++;
-			if (cnt > 0) {
-				memset(&id, 0, sizeof(id));
-				sess.transform(std::to_string(static_cast<unsigned long long>(cnt - 1)), id);
-				results[j] = sess.write_cas(keys[j].first, std::to_string(static_cast<unsigned long long>(cnt)), id, 0);
+			const int new_value = write_counter[key_id]++;
+			if (new_value > 0) {
+				const int prev_value = new_value - 1;
+				memset(&old_csum, 0, sizeof(old_csum));
+				sess.transform(std::to_string(static_cast<unsigned long long>(prev_value)), old_csum);
+				results[j] = sess.write_cas(keys[j].first, std::to_string(static_cast<unsigned long long>(new_value)), old_csum, 0);
 			} else {
-				results[j] = sess.write_data(keys[j].first, std::to_string(static_cast<unsigned long long>(cnt)), 0);
+				// first write
+				results[j] = sess.write_data(keys[j].first, std::to_string(static_cast<unsigned long long>(new_value)), 0);
 			}
 		}
 
@@ -105,8 +118,8 @@ static void test_writes_consecution(session &sess)
 			const int err = results[j].error().code();
 		        BOOST_REQUIRE_MESSAGE(err == 0,
 					      "write_cas() failed (err=" + std::to_string(static_cast<unsigned long long>(err)) + "): "
-					      "multiple consecutive writes are executed out-of-order"
-					      " or overlapped. Oplock mechanism of backend's request queue is broken.");
+					      "multiple consecutive writes are executed out-of-order "
+					      "or overlapped. Oplock mechanism of backend's request queue is broken.");
 		}
 	}
 }
@@ -114,7 +127,7 @@ static void test_writes_consecution(session &sess)
 
 bool register_tests(test_suite *suite, node n)
 {
-	ELLIPTICS_TEST_CASE(test_writes_consecution, create_session(n, { 1 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_write_order_execution, create_session(n, { 1 }, 0, 0));
 
 	return true;
 }
