@@ -74,7 +74,7 @@ static void test_writes_consecution(session &sess)
 	const int num_keys = 10;
 	std::vector<std::pair<key, int>> keys;
 	for (int i = 0; i < num_keys; ++i) {
-		key id(std::to_string(i));
+		key id(std::to_string(static_cast<unsigned long long>(i)));
 		for (int j = 0; j < num_writes_of_particular_key; ++j) {
 			keys.push_back(std::make_pair(id, i));
 		}
@@ -93,10 +93,10 @@ static void test_writes_consecution(session &sess)
 			const int cnt = write_counter[key_id]++;
 			if (cnt > 0) {
 				memset(&id, 0, sizeof(id));
-				sess.transform(std::to_string(cnt - 1), id);
-				results[j] = sess.write_cas(keys[j].first, std::to_string(cnt), id, 0);
+				sess.transform(std::to_string(static_cast<unsigned long long>(cnt - 1)), id);
+				results[j] = sess.write_cas(keys[j].first, std::to_string(static_cast<unsigned long long>(cnt)), id, 0);
 			} else {
-				results[j] = sess.write_data(keys[j].first, std::to_string(cnt), 0);
+				results[j] = sess.write_data(keys[j].first, std::to_string(static_cast<unsigned long long>(cnt)), 0);
 			}
 		}
 
@@ -104,7 +104,7 @@ static void test_writes_consecution(session &sess)
 			results[j].wait();
 			const int err = results[j].error().code();
 		        BOOST_REQUIRE_MESSAGE(err == 0,
-					      "write_cas() failed (err=" + std::to_string(err) + "): "
+					      "write_cas() failed (err=" + std::to_string(static_cast<unsigned long long>(err)) + "): "
 					      "multiple consecutive writes are executed out-of-order"
 					      " or overlapped. Oplock mechanism of backend's request queue is broken.");
 		}
