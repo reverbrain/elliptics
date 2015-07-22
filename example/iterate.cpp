@@ -168,7 +168,7 @@ int main(int argc, char *argv[]) {
 	("group,g", boost::program_options::value<std::vector<int>>()->multitoken(), "group IDs to connect")
 	("log-file,l", boost::program_options::value<std::string>()->default_value("/dev/stderr"), "log file")
 	("log-level,L", boost::program_options::value<std::string>()->default_value("info"), "log level")
-	("remote,r", boost::program_options::value<std::vector<std::string>>()->multitoken()->required(), "adds a route to the given node")
+	("remote,r", boost::program_options::value<std::vector<std::string>>()->multitoken(), "adds a route to the given node")
 	("data,d", "requests object's data with other info")
 	("key-begin,k", boost::program_options::value<std::string>(), "Begin key of range for iterating")
 	("key-end,K", boost::program_options::value<std::string>(), "End key of range for iterating")
