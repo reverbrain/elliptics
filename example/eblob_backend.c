@@ -126,18 +126,19 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 			}
 		}
 
-		data_offset += sizeof(struct dnet_ext_list_hdr);
-
 		/*
 		 * When record is not yet committed (it was allocated on disk via write_prepare and optional write_plain),
 		 * its @data_size is zero and removing this header size ends up with negative size converted back to
 		 * very large positive number (0xffffffffffffffd0)
 		 *
-		 * @data_offset above is safe, since actually eblob had allocated all needed space,
-		 * it just hasn't yet filled eblob_disk_control
+		 * It is possible that neither ext header nor data have not been written yet,
+		 * but iterator has caught the key right after prepare time, which previously set ext header flag.
+		 *
+		 * Current version does not set any flags at prepare time.
 		 */
-		if (!(dc->flags & BLOB_DISK_CTL_UNCOMMITTED)) {
+		if (size >= sizeof(struct dnet_ext_header)) {
 			size -= sizeof(struct dnet_ext_list_hdr);
+			data_offset += sizeof(struct dnet_ext_list_hdr);
 		}
 	}
 
