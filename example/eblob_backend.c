@@ -268,6 +268,22 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	}
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
+		/*
+		 * If io->size is not zero, ext header has been written above.
+		 */
+		if (io->size == 0) {
+			const struct eblob_iovec iov[1] = {
+				{ .offset = 0, .size = ehdr_size, .base = &ehdr },
+			};
+
+			err = eblob_plain_writev(b, &key, iov, 1, flags);
+			if (err) {
+				dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_plain_writev: commit WRITE: %d: %s",
+					dnet_dump_id_str(io->id), err, strerror(-err));
+				goto err_out_exit;
+			}
+		}
+
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
 			uint64_t csize = io->num + ehdr_size;
 			if (io->flags & DNET_IO_FLAGS_PREPARE) {
