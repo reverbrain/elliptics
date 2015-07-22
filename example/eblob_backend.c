@@ -136,7 +136,7 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 		 *
 		 * Current version does not set any flags at prepare time.
 		 */
-		if (size >= sizeof(struct dnet_ext_header)) {
+		if (size >= sizeof(struct dnet_ext_list_hdr)) {
 			size -= sizeof(struct dnet_ext_list_hdr);
 			data_offset += sizeof(struct dnet_ext_list_hdr);
 		}
