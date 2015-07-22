@@ -421,7 +421,8 @@ enum dnet_work_io_mode {
 
 struct dnet_work_pool;
 struct dnet_work_io {
-	struct list_head	list;
+	struct list_head	reply_list;
+	struct list_head	request_list;
 	int			thread_index;
 	uint64_t		trans;
 	pthread_t		tid;

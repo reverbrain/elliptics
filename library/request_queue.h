@@ -38,6 +38,7 @@ inline bool operator == (const dnet_id &lhs, const dnet_id &rhs)
 struct dnet_locks_entry
 {
 	std::condition_variable unlock_event;
+	dnet_work_io *owner;
 };
 
 /*
@@ -83,7 +84,7 @@ public:
 	/*!
 	 * Returns internal queue statistics
 	 */
-	void get_list_stats(struct list_stat *stats) const;
+	void get_list_stats(list_stat *stats) const;
 
 private:
 	/*
@@ -97,7 +98,7 @@ private:
 	/*!
 	 * Takes dnet_locks_entry object from /a m_lock_pool
 	 */
-	dnet_locks_entry *take_lock_entry();
+	dnet_locks_entry *take_lock_entry(dnet_work_io *wio);
 	/*!
 	 * Puts back dnet_locks_entry into /a m_lock_pool
 	 */

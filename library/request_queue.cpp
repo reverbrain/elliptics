@@ -77,8 +77,16 @@ dnet_io_req *dnet_request_queue::take_request(dnet_work_io *wio, const char *thr
 	 */
 	wio->trans = ~0ULL;
 
-	if (!list_empty(&wio->list)) {
-		it = list_first_entry(&wio->list, struct dnet_io_req, req_entry);
+	if (!list_empty(&wio->reply_list)) {
+		it = list_first_entry(&wio->reply_list, struct dnet_io_req, req_entry);
+		auto cmd = reinterpret_cast<const dnet_cmd *>(it->header);
+		trans = cmd->trans;
+		wio->trans = trans;
+		return it;
+	}
+
+	if (!list_empty(&wio->request_list)) {
+		it = list_first_entry(&wio->request_list, struct dnet_io_req, req_entry);
 		auto cmd = reinterpret_cast<const dnet_cmd *>(it->header);
 		trans = cmd->trans;
 		wio->trans = trans;
@@ -96,9 +104,18 @@ dnet_io_req *dnet_request_queue::take_request(dnet_work_io *wio, const char *thr
 				return it;
 
 			if (m_locked_keys.count(cmd->id) == 0) {
-				auto lock_entry = take_lock_entry();
+				auto lock_entry = take_lock_entry(wio);
 				m_locked_keys.insert(std::make_pair(cmd->id, lock_entry));
 				return it;
+			} else {
+				auto it_lock = m_locked_keys.find(cmd->id);
+				if (it_lock != m_locked_keys.end()) {
+					auto lock_entry = it_lock->second;
+					dnet_work_io *owner = lock_entry->owner;
+					if (owner) {
+						list_move_tail(&it->req_entry, &owner->request_list);
+					}
+				}
 			}
 		} else {
 			trans = cmd->trans;
@@ -107,7 +124,7 @@ dnet_io_req *dnet_request_queue::take_request(dnet_work_io *wio, const char *thr
 			for (int i = 0; i < pool->num; ++i) {
 				/* Someone claimed transaction @tid */
 				if (pool->wio_list[i].trans == trans) {
-					list_move_tail(&it->req_entry, &pool->wio_list[i].list);
+					list_move_tail(&it->req_entry, &pool->wio_list[i].reply_list);
 					trans_in_process = true;
 					break;
 				}
@@ -143,7 +160,7 @@ void dnet_request_queue::lock_key(const dnet_id *id)
 		auto lock_entry = it->second;
 		lock_entry->unlock_event.wait_for(lock, std::chrono::seconds(1));
 	}
-	auto lock_entry = take_lock_entry();
+	auto lock_entry = take_lock_entry(nullptr);
 	m_locked_keys.insert(std::make_pair(*id, lock_entry));
 }
 
@@ -159,13 +176,16 @@ void dnet_request_queue::release_key(const dnet_id *id)
 	auto it = m_locked_keys.find(*id);
 	if (it != m_locked_keys.end()) {
 		auto lock_entry = it->second;
-		m_locked_keys.erase(it);
-		put_lock_entry(lock_entry);
-		lock_entry->unlock_event.notify_one();
+		const dnet_work_io *owner = lock_entry->owner;
+		if (owner && list_empty(&owner->request_list)) {
+			m_locked_keys.erase(it);
+			put_lock_entry(lock_entry);
+			lock_entry->unlock_event.notify_one();
+		}
 	}
 }
 
-dnet_locks_entry *dnet_request_queue::take_lock_entry()
+dnet_locks_entry *dnet_request_queue::take_lock_entry(dnet_work_io *wio)
 {
 	if (m_lock_pool.empty()) {
 		auto entry = new(std::nothrow) dnet_locks_entry;
@@ -173,6 +193,7 @@ dnet_locks_entry *dnet_request_queue::take_lock_entry()
 	}
 	auto entry = m_lock_pool.front();
 	m_lock_pool.pop_front();
+	entry->owner = wio;
 	return entry;
 }
 
@@ -181,7 +202,7 @@ void dnet_request_queue::put_lock_entry(dnet_locks_entry *entry)
 	m_lock_pool.push_back(entry);
 }
 
-void dnet_request_queue::get_list_stats(struct list_stat *stats) const
+void dnet_request_queue::get_list_stats(list_stat *stats) const
 {
 	stats->list_size = m_queue_size;
 }

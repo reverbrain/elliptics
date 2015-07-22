@@ -63,7 +63,12 @@ void dnet_work_pool_cleanup(struct dnet_work_pool_place *place)
 	for (i = 0; i < place->pool->num; ++i) {
 		wio = &place->pool->wio_list[i];
 
-		list_for_each_entry_safe(r, tmp, &wio->list, req_entry) {
+		list_for_each_entry_safe(r, tmp, &wio->reply_list, req_entry) {
+			list_del(&r->req_entry);
+			dnet_io_req_free(r);
+		}
+
+		list_for_each_entry_safe(r, tmp, &wio->request_list, req_entry) {
 			list_del(&r->req_entry);
 			dnet_io_req_free(r);
 		}
@@ -100,7 +105,8 @@ static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool,
 		wio->thread_index = i;
 		wio->pool = pool;
 		wio->trans = ~0ULL;
-		INIT_LIST_HEAD(&wio->list);
+		INIT_LIST_HEAD(&wio->reply_list);
+		INIT_LIST_HEAD(&wio->request_list);
 
 		err = pthread_create(&wio->tid, NULL, process, wio);
 		if (err) {
