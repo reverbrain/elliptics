@@ -191,7 +191,8 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	int err;
 
 	dnet_backend_log(c->blog, DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %s",
-		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, dnet_flags_dump_ioflags(io->flags));
+		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size,
+		dnet_flags_dump_ioflags(io->flags));
 
 	dnet_convert_io_attr(io);
 
@@ -210,11 +211,28 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
-		err = eblob_write_prepare(b, &key, io->num + ehdr_size, flags);
+		/*
+		 * We have zero flags for prepare method since otherwise iterator running in parallel
+		 * will catch this record and will believe that it has ext header in data.
+		 *
+		 * Prepare is foolowed by plain write which will fill in flags
+		 * and also put ext header with timestamp and user flags.
+		 */
+		err = eblob_write_prepare(b, &key, io->num + ehdr_size, 0);
 		if (err) {
 			dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: "
 					"size: %" PRIu64 ": %s %d", dnet_dump_id_str(io->id),
 					io->num + ehdr_size, strerror(-err), err);
+			goto err_out_exit;
+		}
+		const struct eblob_iovec iov[1] = {
+			{ .offset = 0, .size = ehdr_size, .base = &ehdr },
+		};
+
+		err = eblob_plain_writev(b, &key, iov, 1, flags);
+		if (err) {
+			dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_plain_writev: header WRITE: %d: %s",
+				dnet_dump_id_str(io->id), err, strerror(-err));
 			goto err_out_exit;
 		}
 
@@ -223,6 +241,10 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	}
 
 	if (io->size) {
+		/*
+		 * Although we have already filled ext header above (at prepare time),
+		 * we update it each time chunk has been written to change timestamp and user flags.
+		 */
 		const struct eblob_iovec iov[2] = {
 			{ .offset = 0, .size = ehdr_size, .base = &ehdr },
 			{ .offset = ehdr_size + io->offset, .size = io->size, .base = data },
@@ -299,7 +321,8 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 		goto err_out_exit;
 	}
 
-	dnet_backend_log(c->blog, DNET_LOG_INFO, "%s: EBLOB: blob-write: fd: %d, offset: %" PRIu64 ", offset-within-fd: %" PRIu64 ", size: %" PRIu64 "",
+	dnet_backend_log(c->blog, DNET_LOG_INFO, "%s: EBLOB: blob-write: fd: %d, offset: %" PRIu64
+			", offset-within-fd: %" PRIu64 ", size: %" PRIu64 "",
 			dnet_dump_id_str(io->id), wc.data_fd, wc.offset, fd_offset, wc.size);
 
 err_out_exit:
