@@ -127,14 +127,15 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 		}
 
 		/*
-		 * When record is not yet committed (it was allocated on disk via write_prepare and optional write_plain),
-		 * its @data_size is zero and removing this header size ends up with negative size converted back to
-		 * very large positive number (0xffffffffffffffd0)
+		 * When record is not yet committed and nothing has been written yet
+		 * (it was allocated on disk via write_prepare and optional write_plain),
+		 * its @data_size is zero and removing this header size ends up with
+		 * negative size converted back to very large positive number (0xffffffffffffffd0)
 		 *
 		 * It is possible that neither ext header nor data have not been written yet,
 		 * but iterator has caught the key right after prepare time, which previously set ext header flag.
 		 *
-		 * Current version does not set any flags at prepare time.
+		 * For more details, see blob_write() function below and prepare section comments.
 		 */
 		if (size >= sizeof(struct dnet_ext_list_hdr)) {
 			size -= sizeof(struct dnet_ext_list_hdr);
@@ -213,19 +214,28 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
 		/*
-		 * We have zero flags for prepare method since otherwise iterator running in parallel
-		 * will catch this record and will believe that it has ext header in data.
+		 * We have to put ext header flag into prepare command, since otherwise
+		 * we can not overwrite data later with this flag.
 		 *
-		 * Prepare is foolowed by plain write which will fill in flags
-		 * and also put ext header with timestamp and user flags.
+		 * Eblob correctly believes that existing on-disk record without ext header
+		 * (this will be the case after prepare has been completed) can not be
+		 * overwritten with chunk containing ext-header.
+		 *
+		 * Setting this flag opens a window for race with iterator.
+		 * Iterator will see the record with ext header bit set,
+		 * but without actual data.
+		 *
+		 * XXX alternative way is to fix eblob not to check ext header flag if uncommitted bit is set.
+		 * XXX See eblob_plain_writev_prepare() and ext header check.
 		 */
-		err = eblob_write_prepare(b, &key, io->num + ehdr_size, 0);
+		err = eblob_write_prepare(b, &key, io->num + ehdr_size, flags);
 		if (err) {
 			dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: "
 					"size: %" PRIu64 ": %s %d", dnet_dump_id_str(io->id),
 					io->num + ehdr_size, strerror(-err), err);
 			goto err_out_exit;
 		}
+
 		const struct eblob_iovec iov[1] = {
 			{ .offset = 0, .size = ehdr_size, .base = &ehdr },
 		};
