@@ -177,11 +177,11 @@ void dnet_request_queue::release_key(const dnet_id *id)
 	if (it != m_locked_keys.end()) {
 		auto lock_entry = it->second;
 		const dnet_work_io *owner = lock_entry->owner;
-		if (owner && list_empty(&owner->request_list)) {
-			m_locked_keys.erase(it);
-			put_lock_entry(lock_entry);
-			lock_entry->unlock_event.notify_one();
-		}
+		if (owner && !list_empty(&owner->request_list))
+			return;
+		m_locked_keys.erase(it);
+		put_lock_entry(lock_entry);
+		lock_entry->unlock_event.notify_one();
 	}
 }
 
