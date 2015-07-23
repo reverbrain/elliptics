@@ -103,18 +103,18 @@ dnet_io_req *dnet_request_queue::take_request(dnet_work_io *wio, const char *thr
 			if (cmd->flags & DNET_FLAGS_NOLOCK)
 				return it;
 
-			if (m_locked_keys.count(cmd->id) == 0) {
+			locked_keys_t::iterator it_lock;
+			bool inserted;
+			std::tie(it_lock, inserted) = m_locked_keys.insert({cmd->id, reinterpret_cast<dnet_locks_entry *>(nullptr)});
+			if (inserted) {
 				auto lock_entry = take_lock_entry(wio);
-				m_locked_keys.insert(std::make_pair(cmd->id, lock_entry));
+				it_lock->second = lock_entry;
 				return it;
 			} else {
-				auto it_lock = m_locked_keys.find(cmd->id);
-				if (it_lock != m_locked_keys.end()) {
-					auto lock_entry = it_lock->second;
-					dnet_work_io *owner = lock_entry->owner;
-					if (owner) {
-						list_move_tail(&it->req_entry, &owner->request_list);
-					}
+				auto lock_entry = it_lock->second;
+				dnet_work_io *owner = lock_entry->owner;
+				if (owner) {
+					list_move_tail(&it->req_entry, &owner->request_list);
 				}
 			}
 		} else {

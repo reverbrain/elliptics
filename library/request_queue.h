@@ -111,7 +111,8 @@ private:
 
 	std::atomic_ullong m_queue_size;
 
-	std::unordered_map<dnet_id, dnet_locks_entry *> m_locked_keys;
+	typedef std::unordered_map<dnet_id, dnet_locks_entry *> locked_keys_t;
+	locked_keys_t m_locked_keys;
 	std::list<dnet_locks_entry *> m_lock_pool;
 	std::mutex m_locks_mutex;
 };
