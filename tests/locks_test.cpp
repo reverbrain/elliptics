@@ -32,6 +32,7 @@ static std::shared_ptr<nodes_data> global_data;
 static size_t groups_count = 1;
 static size_t nodes_count = 1;
 static size_t backends_count = 1;
+static int cache_sync_timeout = 2;
 
 static server_config default_value(int group)
 {
@@ -41,6 +42,9 @@ static server_config default_value(int group)
 		("nonblocking_io_thread_num", 1)
 		("net_thread_num", 1)
 		("caches_number", 1)
+		("cache_size", 100000)
+		("cache_shards", 1)
+		("cache_sync_timeout", cache_sync_timeout)
 	;
 
 	server.backends[0]("enable", true)("group", group);
@@ -116,7 +120,7 @@ static void test_write_order_execution(session &sess)
 		for (size_t j = 0; j < keys.size(); ++j) {
 			results[j].wait();
 			const int err = results[j].error().code();
-		        BOOST_REQUIRE_MESSAGE(err == 0,
+			BOOST_REQUIRE_MESSAGE(err == 0,
 					      "write_cas() failed (err=" + std::to_string(static_cast<unsigned long long>(err)) + "): "
 					      "multiple consecutive writes are executed out-of-order "
 					      "or overlapped. Oplock mechanism of backend's request queue is broken.");
@@ -124,10 +128,21 @@ static void test_write_order_execution(session &sess)
 	}
 }
 
+static void test_opunlock(session &sess)
+{
+	const key id(std::string("cache_key"));
+	const std::string data = "some_data";
+
+	ELLIPTICS_REQUIRE(async_write, sess.write_cache(id, data, 0));
+	sleep(cache_sync_timeout + 1);
+	ELLIPTICS_REQUIRE(async_write2, sess.write_data(id, data, 0));
+}
+
 
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_write_order_execution, create_session(n, { 1 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_opunlock, create_session(n, { 1 }, 0, 0));
 
 	return true;
 }
