@@ -88,7 +88,7 @@ static void test_write_order_execution(session &sess)
 		}
 	}
 
-	std::vector<async_write_result> results(keys.size());
+	std::unique_ptr<async_write_result[]> results(new async_write_result[keys.size()]);
 	dnet_id old_csum;
 
 	const int num_iterations = 30;
@@ -106,10 +106,10 @@ static void test_write_order_execution(session &sess)
 				const int prev_value = new_value - 1;
 				memset(&old_csum, 0, sizeof(old_csum));
 				sess.transform(std::to_string(static_cast<unsigned long long>(prev_value)), old_csum);
-				results[j] = sess.write_cas(keys[j].first, std::to_string(static_cast<unsigned long long>(new_value)), old_csum, 0);
+				results[j] = std::move(sess.write_cas(keys[j].first, std::to_string(static_cast<unsigned long long>(new_value)), old_csum, 0));
 			} else {
 				// first write
-				results[j] = sess.write_data(keys[j].first, std::to_string(static_cast<unsigned long long>(new_value)), 0);
+				results[j] = std::move(sess.write_data(keys[j].first, std::to_string(static_cast<unsigned long long>(new_value)), 0));
 			}
 		}
 
