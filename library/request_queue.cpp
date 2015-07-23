@@ -2,8 +2,32 @@
 #include "monitor/measure_points.h"
 
 
-dnet_request_queue::dnet_request_queue()
-: m_queue_size(0)
+static size_t dnet_id_hash(const dnet_id &key)
+{
+	return MurmurHash64A(reinterpret_cast<const char *>(&key), sizeof(key.id) + sizeof(key.group_id), 0);
+}
+
+static size_t dnet_raw_id_hash(const dnet_id &key)
+{
+	return MurmurHash64A(reinterpret_cast<const char *>(&key.id), sizeof(dnet_raw_id), 0);
+}
+
+static bool dnet_id_comparator(const dnet_id &lhs, const dnet_id &rhs)
+{
+	return !dnet_id_cmp(&lhs, &rhs);
+}
+
+static bool dnet_raw_id_comparator(const dnet_id &lhs, const dnet_id &rhs)
+{
+	return !dnet_id_cmp_str(reinterpret_cast<const unsigned char *>(&lhs.id),
+				reinterpret_cast<const unsigned char *>(&rhs.id));
+}
+
+
+dnet_request_queue::dnet_request_queue(bool has_backend)
+: m_queue_size(0),
+ m_locked_keys(1, has_backend ? &dnet_raw_id_hash : &dnet_id_hash,
+	       has_backend ? &dnet_raw_id_comparator : &dnet_id_comparator)
 {
 	INIT_LIST_HEAD(&m_queue);
 }
@@ -247,9 +271,9 @@ void dnet_get_pool_list_stats(struct dnet_work_pool *pool, struct list_stat *sta
 	queue->get_list_stats(stats);
 }
 
-void *dnet_request_queue_create()
+void *dnet_request_queue_create(int has_backend)
 {
-	return new(std::nothrow) dnet_request_queue;
+	return new(std::nothrow) dnet_request_queue(has_backend != 0);
 }
 
 void dnet_request_queue_destroy(void *queue)

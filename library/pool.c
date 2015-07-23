@@ -182,7 +182,8 @@ int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n
 	pool->n = n;
 	pool->io = io;
 
-	pool->request_queue = dnet_request_queue_create();
+	const int has_backend = io ? 1 : 0;
+	pool->request_queue = dnet_request_queue_create(has_backend);
 	if (!pool->request_queue) {
 		err = -ENOMEM;
 		goto err_out_mutex_destroy;

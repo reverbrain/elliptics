@@ -15,26 +15,6 @@
 #endif
 
 
-namespace std
-{
-	template<>
-	struct hash<dnet_id>
-	{
-		typedef dnet_id argument_type;
-		typedef std::size_t result_type;
-
-		result_type operator()(const argument_type &key) const
-		{
-			return MurmurHash64A(reinterpret_cast<const char *>(&key), sizeof(dnet_id), 0);
-		}
-	};
-}
-
-inline bool operator == (const dnet_id &lhs, const dnet_id &rhs)
-{
-	return !dnet_id_cmp(&lhs, &rhs);
-}
-
 struct dnet_locks_entry
 {
 	std::condition_variable unlock_event;
@@ -52,7 +32,7 @@ public:
 	/*!
 	 * Constructor: initializes internal state properly
 	 */
-	dnet_request_queue();
+	dnet_request_queue(bool has_backend);
 	/*!
 	 * Destructor: frees all dnet_locks_entry objects in /a m_lock_pool and destroys all requests in /a m_queue
 	 */
@@ -111,7 +91,7 @@ private:
 
 	std::atomic_ullong m_queue_size;
 
-	typedef std::unordered_map<dnet_id, dnet_locks_entry *> locked_keys_t;
+	typedef std::unordered_map<dnet_id, dnet_locks_entry *, size_t(*)(const dnet_id&), bool(*)(const dnet_id&, const dnet_id&)> locked_keys_t;
 	locked_keys_t m_locked_keys;
 	std::list<dnet_locks_entry *> m_lock_pool;
 	std::mutex m_locks_mutex;
@@ -120,7 +100,7 @@ private:
 extern "C" {
 #endif // __cplusplus
 
-void *dnet_request_queue_create();
+void *dnet_request_queue_create(int has_backend);
 void dnet_request_queue_destroy(void *queue);
 
 void dnet_push_request(struct dnet_work_pool *pool, struct dnet_io_req *req);
