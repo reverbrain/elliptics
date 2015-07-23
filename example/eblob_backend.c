@@ -99,14 +99,25 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 	size = dc->data_size;
 	dnet_ext_list_init(&elist);
 
-	/* If it's an extended record - extract header, move data pointer */
-	if (dc->flags & BLOB_DISK_CTL_EXTHDR) {
+	/* If it's an extended record - extract header, move data pointer
+	 *
+	 * When record has not been committed and no data has been written yet
+	 * (it has only been allocated on disk via write_prepare),
+	 * its @data_size is zero and removing this header size ends up with
+	 * negative size converted back to very large positive number (0xffffffffffffffd0).
+	 * Checking this records doesn't make sense too.
+	 *
+	 * It is possible that neither ext header nor data have not been written yet,
+	 * but iterator has caught the key right after prepare time.
+	 *
+	 * For more details, see blob_write() function below and prepare section comments.
+	 */
+	if ((dc->flags & BLOB_DISK_CTL_EXTHDR) && (size >= sizeof(struct dnet_ext_list_hdr))) {
 		/*
 		 * Skip reading/extracting header of completed records if iterator is run with no_meta.
 		 * Header of uncommitted records should be read in any cases for correct recovery.
 		 */
-		if (!no_meta ||
-		    (dc->flags & BLOB_DISK_CTL_UNCOMMITTED)) {
+		if (!no_meta || (dc->flags & BLOB_DISK_CTL_UNCOMMITTED)) {
 			err = dnet_ext_hdr_read(&ehdr, fd, data_offset);
 			if (!err) {
 				dnet_ext_hdr_to_list(&ehdr, &elist);
@@ -118,29 +129,16 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 				 */
 				char buffer[2*DNET_ID_SIZE + 1] = {0};
 				dnet_backend_log(c->blog, DNET_LOG_ERROR,
-						 "blob: iter: %s: dnet_ext_hdr_read failed: %d. Use empty extended header for this key\n",
-						 dnet_dump_id_len_raw((const unsigned char*)&dc->key, DNET_ID_SIZE, buffer),
-						 err);
+					"blob: iter: %s: dnet_ext_hdr_read failed: %d. Use empty extended header for this key\n",
+					dnet_dump_id_len_raw((const unsigned char*)&dc->key, DNET_ID_SIZE, buffer), err);
 
 				err = 0;
 			}
 		}
 
-		/*
-		 * When record is not yet committed and nothing has been written yet
-		 * (it was allocated on disk via write_prepare and optional write_plain),
-		 * its @data_size is zero and removing this header size ends up with
-		 * negative size converted back to very large positive number (0xffffffffffffffd0)
-		 *
-		 * It is possible that neither ext header nor data have not been written yet,
-		 * but iterator has caught the key right after prepare time, which previously set ext header flag.
-		 *
-		 * For more details, see blob_write() function below and prepare section comments.
-		 */
-		if (size >= sizeof(struct dnet_ext_list_hdr)) {
-			size -= sizeof(struct dnet_ext_list_hdr);
-			data_offset += sizeof(struct dnet_ext_list_hdr);
-		}
+
+		data_offset += sizeof(struct dnet_ext_list_hdr);
+		size -= sizeof(struct dnet_ext_list_hdr);
 	}
 
 	err = ictl->callback(ictl->callback_private,
@@ -225,7 +223,7 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 		 * Iterator will see the record with ext header bit set,
 		 * but without actual data.
 		 *
-		 * XXX alternative way is to fix eblob not to check ext header flag if uncommitted bit is set.
+		 * XXX Alternative way is to fix eblob not to check ext header flag if uncommitted bit is set.
 		 * XXX See eblob_plain_writev_prepare() and ext header check.
 		 */
 		err = eblob_write_prepare(b, &key, io->num + ehdr_size, flags);
@@ -289,7 +287,8 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 
 			err = eblob_plain_writev(b, &key, iov, 1, flags);
 			if (err) {
-				dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_plain_writev: commit WRITE: %d: %s",
+				dnet_backend_log(c->blog, DNET_LOG_ERROR,
+					"%s: EBLOB: blob-write: eblob_plain_writev: commit WRITE: %d: %s",
 					dnet_dump_id_str(io->id), err, strerror(-err));
 				goto err_out_exit;
 			}
@@ -477,8 +476,9 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 				c->random_access = 0;
 
 			if (old_ra != c->random_access) {
-				dnet_backend_log(c->blog, DNET_LOG_ERROR, "EBLOB: switch RA %d -> %d, offset MSE: %llu, squared VM total: %llu",
-						old_ra, c->random_access, (unsigned long long)tmp, (unsigned long long)c->vm_total);
+				dnet_backend_log(c->blog, DNET_LOG_ERROR,
+					"EBLOB: switch RA %d -> %d, offset MSE: %llu, squared VM total: %llu",
+					old_ra, c->random_access, (unsigned long long)tmp, (unsigned long long)c->vm_total);
 			}
 
 			c->last_read_index = 0;
