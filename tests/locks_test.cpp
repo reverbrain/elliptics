@@ -32,7 +32,7 @@ static std::shared_ptr<nodes_data> global_data;
 static size_t groups_count = 1;
 static size_t nodes_count = 1;
 static size_t backends_count = 1;
-static int cache_sync_timeout = 2;
+static int cache_sync_timeout = 1;
 
 static server_config default_value(int group)
 {
@@ -128,21 +128,45 @@ static void test_write_order_execution(session &sess)
 	}
 }
 
-static void test_opunlock(session &sess)
+/*
+ * After writing of a key to cache, keys data will be synced to disk cache_sync_timeout seconds later.
+ * Before syncing a key, dnet_oplock() taken for this key. After syncing a key, key's oplock released.
+ *
+ * Following test checks this mechanics by calling write_data(key, data) multiple times with the same data,
+ * then writing to cache by calling write_cache(key, cache_data) cache data, waiting cache_sync_timeout seconds
+ * until cache is synced back to disk (backend), thereby taking oplock. Then called write_data(key, result_data).
+ * If last write_data() operation timeouted, then dnet_opunlock() (after cache sync) is not properly realeased key's oplock.
+ */
+static void test_oplock(session &sess)
 {
-	const key id(std::string("cache_key"));
+	const key id(std::string("oplock_key"));
 	const std::string data = "some_data";
+	const std::string cache_data = "cache_data";
+	const std::string result_data = "result_data";
 
-	ELLIPTICS_REQUIRE(async_write, sess.write_cache(id, data, 0));
+	const size_t num_writes = 10;
+	std::unique_ptr<async_write_result[]> results(new async_write_result[num_writes]);
+
+	for (size_t i = 0; i < num_writes; ++i) {
+		results[i] = std::move(sess.write_data(id, data, 0));
+	}
+	for (size_t i = 0; i < num_writes; ++i) {
+		results[i].wait();
+	}
+	ELLIPTICS_COMPARE_REQUIRE(read_data_result, sess.read_data(id, 0, 0), data);
+
+	ELLIPTICS_REQUIRE(async_cache_write, sess.write_cache(id, cache_data, 0));
 	sleep(cache_sync_timeout + 1);
-	ELLIPTICS_REQUIRE(async_write2, sess.write_data(id, data, 0));
+	ELLIPTICS_COMPARE_REQUIRE(read_cache_result, sess.read_data(id, 0, 0), cache_data);
+	ELLIPTICS_REQUIRE(async_write, sess.write_data(id, result_data, 0));
+	ELLIPTICS_COMPARE_REQUIRE(read_result, sess.read_data(id, 0, 0), result_data);
 }
 
 
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_write_order_execution, create_session(n, { 1 }, 0, 0));
-	ELLIPTICS_TEST_CASE(test_opunlock, create_session(n, { 1 }, 0, 0));
+	ELLIPTICS_TEST_CASE(test_oplock, create_session(n, { 1 }, 0, 0));
 
 	return true;
 }
