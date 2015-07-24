@@ -99,22 +99,10 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 	size = dc->data_size;
 	dnet_ext_list_init(&elist);
 
-	/* If it's an extended record - extract header, move data pointer
-	 *
-	 * When record has not been committed and no data has been written yet
-	 * (it has only been allocated on disk via write_prepare),
-	 * its @data_size is zero and removing this header size ends up with
-	 * negative size converted back to very large positive number (0xffffffffffffffd0).
-	 * Checking this records doesn't make sense too.
-	 *
-	 * It is possible that neither ext header nor data have not been written yet,
-	 * but iterator has caught the key right after prepare time.
-	 *
-	 * For more details, see blob_write() function below and prepare section comments.
-	 */
-	if ((dc->flags & BLOB_DISK_CTL_EXTHDR) && (size >= sizeof(struct dnet_ext_list_hdr))) {
+	/* If it's an extended record - extract header, move data pointer */
+	if (dc->flags & BLOB_DISK_CTL_EXTHDR) {
 		/*
-		 * Skip reading/extracting header of completed records if iterator is run with no_meta.
+		 * Skip reading/extracting header of the committed records if iterator runs with no_meta.
 		 * Header of uncommitted records should be read in any cases for correct recovery.
 		 */
 		if (!no_meta || (dc->flags & BLOB_DISK_CTL_UNCOMMITTED)) {
@@ -136,9 +124,25 @@ static int blob_iterate_callback_common(struct eblob_disk_control *dc, int fd, u
 			}
 		}
 
-
 		data_offset += sizeof(struct dnet_ext_list_hdr);
-		size -= sizeof(struct dnet_ext_list_hdr);
+
+		/*
+		 * When record has not been committed (no matter whether data has been written or not)
+		 * its @data_size is zero and removing ext header size ends up with
+		 * negative size converted back to very large positive number (0xffffffffffffffd0).
+		 *
+		 * It is possible that iterator will catch this key before commit time,
+		 * we have to be ready and do not provide invalid size.
+		 *
+		 * For more details, see blob_write() function below and prepare section comments.
+		 *
+		 * @data_header is safe, since we have preallocated all needed space for ext header
+		 * it just hasn't yet been committed to disk and thus @data_size hasn't yet been updated.
+		 */
+
+		if (size >= sizeof(struct dnet_ext_list_hdr)) {
+			size -= sizeof(struct dnet_ext_list_hdr);
+		}
 	}
 
 	err = ictl->callback(ictl->callback_private,
