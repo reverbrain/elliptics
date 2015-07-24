@@ -137,6 +137,7 @@ dnet_io_req *dnet_request_queue::take_request(dnet_work_io *wio, const char *thr
 			} else {
 				auto lock_entry = it_lock->second;
 				dnet_work_io *owner = lock_entry->owner;
+				/* if key is already locked by other pool thread, then move it to request_list of this thread */
 				if (owner) {
 					list_move_tail(&it->req_entry, &owner->request_list);
 				}
@@ -201,6 +202,11 @@ void dnet_request_queue::release_key(const dnet_id *id)
 	if (it != m_locked_keys.end()) {
 		auto lock_entry = it->second;
 		const dnet_work_io *owner = lock_entry->owner;
+		/*
+		 * Unlock key only if it was locked directly by dnet_oplock() (owner == 0) and
+		 * there is no scheduled keys (by take_request()) in request_list (where all keys have same id as given in argument)
+		 * of pool thread (owner != 0).
+		 */
 		if (owner && !list_empty(&owner->request_list))
 			return;
 		m_locked_keys.erase(it);
