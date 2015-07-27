@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.6.1
+Version:	2.26.6.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jul 27 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.6.2
+- recovery: zero-sized keys are actually valid
+- eblob: write ext header when committing record (if it hasn't been written already for this IO request)
+- eblob: when doing prepare, perform plain write with ext header right after prepare
+- eblob: fixed integer overflow for uncommitted records during iteration
+- iterator: added --no-meta option to example cpp iterator code
+
 * Wed Jul 15 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.6.1
 - recovery: monitor: fixed metrics: 'local_read_bytes', 'remote_written_bytes' etc
 - recovery: recover keys by window not by batch - closes

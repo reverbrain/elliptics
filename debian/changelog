@@ -1,3 +1,13 @@
+elliptics (2.26.6.2) unstable; urgency=low
+
+  * recovery: zero-sized keys are actually valid
+  * eblob: write ext header when committing record (if it hasn't been written already for this IO request)
+  * eblob: when doing prepare, perform plain write with ext header right after prepare
+  * eblob: fixed integer overflow for uncommitted records during iteration
+  * iterator: added --no-meta option to example cpp iterator code
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 27 Jul 2015 17:09:59 +0400
+
 elliptics (2.26.6.1) unstable; urgency=low
 
   * recovery: monitor: fixed metrics: 'local_read_bytes', 'remote_written_bytes' etc

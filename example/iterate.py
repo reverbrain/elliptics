@@ -43,15 +43,19 @@ def transf(str_id):
     return id[:64]
 
 
-def iterate_node(ctx, node):
-    eid = ctx.session.routes.get_address_eid(node)
-    print eid
-
+def iterate_node(ctx, node, eid):
     iflags = elliptics.iterator_flags.key_range
     if ctx.time_begin or ctx.time_end:
         iflags |= elliptics.iterator_flags.ts_range
     if ctx.data:
         iflags |= elliptics.iterator_flags.data
+
+    if ctx.no_meta:
+        # no-meta has only effect if we do not request data and timestamp information
+        # since meta lives with data and no-meta iterator only runs over indexes
+        if not ctx.data:
+            if not ctx.time_begin and not ctx.time_end:
+                iflags |= elliptics.iterator_flags.no_meta
 
     if not ctx.time_begin:
         ctx.time_begin = elliptics.Time(0, 0)
@@ -67,7 +71,7 @@ def iterate_node(ctx, node):
 
     print bin(iflags)
 
-    ctx.session.groups = [ctx.session.routes.get_address_group_id(node)]
+    ctx.session.groups = ctx.session.routes.get_address_groups(node)
 
     iterator = ctx.session.start_iterator(eid,
                                           ranges,
@@ -98,11 +102,12 @@ def iterate_node(ctx, node):
 
 def iterate_groups(ctx):
     routes = ctx.session.routes
-    for g in routes.groups():
-        group_routes = elliptics.RouteList(routes.filter_by_group_id(g))
-        group_addresses = group_routes.addresses()
-        for a in group_addresses:
-            iterate_node(ctx, a)
+    group_routes = routes.filter_by_groups(ctx.session.groups)
+    print "group_routes: %s" % group_routes
+    group_addresses = group_routes.addresses()
+    print "group_addresses: %s" % group_addresses
+    for r in group_routes:
+        iterate_node(ctx, r.address, r.id)
 
 def parse_route_ranges(route_file, route_addr):
     import re
@@ -186,6 +191,8 @@ def parse_args():
                       help="Begin timestamp of time range for iterating")
     parser.add_option("-T", "--time-end", action="store", dest="time_end", default=None,
                       help="End timestamp of time range for iterating")
+    parser.add_option("-M", "--no-meta", action="store_true", dest="no_meta", default=False,
+                      help="Run iterator without metadata (timestamp and user flags). This option conflicts with --data and --time-*, if one of them is specified, --no-meta will have no effect.")
     parser.add_option("-A", "--addr", action="store", dest="route_addr", default=None,
                       help="Address to lookup in route file. This address will be used to determine iterator ranges - ranges which DO NOT belong to selected node.")
     parser.add_option("-R", "--route-file", action="store", dest="route_file", default=None,
@@ -233,6 +240,8 @@ def parse_args():
     except Exception as e:
         raise ValueError("Can't parse host:port:family: '{0}': {1}"
                          .format(options.remote, repr(e)))
+
+    ctx.no_meta = options.no_meta
 
     try:
         if options.time_begin:
@@ -304,11 +313,15 @@ if __name__ == '__main__':
         ctx.session.groups = ctx.groups
     else:
         ctx.session.groups = ctx.session.routes.groups()
-    print ctx.session.routes
+    #print ctx.session.routes
 
     if ctx.iterate_mode == MODE_NODES:
         for r in ctx.remotes:
-            iterate_node(ctx, r)
+            eid = elliptics.Id([0] * 64, 0)
+            if len(ctx.ranges) != 0:
+                eid = ctx.ranges[0].key_begin
+
+            iterate_node(ctx, r, eid)
     elif ctx.iterate_mode == MODE_GROUP:
         iterate_groups(ctx)
     else:
