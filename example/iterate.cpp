@@ -27,9 +27,7 @@
 #include <elliptics/cppdef.h>
 
 struct Ctx {
-	Ctx()
-	: iflags(0)
-	{}
+	Ctx() : iflags(0) {}
 
 	std::vector<int> groups;
 	uint64_t iflags;
@@ -75,7 +73,7 @@ void iterate_node(Ctx &ctx, const dnet_addr &node) {
 		          << ", ts: "    << it->reply()->timestamp.tsec << "/" << it->reply()->timestamp.tnsec
 			  << ", keys: "  << it->reply()->iterated_keys << "/" << it->reply()->total_keys
 			  << ", status: " << it->reply()->status
-		          << ", size: "   << it->reply_data().size()
+		          << ", size: "   << it->reply()->size
 		          << ", data: "   << it->reply_data().to_string()
 		          << std::endl;
 	}
@@ -169,13 +167,15 @@ int main(int argc, char *argv[]) {
 	desc.add_options()
 	("group,g", boost::program_options::value<std::vector<int>>()->multitoken(), "group IDs to connect")
 	("log-file,l", boost::program_options::value<std::string>()->default_value("/dev/stderr"), "log file")
-	("log-level,L", boost::program_options::value<int>()->default_value(1), "log level")
+	("log-level,L", boost::program_options::value<std::string>()->default_value("info"), "log level")
 	("remote,r", boost::program_options::value<std::vector<std::string>>()->multitoken(), "adds a route to the given node")
 	("data,d", "requests object's data with other info")
 	("key-begin,k", boost::program_options::value<std::string>(), "Begin key of range for iterating")
 	("key-end,K", boost::program_options::value<std::string>(), "End key of range for iterating")
 	("time-begin,t", boost::program_options::value<std::string>(), "Begin timestamp of time range for iterating")
 	("time-end,T", boost::program_options::value<std::string>(), "End timestamp of time range for iterating")
+	("no-meta,M", "Do not return metadata for each key, run iterator over indexes. "
+		"This option has effect only if no --data/--time* options have been specified")
 	("nodes,n", "Iterate nodes")
 	("groups,G", "Iterate nodes in groups")
 	("help,h", "this help");
@@ -184,8 +184,7 @@ int main(int argc, char *argv[]) {
 
 	try {
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
-		if (vm.count("help"))
-		{
+		if (vm.count("help")) {
 			std::cout << desc << std::endl;
 			return 0;
 		}
@@ -213,6 +212,9 @@ int main(int argc, char *argv[]) {
 			ctx.time_end = parse_time(vm["time-end"].as<std::string>());
 			ctx.iflags |= DNET_IFLAGS_TS_RANGE;
 		}
+		if (!(ctx.iflags & (DNET_IFLAGS_TS_RANGE | DNET_IFLAGS_DATA)) && (vm.count("no-meta"))) {
+			ctx.iflags |= DNET_IFLAGS_NO_META;
+		}
 		if (vm.count("groups"))
 			iter_groups = true;
 		if (vm.count("nodes"))
@@ -234,10 +236,11 @@ int main(int argc, char *argv[]) {
 	ctx.session.reset(new ioremap::elliptics::session(node));
 
 	ctx.routes = ctx.session->get_routes();
+	ctx.session->set_timeout(60);
 
-	if (iter_groups)
+	if (iter_groups) {
 		iterate_groups(ctx);
-	else if (iter_node) {
+	} else if (iter_node) {
 		for (auto it = remotes.begin(), end = remotes.end(); it != end; ++it) {
 			iterate_node(ctx, parse_addr(*it));
 		}
