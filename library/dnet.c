@@ -760,10 +760,6 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 	dnet_convert_io_attr(io);
 	count = io->size / sizeof(struct dnet_io_attr);
 
-	if (count > 0) {
-		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-	}
-
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: starting BULK_READ for %d commands",
 		dnet_dump_id(&cmd->id), (int) count);
 
@@ -785,9 +781,6 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 		if (use_oplock) {
 			dnet_opunlock(backend, &lock_id);
 		}
-
-		if (i + 1 == count)
-			cmd->flags |= DNET_FLAGS_NEED_ACK;
 
 		if (!ret)
 			err = 0;
