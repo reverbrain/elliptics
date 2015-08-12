@@ -36,6 +36,7 @@
 #include <unistd.h>
 
 #include "elliptics.h"
+#include "request_queue.h"
 #include "monitor/monitor.h"
 
 #include "elliptics/packet.h"
@@ -748,6 +749,8 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 	struct dnet_io_attr *ios = io + 1;
 	uint64_t count = 0;
 	uint64_t i;
+	int use_oplock;
+	struct dnet_id lock_id = { .group_id = cmd->id.group_id };
 
 	struct dnet_cmd read_cmd = *cmd;
 	read_cmd.size = sizeof(struct dnet_io_attr);
@@ -765,9 +768,23 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 		dnet_dump_id(&cmd->id), (int) count);
 
 	for (i = 0; i < count; i++) {
+		/*
+		 * First key is already locked by request_queue::take_request().
+		 * Check that i-th key is not equal to the first key.
+		 */
+		use_oplock = (i > 0) && !(cmd->flags & DNET_FLAGS_NOLOCK) && !dnet_id_cmp_str((const unsigned char *)&ios[i].id, (const unsigned char *)&cmd->id.id);
+		if (use_oplock) {
+			memcpy(&lock_id.id, &ios[i].id, DNET_ID_SIZE);
+			dnet_oplock(backend, &lock_id);
+		}
+
 		ret = dnet_process_cmd_raw(backend, st, &read_cmd, &ios[i], 1);
 		dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing BULK_READ.READ for %d/%d command, err: %d",
 			dnet_dump_id(&cmd->id), (int) i, (int) count, ret);
+
+		if (use_oplock) {
+			dnet_opunlock(backend, &lock_id);
+		}
 
 		if (i + 1 == count)
 			cmd->flags |= DNET_FLAGS_NEED_ACK;
