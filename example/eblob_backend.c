@@ -313,12 +313,12 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 			if (err) {
 				dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: "
 						"size: %" PRIu64 ": %s %d", dnet_dump_id_str(io->id),
-						io->num, strerror(-err), err);
+						csize, strerror(-err), err);
 				goto err_out_exit;
 			}
 
 			dnet_backend_log(c->blog, DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_commit: "
-					"size: %" PRIu64 ": Ok", dnet_dump_id_str(io->id), io->num);
+					"size: %" PRIu64 ": Ok", dnet_dump_id_str(io->id), csize);
 		}
 	}
 
