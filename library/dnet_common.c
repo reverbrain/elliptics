@@ -397,11 +397,11 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	}
 
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
-	dnet_get_backend_weight(t->st, cmd->backend_id, &backend_weight);
+	dnet_get_backend_weight(t->st, cmd->backend_id, io->flags, &backend_weight);
 	request_addr = dnet_state_addr(t->st);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: %s, size: %llu, offset: %llu, "
-			"fd: %d, local_offset: %llu -> %s/%d weight: %f, wait-ts: %ld, ioflags: %s",
+			"fd: %d, local_offset: %llu -> %s/%d weight: %f, wait-ts: %ld, ioflags: %s, ionum: %llu",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
 			dnet_cmd_string(ctl->cmd), dnet_flags_dump_cflags(cmd->flags),
@@ -410,7 +410,8 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 			(unsigned long long)ctl->local_offset,
 		        dnet_addr_string(&t->st->addr), cmd->backend_id, backend_weight,
 			t->wait_ts.tv_sec,
-			dnet_flags_dump_ioflags(ctl->io.flags));
+			dnet_flags_dump_ioflags(ctl->io.flags),
+			(unsigned long long)io->num);
 
 	dnet_convert_cmd(cmd);
 	dnet_convert_io_attr(io);
@@ -772,7 +773,7 @@ static int dnet_weight_get_winner(struct dnet_weight *w, int num)
 	return num - 1;
 }
 
-int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
+int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, uint32_t ioflags, int **groupsp)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_weight *weights;
@@ -814,7 +815,7 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 
 			st = dnet_state_get_first_with_backend(n, id, &backend_id);
 			if (st) {
-				const int err = dnet_get_backend_weight(st, backend_id, &weights[num].weight);
+				const int err = dnet_get_backend_weight(st, backend_id, ioflags, &weights[num].weight);
 				if (!err) {
 					weights[num].group_id = id->group_id;
 					num++;

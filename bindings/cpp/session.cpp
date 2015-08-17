@@ -24,7 +24,7 @@
 
 #include "node_p.hpp"
 
-#include "../../include/elliptics/async_result_cast.hpp"
+#include "elliptics/async_result_cast.hpp"
 
 namespace ioremap { namespace elliptics {
 
@@ -2223,7 +2223,7 @@ error_info session::mix_states(const key &id, std::vector<int> &groups)
 
 	dnet_id raw = id.id();
 
-	int num = dnet_mix_states(m_data->session_ptr, &raw, &groups_ptr.data());
+	int num = dnet_mix_states(m_data->session_ptr, &raw, get_ioflags(), &groups_ptr.data());
 	if (num < 0)
 		return create_error(num, "could not fetch groups");
 
