@@ -6,10 +6,6 @@ io.cmd
 io.cmd.{<any elliptics command type in upper case>}
     time of commands for each type
 
-io.cmd.{<any elliptics command type in upper case>}.lock_time
-    time spent in id lock waiting, for each command type,
-    (this will be 0 for commands with DNET_FLAGS_NOLOCK flag set)
-
 io.cmd_recursive
     time of commands that originate from other commands execution, overall for entire elliptics command stream
     (right now only BULK_READ generate subcommands like that)
@@ -52,6 +48,9 @@ pool.{sys,<backend id>}.{blocking,nonblocking}.queue.size
 
 pool.{sys,<backend id>}.{blocking,nonblocking}.queue.wait_time
     time commands spent waiting in a pool's input queue
+
+pool.{sys,<backend id>}.{blocking,nonblocking}.search_trans_time
+    time spent in searching of available request (with non-blocked key) in pool's queue
 
 pool.{sys,<backend id>}.{blocking,nonblocking}.active_threads
     tracks pool's thread utilization (how many threads are actually working)

@@ -421,7 +421,8 @@ enum dnet_work_io_mode {
 
 struct dnet_work_pool;
 struct dnet_work_io {
-	struct list_head	list;
+	struct list_head	reply_list;
+	struct list_head	request_list;
 	int			thread_index;
 	uint64_t		trans;
 	pthread_t		tid;
@@ -450,11 +451,10 @@ struct dnet_work_pool {
 	struct dnet_backend_io	*io;
 	int			mode;
 	int			num;
-	struct list_head	list;
-	struct list_stat	list_stats;
 	pthread_mutex_t		lock;
-	pthread_cond_t		wait;
 	struct dnet_work_io	*wio_list;
+
+	void			*request_queue;
 };
 
 struct dnet_work_pool_place
@@ -519,28 +519,6 @@ int dnet_server_io_init(struct dnet_node *n);
 void dnet_io_exit(struct dnet_node *n);
 
 void dnet_io_req_free(struct dnet_io_req *r);
-
-struct dnet_locks_entry {
-	struct rb_node		lock_tree_entry;
-	struct list_head	lock_list_entry;
-	pthread_mutex_t		lock;
-	pthread_cond_t		wait;
-	struct dnet_id		id;
-	int			locked;
-	atomic_t		refcnt;
-};
-
-struct dnet_locks {
-	struct list_head	lock_list;
-	struct rb_root		lock_tree;
-	pthread_mutex_t		lock;
-};
-
-void dnet_locks_destroy(struct dnet_node *n);
-int dnet_locks_init(struct dnet_node *n, int num);
-void dnet_oplock(struct dnet_node *n, struct dnet_id *key);
-void dnet_opunlock(struct dnet_node *n, struct dnet_id *key);
-int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 
 struct dnet_config_data {
 	void (*destroy_config_data) (struct dnet_config_data *);
@@ -655,7 +633,6 @@ struct dnet_node
 	int			server_prio;
 	int			client_prio;
 
-	struct dnet_locks	*locks;
 	/*
 	 * List of dnet_iterator.
 	 * Used for iterator management e.g. pause/continue actions.

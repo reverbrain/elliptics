@@ -36,6 +36,7 @@
 #include <unistd.h>
 
 #include "elliptics.h"
+#include "request_queue.h"
 #include "monitor/monitor.h"
 
 #include "elliptics/packet.h"
@@ -748,6 +749,8 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 	struct dnet_io_attr *ios = io + 1;
 	uint64_t count = 0;
 	uint64_t i;
+	int use_oplock;
+	struct dnet_id lock_id = { .group_id = cmd->id.group_id };
 
 	struct dnet_cmd read_cmd = *cmd;
 	read_cmd.size = sizeof(struct dnet_io_attr);
@@ -757,37 +760,32 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 	dnet_convert_io_attr(io);
 	count = io->size / sizeof(struct dnet_io_attr);
 
-	if (count > 0) {
-		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-	}
-
-	/*
-	 * we have to drop io lock, otherwise it will be grabbed again in dnet_process_cmd_raw() being recursively called
-	 * Lock will be taken again after loop has been finished
-	 */
-	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
-		dnet_opunlock(st->n, &cmd->id);
-	}
-
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: starting BULK_READ for %d commands",
 		dnet_dump_id(&cmd->id), (int) count);
 
 	for (i = 0; i < count; i++) {
+		/*
+		 * First key is already locked by request_queue::take_request().
+		 * Check that i-th key is not equal to the first key.
+		 */
+		use_oplock = (i > 0) && !(cmd->flags & DNET_FLAGS_NOLOCK) && !dnet_id_cmp_str((const unsigned char *)&ios[i].id, (const unsigned char *)&cmd->id.id);
+		if (use_oplock) {
+			memcpy(&lock_id.id, &ios[i].id, DNET_ID_SIZE);
+			dnet_oplock(backend, &lock_id);
+		}
+
 		ret = dnet_process_cmd_raw(backend, st, &read_cmd, &ios[i], 1);
 		dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing BULK_READ.READ for %d/%d command, err: %d",
 			dnet_dump_id(&cmd->id), (int) i, (int) count, ret);
 
-		if (i + 1 == count)
-			cmd->flags |= DNET_FLAGS_NEED_ACK;
+		if (use_oplock) {
+			dnet_opunlock(backend, &lock_id);
+		}
 
 		if (!ret)
 			err = 0;
 		else if (err == -1)
 			err = ret;
-	}
-
-	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
-		dnet_oplock(st->n, &cmd->id);
 	}
 
 	return err;
@@ -1044,11 +1042,6 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	HANDY_TIMER_SCOPE(recursive ? "io.cmd_recursive" : "io.cmd");
 	FORMATTED(HANDY_TIMER_SCOPE, ("io.cmd%s.%s", (recursive ? "_recursive" : ""), dnet_cmd_string(cmd->cmd)));
 
-	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
-		FORMATTED(HANDY_TIMER_SCOPE, ("io.cmd.%s.lock_time", dnet_cmd_string(cmd->cmd)));
-		dnet_oplock(n, &cmd->id);
-	}
-
 	gettimeofday(&start, NULL);
 
 	err = dnet_process_cmd_without_backend_raw(st, cmd, data);
@@ -1118,9 +1111,6 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 	dnet_monitor_stats_update(n, cmd, err, handled_in_cache, iosize, diff);
 
 	err = dnet_send_ack(st, cmd, err, recursive);
-
-	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
-		dnet_opunlock(n, &cmd->id);
 
 	dnet_stat_inc(st->stat, cmd->cmd, err);
 	if (st->__join_state == DNET_JOIN)

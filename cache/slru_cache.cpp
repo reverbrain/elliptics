@@ -19,6 +19,7 @@
 #endif
 
 #include "slru_cache.hpp"
+#include "library/request_queue.h"
 #include <cassert>
 
 #include "monitor/measure_points.h"
@@ -772,7 +773,7 @@ void slru_cache_t::life_check(void) {
 					memcpy(id.id, elem->id().id, DNET_ID_SIZE);
 
 					TIMER_START("life_check.sync_iterate.dnet_oplock");
-					dnet_oplock(m_node, &id);
+					dnet_oplock(m_backend, &id);
 					TIMER_STOP("life_check.sync_iterate.dnet_oplock");
 
 					// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
@@ -781,7 +782,7 @@ void slru_cache_t::life_check(void) {
 						elem->set_sync_state(data_t::sync_state_t::ERASE_PHASE);
 					}
 
-					dnet_opunlock(m_node, &id);
+					dnet_opunlock(m_backend, &id);
 				}
 			}
 

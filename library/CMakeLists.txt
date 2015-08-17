@@ -9,6 +9,7 @@ set(ELLIPTICS_CLIENT_SRCS
     node.c
     notify_common.c
     pool.c
+    request_queue.cpp
     rbtree.c
     trans.c
     tests.c
@@ -17,7 +18,6 @@ set(ELLIPTICS_CLIENT_SRCS
     )
 set(ELLIPTICS_SRCS
     dnet.c
-    locks.c
     notify.c
     server.c
     route.cpp

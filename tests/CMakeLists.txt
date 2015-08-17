@@ -78,6 +78,10 @@ add_executable(dnet_reconnect_test reconnect_test.cpp)
 set_target_properties(dnet_reconnect_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_reconnect_test ${TEST_LIBRARIES})
 
+add_executable(dnet_locks_test locks_test.cpp)
+set_target_properties(dnet_locks_test ${TEST_PROPERTIES})
+target_link_libraries(dnet_locks_test ${TEST_LIBRARIES})
+
 
 set(PYTESTS_FLAGS "-v" "-l" "-x" "--timeout=1200" "--durations=20")
 if(NOT WITH_COCAINE)
@@ -86,7 +90,7 @@ endif()
 
 set(RUN_SERVERS_LIBRARIES ${TEST_LIBRARIES})
 
-set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_stats_test dnet_cpp_capped_test dnet_backends_test dnet_weights_test dnet_reconnect_test dnet_cpp_api_test)
+set(TESTS_LIST dnet_cpp_test dnet_cpp_cache_test dnet_cpp_stats_test dnet_cpp_capped_test dnet_backends_test dnet_weights_test dnet_reconnect_test dnet_locks_test dnet_cpp_api_test)
 set(TESTS_DEPS ${TESTS_LIST})
 
 if(WITH_COCAINE)
