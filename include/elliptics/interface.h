@@ -832,7 +832,7 @@ static inline int is_trans_destroyed(struct dnet_cmd *cmd)
 	return ret;
 }
 
-int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp);
+int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, uint32_t ioflags, int **groupsp);
 
 char * __attribute__((weak)) dnet_cmd_string(int cmd);
 const char *dnet_backend_state_string(uint32_t state);
