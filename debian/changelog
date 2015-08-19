@@ -1,3 +1,14 @@
+elliptics (2.26.7.0) unstable; urgency=low
+
+  * state: split backend weight into cache/disk pair and update them separately according to IO flags
+  * eblob: fixed write commit log - have to write correct commit size
+  * io: new blocking request queue instead of dnet_oplock()
+  * tests: added test for checking that dnet_opunlock() unlocks key
+  * tests: added dnet_locks_test: testing of oplocks in backend request queue
+  * measure points: io.cmd.{}.lock_time erased; pool.{}.{}.search_trans_time added
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 19 Aug 2015 18:38:04 +0400
+
 elliptics (2.26.6.2) unstable; urgency=low
 
   * recovery: zero-sized keys are actually valid

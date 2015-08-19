@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.6.2
+Version:	2.26.7.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -143,6 +143,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 19 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.7.0
+- state: split backend weight into cache/disk pair and update them separately according to IO flags
+- eblob: fixed write commit log - have to write correct commit size
+- io: new blocking request queue instead of dnet_oplock()
+- tests: added test for checking that dnet_opunlock() unlocks key
+- tests: added dnet_locks_test: testing of oplocks in backend request queue
+- measure points: io.cmd.{}.lock_time erased; pool.{}.{}.search_trans_time added
+
 * Mon Jul 27 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.6.2
 - recovery: zero-sized keys are actually valid
 - eblob: write ext header when committing record (if it hasn't been written already for this IO request)
