@@ -517,20 +517,21 @@ void dnet_update_stall_backend_weights(struct list_head *stall_transactions)
 				new_cache_weight /= 10;
 				dnet_set_backend_weight(st, t->cmd.backend_id, DNET_IO_FLAGS_CACHE, new_cache_weight);
 			}
-		}
 
-		err = dnet_get_backend_weight(st, t->cmd.backend_id, 0, &old_disk_weight);
-		if (!err) {
-			new_disk_weight = old_disk_weight;
-			if (new_disk_weight >= 2) {
-				new_disk_weight /= 10;
-				dnet_set_backend_weight(st, t->cmd.backend_id, 0, new_disk_weight);
+			err = dnet_get_backend_weight(st, t->cmd.backend_id, 0, &old_disk_weight);
+			if (!err) {
+				new_disk_weight = old_disk_weight;
+				if (new_disk_weight >= 2) {
+					new_disk_weight /= 10;
+					dnet_set_backend_weight(st, t->cmd.backend_id, 0, new_disk_weight);
+				}
+
+				dnet_log(st->n, DNET_LOG_INFO, "%s/%d: TIMEOUT: update backend weight: weight: "
+						"cache: %f -> %f, disk: %f -> %f",
+					 dnet_state_dump_addr(st), t->cmd.backend_id,
+					 old_cache_weight, new_cache_weight,
+					 old_disk_weight, new_disk_weight);
 			}
-
-			dnet_log(st->n, DNET_LOG_INFO, "%s/%d: TIMEOUT: update backend weight: weight: cache: %f -> %f, disk: %f -> %f",
-				 dnet_state_dump_addr(st), t->cmd.backend_id,
-				 old_cache_weight, new_cache_weight,
-				 old_disk_weight, new_disk_weight);
 		}
 	}
 }
