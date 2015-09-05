@@ -947,7 +947,7 @@ int dnet_flags(struct dnet_node *n)
 }
 
 /*!
- * Compares responses firt by key, then by timestamp
+ * Compares responses first by key, then by timestamp
  */
 static int dnet_iterator_response_cmp(const void *r1, const void *r2)
 {
