@@ -927,13 +927,17 @@ uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n);
  */
 struct dnet_iterator_common_private {
 	struct dnet_iterator_request	*req;		/* Original request */
-	struct dnet_iterator_range		*range;	/* Original ranges */
+	struct dnet_iterator_range	*range;		/* Original ranges */
 	struct dnet_iterator		*it;		/* Iterator control structure */
+
+	/* this callback will be invoked by low-level iterator */
 	int				(*next_callback)(void *priv, void *data, uint64_t dsize);
-	void				*next_private;	/* One of predefined callbacks */
+	/* Private data for callback */
+	void				*next_private;
+
 	uint64_t			total_keys;	/* number of keys that will be iterated */
-	atomic_t			iterated_keys;	/* number of keys that are already iterated */
-	atomic_t			skipped_keys;	/* number of keys that were skipped in a row */
+	atomic_t			iterated_keys;	/* number of keys that have been already iterated */
+	atomic_t			skipped_keys;	/* number of keys that have been skipped */
 };
 
 /*
