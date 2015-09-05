@@ -320,7 +320,8 @@ static void dnet_io_trans_control_fill_cmd(struct dnet_session *s, const struct 
 		cmd->backend_id = dnet_session_get_direct_backend(s);
 }
 
-static int dnet_io_trans_send_fail(struct dnet_session *s, struct dnet_addr *addr, struct dnet_io_control *ctl, int err, int destroy)
+static int dnet_io_trans_send_fail(struct dnet_session *s, struct dnet_addr *addr, struct dnet_io_control *ctl,
+		int err, int destroy)
 {
 	struct dnet_cmd cmd;
 	memset(&cmd, 0, sizeof(cmd));
@@ -439,6 +440,7 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 
 err_out_complete:
 	dnet_io_trans_send_fail(s, request_addr, ctl, err, 1);
+	return;
 
 err_out_destroy:
 	dnet_io_trans_send_fail(s, request_addr, ctl, err, 0);
