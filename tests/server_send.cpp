@@ -89,9 +89,6 @@ static void ssend_test_insert_many_keys(session &s, int num, const std::string &
 
 static void ssend_test_read_many_keys(session &s, int num, const std::string &id_prefix, const std::string &data_prefix)
 {
-	BH_LOG(s.get_logger(), DNET_LOG_NOTICE, "%s: session groups: %s, num: %d",
-		__func__, print_groups(s.get_groups()), num);
-
 	for (int i = 0; i < num; ++i) {
 		std::string id = id_prefix + lexical_cast(i);
 		std::string data = data_prefix + lexical_cast(i);
@@ -100,10 +97,19 @@ static void ssend_test_read_many_keys(session &s, int num, const std::string &id
 	}
 }
 
-
-static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int num)
+static void ssend_test_read_many_keys_error(session &s, int num, const std::string &id_prefix, int error)
 {
-	auto run_over_single_backend = [] (session &s, const key &id, const std::vector<int> &dst_groups) {
+	for (int i = 0; i < num; ++i) {
+		std::string id = id_prefix + lexical_cast(i);
+
+		ELLIPTICS_REQUIRE_ERROR(res, s.read_data(id, 0, 0), error);
+	}
+}
+
+
+static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int num, uint64_t iflags)
+{
+	auto run_over_single_backend = [] (session &s, const key &id, const std::vector<int> &dst_groups, uint64_t iflags) {
 		std::vector<dnet_iterator_range> ranges;
 		dnet_iterator_range whole;
 		memset(whole.key_begin.id, 0, sizeof(dnet_raw_id));
@@ -114,9 +120,9 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 		dnet_empty_time(&time_begin);
 		dnet_current_time(&time_end);
 
-		uint64_t iflags = DNET_IFLAGS_KEY_RANGE | DNET_IFLAGS_NO_META;
+		uint64_t ifl = DNET_IFLAGS_KEY_RANGE | DNET_IFLAGS_NO_META | iflags;
 
-		auto iter = s.start_copy_iterator(id, ranges, DNET_ITYPE_SERVER_SEND, iflags, time_begin, time_end, dst_groups);
+		auto iter = s.start_copy_iterator(id, ranges, DNET_ITYPE_SERVER_SEND, ifl, time_begin, time_end, dst_groups);
 
 		int copied = 0;
 
@@ -164,7 +170,7 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 			auto back = backends.find(entry.backend_id);
 			if (back == backends.end()) {
 				backends.insert(entry.backend_id);
-				copied += run_over_single_backend(s, entry.id, dst_groups);
+				copied += run_over_single_backend(s, entry.id, dst_groups, iflags);
 			}
 		}
 	}
@@ -183,8 +189,10 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	src.set_exceptions_policy(session::no_exceptions);
 
 	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
-	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num);
 
+	uint64_t iflags = DNET_IFLAGS_MOVE;
+	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
 
 	// check every dst group, it must contain all keys written into src groups
 	for (const auto &g : ssend_dst_groups) {

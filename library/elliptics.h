@@ -966,6 +966,8 @@ struct dnet_iterator_file_private {
  * Send data over network to another server as set of WRITE commands
  */
 struct dnet_iterator_server_send_private {
+	struct dnet_node		*node;		/* Our node */
+	struct dnet_backend_io		*backend;	/* Backend where iteration takes place */
 	struct dnet_net_state		*st;		/* Client connection used to send progress status */
 	struct dnet_cmd			*cmd;		/* Original client's command */
 	struct dnet_iterator_request	*req;		/* Original client's iterator request,

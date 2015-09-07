@@ -944,12 +944,24 @@ enum {
 #define DNET_IFLAGS_TS_RANGE		(1<<2)
 /* When set iterator will return only key with empty metadata (user_flags and timestamp) */
 #define DNET_IFLAGS_NO_META		(1<<3)
+/*
+ * Server-send iterator should move data not copy.
+ * This will force iterator to send REMOVE command if remote write has succeeeded
+ */
+#define DNET_IFLAGS_MOVE		(1<<4)
+/*
+ * Overwrite doesn't care whether remote key differs from local
+ * when this flag is not set, we only overwrite the same data or if there is no remote copy at all
+ */
+#define DNET_IFLAGS_OVERWRITE		(1<<5)
 
 /* Sanity */
 #define DNET_IFLAGS_ALL			(DNET_IFLAGS_DATA | \
 					 DNET_IFLAGS_KEY_RANGE | \
 					 DNET_IFLAGS_TS_RANGE | \
-					 DNET_IFLAGS_NO_META)
+					 DNET_IFLAGS_NO_META | \
+					 DNET_IFLAGS_MOVE | \
+					 DNET_IFLAGS_OVERWRITE)
 
 /*
  * Defines how iterator should behave

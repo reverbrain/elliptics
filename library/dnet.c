@@ -438,6 +438,13 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 			atomic_dec(&wp->send->writes_pending);
 			pthread_cond_broadcast(&wp->send->write_wait);
 
+			if ((wp->send->req->flags & DNET_IFLAGS_MOVE) && !wp->send->write_error) {
+				struct dnet_id id = cmd->id;
+				id.group_id = wp->send->cmd->id.group_id;
+
+				err = dnet_remove_local(wp->send->backend, wp->send->node, &id);
+			}
+
 			free(wp);
 			return err;
 		}
@@ -454,8 +461,8 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 	struct dnet_iterator_server_send_private *send = priv;
 	struct dnet_iterator_response *re = data;
 	struct dnet_io_control ctl;
-	struct dnet_iterator_server_send_write_private *wp;
 	struct dnet_session *s;
+	struct dnet_iterator_server_send_write_private *wp;
 	struct dnet_iterator_range *ranges = (struct dnet_iterator_range *)(send->req + 1);
 	int *dst_groups = (int *)(ranges + send->req->range_num);
 	int err;
@@ -483,6 +490,19 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 	ctl.io.user_flags = re->user_flags;
 	ctl.io.total_size = re->size;
 	ctl.io.size = re->size;
+	ctl.io.flags = DNET_IO_FLAGS_WRITE_NO_FILE_INFO;
+
+	// overwrite doesn't care whether remote key differs from local
+	// when this flag is not set, we only overwrite the same data or if there is no remote copy at all
+	if (!(send->req->flags & DNET_IFLAGS_OVERWRITE))
+		ctl.io.flags |= DNET_IO_FLAGS_COMPARE_AND_SWAP;
+
+	// deliberately do not set DNET_FLAGS_NEED_ACK
+	// if WRITE command has failed, @dnet_process_cmd_with_backend_raw() will set this bit automatically,
+	// and will send acknowledge with error
+	//
+	// if there is no error, @dnet_file_info structure will be returned
+	ctl.cflags = 0;
 
 	ctl.fd = fd;
 	ctl.local_offset = data_offset;
@@ -516,7 +536,7 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 		goto err_out_free;
 	}
 
-	s->trace_id = send->cmd->trace_id;
+	dnet_session_set_trace_id(s, send->cmd->trace_id);
 
 	err = dnet_session_set_groups(s, dst_groups, send->req->group_num);
 	if (err) {
@@ -536,7 +556,6 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 	 */
 	dnet_trans_create_send_all(s, &ctl);
 	dnet_session_destroy(s);
-
 
 	dnet_log(send->st->n, DNET_LOG_NOTICE, "ssend: %s: response: %s, user_flags: %llx, ts: %lld.%09lld, "
 			"status: %d, size: %lld, iterated_keys: %lld/%lld",
@@ -859,6 +878,8 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 
 		memset(&sspriv, 0, sizeof(struct dnet_iterator_server_send_private));
 
+		sspriv.node = st->n;
+		sspriv.backend = backend;
 		sspriv.st = st;
 		sspriv.cmd = cmd;
 		sspriv.req = ireq;
