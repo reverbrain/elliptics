@@ -975,6 +975,9 @@ struct dnet_iterator_server_send_private {
 	pthread_mutex_t			write_lock;	/* Lock for @write_wait */
 	pthread_cond_t			write_wait;	/* Waiting for pending writes */
 	atomic_t			writes_pending;	/* Number of writes in-flight to remote servers */
+
+	int				write_error;	/* Set to the first error occured during write
+							 * This will stop iterator. */
 };
 
 #ifndef CONFIG_ELLIPTICS_VERSION_0

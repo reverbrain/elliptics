@@ -431,6 +431,9 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 		if (cmd)
 			err = cmd->status;
 
+		if (err && !wp->send->write_error)
+			wp->send->write_error = err;
+
 		if (atomic_dec_and_test(&wp->refcnt)) {
 			atomic_dec(&wp->send->writes_pending);
 			pthread_cond_broadcast(&wp->send->write_wait);
@@ -546,14 +549,14 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 	dnet_convert_iterator_response(re);
 	err = dnet_send_reply_threshold(send->st, send->cmd, data, dsize, 1);
 
-	while ((atomic_read(&send->writes_pending) > 1000) && !send->st->__need_exit) {
+	while ((atomic_read(&send->writes_pending) > 1000) && !send->st->__need_exit && !send->write_error) {
 		pthread_mutex_lock(&send->write_lock);
 		if (!send->st->__need_exit)
 			pthread_cond_wait(&send->write_wait, &send->write_lock);
 		pthread_mutex_unlock(&send->write_lock);
 	}
 
-	return 0;
+	return send->write_error;
 
 err_out_session_destroy:
 	dnet_session_destroy(s);
@@ -902,6 +905,9 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 			pthread_cond_wait(&sspriv.write_wait, &sspriv.write_lock);
 			pthread_mutex_unlock(&sspriv.write_lock);
 		}
+
+		if (!err && sspriv.write_error)
+			err = sspriv.write_error;
 
 		pthread_cond_destroy(&sspriv.write_wait);
 		pthread_mutex_destroy(&sspriv.write_lock);
