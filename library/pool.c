@@ -636,7 +636,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			if (atomic_read(&st->send_queue_size) > 0)
 				if (atomic_dec(&st->send_queue_size) == DNET_SEND_WATERMARK_LOW) {
 					dnet_log(st->n, DNET_LOG_DEBUG,
-							"State low_watermark reached: %s: %d, waking up",
+							"State low_watermark reached: %s: %ld, waking up",
 							dnet_addr_string(&st->addr),
 							atomic_read(&st->send_queue_size));
 					pthread_cond_broadcast(&st->send_wait);

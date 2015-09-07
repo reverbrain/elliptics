@@ -40,7 +40,7 @@ static inline void atomic_set(atomic_t *a, long val)
 
 #define atomic_init(a, v) atomic_set(a, v)
 
-static inline int atomic_read(atomic_t *a)
+static inline long atomic_read(atomic_t *a)
 {
 	return a->val;
 }
@@ -76,7 +76,7 @@ typedef struct {
 	struct dnet_lock	lock;
 } atomic_t;
 
-static inline int atomic_init(atomic_t *a, int val)
+static inline int atomic_init(atomic_t *a, long val)
 {
 	int err;
 
@@ -88,33 +88,33 @@ static inline int atomic_init(atomic_t *a, int val)
 	return 0;
 }
 
-static inline void atomic_set(atomic_t *a, int val)
+static inline void atomic_set(atomic_t *a, long val)
 {
 	a->val = val;
 }
 
-static inline int atomic_read(atomic_t *a)
+static inline long atomic_read(atomic_t *a)
 {
 	return a->val;
 }
 
-static inline void atomic_add(atomic_t *a, int v)
+static inline void atomic_add(atomic_t *a, long v)
 {
 	dnet_lock_lock(&a->lock);
 	a->val += v;
 	dnet_lock_unlock(&a->lock);
 }
 
-static inline void atomic_sub(atomic_t *a, int v)
+static inline void atomic_sub(atomic_t *a, long v)
 {
 	dnet_lock_lock(&a->lock);
 	a->val -= v;
 	dnet_lock_unlock(&a->lock);
 }
 
-static inline int atomic_inc(atomic_t *a)
+static inline long atomic_inc(atomic_t *a)
 {
-	int res;
+	long res;
 
 	dnet_lock_lock(&a->lock);
 	res = ++a->val;
@@ -123,9 +123,9 @@ static inline int atomic_inc(atomic_t *a)
 	return res;
 }
 
-static inline int atomic_dec(atomic_t *a)
+static inline long atomic_dec(atomic_t *a)
 {
-	int res;
+	long res;
 
 	dnet_lock_lock(&a->lock);
 	res = --a->val;
