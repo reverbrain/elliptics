@@ -431,18 +431,26 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 		if (cmd)
 			err = cmd->status;
 
-		if (err && !wp->send->write_error)
+		/*
+		 * Write CAS error is not a real 'error' in that regard, that we do not remove
+		 * local record, but also do not stop iterator.
+		 *
+		 * Setting @write_error forces iterator to stop.
+		 */
+		if (err && !wp->send->write_error && (err != -EBADFD))
 			wp->send->write_error = err;
 
 		if (atomic_dec_and_test(&wp->refcnt)) {
 			atomic_dec(&wp->send->writes_pending);
 			pthread_cond_broadcast(&wp->send->write_wait);
 
-			if ((wp->send->req->flags & DNET_IFLAGS_MOVE) && !wp->send->write_error) {
-				struct dnet_id id = cmd->id;
-				id.group_id = wp->send->cmd->id.group_id;
+			if (wp->send->req->flags & DNET_IFLAGS_MOVE) {
+				if (!err) {
+					struct dnet_id id = cmd->id;
+					id.group_id = wp->send->cmd->id.group_id;
 
-				err = dnet_remove_local(wp->send->backend, wp->send->node, &id);
+					err = dnet_remove_local(wp->send->backend, wp->send->node, &id);
+				}
 			}
 
 			free(wp);
