@@ -966,6 +966,7 @@ enum dnet_iterator_types {
 					 * instead of sending chunks to client
 					 */
 	DNET_ITYPE_NETWORK,		/* iterator sends data chunks to client */
+	DNET_ITYPE_SERVER_SEND,	/* send iterated data to other server in the storage */
 	DNET_ITYPE_LAST,		/* Sanity */
 };
 
@@ -997,9 +998,12 @@ struct dnet_iterator_request
 	uint64_t			range_num;	/* Number of ranges for iterating */
 	struct dnet_time		time_begin;	/* Start time */
 	struct dnet_time		time_end;	/* End time */
-	uint32_t			itype;		/* Callback to use: Net/File, XXX: enum */
+	uint32_t			itype;		/* Callback to use: Net/File/Server, XXX: enum */
 	uint64_t			flags;		/* DNET_IFLAGS_* */
-	uint64_t			reserved[5];
+	uint32_t			group_num;	/* Number of remote groups to send iterated data for server-send
+							   iterator type */
+	uint32_t			__reserved32;
+	uint64_t			reserved[4];
 } __attribute__ ((packed));
 
 static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r)
@@ -1009,6 +1013,7 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 	r->itype = dnet_bswap32(r->itype);
 	r->action = dnet_bswap32(r->action);
 	r->range_num = dnet_bswap64(r->range_num);
+	r->group_num = dnet_bswap64(r->group_num);
 	dnet_convert_time(&r->time_begin);
 	dnet_convert_time(&r->time_end);
 }

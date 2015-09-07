@@ -749,6 +749,7 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r);
 int __attribute__((weak)) dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int recursive);
 int __attribute__((weak)) dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
 int __attribute__((weak)) dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
+void __attribute__((weak)) dnet_queue_wait_threshold(void *state);
 void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r);
 
 struct dnet_config;
@@ -930,8 +931,14 @@ struct dnet_iterator_common_private {
 	struct dnet_iterator_range	*range;		/* Original ranges */
 	struct dnet_iterator		*it;		/* Iterator control structure */
 
-	/* this callback will be invoked by low-level iterator */
-	int				(*next_callback)(void *priv, void *data, uint64_t dsize);
+	/* This callback will be invoked by dnet_iterator_callback_common(), which is invoked by low-level backend iterator
+	 * @priv - callback specific private data, @next_private below, like @dnet_iterator_send_private
+	 * @data - @dnet_iterator_response + data read from the backend @fd (only if DNET_IFLAGS_DATA is set in @req->flags)
+	 * @dsize - total size of @data, will only be equal to size of the response if DNET_IFLAGS_DATA is not set
+	 * @fd - low-level backend fd (if supported)
+	 * @data_offset - offset of the data for each key within @fd
+	 */
+	int				(*next_callback)(void *priv, void *data, uint64_t dsize, int fd, uint64_t data_offset);
 	/* Private data for callback */
 	void				*next_private;
 
@@ -953,6 +960,21 @@ struct dnet_iterator_send_private {
  */
 struct dnet_iterator_file_private {
 	int				fd;		/* Append mode file descriptor */
+};
+
+/*
+ * Send data over network to another server as set of WRITE commands
+ */
+struct dnet_iterator_server_send_private {
+	struct dnet_net_state		*st;		/* Client connection used to send progress status */
+	struct dnet_cmd			*cmd;		/* Original client's command */
+	struct dnet_iterator_request	*req;		/* Original client's iterator request,
+							 * it contains remote group to send data to
+							 */
+
+	pthread_mutex_t			write_lock;	/* Lock for @write_wait */
+	pthread_cond_t			write_wait;	/* Waiting for pending writes */
+	atomic_t			writes_pending;	/* Number of writes in-flight to remote servers */
 };
 
 #ifndef CONFIG_ELLIPTICS_VERSION_0

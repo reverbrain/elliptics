@@ -241,23 +241,9 @@ err_out_exit:
 	return err;
 }
 
-struct dnet_route_list_control
-{
-	struct dnet_wait *w;
-	struct dnet_addr *addrs;
-	int addrs_num;
-};
-
-static inline void dnet_route_list_control_put(struct dnet_route_list_control *control)
-{
-	if (atomic_dec_and_test(&control->w->refcnt)) {
-		free(control->addrs);
-		dnet_wait_destroy(control->w);
-		free(control);
-	}
-}
-
-int dnet_recv_route_list(struct dnet_net_state *st, int (*complete)(struct dnet_addr *addr, struct dnet_cmd *cmd, void *priv), void *priv)
+int dnet_recv_route_list(struct dnet_net_state *st,
+		int (*complete)(struct dnet_addr *addr, struct dnet_cmd *cmd, void *priv),
+		void *priv)
 {
 	struct dnet_io_req req;
 	struct dnet_node *n = st->n;
@@ -684,13 +670,6 @@ struct dnet_node *dnet_get_node_from_state(void *state)
 		return NULL;
 	return st->n;
 }
-
-struct dnet_read_data_completion {
-	struct dnet_wait		*w;
-	void				*data;
-	uint64_t			size;
-	atomic_t			refcnt;
-};
 
 int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, const struct dnet_id *id, int group_id,
 		struct dnet_addr *addr, int *backend_id)

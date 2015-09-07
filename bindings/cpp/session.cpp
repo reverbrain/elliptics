@@ -2236,9 +2236,12 @@ async_iterator_result session::start_iterator(const key &id, const std::vector<d
 								uint32_t type, uint64_t flags,
 								const dnet_time& time_begin, const dnet_time& time_end)
 {
-	auto ranges_size = ranges.size() * sizeof(ranges.front());
+	size_t ranges_size = 0;
+	if (ranges.size() != 0)
+		ranges_size = ranges.size() * sizeof(ranges.front());
 
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request) + ranges_size);
+	memset(data.data(), 0, sizeof(dnet_iterator_request));
 
 	auto req = data.data<dnet_iterator_request>();
 
@@ -2249,7 +2252,42 @@ async_iterator_result session::start_iterator(const key &id, const std::vector<d
 	req->time_end = time_end;
 	req->range_num = ranges.size();
 
-	memcpy(data.skip<dnet_iterator_request>().data(), &ranges.front(), ranges_size);
+	if (ranges_size)
+		memcpy(data.skip<dnet_iterator_request>().data(), &ranges.front(), ranges_size);
+
+	return iterator(id, data);
+}
+
+async_iterator_result session::start_copy_iterator(const key &id,
+		const std::vector<dnet_iterator_range>& ranges,
+		uint32_t type, uint64_t flags,
+		const dnet_time& time_begin, const dnet_time& time_end,
+		const std::vector<int> &dst_groups)
+{
+	size_t ranges_size = 0;
+	size_t groups_size = 0;
+	if (ranges.size() != 0)
+		ranges_size = ranges.size() * sizeof(ranges.front());
+	if (dst_groups.size() != 0)
+		groups_size = dst_groups.size() * sizeof(dst_groups.front());
+
+	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request) + ranges_size + groups_size);
+
+	auto req = data.data<dnet_iterator_request>();
+
+	req->action = DNET_ITERATOR_ACTION_START;
+	req->itype = type;
+	req->flags = flags;
+	req->time_begin = time_begin;
+	req->time_end = time_end;
+	req->range_num = ranges.size();
+	req->group_num = dst_groups.size();
+
+	if (ranges_size)
+		memcpy(data.skip<dnet_iterator_request>().data(), &ranges.front(), ranges_size);
+
+	if (groups_size)
+		memcpy(data.skip(ranges_size + sizeof(dnet_iterator_request)).data(), &dst_groups.front(), groups_size);
 
 	return iterator(id, data);
 }
