@@ -160,6 +160,7 @@ static void run_on_single_backend(const bpo::variables_map &vm,
 				(unsigned long long)it->reply()->iterated_keys,
 				(unsigned long long)it->reply()->total_keys,
 				speed);
+			fflush(stdout);
 		}
 	}
 }
@@ -194,7 +195,7 @@ int main(int argc, char *argv[])
 		("copy-to", bpo::value<std::string>(), "remote groups to copy data to, format: 4:5:6")
 		("move-to", bpo::value<std::string>(), "remote groups to move data to "
 		 	"(will be preferred over 'copy-to'), format: 4:5:6")
-		("overwrite", bpo::value<bool>(), "when set, copy process will overwrite remote data, "
+		("overwrite", "when set, copy process will overwrite remote data, "
 			"even if it differs. If not set, compare-and-swap write will be used, i.e. iterator will "
 			"only write data if it doesn't exist or its the same")
 		("key-begin", bpo::value<std::string>(), "start of the key range to copy")
@@ -241,6 +242,7 @@ int main(int argc, char *argv[])
 
 
 		elliptics::session s(node);
+		s.set_timeout(120);
 		s.set_groups({igroup});
 		std::vector<dnet_route_entry> routes = s.get_routes();
 		if (routes.empty()) {
