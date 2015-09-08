@@ -1268,12 +1268,6 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 			}
 			err = backend->cb->command_handler(st, backend->cb->command_private, cmd, data);
 
-			/* If there was error in READ or WRITE command - send empty reply
-			   to notify client with error code and destroy transaction */
-			if (err && ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_LOOKUP))) {
-				cmd->flags |= DNET_FLAGS_NEED_ACK;
-			}
-
 			if (!err && (cmd->cmd == DNET_CMD_WRITE)) {
 				dnet_update_notify(st, cmd, data);
 			}
@@ -1283,6 +1277,9 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 	gettimeofday(&end, NULL);
 	diff = DIFF(start, end);
 
+	/* If there was any error - send ACK to notify client with error code and destroy transaction */
+	if (err)
+		cmd->flags |= DNET_FLAGS_NEED_ACK;
 
 	if (io) {
 		iosize = io->size;
