@@ -82,6 +82,10 @@ add_executable(dnet_locks_test locks_test.cpp)
 set_target_properties(dnet_locks_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_locks_test ${TEST_LIBRARIES})
 
+add_executable(dnet_crypto_test crypto_test.cpp)
+set_target_properties(dnet_crypto_test ${TEST_PROPERTIES})
+target_link_libraries(dnet_crypto_test ${TEST_LIBRARIES})
+
 add_executable(dnet_server_send_test server_send.cpp)
 set_target_properties(dnet_server_send_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_server_send_test ${TEST_LIBRARIES})
@@ -94,7 +98,7 @@ endif()
 
 set(RUN_SERVERS_LIBRARIES ${TEST_LIBRARIES})
 
-set(TESTS_LIST dnet_server_send_test dnet_cpp_test dnet_cpp_cache_test dnet_cpp_stats_test dnet_cpp_capped_test dnet_backends_test dnet_weights_test dnet_reconnect_test dnet_locks_test dnet_cpp_api_test)
+set(TESTS_LIST dnet_server_send_test dnet_cpp_test dnet_cpp_cache_test dnet_cpp_stats_test dnet_cpp_capped_test dnet_backends_test dnet_weights_test dnet_reconnect_test dnet_locks_test dnet_cpp_api_test dnet_crypto_test)
 set(TESTS_DEPS ${TESTS_LIST})
 
 if(WITH_COCAINE)

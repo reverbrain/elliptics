@@ -561,9 +561,19 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 		}
 
 		t = rb_entry(rb_node, struct dnet_trans, timer_entry);
-		if ((t->time.tv_sec >= tv.tv_sec) && !st->__need_exit) {
-			pthread_mutex_unlock(&st->trans_lock);
-			break;
+		if (!st->__need_exit) {
+			int has_timeouted;
+			if (t->time.tv_sec < tv.tv_sec) {
+				has_timeouted = 1;
+			} else if (t->time.tv_sec == tv.tv_sec) {
+				has_timeouted = (t->time.tv_usec <= tv.tv_usec);
+			} else {
+				has_timeouted = 0;
+			}
+			if (!has_timeouted) {
+				pthread_mutex_unlock(&st->trans_lock);
+				break;
+			}
 		}
 
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
