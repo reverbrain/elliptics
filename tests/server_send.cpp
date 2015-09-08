@@ -187,14 +187,39 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	session src(n);
 	src.set_groups(ssend_src_groups);
 	src.set_exceptions_policy(session::no_exceptions);
+	src.set_timeout(120);
 
+	// the first stage - write many keys, move them, check that there are no keys
+	// in the source groups and that every destination group contain all keys written
 	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
 
 	uint64_t iflags = DNET_IFLAGS_MOVE;
 	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
 	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
 
-	// check every dst group, it must contain all keys written into src groups
+	// check every dst group, it must contain all keys originally written into src groups
+	for (const auto &g : ssend_dst_groups) {
+		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, tests::create_session(n, {g}, 0, 0), num, id_prefix, data_prefix);
+	}
+
+	// the second stage - play with OVERWRITE bit
+	//
+	//
+	// there are no keys in @ssend_src_groups at this point
+	// write new data with the same keys as we have moved
+	data_prefix = "new data prefix";
+	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
+
+	// it should actually fail to move any key, since data is different and we
+	// do not set OVERWRITE bit, thus reading from source groups should succeeed
+	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, src, num, id_prefix, data_prefix);
+
+	// with OVERWRITE bit move should succeed - there should be no keys in @ssend_src_groups
+	// and all keys in @ssend_dst_groups should have been updated
+	iflags = DNET_IFLAGS_OVERWRITE | DNET_IFLAGS_MOVE;
+	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
 	for (const auto &g : ssend_dst_groups) {
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, tests::create_session(n, {g}, 0, 0), num, id_prefix, data_prefix);
 	}
