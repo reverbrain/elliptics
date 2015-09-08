@@ -565,25 +565,32 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 	dnet_trans_create_send_all(s, &ctl);
 	dnet_session_destroy(s);
 
+	dnet_convert_iterator_response(re);
+	err = dnet_send_reply_threshold(send->st, send->cmd, data, dsize, 1);
+
 	dnet_log(send->st->n, DNET_LOG_NOTICE, "ssend: %s: response: %s, user_flags: %llx, ts: %lld.%09lld, "
-			"status: %d, size: %lld, iterated_keys: %lld/%lld",
+			"status: %d, size: %lld, iterated_keys: %lld/%lld, write_error: %d",
 			dnet_dump_id(&send->cmd->id), dnet_dump_id_str(re->key.id),
 			(unsigned long long)re->user_flags,
 			(unsigned long long)re->timestamp.tsec, (unsigned long long)re->timestamp.tnsec,
 			re->status, (unsigned long long)re->size,
-			(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys);
+			(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys,
+			send->write_error);
 
-	dnet_convert_iterator_response(re);
-	err = dnet_send_reply_threshold(send->st, send->cmd, data, dsize, 1);
-
-	while ((atomic_read(&send->writes_pending) > 1000) && !send->st->__need_exit && !send->write_error) {
-		pthread_mutex_lock(&send->write_lock);
-		if (!send->st->__need_exit)
-			pthread_cond_wait(&send->write_wait, &send->write_lock);
-		pthread_mutex_unlock(&send->write_lock);
+	if (atomic_read(&send->writes_pending) > 1000) {
+		// wait for all write transactions to complete
+		while ((atomic_read(&send->writes_pending) > 0) && !send->st->__need_exit && !send->write_error) {
+			pthread_mutex_lock(&send->write_lock);
+			if (!send->st->__need_exit)
+				pthread_cond_wait(&send->write_wait, &send->write_lock);
+			pthread_mutex_unlock(&send->write_lock);
+		}
 	}
 
-	return send->write_error;
+	if (!err)
+		err = send->write_error;
+
+	return err;
 
 err_out_session_destroy:
 	dnet_session_destroy(s);
