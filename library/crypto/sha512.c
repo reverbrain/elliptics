@@ -260,22 +260,28 @@ sha512_file (int fd, off_t offset, size_t count, void *resblock)
           if (sum == BLOCKSIZE)
             break;
 
-          if (n == 0) // eof
-              goto process_partial_block;
+          if (n == 0) { /* eof */
+              if (total + sum < count) {
+                  free (buffer);
+                  return -ESPIPE;
+              } else {
+                  goto process_partial_block;
+              }
+          }
         }
 
-      /* Process buffer with BLOCKSIZE bytes.  Note that
-                        BLOCKSIZE % 128 == 0
-       */
-      if (total + BLOCKSIZE < count) {
-          total += BLOCKSIZE;
+      if (total + sum < count) {
+          total += sum;
       } else {
           goto process_partial_block;
       }
+      /* Process buffer with BLOCKSIZE bytes.  Note that
+                        BLOCKSIZE % 128 == 0
+       */
       sha512_process_block (buffer, BLOCKSIZE, &ctx);
     }
 
- process_partial_block:;
+ process_partial_block:
 
   /* Process any remaining bytes.  */
   sum = count - total;
@@ -327,22 +333,28 @@ sha512_file_ctx (int fd, off_t offset, size_t count, struct sha512_ctx *ctx)
           if (sum == BLOCKSIZE)
             break;
 
-          if (n == 0) // eof
-              goto process_partial_block;
+          if (n == 0) { /* eof */
+              if (total + sum < count) {
+                  free (buffer);
+                  return -ESPIPE;
+              } else {
+                  goto process_partial_block;
+              }
+          }
         }
 
-      /* Process buffer with BLOCKSIZE bytes.  Note that
-                        BLOCKSIZE % 128 == 0
-       */
-      if (total + BLOCKSIZE < count) {
-          total += BLOCKSIZE;
+      if (total + sum < count) {
+          total += sum;
       } else {
           goto process_partial_block;
       }
+      /* Process buffer with BLOCKSIZE bytes.  Note that
+                        BLOCKSIZE % 128 == 0
+       */
       sha512_process_block (buffer, BLOCKSIZE, ctx);
     }
 
- process_partial_block:;
+ process_partial_block:
 
   /* Process any remaining bytes.  */
   sum = count - total;
