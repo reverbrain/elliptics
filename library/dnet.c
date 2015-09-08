@@ -579,7 +579,7 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 
 	if (atomic_read(&send->writes_pending) > 1000) {
 		// wait for all write transactions to complete
-		while ((atomic_read(&send->writes_pending) > 0) && !send->st->__need_exit && !send->write_error) {
+		while ((atomic_read(&send->writes_pending) > 500) && !send->st->__need_exit && !send->write_error) {
 			pthread_mutex_lock(&send->write_lock);
 			if (!send->st->__need_exit)
 				pthread_cond_wait(&send->write_wait, &send->write_lock);
