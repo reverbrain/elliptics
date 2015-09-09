@@ -1310,7 +1310,8 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 	return err;
 }
 
-int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive)
+int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state *st,
+		struct dnet_cmd *cmd, void *data, int recursive)
 {
 	int err = 0;
 	struct dnet_node *n = st->n;
@@ -1375,7 +1376,8 @@ int dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state 
 		strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
 
 		dnet_log(n, DNET_LOG_INFO, "%s: %s: client: %s, trans: %llu, cflags: %s, "
-				"ioflags: %s, io-offset: %llu, io-size: %llu/%llu, io-user-flags: 0x%llx, ts: %ld.%06ld '%s.%06lu', "
+				"ioflags: %s, io-offset: %llu, io-size: %llu/%llu, io-user-flags: 0x%llx, "
+				"ts: %ld.%06ld '%s.%06lu', "
 				"time: %ld usecs, err: %d.",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_state_dump_addr(st),
 				tid, dnet_flags_dump_cflags(cmd->flags),

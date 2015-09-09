@@ -244,7 +244,8 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 
 		err = eblob_plain_writev(b, &key, iov, 1, flags);
 		if (err) {
-			dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_plain_writev: header WRITE: %d: %s",
+			dnet_backend_log(c->blog, DNET_LOG_ERROR,
+				"%s: EBLOB: blob-write: eblob_plain_writev: header WRITE: %d: %s",
 				dnet_dump_id_str(io->id), err, strerror(-err));
 			goto err_out_exit;
 		}
@@ -442,7 +443,8 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 			int64_t mean = 0;
 			int old_ra;
 
-			qsort(c->last_reads, ARRAY_SIZE(c->last_reads), sizeof(struct eblob_read_params), eblob_read_params_compare);
+			qsort(c->last_reads, ARRAY_SIZE(c->last_reads), sizeof(struct eblob_read_params),
+					eblob_read_params_compare);
 
 			prev = &c->last_reads[0];
 			tmp = prev->offset;
@@ -1089,7 +1091,8 @@ static void eblob_backend_cleanup(void *priv)
 	pthread_mutex_destroy(&c->last_read_lock);
 }
 
-static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl, struct dnet_iterator_request *ireq, struct dnet_iterator_range *irange)
+static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl, struct dnet_iterator_request *ireq,
+		struct dnet_iterator_range *irange)
 {
 	struct eblob_index_block *range = NULL;
 	struct eblob_backend_config *c = ictl->iterate_private;
