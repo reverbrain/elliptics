@@ -409,11 +409,14 @@ static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize, i
 struct dnet_iterator_server_send_write_private {
 	atomic_t					refcnt;
 	struct dnet_iterator_server_send_private	*send;
+	uint64_t					dsize;
+	char						data[0];
 };
 
 static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dnet_cmd *cmd, void *priv)
 {
 	struct dnet_iterator_server_send_write_private *wp = priv;
+	struct dnet_iterator_server_send_private *send = wp->send;
 	int err = 0;
 
 	(void) addr;
@@ -437,21 +440,25 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 		 *
 		 * Setting @write_error forces iterator to stop.
 		 */
-		if (err && !wp->send->write_error && (err != -EBADFD))
-			wp->send->write_error = err;
+		if (err && !send->write_error && (err != -EBADFD))
+			send->write_error = err;
 
 		if (atomic_dec_and_test(&wp->refcnt)) {
-			atomic_dec(&wp->send->writes_pending);
-			pthread_cond_broadcast(&wp->send->write_wait);
-
-			if (wp->send->req->flags & DNET_IFLAGS_MOVE) {
+			if (send->req->flags & DNET_IFLAGS_MOVE) {
 				if (!err) {
 					struct dnet_id id = cmd->id;
-					id.group_id = wp->send->cmd->id.group_id;
+					id.group_id = send->cmd->id.group_id;
 
-					err = dnet_remove_local(wp->send->backend, wp->send->node, &id);
+					err = dnet_remove_local(send->backend, send->node, &id);
 				}
 			}
+
+			atomic_dec(&send->writes_pending);
+			pthread_cond_broadcast(&send->write_wait);
+
+			err = dnet_send_reply(send->st, send->cmd, wp->data, wp->dsize, 1);
+			if (err && !send->write_error)
+				send->write_error = err;
 
 			free(wp);
 			return err;
@@ -518,7 +525,7 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 	ctl.ts.tv_sec = re->timestamp.tsec;
 	ctl.ts.tv_nsec = re->timestamp.tnsec;
 
-	wp = malloc(sizeof(struct dnet_iterator_server_send_write_private));
+	wp = malloc(sizeof(struct dnet_iterator_server_send_write_private) + dsize);
 	if (!wp) {
 		dnet_log(send->st->n, DNET_LOG_ERROR,
 				"%s: Interrupting iterator because failed to allocate write private data",
@@ -531,6 +538,9 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 
 	atomic_init(&wp->refcnt, send->req->group_num);
 	wp->send = send;
+
+	memcpy(wp->data, data, dsize);
+	wp->dsize = dsize;
 
 	ctl.complete = dnet_iterator_server_send_complete;
 	ctl.priv = wp;
@@ -557,6 +567,8 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 
 	atomic_inc(&send->writes_pending);
 
+	dnet_convert_iterator_response(re);
+
 	/*
 	 * After calling this function we do not own @wp anymore
 	 * if we will have to perform some actions on it, its reference counter
@@ -564,9 +576,6 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 	 */
 	dnet_trans_create_send_all(s, &ctl);
 	dnet_session_destroy(s);
-
-	dnet_convert_iterator_response(re);
-	err = dnet_send_reply_threshold(send->st, send->cmd, data, dsize, 1);
 
 	dnet_log(send->st->n, DNET_LOG_NOTICE, "ssend: %s: response: %s, user_flags: %llx, ts: %lld.%09lld, "
 			"status: %d, size: %lld, iterated_keys: %lld/%lld, write_error: %d",
