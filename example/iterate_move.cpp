@@ -178,7 +178,6 @@ int main(int argc, char *argv[])
 	std::string log_file, log_level;
 	int igroup;
 	std::vector<uint32_t> backends;
-	std::string bname;
 	bpo::options_description ell("Elliptics options");
 	ell.add_options()
 		("remote,r", bpo::value<std::vector<std::string>>(&remotes)->required()->composing(),
@@ -189,7 +188,6 @@ int main(int argc, char *argv[])
 		("backend,b", bpo::value<std::vector<uint32_t>>(&backends)->composing(),
 		 	"remote backends in specified group, if not specified, iteration will run over all backends, "
 			"can be specified multiple times")
-		("bucket", bpo::value<std::string>(&bname), "use this bucket in tests")
 		;
 
 	bpo::options_description iterops("Remote copy/move data iterator options");
