@@ -151,15 +151,17 @@ static void run_on_single_backend(const bpo::variables_map &vm,
 		if (tm.elapsed() > prev + 1000) {
 			float diff = tm.elapsed() - prev;
 			float diff_size = copied_size - prev_size;
-			float speed = diff_size / diff;
+			float momentum_speed = diff_size / diff;
+			float long_speed = (float)copied_size / (float)tm.elapsed();
 
 			prev += diff;
 			prev_size = copied_size;
 
-			printf("\r copied: %lld/%lld, speed: %03f MB/s",
+			printf("\r copied: %lld/%lld, speed: %.1f MB/s, momentum speed: %.1f MB/s",
 				(unsigned long long)it->reply()->iterated_keys,
 				(unsigned long long)it->reply()->total_keys,
-				speed);
+				long_speed * 1000.0 / (1024.0 * 1024.0),
+				momentum_speed * 1000.0 / (1024.0 * 1024.0));
 			fflush(stdout);
 		}
 	}
