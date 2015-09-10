@@ -407,6 +407,7 @@ class session
 		/*!
 		 * \overload read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 		 * Allows to specify the command \a cmd.
+		 * In particular, command can be DNET_CMD_READ and DNET_CMD_READ_RANGE
 		 */
 		async_read_result read_data(const key &id, const std::vector<int> &groups,
 				const dnet_io_attr &io, unsigned int cmd);
