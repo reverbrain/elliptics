@@ -292,14 +292,17 @@ exec_context exec_context::from_raw(const void *const_data, size_t size)
 exec_context exec_context::parse(const data_pointer &data, error_info *error)
 {
 	if (data.size() < sizeof(sph)) {
-		*error = create_error(-EINVAL, "Invalid exec_context size: %zu, must be more than sph: %zu", data.size(), sizeof(sph));
+		*error = create_error(-EINVAL, "Invalid exec_context size: %zu, must be more than sph: %zu",
+				data.size(), sizeof(sph));
 		return exec_context();
 	}
 
 	sph *s = data.data<sph>();
 	if (data.size() != sizeof(sph) + s->event_size + s->data_size) {
-		*error = create_error(-EINVAL, "Invalid exec_context size: %zu, must be equal to sph+event_size+data_size: %llu",
-				data.size(), static_cast<unsigned long long>(sizeof(sph) + s->event_size + s->data_size));
+		*error = create_error(-EINVAL, "Invalid exec_context size: %zu, "
+				"must be equal to sph+event_size+data_size: %llu",
+				data.size(),
+				static_cast<unsigned long long>(sizeof(sph) + s->event_size + s->data_size));
 		return exec_context();
 	}
 
@@ -792,10 +795,12 @@ public:
 
 			BH_LOG(m_sess.get_logger(), DNET_LOG_INFO,
 				"read_callback::read-recovery: %s: going to write %llu bytes -> %s groups",
-				dnet_dump_id_str(io->id), static_cast<unsigned long long>(io->size), join_groups(m_failed_groups));
+				dnet_dump_id_str(io->id), static_cast<unsigned long long>(io->size),
+				join_groups(m_failed_groups));
 
 			std::sort(m_failed_groups.begin(), m_failed_groups.end());
-			m_failed_groups.erase(std::unique(m_failed_groups.begin(), m_failed_groups.end()), m_failed_groups.end());
+			m_failed_groups.erase(std::unique(m_failed_groups.begin(), m_failed_groups.end()),
+					m_failed_groups.end());
 
 			session new_sess = m_sess.clone();
 			new_sess.set_groups(m_failed_groups);
@@ -815,7 +820,8 @@ public:
 
 			BH_LOG(m_sess.get_logger(), DNET_LOG_INFO,
 				"read_callback::read-recovery: %s: write %llu bytes -> %s groups",
-				dnet_dump_id_str(io->id), static_cast<unsigned long long>(io->size), join_groups(m_failed_groups));
+				dnet_dump_id_str(io->id), static_cast<unsigned long long>(io->size),
+				join_groups(m_failed_groups));
 
 			new_sess.write_data(write_ctl);
 		}
@@ -1003,7 +1009,9 @@ async_write_result session::write_data(const key &id, const argument_data &file,
 struct chunk_handler : public std::enable_shared_from_this<chunk_handler> {
 
 	chunk_handler(const async_write_result::handler &handler, const session &sess,
-				  const key &id, const data_pointer &content, const uint64_t &remote_offset, const uint64_t &local_offset, const uint64_t &chunk_size)
+			const key &id, const data_pointer &content,
+			const uint64_t &remote_offset, const uint64_t &local_offset,
+			const uint64_t &chunk_size)
 		: handler(handler)
 		, sess(sess.clone())
 		, id (id)
@@ -1030,12 +1038,16 @@ struct chunk_handler : public std::enable_shared_from_this<chunk_handler> {
 		local_offset += chunk_size;
 		if (local_offset + chunk_size >= content.size()) {
 			auto write_content = content.slice(local_offset, content.size() - local_offset);
-			auto awr = sess.write_commit(id, write_content, remote_offset + local_offset, remote_offset + content.size());
-			awr.connect(std::bind(&chunk_handler::finish, shared_from_this(), std::placeholders::_1, std::placeholders::_2));
+			auto awr = sess.write_commit(id, write_content,
+					remote_offset + local_offset,
+					remote_offset + content.size());
+			awr.connect(std::bind(&chunk_handler::finish, shared_from_this(),
+						std::placeholders::_1, std::placeholders::_2));
 		} else {
 			auto write_content = content.slice(local_offset, chunk_size);
 			auto awr = sess.write_plain(id, write_content, remote_offset + local_offset);
-			awr.connect(std::bind(&chunk_handler::write_next, shared_from_this(), std::placeholders::_1, std::placeholders::_2));
+			awr.connect(std::bind(&chunk_handler::write_next, shared_from_this(),
+						std::placeholders::_1, std::placeholders::_2));
 		}
 	}
 
@@ -1904,7 +1916,8 @@ async_backend_control_result session::stop_defrag(const address &addr, uint32_t 
 	return update_backend_status(backend_status_params(*this, addr, backend_id, DNET_BACKEND_STOP_DEFRAG));
 }
 
-async_backend_control_result session::set_backend_ids(const address &addr, uint32_t backend_id, const std::vector<dnet_raw_id> &ids)
+async_backend_control_result session::set_backend_ids(const address &addr, uint32_t backend_id,
+		const std::vector<dnet_raw_id> &ids)
 {
 	backend_status_params params(*this, addr, backend_id, DNET_BACKEND_SET_IDS);
 	params.ids = ids;
@@ -2131,10 +2144,12 @@ class remove_data_range_callback : public read_data_range_callback
 				if (d->has_any) {
 					BH_LOG(d->sess.get_logger(), DNET_LOG_NOTICE,
 							"%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu",
-							dnet_dump_id(&d->id), (unsigned long long)d->rep.num, (unsigned long long)d->io.start,
+							dnet_dump_id(&d->id),
+							(unsigned long long)d->rep.num, (unsigned long long)d->io.start,
 							(unsigned long long)d->io.num, (unsigned long long)d->io.size);
 				} else {
-					d->handler.complete(create_error(-ENOENT, d->io.id, "Failed to remove range data object: group: %d, size: %llu",
+					d->handler.complete(create_error(-ENOENT, d->io.id,
+						"Failed to remove range data object: group: %d, size: %llu",
 						d->group_id, static_cast<unsigned long long>(d->io.size)));
 				}
 			}
@@ -2233,8 +2248,7 @@ error_info session::mix_states(const key &id, std::vector<int> &groups)
 }
 
 async_iterator_result session::start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
-								uint32_t type, uint64_t flags,
-								const dnet_time& time_begin, const dnet_time& time_end)
+		uint32_t type, uint64_t flags, const dnet_time& time_begin, const dnet_time& time_end)
 {
 	size_t ranges_size = 0;
 	if (ranges.size() != 0)
@@ -2411,7 +2425,8 @@ async_exec_result session::exec(const exec_context &tmp_context, const std::stri
 	return request(&id, context);
 }
 
-async_push_result session::push(dnet_id *id, const exec_context &tmp_context, const std::string &event, const argument_data &data)
+async_push_result session::push(dnet_id *id, const exec_context &tmp_context,
+		const std::string &event, const argument_data &data)
 {
 	exec_context context = exec_context_data::copy(tmp_context, event, data);
 
@@ -2422,7 +2437,8 @@ async_push_result session::push(dnet_id *id, const exec_context &tmp_context, co
 	return request(id, context);
 }
 
-async_reply_result session::reply(const exec_context &tmp_context, const argument_data &data, exec_context::final_state state)
+async_reply_result session::reply(const exec_context &tmp_context,
+		const argument_data &data, exec_context::final_state state)
 {
 	exec_context context = exec_context_data::copy(tmp_context, tmp_context.event(), data);
 

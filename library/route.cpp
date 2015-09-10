@@ -71,11 +71,16 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	dnet_convert_addr_container(cnt);
 
-	if (cmd->size < sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr) + sizeof(struct dnet_id_container *)) {
+	if (cmd->size < sizeof(struct dnet_addr_container) +
+			cnt->addr_num * sizeof(struct dnet_addr) +
+			sizeof(struct dnet_id_container *)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
 				"cmd-size: %llu, must be more than addr_container+addrs: %zd, addr_num: %d",
 				dnet_dump_id(&cmd->id), client_addr, server_addr,
-				(unsigned long long)cmd->size, sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr) + sizeof(struct dnet_id_container *),
+				(unsigned long long)cmd->size,
+				sizeof(struct dnet_addr_container) +
+					cnt->addr_num * sizeof(struct dnet_addr) +
+					sizeof(struct dnet_id_container *),
 				cnt->addr_num);
 		err = -EINVAL;
 		goto err_out_exit;
@@ -90,7 +95,8 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_exit;
 	}
 
-	id_container = (struct dnet_id_container *)((char *)data + sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr));
+	id_container = (struct dnet_id_container *)((char *)data + sizeof(struct dnet_addr_container) +
+				cnt->addr_num * sizeof(struct dnet_addr));
 
 	backends = (struct dnet_backend_ids **)malloc(id_container->backends_count * sizeof(struct dnet_backend_ids *));
 	if (!backends) {
@@ -98,7 +104,9 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_exit;
 	}
 
-	err = dnet_validate_id_container(id_container, cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container), backends);
+	err = dnet_validate_id_container(id_container,
+			cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container),
+			backends);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, failed to parse id_container, err: %d",
 				dnet_dump_id(&cmd->id), client_addr, server_addr, err);
@@ -114,7 +122,8 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		backend = backends[i];
 		for (j = 0; j < backend->ids_count; ++j) {
 			dnet_log(n, DNET_LOG_NOTICE, "%s: join request: client: %s -> %s, "
-				"received backends: %d/%d, ids: %d/%d, addr-num: %d, idx: %d, backend_id: %d, group_id: %d, id: %s.",
+				"received backends: %d/%d, ids: %d/%d, addr-num: %d, idx: %d, "
+				"backend_id: %d, group_id: %d, id: %s.",
 				dnet_dump_id(&cmd->id), client_addr, server_addr,
 				i, id_container->backends_count,
 				j, backend->ids_count, cnt->addr_num, idx,
@@ -293,7 +302,8 @@ int dnet_route_list::join(dnet_net_state *st)
 	return dnet_state_join_nolock(st);
 }
 
-int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct)
+int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id,
+		uint64_t trans, unsigned int command, int reply, int direct)
 {
 	using namespace ioremap::elliptics;
 
@@ -352,7 +362,9 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64
 		backend_ids = reinterpret_cast<dnet_backend_ids *>(ids + backend.ids.size());
 	}
 
-	assert_perror(dnet_validate_id_container(id_container, total_size - (sizeof(dnet_addr_cmd) + m_node->addr_num * sizeof(dnet_addr)), NULL));
+	assert_perror(dnet_validate_id_container(id_container,
+				total_size - (sizeof(dnet_addr_cmd) + m_node->addr_num * sizeof(dnet_addr)),
+				NULL));
 
 	st->__ids_sent = 1;
 	return dnet_send(st, buffer, total_size);
@@ -369,13 +381,16 @@ void dnet_route_list::send_update_to_states(dnet_cmd *cmd, size_t backend_id)
 
 		int err = dnet_send(state, cmd, cmd->size + sizeof(dnet_cmd));
 		if (err != 0) {
-			dnet_log(m_node, DNET_LOG_ERROR, "failed to send update route-list of backend: %zu to state: %s, reseting the state, err: %d",
+			dnet_log(m_node, DNET_LOG_ERROR,
+					"failed to send route-list update for backend: %zu to state: %s, "
+					"reseting the state, err: %d",
 				backend_id, dnet_state_dump_addr(state), err);
 
 			// We have not send route list update to this client, so we have to drop connection to it
 			dnet_state_reset(state, err);
 		} else {
-			dnet_log(m_node, DNET_LOG_NOTICE, "succesffuly tried to send update route-list of backend: %zu to state: %s",
+			dnet_log(m_node, DNET_LOG_NOTICE,
+				"succesffuly sent route-list update for backend: %zu to state: %s",
 				backend_id, dnet_state_dump_addr(state));
 		}
 	}
@@ -420,7 +435,8 @@ int dnet_route_list_disable_backend(dnet_route_list *route, size_t backend_id)
 	return safe_call(route, &dnet_route_list::disable_backend, backend_id);
 }
 
-int dnet_route_list_send_all_ids_nolock(dnet_net_state *st, dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct)
+int dnet_route_list_send_all_ids_nolock(dnet_net_state *st, dnet_id *id,
+		uint64_t trans, unsigned int command, int reply, int direct)
 {
 	return safe_call(st->n->route, &dnet_route_list::send_all_ids_nolock, st, id, trans, command, reply, direct);
 }

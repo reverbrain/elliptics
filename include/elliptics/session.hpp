@@ -317,7 +317,7 @@ class session
 		 * in this session so they won't collide with same key in any
 		 * other namespace.
 		 */
-		void set_namespace(const std::string &ns);
+		void			set_namespace(const std::string &ns);
 		/*!
 		 * \override
 		 */
@@ -358,11 +358,11 @@ class session
 		 * All write operations will use this timestamp, instead of system time.
 		 * If set to zero (default), system time will be used.
 		 */
-		void set_timestamp(const dnet_time &ts);
+		void			set_timestamp(const dnet_time &ts);
 		/*!
 		 * \overload
 		 */
-		void set_timestamp(const dnet_time *ts);
+		void			set_timestamp(const dnet_time *ts);
 		void			get_timestamp(dnet_time *ts);
 
 		/*!
@@ -408,7 +408,8 @@ class session
 		 * \overload read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 		 * Allows to specify the command \a cmd.
 		 */
-		async_read_result read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd);
+		async_read_result read_data(const key &id, const std::vector<int> &groups,
+				const dnet_io_attr &io, unsigned int cmd);
 		/*!
 		 * \overload read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 		 * Allows to specify the single \a group.
@@ -467,14 +468,16 @@ class session
 		async_write_result write_data(const key &id, const argument_data &file, uint64_t remote_offset);
 
 		/*!
-		 * Writes data \a file by the key \a id and remote offset \a remote_offset chunk by chunk with a size \a chunk_size.
+		 * Writes data \a file by the key \a id and remote offset \a remote_offset chunk by chunk
+		 * with chunk size equals to \a chunk_size.
 		 *
 		 * Returns async_write_result.
 		 *
 		 * \note Calling this method is equal to consecutive calling
 		 * of write_prepare(), write_plain() and write_commit().
 		 */
-		async_write_result write_data(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t chunk_size);
+		async_write_result write_data(const key &id, const data_pointer &file,
+				uint64_t remote_offset, uint64_t chunk_size);
 
 
 		/*!
@@ -498,7 +501,8 @@ class session
 		 *
 		 * Returns async_write_result.
 		 */
-		async_write_result write_cas(const key &id, const argument_data &file, const dnet_id &old_csum, uint64_t remote_offset);
+		async_write_result write_cas(const key &id, const argument_data &file,
+				const dnet_id &old_csum, uint64_t remote_offset);
 
 		/*!
 		 * Prepares \a psize bytes place to write data by \a id and writes data by \a file and by \a remote_offset
@@ -510,7 +514,8 @@ class session
 		 *       If you about to write data by offset, then psize should defines final size of full object
 		 *       rather then expecting that server reserves psize bytes after remote_offset of current object.
 		 */
-		async_write_result write_prepare(const key &id, const argument_data &file, uint64_t remote_offset, uint64_t psize);
+		async_write_result write_prepare(const key &id, const argument_data &file,
+				uint64_t remote_offset, uint64_t psize);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset in prepared place.
@@ -538,7 +543,8 @@ class session
 		 *       to actual number of bytes written by client, but size of the reserved on disk area will be equal
 		 *       to prepare size.
 		 */
-		async_write_result write_commit(const key &id, const argument_data &file, uint64_t remote_offset, uint64_t csize);
+		async_write_result write_commit(const key &id, const argument_data &file,
+				uint64_t remote_offset, uint64_t csize);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
@@ -555,7 +561,7 @@ class session
 		 * Returns address (ip and port pair) of remote node where
 		 * data with key \a id may be in group \a group_id.
 		 */
-		std::string		lookup_address(const key &id, int group_id = 0);
+		std::string lookup_address(const key &id, int group_id = 0);
 
 		/*!
 		 * Lookups information for key \a id.
@@ -611,7 +617,7 @@ class session
 		/*!
 		 * Returns the number of session states.
 		 */
-		int			state_num();
+		int state_num();
 
 		/*!
 		 * Requests execution of custom command at all backends of all server nodes.
@@ -630,12 +636,12 @@ class session
 		/*!
 		 * Changes node \a status on given \a address.
 		 */
-		async_node_status_result	update_status(const address &addr, const dnet_node_status &status);
+		async_node_status_result update_status(const address &addr, const dnet_node_status &status);
 
 		/*!
 		 * Request node \a status on given \a address.
 		 */
-		async_node_status_result	request_node_status(const address &addr);
+		async_node_status_result request_node_status(const address &addr);
 
 		async_backend_control_result enable_backend(const address &addr, uint32_t backend_id);
 		async_backend_control_result disable_backend(const address &addr, uint32_t backend_id);
@@ -723,7 +729,8 @@ class session
 		 * Result contains only the information about starting of event procession, so there is no
 		 * information if it was finally processed successfully.
 		 */
-		async_push_result push(dnet_id *id, const exec_context &context, const std::string &event, const argument_data &data);
+		async_push_result push(dnet_id *id, const exec_context &context,
+				const std::string &event, const argument_data &data);
 		/*!
 		 * Reply \a data to initial starter of the process specified by \a context.
 		 *
@@ -732,7 +739,8 @@ class session
 		 * Returns async_reply_result.
 		 * Result contains information if starter received the reply.
 		 */
-		async_reply_result reply(const exec_context &context, const argument_data &data, exec_context::final_state state);
+		async_reply_result reply(const exec_context &context,
+				const argument_data &data, exec_context::final_state state);
 
 		/*!
 		 * Reads all data from server nodes by the list \a ios.
@@ -807,7 +815,8 @@ class session
 		 *
 		 * Returns async_generic_result.
 		 */
-		async_generic_result add_to_capped_collection(const key &id, const index_entry &index, int limit, bool remove_data);
+		async_generic_result add_to_capped_collection(const key &id, const index_entry &index,
+				int limit, bool remove_data);
 		/*!
 		 * \brief Removes \a id from \a indexes.
 		 *
@@ -920,10 +929,10 @@ class session
 		/*!
 		 * Returns pointer to dnet_session.
 		 */
-		dnet_session *	get_native();
+		dnet_session *get_native();
 
 	protected:
-		std::shared_ptr<session_data>		m_data;
+		std::shared_ptr<session_data> m_data;
 
 		async_exec_result request(dnet_id *id, const exec_context &context);
 		async_iterator_result iterator(const key &id, const data_pointer& request);

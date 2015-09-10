@@ -129,7 +129,8 @@ dnet_io_req *dnet_request_queue::take_request(dnet_work_io *wio, const char *thr
 
 			locked_keys_t::iterator it_lock;
 			bool inserted;
-			std::tie(it_lock, inserted) = m_locked_keys.insert({cmd->id, reinterpret_cast<dnet_locks_entry *>(nullptr)});
+			std::tie(it_lock, inserted) =
+				m_locked_keys.insert({cmd->id, reinterpret_cast<dnet_locks_entry *>(nullptr)});
 			if (inserted) {
 				auto lock_entry = take_lock_entry(wio);
 				it_lock->second = lock_entry;
@@ -204,7 +205,8 @@ void dnet_request_queue::release_key(const dnet_id *id)
 		const dnet_work_io *owner = lock_entry->owner;
 		/*
 		 * Unlock key only if it was locked directly by dnet_oplock() (owner == 0) and
-		 * there is no scheduled keys (by take_request()) in request_list (where all keys have same id as given in argument)
+		 * there is no scheduled keys (by take_request()) in request_list
+		 * (where all keys have same id as given in argument)
 		 * of pool thread (owner != 0).
 		 */
 		if (owner && !list_empty(&owner->request_list))
