@@ -741,7 +741,8 @@ static int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event 
 	}
 
 	if (ev->events & (EPOLLHUP | EPOLLERR)) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask 0x%x", dnet_state_dump_addr(st), ev->events);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask 0x%x, socket: %d",
+				dnet_state_dump_addr(st), ev->events, ev->data.fd);
 		err = -ECONNRESET;
 	}
 err_out_exit:

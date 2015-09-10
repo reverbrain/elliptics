@@ -1104,7 +1104,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	fcntl(st->write_s, F_SETFD, FD_CLOEXEC);
 
-	dnet_log(n, DNET_LOG_DEBUG, "dnet_state_create: %s: sockets: %d/%d", dnet_addr_string(addr), st->read_s, st->write_s);
+	dnet_log(n, DNET_LOG_DEBUG, "dnet_state_create: %s: sockets: %d/%d, server: %d, addrs_count: %d, backends_count: %d",
+			dnet_addr_string(addr), st->read_s, st->write_s, server_node, addrs_count, backends_count);
 
 	err = dnet_state_micro_init(st, n, addr, join);
 	if (err)
