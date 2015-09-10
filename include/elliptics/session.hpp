@@ -642,7 +642,8 @@ class session
 		async_backend_control_result start_defrag(const address &addr, uint32_t backend_id);
 		async_backend_control_result start_compact(const address &addr, uint32_t backend_id);
 		async_backend_control_result stop_defrag(const address &addr, uint32_t backend_id);
-		async_backend_control_result set_backend_ids(const address &addr, uint32_t backend_id, const std::vector<dnet_raw_id> &ids);
+		async_backend_control_result set_backend_ids(const address &addr, uint32_t backend_id,
+				const std::vector<dnet_raw_id> &ids);
 		async_backend_control_result make_readonly(const address &addr, uint32_t backend_id);
 		async_backend_control_result make_writable(const address &addr, uint32_t backend_id);
 		async_backend_control_result set_delay(const address &addr, uint32_t backend_id, uint32_t delay);
@@ -679,6 +680,9 @@ class session
 		async_iterator_result pause_iterator(const key &id, uint64_t iterator_id);
 		async_iterator_result continue_iterator(const key &id, uint64_t iterator_id);
 		async_iterator_result cancel_iterator(const key &id, uint64_t iterator_id);
+
+		async_iterator_result server_send(const key &id, uint64_t flags,
+				const std::vector<dnet_raw_id> &ids, const std::vector<int> &groups);
 
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data.

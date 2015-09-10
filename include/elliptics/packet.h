@@ -70,6 +70,7 @@ enum dnet_commands {
 	DNET_CMD_UPDATE_IDS,			/* Update buckets' information */
 	DNET_CMD_BACKEND_CONTROL,		/* Special command to start or stop backends */
 	DNET_CMD_BACKEND_STATUS,		/* Special command to see current statuses of backends */
+	DNET_CMD_SEND,				/* Send given set of local keys to remote groups */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
@@ -1161,6 +1162,21 @@ static inline void dnet_convert_monitor_stat_request(struct dnet_monitor_stat_re
 {
 	r->categories = dnet_bswap32(r->categories);
 }
+
+
+struct dnet_server_send_request {
+	int		id_num;
+	int		group_num;
+	uint64_t	iflags;
+};
+
+static inline void dnet_convert_server_send_request(struct dnet_server_send_request *req)
+{
+	req->id_num = dnet_bswap32(req->id_num);
+	req->group_num = dnet_bswap32(req->group_num);
+	req->iflags = dnet_bswap64(req->iflags);
+}
+
 
 #ifdef __cplusplus
 }

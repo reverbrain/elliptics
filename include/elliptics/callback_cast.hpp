@@ -52,7 +52,8 @@ INIT_CALLBACK_TYPE(exec_result_entry,
 )
 
 INIT_CALLBACK_TYPE(iterator_result_entry,
-	DNET_CMD_ITERATOR
+	DNET_CMD_ITERATOR,
+	DNET_CMD_SEND
 )
 
 INIT_CALLBACK_TYPE(backend_status_result_entry,

@@ -2325,6 +2325,60 @@ async_iterator_result session::cancel_iterator(const key &id, uint64_t iterator_
 	return iterator(id, data);
 }
 
+async_iterator_result session::server_send(const key &id, uint64_t iflags,
+				const std::vector<dnet_raw_id> &ids, const std::vector<int> &groups)
+{
+	if (get_groups().empty()) {
+		async_iterator_result result(*this);
+		async_result_handler<iterator_result_entry> handler(result);
+		handler.complete(create_error(-ENXIO, "server_send: local group list is empty"));
+		return result;
+	}
+
+	if (groups.empty()) {
+		async_iterator_result result(*this);
+		async_result_handler<iterator_result_entry> handler(result);
+		handler.complete(create_error(-ENXIO, "server_send: remote group list is empty"));
+		return result;
+	}
+
+	if (ids.empty()) {
+		async_iterator_result result(*this);
+		async_result_handler<iterator_result_entry> handler(result);
+		handler.complete(create_error(-ENXIO, "server_send: id list is empty"));
+		return result;
+	}
+
+	transform(id);
+
+	size_t ids_size = ids.size() * sizeof(dnet_raw_id);
+	size_t groups_size = groups.size() * sizeof(int);
+
+	data_pointer data = data_pointer::allocate(sizeof(dnet_server_send_request) + ids_size + groups_size);
+	auto req = data.data<dnet_server_send_request>();
+	req->id_num = ids.size();
+	req->group_num = groups.size();
+	req->iflags = iflags;
+
+	dnet_convert_server_send_request(req);
+
+	memcpy(data.skip<dnet_server_send_request>().data(), ids.data(), ids_size);
+	memcpy(data.skip(ids_size + sizeof(dnet_server_send_request)).data(), groups.data(), groups_size);
+
+	dnet_trans_control ctl;
+	memset(&ctl, 0, sizeof(dnet_trans_control));
+	memcpy(&ctl.id, &id.id(), sizeof(dnet_id));
+	ctl.id.group_id = get_groups().front();
+	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
+	ctl.cmd = DNET_CMD_SEND;
+
+	ctl.data = data.data();
+	ctl.size = data.size();
+
+	session sess = clean_clone();
+	return async_result_cast<iterator_result_entry>(*this, send_to_single_state(sess, ctl));
+}
+
 async_exec_result session::exec(dnet_id *id, const std::string &event, const argument_data &data)
 {
 	return exec(id, -1, event, data);

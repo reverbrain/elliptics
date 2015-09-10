@@ -962,26 +962,6 @@ struct dnet_iterator_file_private {
 	int				fd;		/* Append mode file descriptor */
 };
 
-/*
- * Send data over network to another server as set of WRITE commands
- */
-struct dnet_iterator_server_send_private {
-	struct dnet_node		*node;		/* Our node */
-	struct dnet_backend_io		*backend;	/* Backend where iteration takes place */
-	struct dnet_net_state		*st;		/* Client connection used to send progress status */
-	struct dnet_cmd			*cmd;		/* Original client's command */
-	struct dnet_iterator_request	*req;		/* Original client's iterator request,
-							 * it contains remote group to send data to
-							 */
-
-	pthread_mutex_t			write_lock;	/* Lock for @write_wait */
-	pthread_cond_t			write_wait;	/* Waiting for pending writes */
-	atomic_t			writes_pending;	/* Number of writes in-flight to remote servers */
-
-	int				write_error;	/* Set to the first error occured during write
-							 * This will stop iterator. */
-};
-
 #ifndef CONFIG_ELLIPTICS_VERSION_0
 #error "Elliptics version macros is not defined"
 #endif
@@ -1057,6 +1037,34 @@ again:
 	}
 	return 0;
 }
+
+/*
+ * Send data over network to another server as set of WRITE commands
+ */
+struct dnet_server_send_ctl {
+	void				*state;		/* Client connection used to send progress status
+							 * As void* to allow low-level backends to set it up
+							 */
+	struct dnet_cmd			cmd;		/* Original client's command */
+
+	uint64_t			iflags;		/* Iterator flags */
+
+	int				*groups;	/* Groups to send WRITE commands */
+	int				group_num;
+
+	pthread_mutex_t			write_lock;	/* Lock for @write_wait */
+	pthread_cond_t			write_wait;	/* Waiting for pending writes */
+	atomic_t			writes_pending;	/* Number of writes in-flight to remote servers */
+
+	int				write_error;	/* Set to the first error occured during write
+							 * This will stop iterator. */
+
+	atomic_t			refcnt;		/* Reference counter which will be increased for every
+							 * async WRITE operation. get/put methods should be used
+							 * if structure will be provided to async routings.
+							 */
+};
+
 
 #ifdef __cplusplus
 }

@@ -844,14 +844,14 @@ err_out_exit:
 	return err;
 }
 
-int blob_defrag_status(void *priv)
+static int blob_defrag_status(void *priv)
 {
 	struct eblob_backend_config *c = priv;
 
 	return eblob_defrag_status(c->eblob);
 }
 
-int blob_defrag_start(void *priv, enum dnet_backend_defrag_level level)
+static int blob_defrag_start(void *priv, enum dnet_backend_defrag_level level)
 {
 	struct eblob_backend_config *c = priv;
 	enum eblob_defrag_state defrag_level;
@@ -874,11 +874,151 @@ int blob_defrag_start(void *priv, enum dnet_backend_defrag_level level)
 	return err;
 }
 
-int blob_defrag_stop(void *priv)
+static int blob_defrag_stop(void *priv)
 {
 	struct eblob_backend_config *c = priv;
 
 	return eblob_stop_defrag(c->eblob);
+}
+
+static int blob_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_iterator_response *re, int more)
+{
+	int err;
+
+	dnet_convert_iterator_response(re);
+	err = dnet_send_reply_threshold(state, cmd, re, sizeof(struct dnet_iterator_response), more);
+
+	/* we have to convert response back, since it can be reused, for example like error response */
+	dnet_convert_iterator_response(re);
+	return err;
+}
+
+static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_cmd *cmd, void *data)
+{
+	struct eblob_backend *b = cfg->eblob;
+	struct dnet_server_send_request *req = data;
+	struct dnet_raw_id *ids;
+	struct dnet_iterator_response re;
+	struct dnet_server_send_ctl *ctl;
+	int *groups;
+	int i, err;
+
+	struct dnet_ext_list elist;
+	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
+	struct eblob_key key;
+	struct eblob_write_control wc;
+	uint64_t data_offset, record_offset;
+
+	dnet_ext_list_init(&elist);
+
+
+	/* structure has been already checked and has been proved to be correct no need to perform sanity checks */
+	dnet_convert_server_send_request(req);
+
+	ids = (struct dnet_raw_id *)(req + 1);
+	groups = (int *)(ids + req->id_num);
+
+	memset(&re, 0, sizeof(struct dnet_iterator_response));
+	re.total_keys = req->id_num;
+	re.flags = req->iflags;
+
+	/*
+	 * Set NEED_ACK bit to signal server-send controller that we want
+	 * to send final ACK when controller will be destroyed, which in turn
+	 * will happend after all WRITE commands are completed.
+	 *
+	 * Command will be copied internally in @dnet_server_send_alloc(),
+	 * thus it is safe to clear that bit afterward.
+	 */
+	cmd->flags |= DNET_FLAGS_NEED_ACK;
+
+	ctl = dnet_server_send_alloc(state, cmd, req->iflags, groups, req->group_num);
+	if (!ctl) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	/*
+	 * Deliberately clear NEED_ACK bit
+	 * This function will iterate over provided ids,
+	 * read them from the blob and queue WRITE command to remote groups.
+	 * When single WRITE command completes, it will send response back to client.
+	 *
+	 * If we send ACK in the middle, it will force client to stop accepting further responses.
+	 *
+	 * If there will be an error, it will be sent to client too.
+	 * If there is an error with command processing (like fail to allocate memory),
+	 * iteration will stop and error will be returned from this function to the higher layer,
+	 * which in turn will force ACK message to client with error code.
+	 */
+	cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+
+
+
+	for (i = 0; i < req->id_num; ++i) {
+		memcpy(key.id, ids[i].id, EBLOB_ID_SIZE);
+
+		err = blob_lookup(b, &key, &wc);
+		if (err < 0) {
+			dnet_backend_log(cfg->blog, DNET_LOG_ERROR, "%s: EBLOB: blob_send: lookup: %d: %s",
+					 dnet_dump_id_str(key.id), err, strerror(-err));
+			goto err_out_send_fail_reply;
+		}
+
+		re.key = ids[i];
+		re.status = 0;
+		re.iterated_keys = i;
+		re.size = wc.total_data_size;
+
+		data_offset = wc.data_offset;
+		record_offset = 0;
+
+		if ((wc.flags & BLOB_DISK_CTL_EXTHDR) != 0) {
+			struct dnet_ext_list_hdr ehdr;
+
+			/* Sanity */
+			if (re.size < ehdr_size) {
+				err = -ERANGE;
+				goto err_out_send_fail_reply;
+			}
+
+			err = dnet_ext_hdr_read(&ehdr, wc.data_fd, wc.data_offset);
+			if (err != 0)
+				goto err_out_send_fail_reply;
+
+			dnet_ext_hdr_to_list(&ehdr, &elist);
+
+			re.timestamp = elist.timestamp;
+			re.user_flags = elist.flags;
+
+			/* Take into an account extended header's len */
+			re.size -= sizeof(struct dnet_ext_list_hdr);
+			data_offset += sizeof(struct dnet_ext_list_hdr);
+			record_offset += sizeof(struct dnet_ext_list_hdr);
+		}
+
+		wc.offset = record_offset;
+		wc.size = re.size;
+		err = eblob_verify_checksum(b, &key, &wc);
+		if (err)
+			goto err_out_send_fail_reply;
+
+		err = dnet_server_send_write(ctl, &re, sizeof(struct dnet_iterator_response), wc.data_fd, data_offset);
+		if (err)
+			goto err_out_send_fail_reply;
+
+		continue;
+
+err_out_send_fail_reply:
+		re.status = err;
+		err = blob_send_reply(state, cmd, &re, 1);
+	}
+
+	dnet_server_send_put(ctl);
+	return 0;
+
+err_out_exit:
+	return err;
 }
 
 static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
@@ -904,6 +1044,9 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 			break;
 		case DNET_CMD_DEL:
 			err = blob_del(c, cmd);
+			break;
+		case DNET_CMD_SEND:
+			err = blob_send(c, state, cmd, data);
 			break;
 		default:
 			err = -ENOTSUP;

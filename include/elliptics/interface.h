@@ -848,6 +848,9 @@ int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
                            uint64_t offset, int64_t size, struct dnet_time *timestamp, uint64_t record_flags);
 int dnet_send_file_info_ts_without_fd(void *state, struct dnet_cmd *cmd, const void *data, int64_t size, struct dnet_time *timestamp);
 
+int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
+int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
+		const void *odata, unsigned int size, int more);
 
 struct dnet_route_entry
 {
@@ -888,6 +891,16 @@ struct dnet_vm_stat {
 };
 
 int dnet_get_vm_stat(dnet_logger *l, struct dnet_vm_stat *st);
+
+struct dnet_server_send_ctl;
+struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd *cmd, uint64_t iflags,
+		int *groups, int group_num);
+struct dnet_server_send_ctl *dnet_server_send_get(struct dnet_server_send_ctl *ctl);
+int dnet_server_send_put(struct dnet_server_send_ctl *ctl);
+int dnet_server_send_write(struct dnet_server_send_ctl *send,
+		struct dnet_iterator_response *re, uint64_t dsize,
+		int fd, uint64_t data_offset);
+
 
 #ifdef __cplusplus
 }

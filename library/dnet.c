@@ -70,7 +70,6 @@ int dnet_remove_local(struct dnet_backend_io *backend, struct dnet_node *n, stru
 	dnet_log(n, DNET_LOG_NOTICE, "%s: local remove: err: %d.", dnet_dump_id(&cmd->id), err);
 
 	return err;
-
 }
 
 static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd)
@@ -297,6 +296,7 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsign
 
 	c->size = size;
 	c->flags |= DNET_FLAGS_REPLY;
+	c->flags &= ~DNET_FLAGS_NEED_ACK; // this is a reply, it may not contain ACK bit
 
 	if (size)
 		memcpy(data, odata, size);
@@ -407,16 +407,17 @@ static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize, i
 }
 
 struct dnet_iterator_server_send_write_private {
-	atomic_t					refcnt;
-	struct dnet_iterator_server_send_private	*send;
-	uint64_t					dsize;
-	char						data[0];
+	atomic_t			refcnt;
+	struct dnet_server_send_ctl	*send;
+	uint64_t			dsize;
+	char				data[0];
 };
 
 static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dnet_cmd *cmd, void *priv)
 {
 	struct dnet_iterator_server_send_write_private *wp = priv;
-	struct dnet_iterator_server_send_private *send = wp->send;
+	struct dnet_server_send_ctl *send = wp->send;
+	struct dnet_net_state *st = send->state;
 	int err = 0;
 
 	(void) addr;
@@ -444,22 +445,58 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 			send->write_error = err;
 
 		if (atomic_dec_and_test(&wp->refcnt)) {
-			if (send->req->flags & DNET_IFLAGS_MOVE) {
+			if (send->iflags & DNET_IFLAGS_MOVE) {
 				if (!err) {
 					struct dnet_id id = cmd->id;
-					id.group_id = send->cmd->id.group_id;
+					id.group_id = send->cmd.id.group_id;
+#if 0
+					const size_t cmd_size = sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
+					int err;
+					char buffer[cmd_size];
+					struct dnet_cmd *cmd = (struct dnet_cmd *)buffer;
+					struct dnet_io_attr *io = (struct dnet_io_attr *)(cmd + 1);
 
-					err = dnet_remove_local(send->backend, send->node, &id);
+					memset(buffer, 0, cmd_size);
+
+					cmd->id = *id;
+					cmd->size = cmd_size - sizeof(struct dnet_cmd);
+					cmd->flags = DNET_FLAGS_NOLOCK;
+					cmd->cmd = DNET_CMD_DEL;
+
+					io->flags = DNET_IO_FLAGS_SKIP_SENDING;
+
+					memcpy(io->parent, id->id, DNET_ID_SIZE);
+					memcpy(io->id, id->id, DNET_ID_SIZE);
+
+					dnet_convert_io_attr(io);
+
+					err = backend->cb->command_handler(n->st, backend->cb->command_private, cmd, io);
+					dnet_log(n, DNET_LOG_NOTICE, "%s: local remove: err: %d.", dnet_dump_id(&cmd->id), err);
+#endif
 				}
 			}
 
 			atomic_dec(&send->writes_pending);
 			pthread_cond_broadcast(&send->write_wait);
 
-			err = dnet_send_reply(send->st, send->cmd, wp->data, wp->dsize, 1);
+			err = dnet_send_reply(send->state, &send->cmd, wp->data, wp->dsize, 1);
 			if (err && !send->write_error)
 				send->write_error = err;
 
+			struct dnet_iterator_response *re = (struct dnet_iterator_response *)wp->data;
+			dnet_convert_iterator_response(re);
+			dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: sending response to client: %s, "
+					"user_flags: %llx, ts: %lld.%09lld, "
+					"status: %d, size: %lld, iterated_keys: %lld/%lld, write_error: %d",
+					__func__,
+					dnet_dump_id(&send->cmd.id), dnet_dump_id_str(re->key.id),
+					(unsigned long long)re->user_flags,
+					(unsigned long long)re->timestamp.tsec, (unsigned long long)re->timestamp.tnsec,
+					re->status, (unsigned long long)re->size,
+					(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys,
+					send->write_error);
+
+			dnet_server_send_put(send);
 			free(wp);
 			return err;
 		}
@@ -468,33 +505,136 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 	return err;
 }
 
-/*!
- * Internal callback that sends result to different server in the storage as WRITE command
- */
-static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t dsize, int fd, uint64_t data_offset)
+struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd *cmd, uint64_t iflags,
+		int *groups, int group_num)
 {
-	struct dnet_iterator_server_send_private *send = priv;
-	struct dnet_iterator_response *re = data;
+	int err;
+	struct dnet_net_state *st = state;
+	struct dnet_server_send_ctl *ctl;
+
+	dnet_state_get(st);
+
+	ctl = malloc(sizeof(struct dnet_server_send_ctl) + sizeof(int) * group_num);
+	if (!ctl) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memset(ctl, 0, sizeof(struct dnet_server_send_ctl));
+
+	ctl->state = state;
+	ctl->cmd = *cmd;
+	ctl->iflags = iflags;
+	ctl->groups = (int *)(ctl + 1);
+	memcpy(ctl->groups, groups, sizeof(int) * group_num);
+	ctl->group_num = group_num;
+	atomic_set(&ctl->writes_pending, 0);
+	atomic_set(&ctl->refcnt, 1);
+
+	err = pthread_cond_init(&ctl->write_wait, NULL);
+	if (err) {
+		err = -err;
+		dnet_log(st->n, DNET_LOG_ERROR, "Failed to initialize server send condition variable: %d", err);
+		goto err_out_free;
+	}
+
+	err = pthread_mutex_init(&ctl->write_lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_log(st->n, DNET_LOG_ERROR, "Failed to initialize server send write lock: %d", err);
+		goto err_out_cond_destroy;
+	}
+
+	return ctl;
+
+err_out_cond_destroy:
+	pthread_cond_destroy(&ctl->write_wait);
+err_out_free:
+	free(ctl);
+err_out_exit:
+	dnet_state_put(st);
+	return NULL;
+}
+
+static int dnet_server_send_cleanup(struct dnet_server_send_ctl *ctl)
+{
+	int err = ctl->write_error;
+
+	/*
+	 * This bit will not be set for iterator request.
+	 * It can be set for async operations,
+	 * for example DNET_CMD_SEND handler sets up a bunch of async
+	 * WRITE requests and returns. When all writes will have been completed,
+	 * this cleanup function is invoked, but since they were async,
+	 * client hasn't received ACK and there is no blocking
+	 * thread waiting for all requests to complete (like in iterator command)
+	 */
+	if (ctl->cmd.flags & DNET_FLAGS_NEED_ACK) {
+		dnet_send_ack(ctl->state, &ctl->cmd, err, 0);
+	}
+
+	pthread_cond_destroy(&ctl->write_wait);
+	pthread_mutex_destroy(&ctl->write_lock);
+
+	dnet_state_put(ctl->state);
+	free(ctl);
+
+	return err;
+}
+
+struct dnet_server_send_ctl *dnet_server_send_get(struct dnet_server_send_ctl *ctl)
+{
+	atomic_inc(&ctl->refcnt);
+	return ctl;
+}
+int dnet_server_send_put(struct dnet_server_send_ctl *ctl)
+{
+	if (atomic_dec_and_test(&ctl->refcnt))
+		return dnet_server_send_cleanup(ctl);
+
+	return 0;
+}
+
+static int dnet_server_send_sync(struct dnet_server_send_ctl *ctl)
+{
+	int err;
+
+	while (atomic_read(&ctl->writes_pending) > 0) {
+		pthread_mutex_lock(&ctl->write_lock);
+		pthread_cond_wait(&ctl->write_wait, &ctl->write_lock);
+		pthread_mutex_unlock(&ctl->write_lock);
+	}
+
+	return dnet_server_send_put(ctl);
+}
+
+/*
+ * Helper function which sends given data as WRITE command to remote groups
+ */
+int dnet_server_send_write(struct dnet_server_send_ctl *send,
+		struct dnet_iterator_response *re, uint64_t dsize,
+		int fd, uint64_t data_offset)
+{
+	struct dnet_net_state *client_state = send->state;
+	struct dnet_node *n = client_state->n;
 	struct dnet_io_control ctl;
 	struct dnet_session *s;
 	struct dnet_iterator_server_send_write_private *wp;
-	struct dnet_iterator_range *ranges = (struct dnet_iterator_range *)(send->req + 1);
-	int *dst_groups = (int *)(ranges + send->req->range_num);
 	int err;
+
+	dnet_server_send_get(send);
 
 	/*
 	 * If need_exit is set - skips sending reply and return -EINTR to
 	 * interrupt execution of current iterator
 	 */
-	if (send->st->__need_exit) {
-		dnet_log(send->st->n, DNET_LOG_ERROR,
-				"%s: Interrupting iterator because peer has been disconnected",
-				dnet_dump_id(&send->cmd->id));
+	if (client_state->__need_exit) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: Interrupting iterator because peer has been disconnected",
+				dnet_dump_id(&send->cmd.id));
 		err = -EINTR;
 		goto err_out_exit;
 	}
 
-	dnet_convert_iterator_response(re);
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 	memcpy(ctl.id.id, re->key.id, DNET_ID_SIZE);
@@ -509,7 +649,7 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 
 	// overwrite doesn't care whether remote key differs from local
 	// when this flag is not set, we only overwrite the same data or if there is no remote copy at all
-	if (!(send->req->flags & DNET_IFLAGS_OVERWRITE))
+	if (!(send->iflags & DNET_IFLAGS_OVERWRITE))
 		ctl.io.flags |= DNET_IO_FLAGS_COMPARE_AND_SWAP;
 
 	// deliberately do not set DNET_FLAGS_NEED_ACK
@@ -527,46 +667,51 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 
 	wp = malloc(sizeof(struct dnet_iterator_server_send_write_private) + dsize);
 	if (!wp) {
-		dnet_log(send->st->n, DNET_LOG_ERROR,
-				"%s: Interrupting iterator because failed to allocate write private data",
-				dnet_dump_id(&send->cmd->id));
+		dnet_log(n, DNET_LOG_ERROR, "%s: Interrupting iterator because failed to allocate write private data",
+				dnet_dump_id(&send->cmd.id));
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
 	memset(wp, 0, sizeof(struct dnet_iterator_server_send_write_private));
 
-	atomic_init(&wp->refcnt, send->req->group_num);
+	atomic_init(&wp->refcnt, send->group_num);
 	wp->send = send;
 
-	memcpy(wp->data, data, dsize);
+	memcpy(wp->data, re, dsize);
 	wp->dsize = dsize;
 
 	ctl.complete = dnet_iterator_server_send_complete;
 	ctl.priv = wp;
 
-	s = dnet_session_create(send->st->n);
+	s = dnet_session_create(n);
 	if (!s) {
-		dnet_log(send->st->n, DNET_LOG_ERROR,
-				"%s: Interrupting iterator because failed to create new session",
-				dnet_dump_id(&send->cmd->id));
+		dnet_log(n, DNET_LOG_ERROR, "%s: Interrupting iterator because failed to create new session",
+				dnet_dump_id(&send->cmd.id));
 		err = -ENOMEM;
 		goto err_out_free;
 	}
 
-	dnet_session_set_trace_id(s, send->cmd->trace_id);
+	dnet_session_set_trace_id(s, send->cmd.trace_id);
 
-	err = dnet_session_set_groups(s, dst_groups, send->req->group_num);
+	err = dnet_session_set_groups(s, send->groups, send->group_num);
 	if (err) {
-		dnet_log(send->st->n, DNET_LOG_ERROR,
-				"%s: Interrupting iterator because failed to set %d groups",
-				dnet_dump_id(&send->cmd->id), send->req->group_num);
+		dnet_log(n, DNET_LOG_ERROR, "%s: Interrupting iterator because failed to set %d groups",
+				dnet_dump_id(&send->cmd.id), send->group_num);
 		err = -ENOMEM;
 		goto err_out_session_destroy;
 	}
 
 	atomic_inc(&send->writes_pending);
 
+	dnet_log(n, DNET_LOG_NOTICE, "%s: %s: sending WRITE request, iterator response: %s, user_flags: %llx, ts: %lld.%09lld, "
+			"status: %d, size: %lld, iterated_keys: %lld/%lld",
+			__func__,
+			dnet_dump_id(&send->cmd.id), dnet_dump_id_str(re->key.id),
+			(unsigned long long)re->user_flags,
+			(unsigned long long)re->timestamp.tsec, (unsigned long long)re->timestamp.tnsec,
+			re->status, (unsigned long long)re->size,
+			(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys);
 	dnet_convert_iterator_response(re);
 
 	/*
@@ -576,25 +721,6 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 	 */
 	dnet_trans_create_send_all(s, &ctl);
 	dnet_session_destroy(s);
-
-	dnet_log(send->st->n, DNET_LOG_NOTICE, "ssend: %s: response: %s, user_flags: %llx, ts: %lld.%09lld, "
-			"status: %d, size: %lld, iterated_keys: %lld/%lld, write_error: %d",
-			dnet_dump_id(&send->cmd->id), dnet_dump_id_str(re->key.id),
-			(unsigned long long)re->user_flags,
-			(unsigned long long)re->timestamp.tsec, (unsigned long long)re->timestamp.tnsec,
-			re->status, (unsigned long long)re->size,
-			(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys,
-			send->write_error);
-
-	if (atomic_read(&send->writes_pending) > 1000) {
-		// wait for all write transactions to complete
-		while ((atomic_read(&send->writes_pending) > 500) && !send->st->__need_exit && !send->write_error) {
-			pthread_mutex_lock(&send->write_lock);
-			if (!send->st->__need_exit)
-				pthread_cond_wait(&send->write_wait, &send->write_lock);
-			pthread_mutex_unlock(&send->write_lock);
-		}
-	}
 
 	if (!err)
 		err = send->write_error;
@@ -606,6 +732,34 @@ err_out_session_destroy:
 err_out_free:
 	free(wp);
 err_out_exit:
+	dnet_server_send_put(send);
+	return err;
+}
+
+/*!
+ * Internal callback that sends result to different server in the storage as WRITE command
+ */
+static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t dsize, int fd, uint64_t data_offset)
+{
+	struct dnet_server_send_ctl *send = priv;
+	struct dnet_net_state *st = send->state;
+	struct dnet_iterator_response *re = data;
+	int err;
+
+	dnet_convert_iterator_response(re);
+
+	err = dnet_server_send_write(send, re, dsize, fd, data_offset);
+
+	if (atomic_read(&send->writes_pending) > 1000) {
+		// wait for all write transactions to complete
+		while ((atomic_read(&send->writes_pending) > 500) && !st->__need_exit && !send->write_error) {
+			pthread_mutex_lock(&send->write_lock);
+			if (!st->__need_exit)
+				pthread_cond_wait(&send->write_wait, &send->write_lock);
+			pthread_mutex_unlock(&send->write_lock);
+		}
+	}
+
 	return err;
 }
 
@@ -819,9 +973,11 @@ static int dnet_iterator_check_ts_range(struct dnet_net_state *st, struct dnet_c
 }
 
 static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_iterator_request *ireq,
-		struct dnet_iterator_range *irange)
+		struct dnet_iterator_request *ireq)
 {
+	struct dnet_iterator_range *irange = (struct dnet_iterator_range *)(ireq + 1);
+	int *dst_groups = (int *)(irange + ireq->range_num);
+
 	struct dnet_iterator_common_private cpriv = {
 		.req = ireq,
 		.range = irange,
@@ -833,7 +989,7 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	};
 	struct dnet_iterator_send_private spriv;
 	struct dnet_iterator_file_private fpriv;
-	struct dnet_iterator_server_send_private sspriv;
+	struct dnet_server_send_ctl *sspriv;
 	int err = 0;
 
 	/* Check that backend supports iterator */
@@ -900,32 +1056,12 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 			goto err_out_exit;
 		}
 
-		memset(&sspriv, 0, sizeof(struct dnet_iterator_server_send_private));
-
-		sspriv.node = st->n;
-		sspriv.backend = backend;
-		sspriv.st = st;
-		sspriv.cmd = cmd;
-		sspriv.req = ireq;
-		atomic_set(&sspriv.writes_pending, 0);
-
-		err = pthread_cond_init(&sspriv.write_wait, NULL);
-		if (err) {
-			err = -err;
-			dnet_log(st->n, DNET_LOG_ERROR, "Failed to initialize server send condition variable: %d", err);
+		sspriv = dnet_server_send_alloc(st, cmd, ireq->flags, dst_groups, ireq->group_num);
+		if (err)
 			goto err_out_exit;
-		}
-
-		err = pthread_mutex_init(&sspriv.write_lock, NULL);
-		if (err) {
-			err = -err;
-			dnet_log(st->n, DNET_LOG_ERROR, "Failed to initialize server send write lock: %d", err);
-			pthread_cond_destroy(&sspriv.write_wait);
-			goto err_out_exit;
-		}
 
 		cpriv.next_callback = dnet_iterator_callback_server_send;
-		cpriv.next_private = &sspriv;
+		cpriv.next_private = sspriv;
 		break;
 	default:
 		err = -EINVAL;
@@ -938,28 +1074,21 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 	cpriv.it = dnet_iterator_create(st->n);
 	if (cpriv.it == NULL) {
 		err = -ENOMEM;
-		goto err_out_exit;
+		goto err_out_put;
 	}
 
 	/* Run iterator */
 	err = backend->cb->iterator(&ictl, ireq, irange);
 
-	if (ireq->itype == DNET_ITYPE_SERVER_SEND) {
-		while (atomic_read(&sspriv.writes_pending) > 0) {
-			pthread_mutex_lock(&sspriv.write_lock);
-			pthread_cond_wait(&sspriv.write_wait, &sspriv.write_lock);
-			pthread_mutex_unlock(&sspriv.write_lock);
-		}
-
-		if (!err && sspriv.write_error)
-			err = sspriv.write_error;
-
-		pthread_cond_destroy(&sspriv.write_wait);
-		pthread_mutex_destroy(&sspriv.write_lock);
-	}
-
 	/* Remove iterator */
 	dnet_iterator_destroy(st->n, cpriv.it);
+
+err_out_put:
+	if (ireq->itype == DNET_ITYPE_SERVER_SEND) {
+		int sserr = dnet_server_send_sync(sspriv);
+		if (!err)
+			err = sserr;
+	}
 
 err_out_exit:
 	dnet_log(st->n, err ? DNET_LOG_ERROR : DNET_LOG_NOTICE, "%s: %s: iteration finished: "
@@ -977,7 +1106,6 @@ err_out_exit:
 static int dnet_cmd_iterator(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_iterator_request *ireq = data;
-	struct dnet_iterator_range *irange = data + sizeof(struct dnet_iterator_request);
 	int err = 0;
 
 	/*
@@ -1009,7 +1137,7 @@ static int dnet_cmd_iterator(struct dnet_backend_io *backend, struct dnet_net_st
 	 */
 	switch (ireq->action) {
 	case DNET_ITERATOR_ACTION_START:
-		err = dnet_iterator_start(backend, st, cmd, ireq, irange);
+		err = dnet_iterator_start(backend, st, cmd, ireq);
 		break;
 	case DNET_ITERATOR_ACTION_PAUSE:
 	case DNET_ITERATOR_ACTION_CONTINUE:
@@ -1054,7 +1182,8 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 		 * First key is already locked by request_queue::take_request().
 		 * Check that i-th key is not equal to the first key.
 		 */
-		use_oplock = (i > 0) && !(cmd->flags & DNET_FLAGS_NOLOCK) && !dnet_id_cmp_str((const unsigned char *)&ios[i].id, (const unsigned char *)&cmd->id.id);
+		use_oplock = (i > 0) && !(cmd->flags & DNET_FLAGS_NOLOCK) &&
+					!dnet_id_cmp_str((const unsigned char *)&ios[i].id, (const unsigned char *)&cmd->id.id);
 		if (use_oplock) {
 			memcpy(&lock_id.id, &ios[i].id, DNET_ID_SIZE);
 			dnet_oplock(backend, &lock_id);
@@ -1173,6 +1302,7 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 	uint64_t iosize = 0;
 	long diff;
 	struct timeval start, end;
+	struct dnet_server_send_request *req;
 
 	gettimeofday(&start, NULL);
 
@@ -1216,6 +1346,39 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 					cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			} else
 				err = dnet_notify_remove(st, cmd);
+			break;
+		case DNET_CMD_SEND:
+			req = data;
+			dnet_convert_server_send_request(req);
+
+			if (req->id_num == 0) {
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid send command: id_num must be non zero",
+						dnet_dump_id(&cmd->id));
+				err = -EINVAL;
+				break;
+			}
+
+			if (req->group_num == 0) {
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid send command: group_num must be non zero",
+						dnet_dump_id(&cmd->id));
+				err = -EINVAL;
+				break;
+			}
+
+			size_t req_size = sizeof(struct dnet_server_send_request) +
+						req->id_num * sizeof(struct dnet_raw_id) + 
+						req->group_num * sizeof(int);
+
+			if (cmd->size != req_size) {
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid send command: size mismatch: cmd size: %llu, "
+						"request size: %zd",
+						dnet_dump_id(&cmd->id), (unsigned long long)cmd->size, req_size);
+				err = -EINVAL;
+				break;
+			}
+
+			dnet_convert_server_send_request(req);
+			err = backend->cb->command_handler(st, backend->cb->command_private, cmd, data);
 			break;
 		case DNET_CMD_BULK_READ:
 			err = backend->cb->command_handler(st, backend->cb->command_private, cmd, data);
