@@ -597,8 +597,6 @@ int dnet_server_send_put(struct dnet_server_send_ctl *ctl)
 
 static int dnet_server_send_sync(struct dnet_server_send_ctl *ctl)
 {
-	int err;
-
 	while (atomic_read(&ctl->writes_pending) > 0) {
 		pthread_mutex_lock(&ctl->write_lock);
 		pthread_cond_wait(&ctl->write_wait, &ctl->write_lock);
@@ -1056,7 +1054,23 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 			goto err_out_exit;
 		}
 
+		/*
+		 * We need this NEED_ACK bit manipulation to prevent
+		 * double ACK sending. The first one would be sent when
+		 * dnet_server_send_ctl.refcnt reaches zero (if cmd->flags contains NEED_ACK bit),
+		 * the second one would be sent when DNET_CMD_ITERATOR completes.
+		 *
+		 * When we clear NEED_ACK bit here, we prevent sending ACK
+		 * when refcnt reaches zero. We have to restore bit to allow
+		 * command completion to send ACK.
+		 *
+		 * It is safe to change bit, since @dnet_server_send_alloc() copies
+		 * dnet_cmd, thus it will store command structure without NEED_ACK bit.
+		 */
+		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 		sspriv = dnet_server_send_alloc(st, cmd, ireq->flags, dst_groups, ireq->group_num);
+		cmd->flags |= DNET_FLAGS_NEED_ACK;
+
 		if (err)
 			goto err_out_exit;
 
