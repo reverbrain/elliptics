@@ -778,8 +778,8 @@ static void dnet_state_remove_and_shutdown(struct dnet_net_state *st, int error)
 	if (error && (error != -EUCLEAN && error != -EEXIST))
 		level = DNET_LOG_ERROR;
 
-	dnet_log(st->n, level, "%s: resetting state: %s [%d]",
-			dnet_state_dump_addr(st), strerror(-error), error);
+	dnet_log(st->n, level, "%s: resetting state: %p: %s [%d]",
+			dnet_state_dump_addr(st), st, strerror(-error), error);
 
 	pthread_mutex_lock(&st->send_lock);
 
