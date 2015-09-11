@@ -442,7 +442,7 @@ static int dnet_validate_route_list(const char *server_addr, dnet_node *node, st
 	char rem_addr[128];
 
 	err = cmd->status;
-	if (!cmd->size || err)
+	if (err)
 		goto err_out_exit;
 
 	size = cmd->size + sizeof(dnet_cmd);
@@ -530,12 +530,22 @@ private:
 			return err;
 		}
 
+		err = dnet_validate_route_list(server_addr, node, cmd);
+		if (err) {
+			dnet_log(node, DNET_LOG_NOTICE, "Received invalid route-list reply from state: %s: %d",
+					server_addr, err);
+			return err;
+		}
+
+
 		dnet_net_state *st = dnet_state_search_by_addr(node, addr);
 		if (!st) {
 			dnet_log(node, DNET_LOG_NOTICE, "Received route-list reply from unknown (destroyed?) state: %s",
 					server_addr);
-			return -EINVAL;
+			err = -ENOENT;
+			return err;
 		}
+
 
 		dnet_addr_container *cnt = reinterpret_cast<dnet_addr_container *>(cmd + 1);
 		const size_t states_num = cnt->addr_num / cnt->node_addr_num;
@@ -546,11 +556,6 @@ private:
 		bool added_to_queue = false;
 		bool at_least_one_exist = false;
 
-		err = dnet_validate_route_list(server_addr, node, cmd);
-		if (err) {
-			goto err_out_exit;
-		}
-
 		for (size_t i = 0; i < states_num; ++i) {
 			const dnet_addr *addr = &cnt->addrs[i * cnt->node_addr_num + st->idx];
 			addrs[i] = *addr;
@@ -559,7 +564,8 @@ private:
 		sockets = dnet_socket_create_addresses(node, &addrs[0], addrs.size(), false, m_state->join, &at_least_one_exist);
 		if (sockets.empty()) {
 			err = at_least_one_exist ? 0 : -ENOMEM;
-			goto err_out_exit;
+			dnet_state_put(st);
+			return err;
 		}
 
 		sockets_count = sockets.size();
@@ -592,9 +598,8 @@ private:
 			}
 		}
 
-	  err_out_exit:
 		dnet_state_put(st);
-		return err;
+		return 0;
 	}
 
 private:
