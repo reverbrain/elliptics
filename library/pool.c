@@ -209,6 +209,7 @@ err_out_exit:
 // Keep this enums in sync with enums from dnet_process_cmd_without_backend_raw
 static int dnet_cmd_needs_backend(int command)
 {
+	// backend is not needed for:
 	switch (command) {
 	case DNET_CMD_AUTH:
 	case DNET_CMD_STATUS:
