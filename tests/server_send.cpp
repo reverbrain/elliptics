@@ -79,6 +79,7 @@ static void ssend_configure(const std::string &path)
 
 static void ssend_test_insert_many_keys(session &s, int num, const std::string &id_prefix, const std::string &data_prefix)
 {
+	s.set_trace_id(rand());
 	for (int i = 0; i < num; ++i) {
 		std::string id = id_prefix + lexical_cast(i);
 		std::string data = data_prefix + lexical_cast(i);
@@ -89,6 +90,7 @@ static void ssend_test_insert_many_keys(session &s, int num, const std::string &
 
 static void ssend_test_read_many_keys(session &s, int num, const std::string &id_prefix, const std::string &data_prefix)
 {
+	s.set_trace_id(rand());
 	for (int i = 0; i < num; ++i) {
 		std::string id = id_prefix + lexical_cast(i);
 		std::string data = data_prefix + lexical_cast(i);
@@ -99,6 +101,7 @@ static void ssend_test_read_many_keys(session &s, int num, const std::string &id
 
 static void ssend_test_read_many_keys_error(session &s, int num, const std::string &id_prefix, int error)
 {
+	s.set_trace_id(rand());
 	for (int i = 0; i < num; ++i) {
 		std::string id = id_prefix + lexical_cast(i);
 
@@ -143,6 +146,7 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 
 		uint64_t ifl = DNET_IFLAGS_KEY_RANGE | DNET_IFLAGS_NO_META | iflags;
 
+		s.set_trace_id(rand());
 		auto iter = s.start_copy_iterator(id, ranges, DNET_ITYPE_SERVER_SEND, ifl, time_begin, time_end, dst_groups);
 
 		int copied = 0;
@@ -193,6 +197,7 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 {
 	logger &log = s.get_logger();
 
+	s.set_trace_id(rand());
 	std::vector<dnet_id> keys;
 	for (int i = 0; i < num; ++i) {
 		std::string id = id_prefix + lexical_cast(i);
@@ -232,6 +237,8 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 	int copied = 0;
 
 	for (auto id = ids.begin(), ids_end = ids.end(); id != ids_end; ++id) {
+		s.set_trace_id(rand());
+
 		BH_LOG(log, DNET_LOG_NOTICE, "%s: %s: backend: %d, dst_groups: %s, ids size: %d",
 				__func__, dnet_dump_id_str(id->second.front().id),
 				id->first, print_groups(dst_groups), id->second.size());
