@@ -607,6 +607,7 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 		 * which will deadlock.
 		 */
 		dnet_trans_remove_nolock(st, t);
+		list_del_init(&t->trans_list_entry);
 
 		list_add_tail(&t->trans_list_entry, head);
 		pthread_mutex_unlock(&st->trans_lock);
