@@ -37,6 +37,11 @@
 extern "C" {
 #endif
 
+/*
+ * Header note fpr @dnet_commands enum
+ * When adding new command, take a look at @dnet_cmd_needs_backend(),
+ * it must be updated if new non-backend command is added.
+ */
 enum dnet_commands {
 	DNET_CMD_LOOKUP = 1,			/* Lookup address by ID and per-object info: size, permissions and so on*/
 	DNET_CMD_REVERSE_LOOKUP,		/* Lookup ID by address */
@@ -74,6 +79,11 @@ enum dnet_commands {
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
+/*
+ * Footnote ^^^^
+ * When adding new command, take a look at @dnet_cmd_needs_backend(),
+ * it must be updated if new non-backend command is added.
+ */
 
 /*
  * dnet_monitor_categories provides ability to request monitor statistics partially or fully.
