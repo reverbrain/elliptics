@@ -334,11 +334,10 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			t->cmd.status, io_buf);
 	}
 
-	dnet_node_unset_trace_id();
-
 	dnet_state_put(t->st);
 	dnet_state_put(t->orig);
 
+	dnet_node_unset_trace_id();
 	free(t);
 }
 
@@ -489,13 +488,13 @@ void dnet_trans_clean_list(struct list_head *head, int error)
 		t->cmd.flags &= ~DNET_FLAGS_REPLY;
 		t->cmd.status = error;
 
+		dnet_node_set_trace_id(t->n->log, t->cmd.trace_id, t->cmd.flags & DNET_FLAGS_TRACE_BIT, -1);
 		if (t->complete) {
-			dnet_node_set_trace_id(t->n->log, t->cmd.trace_id, t->cmd.flags & DNET_FLAGS_TRACE_BIT, -1);
 			t->complete(dnet_state_addr(t->st), &t->cmd, t->priv);
-			dnet_node_unset_trace_id();
 		}
 
 		dnet_trans_put(t);
+		dnet_node_unset_trace_id();
 	}
 }
 
@@ -591,8 +590,6 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
 
-		dnet_node_unset_trace_id();
-
 		trans_moved++;
 
 		/*
@@ -610,6 +607,8 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 		list_del_init(&t->trans_list_entry);
 
 		list_add_tail(&t->trans_list_entry, head);
+		dnet_node_unset_trace_id();
+
 		pthread_mutex_unlock(&st->trans_lock);
 	}
 
