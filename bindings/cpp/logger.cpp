@@ -122,7 +122,6 @@ enum {
 	DNET_SCOPED_LIMIT = 5
 };
 
-static __thread char scoped_buffer[DNET_SCOPED_LIMIT][sizeof(blackhole::scoped_attributes_t)];
 static __thread blackhole::scoped_attributes_t *scoped_attributes[DNET_SCOPED_LIMIT];
 static __thread uint64_t scoped_trace_id_hook[DNET_SCOPED_LIMIT];
 static __thread size_t scoped_count = 0;
@@ -137,12 +136,11 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 	if (scoped_count >= DNET_SCOPED_LIMIT) {
 		dnet_log_only_log(logger, DNET_LOG_ERROR,
 			"logic error: you must not call dnet_node_set_trace_id twice, dnet_node_unset_trace_id call missed");
-		++scoped_count;
+		// crash
+		char *ptr = NULL;
+		*ptr = 1;
 		return;
 	}
-
-	auto &local_attributes = scoped_attributes[scoped_count];
-	local_attributes = reinterpret_cast<scoped_attributes_t *>(scoped_buffer[scoped_count]);
 
 	scoped_trace_id_hook[scoped_count] = tracebit ? ~0ull : 0;
 
@@ -156,32 +154,35 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 			attributes.insert(std::make_pair(std::string("backend_id"), blackhole::log::attribute_t(backend_id)));
 		}
 
-		new (local_attributes) scoped_attributes_t(*logger, std::move(attributes));
+		scoped_attributes[scoped_count] = new scoped_attributes_t(*logger, std::move(attributes));
 
 		// Set all bits to ensure that it has tracebit set
 		backend_trace_id_hook = scoped_trace_id_hook[scoped_count];
-	} catch (...) {
-		local_attributes = NULL;
+		++scoped_count;
+	} catch (const std::exception &e) {
+		dnet_log_only_log(logger, DNET_LOG_ERROR,
+			"%s: trace_id: %08llx, tracebit: %d, backend_id: %d, caught exception: %s",
+			__func__, (unsigned long long)trace_id, tracebit, backend_id, e.what());
 	}
-
-	++scoped_count;
 }
 
 void dnet_node_unset_trace_id()
 {
 	using namespace blackhole_scoped_attributes;
 
-	--scoped_count;
+	if (scoped_count > 0) {
+		--scoped_count;
 
-	if (scoped_count < DNET_SCOPED_LIMIT) {
-		auto &local_attributes = scoped_attributes[scoped_count];
-		local_attributes->~scoped_attributes_t();
-		local_attributes = NULL;
+		if (scoped_count < DNET_SCOPED_LIMIT) {
+			delete scoped_attributes[scoped_count];
+			scoped_attributes[scoped_count] = NULL;
 
-		if (scoped_count > 0)
-			backend_trace_id_hook = scoped_trace_id_hook[scoped_count - 1];
-		else
-			backend_trace_id_hook = 0;
+			if (scoped_count > 0)
+				backend_trace_id_hook = scoped_trace_id_hook[scoped_count - 1];
+			else
+				backend_trace_id_hook = 0;
+
+		}
 	}
 }
 
