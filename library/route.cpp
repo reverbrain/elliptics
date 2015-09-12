@@ -98,20 +98,21 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	id_container = (struct dnet_id_container *)((char *)data + sizeof(struct dnet_addr_container) +
 				cnt->addr_num * sizeof(struct dnet_addr));
 
-	backends = (struct dnet_backend_ids **)malloc(id_container->backends_count * sizeof(struct dnet_backend_ids *));
+	err = dnet_validate_id_container(id_container,
+			cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container));
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, failed to parse id_container, err: %d",
+				dnet_dump_id(&cmd->id), client_addr, server_addr, err);
+		goto err_out_exit;
+	}
+
+	backends = (struct dnet_backend_ids **)malloc(id_container->backends_count * sizeof(struct dnet_backends_id *));
 	if (!backends) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
-	err = dnet_validate_id_container(id_container,
-			cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container),
-			backends);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, failed to parse id_container, err: %d",
-				dnet_dump_id(&cmd->id), client_addr, server_addr, err);
-		goto err_out_free;
-	}
+	dnet_id_container_fill_backends(id_container, backends);
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: join request: client: %s -> %s, "
 			"address idx: %d, received addr-num: %d, local addr-num: %d, backends-num: %d",
@@ -234,7 +235,7 @@ int dnet_route_list::enable_backend(size_t backend_id, int group_id, dnet_raw_id
 	backend_ids->ids_count = ids_count;
 	memcpy(backend_ids->ids, ids, ids_count * sizeof(dnet_raw_id));
 
-	assert_perror(dnet_validate_id_container(container, cmd->size, NULL));
+	assert_perror(dnet_validate_id_container(container, cmd->size));
 
 	std::lock_guard<std::mutex> lock_guard(m_mutex);
 
@@ -276,7 +277,7 @@ int dnet_route_list::disable_backend(size_t backend_id)
 	cmd.ids.backend_id = backend_id;
 	cmd.ids.flags = DNET_BACKEND_DISABLE;
 
-	assert_perror(dnet_validate_id_container(&cmd.container, cmd.cmd.size, NULL));
+	assert_perror(dnet_validate_id_container(&cmd.container, cmd.cmd.size));
 
 	send_update_to_states(&cmd.cmd, backend_id);
 
@@ -363,8 +364,7 @@ int dnet_route_list::send_all_ids_nolock(dnet_net_state *st, dnet_id *id,
 	}
 
 	assert_perror(dnet_validate_id_container(id_container,
-				total_size - (sizeof(dnet_addr_cmd) + m_node->addr_num * sizeof(dnet_addr)),
-				NULL));
+				total_size - (sizeof(dnet_addr_cmd) + m_node->addr_num * sizeof(dnet_addr))));
 
 	st->__ids_sent = 1;
 	return dnet_send(st, buffer, total_size);

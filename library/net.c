@@ -587,7 +587,7 @@ static int dnet_trans_forward(struct dnet_io_req *r,
 	return dnet_trans_send(t, r);
 }
 
-static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_id_container *container)
+static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_id_container *id_container)
 {
 	struct dnet_backend_ids **backends;
 	int i, err = 0;
@@ -599,29 +599,32 @@ static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *c
 		goto err_out_exit;
 	}
 
-	backends = malloc(container->backends_count * sizeof(struct dnet_backend_ids));
-	if (!backends) {
-		dnet_log(st->n, DNET_LOG_ERROR, "failed to allocate memory for container from state: %s, err: %d",
-			dnet_state_dump_addr(st), err);
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	err = dnet_validate_id_container(container, cmd->size, backends);
+	err = dnet_validate_id_container(id_container, cmd->size);
 	if (err) {
 		dnet_log(st->n, DNET_LOG_ERROR, "failed to validate route-list container from state: %s, err: %d",
 			dnet_state_dump_addr(st), err);
 		goto err_out_free;
 	}
 
-	for (i = 0; i < container->backends_count; ++i) {
+	backends = malloc(id_container->backends_count * sizeof(struct dnet_backends_id *));
+	if (!backends) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	dnet_id_container_fill_backends(id_container, backends);
+
+	for (i = 0; i < id_container->backends_count; ++i) {
 		err = dnet_idc_update_backend(st, backends[i]);
 		if (err) {
-			dnet_log(st->n, DNET_LOG_ERROR, "failed to update route-list for backend: %d from state: %s, err: %d",
-				backends[i]->backend_id, dnet_state_dump_addr(st), err);
+			dnet_log(st->n, DNET_LOG_ERROR, "Failed to update route-list: state: %s, backend: %d, err: %d",
+				dnet_state_dump_addr(st),
+				backends[i]->backend_id,
+				err);
 		} else {
-			dnet_log(st->n, DNET_LOG_NOTICE, "successfully to update route-list for backend: %d from state: %s",
-				backends[i]->backend_id, dnet_state_dump_addr(st));
+			dnet_log(st->n, DNET_LOG_NOTICE, "Successfully updated route-list: state: %s, backend: %d",
+				dnet_state_dump_addr(st),
+				backends[i]->backend_id);
 		}
 	}
 
@@ -682,7 +685,8 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 
 		if (t->complete) {
 			if (t->command == DNET_CMD_READ) {
-				if ((cmd->size >= sizeof(struct dnet_io_attr)) && (t->alloc_size >= sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr))) {
+				if ((cmd->size >= sizeof(struct dnet_io_attr)) &&
+						(t->alloc_size >= sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr))) {
 					struct dnet_io_attr *recv_io = (struct dnet_io_attr *)(cmd + 1);
 
 					struct dnet_cmd *local_cmd = (struct dnet_cmd *)(t + 1);
@@ -1244,6 +1248,9 @@ static void dnet_state_send_clean(struct dnet_net_state *st)
 
 void dnet_state_destroy(struct dnet_net_state *st)
 {
+	dnet_log(st->n, DNET_LOG_NOTICE, "Going to destroy state %s [%p], socket: %d/%d, addr-num: %d.",
+		dnet_addr_string(&st->addr), st, st->read_s, st->write_s, st->addr_num);
+
 	dnet_state_remove(st);
 
 	if (st->read_s >= 0) {

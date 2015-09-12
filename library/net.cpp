@@ -864,20 +864,7 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 			socket->buffer.get() + sizeof(dnet_addr) * cnt->addr_num + sizeof(dnet_addr_container)
 		);
 
-		std::unique_ptr<dnet_backend_ids *[], free_destroyer> backends(reinterpret_cast<dnet_backend_ids **>(
-			malloc(id_container->backends_count * sizeof(dnet_backend_ids *))
-		));
-		if (!backends) {
-			dnet_log(state->node, DNET_LOG_ERROR,
-					"%s: failed to allocate %llu bytes for dnet_backend_ids array from %s.",
-				dnet_addr_string(&socket->addr),
-				(unsigned long long)id_container->backends_count * sizeof(dnet_backend_ids *),
-				dnet_addr_string(&socket->addr));
-			dnet_fail_socket(state, socket, -ENOMEM);
-			break;
-		}
-
-		err = dnet_validate_id_container(id_container, size, backends.get());
+		err = dnet_validate_id_container(id_container, size);
 		if (err) {
 			dnet_log(state->node, DNET_LOG_ERROR, "connected-to-addr: %s: failed to validate id container: %d",
 					dnet_addr_string(&socket->addr), err);
@@ -911,14 +898,30 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 			break;
 		}
 
+		struct dnet_backend_ids **backends =
+			(struct dnet_backend_ids **)malloc(id_container->backends_count * sizeof(struct dnet_backends_id *));
+		if (!backends) {
+			err = -ENOMEM;
+			dnet_fail_socket(state, socket, err);
+			break;
+		}
+
+		dnet_id_container_fill_backends(id_container, backends);
+
 		for (int i = 0; i < id_container->backends_count; ++i) {
-			dnet_backend_ids *backend = backends[i];
+			struct dnet_backend_ids *backend = backends[i];
+
 			for (uint32_t j = 0; j < backend->ids_count; ++j) {
-				dnet_log(state->node, DNET_LOG_NOTICE, "connected-to-addr: %s: received backends: %d/%d, "
-						"ids: %d/%d, addr-num: %d, idx: %d, "
-						"backend_id: %d, group_id: %d, id: %s.",
-						dnet_addr_string(&socket->addr), i, int(id_container->backends_count),
-						j, uint32_t(backend->ids_count), int(cnt->addr_num), idx,
+				dnet_log(state->node, DNET_LOG_NOTICE, "connected-to-addr: %s: "
+						"received backends: %d/%d, "
+						"ids: %d/%d, "
+						"addr-num: %d, idx: %d, "
+						"backend_id: %d, group_id: %d, "
+						"id: %s",
+						dnet_addr_string(&socket->addr),
+						i, int(id_container->backends_count),
+						j, uint32_t(backend->ids_count),
+						int(cnt->addr_num), idx,
 						int(backend->backend_id), int(backend->group_id),
 						dnet_dump_id_str(backend->ids[j].id));
 			}
@@ -926,13 +929,17 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 
 		epoll_ctl(state->epollfd, EPOLL_CTL_DEL, socket->s, NULL);
 
-		dnet_net_state *st = dnet_state_create(state->node, backends.get(),
-			id_container->backends_count, &socket->addr, socket->s,
-			&err, state->join, 1, idx, 0, cnt->addrs, cnt->addr_num);
+		dnet_net_state *st = dnet_state_create(state->node,
+				backends, id_container->backends_count,
+				&socket->addr, socket->s,
+				&err, state->join, 1, idx, 0,
+				cnt->addrs, cnt->addr_num);
+
+		free(backends);
 
 		socket->s = -1;
 		if (!st) {
-			/* socket is already closed */
+			/* socket is closed already */
 			dnet_fail_socket(state, socket, err, false);
 			break;
 		}
@@ -1002,9 +1009,9 @@ typedef std::unique_ptr<dnet_net_state *[], net_state_list_destroyer> net_state_
 
 /*!
  * Asynchornously connects to nodes from original_list, asks them route_list, if needed,
- * and continue to connecting to new nodes in addition to originally passed one.
+ * and continues connecting to new nodes in addition to originally passed one.
  *
- * This function exits only if timeout is exceeded or if all connection operations are either failed or succeded.
+ * This function exits only if timeout is exceeded or if all connection operations have either failed or succeded.
  * It returns either negative error value or positive number of successfully connected sockets.
  *
  * \a original_list will be freed by call of this function
@@ -1294,7 +1301,8 @@ void dnet_reconnect_and_check_route_table(dnet_node *node)
  * \li Connect to specified addr
  * \li Send reverse lookup request
  * \li Receive reverse lookup reply
- * \li Send route-table request if needed (both \a flags and node's flags does not contain  DNET_CFG_NO_ROUTE_LIST)
+ * \li Send route-table request if needed
+ * 	Send route table request if neither \a flags nor node's flags contain DNET_CFG_NO_ROUTE_LIST bit
  * \li Add all new addresses from route-list reply to the same queue
  */
 int dnet_add_state(dnet_node *node, const dnet_addr *addrs, int num, int flags)

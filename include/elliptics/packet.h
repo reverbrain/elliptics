@@ -337,6 +337,14 @@ struct dnet_backend_ids
 	struct dnet_raw_id ids[0];
 } __attribute__ ((packed));
 
+static inline void dnet_convert_dnet_backend_ids(struct dnet_backend_ids *ictl)
+{
+	ictl->backend_id = dnet_bswap32(ictl->backend_id);
+	ictl->group_id = dnet_bswap32(ictl->group_id);
+	ictl->flags = dnet_bswap32(ictl->flags);
+	ictl->ids_count = dnet_bswap32(ictl->ids_count);
+}
+
 struct dnet_backend_control
 {
 	uint32_t backend_id;
@@ -351,30 +359,67 @@ struct dnet_backend_control
 struct dnet_id_container
 {
 	int backends_count;
-	struct dnet_backend_ids backends[0];
 } __attribute__ ((packed));
 
-static inline int dnet_validate_id_container(struct dnet_id_container *ids, size_t size, struct dnet_backend_ids **backends)
+static inline void dnet_convert_id_container(struct dnet_id_container *cnt)
+{
+	cnt->backends_count = dnet_bswap32(cnt->backends_count);
+}
+
+static inline int dnet_validate_id_container(struct dnet_id_container *ids, size_t size)
 {
 	int i;
+	int err = 0;
 	size_t total_size = sizeof(struct dnet_id_container);
-	struct dnet_backend_ids *backend;
+	char *ptr = (char *)(ids + 1);
 
-	for (i = 0; i < ids->backends_count; ++i) {
-		backend = (struct dnet_backend_ids *)(total_size + (char *)ids);
-		if (backends)
-			backends[i] = backend;
-
-		total_size += sizeof(struct dnet_backend_ids);
-		if (total_size > size)
-			return -EINVAL;
-
-		total_size += backend->ids_count * sizeof(struct dnet_raw_id);
+	dnet_convert_id_container(ids);
+	if (ids->backends_count * sizeof(struct dnet_backend_ids) + sizeof(struct dnet_id_container) > size) {
+		err = -EINVAL;
+		goto err_out_exit;
 	}
 
-	if (total_size != size)
-		return -EINVAL;
-	return 0;
+	for (i = 0; i < ids->backends_count; ++i) {
+		struct dnet_backend_ids *backend;
+
+		if (total_size + sizeof(struct dnet_backend_ids) > size) {
+			err = -EINVAL;
+			goto err_out_exit;
+		}
+
+		backend = (struct dnet_backend_ids *)ptr;
+
+		dnet_convert_dnet_backend_ids(backend);
+
+		total_size += sizeof(struct dnet_backend_ids) + backend->ids_count * sizeof(struct dnet_raw_id);
+		if (total_size > size) {
+			err = -EINVAL;
+			goto err_out_exit;
+		}
+
+		ptr += sizeof(struct dnet_backend_ids) + backend->ids_count * sizeof(struct dnet_raw_id);
+	}
+
+	if (total_size != size) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+err_out_exit:
+	return err;
+}
+
+static inline void dnet_id_container_fill_backends(struct dnet_id_container *ids, struct dnet_backend_ids **backends)
+{
+	int i;
+	char *ptr = (char *)(ids + 1);
+
+	for (i = 0; i < ids->backends_count; ++i) {
+		struct dnet_backend_ids *backend = (struct dnet_backend_ids *)ptr;
+
+		backends[i] = backend;
+		ptr += sizeof(struct dnet_backend_ids) + backend->ids_count * sizeof(struct dnet_raw_id);
+	}
 }
 
 struct dnet_addr_cmd
