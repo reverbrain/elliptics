@@ -476,9 +476,6 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 				}
 			}
 
-			atomic_dec(&send->writes_pending);
-			pthread_cond_broadcast(&send->write_wait);
-
 			err = dnet_send_reply(send->state, &send->cmd, wp->data, wp->dsize, 1);
 			if (err && !send->write_error)
 				send->write_error = err;
@@ -495,6 +492,9 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 					re->status, (unsigned long long)re->size,
 					(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys,
 					send->write_error);
+
+			atomic_dec(&send->writes_pending);
+			pthread_cond_broadcast(&send->write_wait);
 
 			dnet_server_send_put(send);
 			free(wp);
