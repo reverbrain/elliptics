@@ -288,7 +288,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 {
 	std::string id_prefix = "server send id";
 	std::string data_prefix = "this is a test data";
-	int num = 10000;
+	int num = 3000;
 
 	session src(n);
 	src.set_groups(ssend_src_groups);
