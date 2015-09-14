@@ -856,7 +856,6 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 			break;
 		}
 
-		// This anyway doesn't work - there are issues with BE/LE conversion
 		dnet_convert_addr_container(cnt);
 
 		size_t size = cmd->size - sizeof(dnet_addr) * cnt->addr_num - sizeof(dnet_addr_container);
@@ -937,26 +936,32 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 
 		free(backends);
 
+		// this socket lives in state now, socket will be closed if state creation has failed
 		socket->s = -1;
+
 		if (!st) {
+			dnet_log(state->node, DNET_LOG_ERROR, "Could not create state: %s, "
+					"backends-num: %d, addr-num: %d, idx: %d",
+				dnet_addr_string(&socket->addr),
+				int(id_container->backends_count), int(cnt->addr_num), idx);
+
 			/* socket is closed already */
 			dnet_fail_socket(state, socket, err, false);
 			break;
 		}
 
 		memcpy(st->version, socket->version, sizeof(st->version));
-		dnet_log(state->node, DNET_LOG_NOTICE, "%s: connected: backends-num: %d, addr-num: %d, idx: %d.",
-				dnet_addr_string(&socket->addr), int(id_container->backends_count), int(cnt->addr_num), idx);
-
-		socket->buffer.reset();
-
 		dnet_set_sockopt(state->node, socket->s);
 
-		dnet_log(state->node, DNET_LOG_INFO, "Connected to %s, socket: %d.",
-			dnet_addr_string(&socket->addr), socket->s);
+		socket->buffer.reset();
 		state->succeed_count++;
-
 		socket->ok = 1;
+
+		dnet_log(state->node, DNET_LOG_INFO, "Connected to %s, backends-num: %d, addr-num: %d, idx: %d, socket: %d/%d",
+			dnet_addr_string(&socket->addr),
+			int(id_container->backends_count), int(cnt->addr_num), idx,
+			st->read_s, st->write_s);
+
 
 		if (socket->ask_route_list) {
 			dnet_request_route_list(state, st);

@@ -782,8 +782,9 @@ static void dnet_state_remove_and_shutdown(struct dnet_net_state *st, int error)
 	if (error && (error != -EUCLEAN && error != -EEXIST))
 		level = DNET_LOG_ERROR;
 
-	dnet_log(st->n, level, "%s: resetting state: %p: %s [%d]",
-			dnet_state_dump_addr(st), st, strerror(-error), error);
+	dnet_log(st->n, level, "%s: resetting state: %p: %s [%d], sockets: %d/%d",
+			dnet_state_dump_addr(st), st, strerror(-error), error,
+			st->read_s, st->write_s);
 
 	pthread_mutex_lock(&st->send_lock);
 
@@ -1115,7 +1116,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	if (err)
 		goto err_out_dup_destroy;
 
-	if (n->client_prio) {
+	if (n->client_prio && !accepting_state) {
 		err = setsockopt(st->read_s, IPPROTO_IP, IP_TOS, &n->client_prio, 4);
 		if (err) {
 			err = -errno;
@@ -1161,8 +1162,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		if (!accepting_state && st->__join_state == DNET_JOIN) {
 			dnet_state_join(st);
 			dnet_auth_send(st);
-		}
 
+			dnet_state_set_server_prio(st);
+		}
 	} else {
 		pthread_mutex_lock(&n->state_lock);
 		list_add_tail(&st->node_entry, &n->empty_state_list);
@@ -1181,7 +1183,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	}
 
 	// do not release state if everything is ok
-	// library/net.cpp:907 will use state to request route table from remote node and so on
+	// library/net.cpp:967 will use state to request route table from remote node and so on
 	// but since state has been added into the route table it is not owned by 'creating' thread anymore,
 	// in particular connection can be reset, network thread will pick up reset epoll event and call
 	// dnet_state_reset() which will eventually kill state, while 'creating' thread is still using its pointer
