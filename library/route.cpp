@@ -73,14 +73,14 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	if (cmd->size < sizeof(struct dnet_addr_container) +
 			cnt->addr_num * sizeof(struct dnet_addr) +
-			sizeof(struct dnet_id_container *)) {
+			sizeof(struct dnet_id_container)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
 				"cmd-size: %llu, must be more than addr_container+addrs: %zd, addr_num: %d",
 				dnet_dump_id(&cmd->id), client_addr, server_addr,
 				(unsigned long long)cmd->size,
 				sizeof(struct dnet_addr_container) +
 					cnt->addr_num * sizeof(struct dnet_addr) +
-					sizeof(struct dnet_id_container *),
+					sizeof(struct dnet_id_container),
 				cnt->addr_num);
 		err = -EINVAL;
 		goto err_out_exit;
