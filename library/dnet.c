@@ -447,35 +447,49 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 		if (atomic_dec_and_test(&wp->refcnt)) {
 			if (send->iflags & DNET_IFLAGS_MOVE) {
 				if (!err) {
-					struct dnet_id id = cmd->id;
-					id.group_id = send->cmd.id.group_id;
-#if 0
-					const size_t cmd_size = sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
-					int err;
-					char buffer[cmd_size];
-					struct dnet_cmd *cmd = (struct dnet_cmd *)buffer;
-					struct dnet_io_attr *io = (struct dnet_io_attr *)(cmd + 1);
+					struct dnet_io_req *r;
+					struct dnet_cmd *lc;
+					struct dnet_io_attr *io;
+					size_t cmd_size = sizeof(struct dnet_io_req) +
+							sizeof(struct dnet_cmd) +
+							sizeof(struct dnet_io_attr);
 
-					memset(buffer, 0, cmd_size);
+					r = malloc(cmd_size);
+					if (!r) {
+						err = -ENOMEM;
+						// we could update wp->data here, which is dnet_iterator_response
+						// but we do not really care about local errors, for example
+						// remove error is not handled too
+						goto err_out_send;
+					}
 
-					cmd->id = *id;
-					cmd->size = cmd_size - sizeof(struct dnet_cmd);
-					cmd->flags = DNET_FLAGS_NOLOCK;
-					cmd->cmd = DNET_CMD_DEL;
+					memset(r, 0, cmd_size);
 
+					r->header = r + 1;
+					r->hsize = sizeof(struct dnet_cmd);
+					r->data = r->header + sizeof(struct dnet_cmd);
+					r->dsize = sizeof(struct dnet_io_attr);
+					r->st = dnet_state_get(st);
+
+					lc = r->header;
+					dnet_setup_id(&lc->id, send->cmd.id.group_id, cmd->id.id);
+					lc->cmd = DNET_CMD_DEL;
+					lc->backend_id = -1;
+					lc->trace_id = cmd->trace_id;
+					lc->flags = DNET_FLAGS_NOLOCK;
+					lc->size = sizeof(struct dnet_io_attr);
+
+					io = r->data;
 					io->flags = DNET_IO_FLAGS_SKIP_SENDING;
-
-					memcpy(io->parent, id->id, DNET_ID_SIZE);
-					memcpy(io->id, id->id, DNET_ID_SIZE);
-
+					memcpy(io->id, lc->id.id, DNET_ID_SIZE);
+					memcpy(io->parent, lc->id.id, DNET_ID_SIZE);
 					dnet_convert_io_attr(io);
 
-					err = backend->cb->command_handler(n->st, backend->cb->command_private, cmd, io);
-					dnet_log(n, DNET_LOG_NOTICE, "%s: local remove: err: %d.", dnet_dump_id(&cmd->id), err);
-#endif
+					dnet_schedule_io(st->n, r);
 				}
 			}
 
+err_out_send:
 			err = dnet_send_reply(send->state, &send->cmd, wp->data, wp->dsize, 1);
 			if (err && !send->write_error)
 				send->write_error = err;

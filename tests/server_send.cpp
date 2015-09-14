@@ -302,8 +302,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
 
 	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
-	// MOVE doesn't work now, write completion callback doesn't remove local copy FIXME
-	//ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
 
 	// check every dst group, it must contain all keys originally written into src groups
 	for (const auto &g : ssend_dst_groups) {
@@ -327,8 +326,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	// and all keys in @ssend_dst_groups should have been updated
 	iflags = DNET_IFLAGS_OVERWRITE | DNET_IFLAGS_MOVE;
 	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
-	// MOVE doesn't work now, write completion callback doesn't remove local copy FIXME
-	//ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
 
 	for (const auto &g : ssend_dst_groups) {
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, tests::create_session(n, {g}, 0, 0), num, id_prefix, data_prefix);
@@ -341,6 +339,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	data_prefix = "server_send method test data";
 	iflags = DNET_IFLAGS_MOVE;
 	ELLIPTICS_TEST_CASE(ssend_test_server_send, src, num, id_prefix, data_prefix, ssend_dst_groups, iflags);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
 	for (const auto &g : ssend_dst_groups) {
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, tests::create_session(n, {g}, 0, 0), num, id_prefix, data_prefix);
 	}
