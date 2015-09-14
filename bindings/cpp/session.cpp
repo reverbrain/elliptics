@@ -2339,8 +2339,7 @@ async_iterator_result session::cancel_iterator(const key &id, uint64_t iterator_
 	return iterator(id, data);
 }
 
-async_iterator_result session::server_send(const key &id, uint64_t iflags,
-				const std::vector<dnet_raw_id> &ids, const std::vector<int> &groups)
+async_iterator_result session::server_send(const std::vector<std::string> &keys, uint64_t iflags, const std::vector<int> &groups)
 {
 	if (get_groups().empty()) {
 		async_iterator_result result(*this);
@@ -2356,41 +2355,92 @@ async_iterator_result session::server_send(const key &id, uint64_t iflags,
 		return result;
 	}
 
-	if (ids.empty()) {
+	if (keys.empty()) {
 		async_iterator_result result(*this);
 		async_result_handler<iterator_result_entry> handler(result);
-		handler.complete(create_error(-ENXIO, "server_send: id list is empty"));
+		handler.complete(create_error(-ENXIO, "server_send: key list is empty"));
 		return result;
 	}
 
-	transform(id);
+	int local_group = get_groups().front();
+	int err;
 
-	size_t ids_size = ids.size() * sizeof(dnet_raw_id);
-	size_t groups_size = groups.size() * sizeof(int);
+	struct la {
+		dnet_addr	addr;
+		int		backend_id;
+		dnet_id		id;
 
-	data_pointer data = data_pointer::allocate(sizeof(dnet_server_send_request) + ids_size + groups_size);
-	auto req = data.data<dnet_server_send_request>();
-	req->id_num = ids.size();
-	req->group_num = groups.size();
-	req->iflags = iflags;
+		bool operator<(const la &other) const {
+			int cmp = dnet_addr_cmp(&addr, &other.addr);
+			if (cmp < 0)
+				return true;
+			if (cmp > 0)
+				return false;
+			return backend_id < other.backend_id;
+		}
+	};
 
-	dnet_convert_server_send_request(req);
+	std::map<la, std::vector<dnet_raw_id>> raw_ids;
+	for (const auto &key : keys) {
+		la l;
 
-	memcpy(data.skip<dnet_server_send_request>().data(), ids.data(), ids_size);
-	memcpy(data.skip(ids_size + sizeof(dnet_server_send_request)).data(), groups.data(), groups_size);
+		transform(key, l.id);
 
-	dnet_trans_control ctl;
-	memset(&ctl, 0, sizeof(dnet_trans_control));
-	memcpy(&ctl.id, &id.id(), sizeof(dnet_id));
-	ctl.id.group_id = get_groups().front();
-	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
-	ctl.cmd = DNET_CMD_SEND;
+		err = dnet_lookup_addr(get_native(), NULL, 0, &l.id, local_group, &l.addr, &l.backend_id);
+		if (err != 0) {
+			async_iterator_result result(*this);
+			async_result_handler<iterator_result_entry> handler(result);
+			handler.complete(create_error(-ENXIO,
+					"server_send: could not locate backend for requested key %s", key.c_str()));
+			return result;
+		}
 
-	ctl.data = data.data();
-	ctl.size = data.size();
+		dnet_raw_id raw;
+		memcpy(raw.id, l.id.id, DNET_ID_SIZE);
 
-	session sess = clean_clone();
-	return async_result_cast<iterator_result_entry>(*this, send_to_single_state(sess, ctl));
+		auto it = raw_ids.find(l);
+		if (it == raw_ids.end()) {
+			l.id.group_id = local_group;
+			raw_ids[l] = std::vector<dnet_raw_id>({raw});
+		} else {
+			it->second.push_back(raw);
+		}
+	}
+
+	const size_t groups_size = groups.size() * sizeof(int);
+
+	std::list<async_iterator_result> results;
+	for (const auto &it: raw_ids) {
+		auto &id = it.first;
+		auto &ids = it.second;
+
+		const size_t ids_size = ids.size() * sizeof(dnet_raw_id);
+
+		data_pointer data = data_pointer::allocate(sizeof(dnet_server_send_request) + ids_size + groups_size);
+		auto req = data.data<dnet_server_send_request>();
+		req->id_num = ids.size();
+		req->group_num = groups.size();
+		req->iflags = iflags;
+
+		dnet_convert_server_send_request(req);
+
+		memcpy(data.skip<dnet_server_send_request>().data(), ids.data(), ids_size);
+		memcpy(data.skip(ids_size + sizeof(dnet_server_send_request)).data(), groups.data(), groups_size);
+
+		dnet_trans_control ctl;
+		memset(&ctl, 0, sizeof(dnet_trans_control));
+		ctl.id = id.id;
+		ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
+		ctl.cmd = DNET_CMD_SEND;
+
+		ctl.data = data.data();
+		ctl.size = data.size();
+
+		async_iterator_result res = async_result_cast<iterator_result_entry>(*this, send_to_single_state(*this, ctl));
+		results.emplace_back(std::move(res));
+	}
+
+	return aggregated(*this, results.begin(), results.end());
 }
 
 async_exec_result session::exec(dnet_id *id, const std::string &event, const argument_data &data)

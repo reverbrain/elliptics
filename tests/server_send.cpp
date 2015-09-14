@@ -198,88 +198,46 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 	logger &log = s.get_logger();
 
 	s.set_trace_id(rand());
-	std::vector<dnet_id> keys;
+	std::vector<std::string> keys;
 	for (int i = 0; i < num; ++i) {
 		std::string id = id_prefix + lexical_cast(i);
 		std::string data = data_prefix + lexical_cast(i);
 
 		ELLIPTICS_REQUIRE(res, s.write_data(id, data, 0));
 
-		dnet_id k;
-		s.transform(id, k);
-		keys.push_back(k);
+		keys.push_back(id);
 	}
 
-	int local_group = s.get_groups().front();
-	struct dnet_addr addr;
-	int backend_id;
-	int err;
+	BH_LOG(log, DNET_LOG_NOTICE, "%s: keys: %d, dst_groups: %s, starting copy",
+			__func__, num, print_groups(dst_groups));
 
-	std::map<int, std::vector<dnet_raw_id>> ids;
-	for (const auto &id : keys) {
-		err = dnet_lookup_addr(s.get_native(), NULL, 0, &id, local_group, &addr, &backend_id);
-		BOOST_REQUIRE_EQUAL(err, 0);
-
-		dnet_raw_id raw;
-		memcpy(raw.id, id.id, DNET_ID_SIZE);
-
-		auto it = ids.find(backend_id);
-		if (it == ids.end()) {
-			ids[backend_id] = std::vector<dnet_raw_id>({raw});
-		} else {
-			it->second.push_back(raw);
-		}
-	}
-
-	BH_LOG(log, DNET_LOG_NOTICE, "%s: backends: %d, dst_groups: %s, starting copy",
-			__func__, ids.size(), print_groups(dst_groups));
+	//char buffer[2*DNET_ID_SIZE + 1] = {0};
 
 	int copied = 0;
-
-	for (auto id = ids.begin(), ids_end = ids.end(); id != ids_end; ++id) {
-		s.set_trace_id(rand());
-
-		BH_LOG(log, DNET_LOG_NOTICE, "%s: %s: backend: %d, dst_groups: %s, ids size: %d",
-				__func__, dnet_dump_id_str(id->second.front().id),
-				id->first, print_groups(dst_groups), id->second.size());
-
-		auto iter = s.server_send(id->second.front(), iflags, id->second, dst_groups);
-
-		//char buffer[2*DNET_ID_SIZE + 1] = {0};
-
-		int bcopied = 0;
-		for (auto it = iter.begin(), iter_end = iter.end(); it != iter_end; ++it) {
+	auto iter = s.server_send(keys, iflags, dst_groups);
+	for (auto it = iter.begin(), iter_end = iter.end(); it != iter_end; ++it) {
 #if 0
-			// we have to explicitly convert all members from dnet_iterator_response
-			// since it is packed and there will be alignment issues and
-			// following error:
-			// error: cannot bind packed field ... to int&
-			BH_LOG(log, DNET_LOG_DEBUG,
-					"ssend_test: "
-					"key: %s, backend: %d, user_flags: %llx, ts: %lld.%09lld, status: %d, size: %lld, "
-					"iterated_keys: %lld/%lld",
-				dnet_dump_id_len_raw(it->reply()->key.id, DNET_ID_SIZE, buffer),
-				(int)it->command()->backend_id,
-				(unsigned long long)it->reply()->user_flags,
-				(unsigned long long)it->reply()->timestamp.tsec, (unsigned long long)it->reply()->timestamp.tnsec,
-				(int)it->reply()->status, (unsigned long long)it->reply()->size,
-				(unsigned long long)it->reply()->iterated_keys, (unsigned long long)it->reply()->total_keys);
+		// we have to explicitly convert all members from dnet_iterator_response
+		// since it is packed and there will be alignment issues and
+		// following error:
+		// error: cannot bind packed field ... to int&
+		BH_LOG(log, DNET_LOG_DEBUG,
+				"ssend_test: "
+				"key: %s, backend: %d, user_flags: %llx, ts: %lld.%09lld, status: %d, size: %lld, "
+				"iterated_keys: %lld/%lld",
+			dnet_dump_id_len_raw(it->reply()->key.id, DNET_ID_SIZE, buffer),
+			(int)it->command()->backend_id,
+			(unsigned long long)it->reply()->user_flags,
+			(unsigned long long)it->reply()->timestamp.tsec, (unsigned long long)it->reply()->timestamp.tnsec,
+			(int)it->reply()->status, (unsigned long long)it->reply()->size,
+			(unsigned long long)it->reply()->iterated_keys, (unsigned long long)it->reply()->total_keys);
 #endif
 
-			bcopied++;
-		}
-
-		copied += bcopied;
-
-		BH_LOG(log, DNET_LOG_NOTICE, "%s: backend: %d, dst_groups: %s, "
-				"copied to backend: %d, copied total: %d",
-				__func__, id->first,
-				print_groups(dst_groups), bcopied, copied);
+		copied++;
 	}
 
-	BH_LOG(log, DNET_LOG_NOTICE, "%s: backends: %d, dst_groups: %s, copied total: %d",
-			__func__, ids.size(),
-			print_groups(dst_groups), copied);
+	BH_LOG(log, DNET_LOG_NOTICE, "%s: keys: %d, dst_groups: %s, copied total: %d",
+			__func__, num, print_groups(dst_groups), copied);
 
 	BOOST_REQUIRE_EQUAL(copied, num);
 }

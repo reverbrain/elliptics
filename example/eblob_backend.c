@@ -969,6 +969,9 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 		re.status = 0;
 		re.iterated_keys = i;
 		re.size = wc.total_data_size;
+		// set iterator response id to differentiate various commands
+		// client can use cmd->backend_id from reply though
+		re.id = cmd->backend_id;
 
 		data_offset = wc.data_offset;
 		record_offset = 0;
