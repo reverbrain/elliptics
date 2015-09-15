@@ -2383,17 +2383,17 @@ async_iterator_result session::server_send(const std::vector<std::string> &keys,
 	};
 
 	std::map<la, std::vector<dnet_raw_id>> raw_ids;
-	for (const auto &key : keys) {
+	for (auto key = keys.begin(), kend = keys.end(); key != kend; ++key) {
 		la l;
 
-		transform(key, l.id);
+		transform(*key, l.id);
 
 		err = dnet_lookup_addr(get_native(), NULL, 0, &l.id, local_group, &l.addr, &l.backend_id);
 		if (err != 0) {
 			async_iterator_result result(*this);
 			async_result_handler<iterator_result_entry> handler(result);
 			handler.complete(create_error(-ENXIO,
-					"server_send: could not locate backend for requested key %s", key.c_str()));
+					"server_send: could not locate backend for requested key %s", key->c_str()));
 			return result;
 		}
 

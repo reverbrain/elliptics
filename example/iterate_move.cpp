@@ -232,11 +232,11 @@ int main(int argc, char *argv[])
 	try {
 		elliptics::file_logger logger(log_file.c_str(), elliptics::file_logger::parse_level(log_level));
 		elliptics::node node(ioremap::elliptics::logger(logger, blackhole::log::attributes_t()));
-		for (const auto &r: remotes) {
+		for (auto r = remotes.begin(), rdend = remotes.end(); r != rend; ++r) {
 			try {
-				node.add_remote(r);
+				node.add_remote(*r);
 			} catch (const std::exception &e) {
-				std::cerr << "Could not connect to " << r << ": " << e.what() << std::endl;
+				std::cerr << "Could not connect to " << *r << ": " << e.what() << std::endl;
 			}
 		}
 
