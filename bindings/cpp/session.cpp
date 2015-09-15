@@ -2272,7 +2272,7 @@ async_iterator_result session::start_iterator(const key &id, const std::vector<d
 
 async_iterator_result session::start_copy_iterator(const key &id,
 		const std::vector<dnet_iterator_range>& ranges,
-		uint32_t type, uint64_t flags,
+		uint64_t flags,
 		const dnet_time& time_begin, const dnet_time& time_end,
 		const std::vector<int> &dst_groups)
 {
@@ -2291,7 +2291,7 @@ async_iterator_result session::start_copy_iterator(const key &id,
 	auto req = data.data<dnet_iterator_request>();
 
 	req->action = DNET_ITERATOR_ACTION_START;
-	req->itype = type;
+	req->itype = DNET_ITYPE_SERVER_SEND;
 	req->flags = flags;
 	req->time_begin = time_begin;
 	req->time_end = time_end;

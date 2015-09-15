@@ -680,7 +680,7 @@ class session
 								const dnet_time& time_begin = dnet_time(),
 								const dnet_time& time_end = dnet_time());
 		async_iterator_result start_copy_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
-								uint32_t type, uint64_t flags,
+								uint64_t flags,
 								const dnet_time& time_begin,
 								const dnet_time& time_end,
 								const std::vector<int> &dst_groups);

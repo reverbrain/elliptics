@@ -147,7 +147,7 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 		uint64_t ifl = DNET_IFLAGS_KEY_RANGE | DNET_IFLAGS_NO_META | iflags;
 
 		s.set_trace_id(rand());
-		auto iter = s.start_copy_iterator(id, ranges, DNET_ITYPE_SERVER_SEND, ifl, time_begin, time_end, dst_groups);
+		auto iter = s.start_copy_iterator(id, ranges, ifl, time_begin, time_end, dst_groups);
 
 		int copied = 0;
 

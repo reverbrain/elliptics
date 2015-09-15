@@ -127,7 +127,7 @@ static void run_on_single_backend(const bpo::variables_map &vm,
 	long prev = tm.elapsed();
 	long prev_size = 0;
 
-	auto iter = s.start_copy_iterator(id, ranges, DNET_ITYPE_SERVER_SEND, iflags, time_begin, time_end, dst_groups);
+	auto iter = s.start_copy_iterator(id, ranges, iflags, time_begin, time_end, dst_groups);
 	for (auto it = iter.begin(), end = iter.end(); it != end; ++it) {
 #if 0
 		// we have to explicitly convert all members from dnet_iterator_response
