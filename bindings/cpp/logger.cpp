@@ -136,7 +136,8 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 
 	if (scoped_count >= DNET_SCOPED_LIMIT) {
 		dnet_log_only_log(logger, DNET_LOG_ERROR,
-			"logic error: you must not call dnet_node_set_trace_id twice, dnet_node_unset_trace_id call missed");
+			"logic error: you may not call dnet_node_set_trace_id twice, dnet_node_unset_trace_id call missed");
+		scoped_count++;
 		return;
 	}
 
