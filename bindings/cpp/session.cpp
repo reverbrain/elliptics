@@ -2250,9 +2250,7 @@ error_info session::mix_states(const key &id, std::vector<int> &groups)
 async_iterator_result session::start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
 		uint32_t type, uint64_t flags, const dnet_time& time_begin, const dnet_time& time_end)
 {
-	size_t ranges_size = 0;
-	if (ranges.size() != 0)
-		ranges_size = ranges.size() * sizeof(ranges.front());
+	size_t ranges_size = ranges.size() * sizeof(ranges.front());
 
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request) + ranges_size);
 	memset(data.data(), 0, sizeof(dnet_iterator_request));
@@ -2278,12 +2276,8 @@ async_iterator_result session::start_copy_iterator(const key &id,
 		const dnet_time& time_begin, const dnet_time& time_end,
 		const std::vector<int> &dst_groups)
 {
-	size_t ranges_size = 0;
-	size_t groups_size = 0;
-	if (ranges.size() != 0)
-		ranges_size = ranges.size() * sizeof(ranges.front());
-	if (dst_groups.size() != 0)
-		groups_size = dst_groups.size() * sizeof(dst_groups.front());
+	size_t ranges_size = ranges.size() * sizeof(ranges.front());
+	size_t groups_size = dst_groups.size() * sizeof(dst_groups.front());
 
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request) + ranges_size + groups_size);
 
