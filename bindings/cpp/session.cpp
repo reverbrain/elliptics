@@ -2279,6 +2279,13 @@ async_iterator_result session::start_copy_iterator(const key &id,
 	size_t ranges_size = ranges.size() * sizeof(ranges.front());
 	size_t groups_size = dst_groups.size() * sizeof(dst_groups.front());
 
+	if (dst_groups.empty()) {
+		async_iterator_result result(*this);
+		async_result_handler<iterator_result_entry> handler(result);
+		handler.complete(create_error(-ENXIO, "iterator: remote groups list is empty"));
+		return result;
+	}
+
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request) + ranges_size + groups_size);
 
 	auto req = data.data<dnet_iterator_request>();
