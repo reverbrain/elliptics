@@ -256,7 +256,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	uint64_t iflags = DNET_IFLAGS_MOVE;
 
 	// the first stage - write many keys, move them, check that there are no keys
-	// in the source groups and that every destination group contain all keys written
+	// in the source groups and that every destination group contains all keys written
 	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
 
 	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
@@ -292,7 +292,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 
 
 	// the third stage - write many keys, move them using @server_send() method, not iterator,
-	// check that there are no keys in the source groups and that every destination group contain all keys written
+	// check that there are no keys in the source groups and that every destination group contains all keys written
 	id_prefix = "server_send method test";
 	data_prefix = "server_send method test data";
 	iflags = DNET_IFLAGS_MOVE;
