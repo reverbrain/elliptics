@@ -143,7 +143,7 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 
 	auto &local_attributes = scoped_attributes[scoped_count];
 	local_attributes = reinterpret_cast<scoped_attributes_t *>(scoped_buffer[scoped_count]);
-	
+
 	scoped_trace_id_hook[scoped_count] = tracebit ? ~0ull : 0;
 
 	try {
