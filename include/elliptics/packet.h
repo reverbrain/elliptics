@@ -1081,7 +1081,7 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 	r->itype = dnet_bswap32(r->itype);
 	r->action = dnet_bswap32(r->action);
 	r->range_num = dnet_bswap64(r->range_num);
-	r->group_num = dnet_bswap64(r->group_num);
+	r->group_num = dnet_bswap32(r->group_num);
 	dnet_convert_time(&r->time_begin);
 	dnet_convert_time(&r->time_end);
 }
