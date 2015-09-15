@@ -675,19 +675,47 @@ class session
 		 */
 		std::vector<dnet_route_entry> get_routes();
 
+		/*!
+		 * Starts iterator with given type (@dnet_iterator_types), flags (DNET_IFLAGS_*),
+		 * id ranges (each range specifies start/end key pair) - any iterated key must match at least one range,
+		 * if no ranges specified (and no DNET_IFLAGS_KEY_RANGE specified) - all keys match.
+		 * The same applies to key timestamp begin/end range (DNET_IFLAGS_TS_RANGE has to be set to turn
+		 * this check on).
+		 * @id is used to find out host+backend where iteration runs. Group where iterator will run,
+		 * is being obtained from @session settings.
+		 */
 		async_iterator_result start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
 								uint32_t type, uint64_t flags,
 								const dnet_time& time_begin = dnet_time(),
 								const dnet_time& time_end = dnet_time());
+
+		/*!
+		 * Copy iterator is the same as above, but also accepts vector of remote groups where data
+		 * will be copied/moved. There is only one type which copies data, so it is omitted from arguments.
+		 */
 		async_iterator_result start_copy_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
 								uint64_t flags,
 								const dnet_time& time_begin,
 								const dnet_time& time_end,
 								const std::vector<int> &dst_groups);
+
+		/*!
+		 * Every iterator result entry contains iterator ID (unique for each iterator running on given node),
+		 * which can be used to pause/continue and cancel (stop) iterator.
+		 */
 		async_iterator_result pause_iterator(const key &id, uint64_t iterator_id);
 		async_iterator_result continue_iterator(const key &id, uint64_t iterator_id);
 		async_iterator_result cancel_iterator(const key &id, uint64_t iterator_id);
 
+		/*!
+		 * Similar to iterator, but instead of running over all keys on remote backend,
+		 * remote server nodes will read all specified keys (which live on local backends)
+		 * and send them to remote nodes.
+		 *
+		 * API splits requests among appropriate hosts/backends internally.
+		 * @iterator_result_entry is returned for every copied key, error is returned
+		 * if there is no key or write has failed.
+		 */
 		async_iterator_result server_send(const std::vector<std::string> &keys, uint64_t flags,
 				const std::vector<int> &groups);
 
