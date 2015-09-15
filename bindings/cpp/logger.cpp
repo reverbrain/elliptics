@@ -161,12 +161,16 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 
 		// Set all bits to ensure that it has tracebit set
 		backend_trace_id_hook = scoped_trace_id_hook[scoped_count];
-		++scoped_count;
 	} catch (const std::exception &e) {
 		dnet_log_only_log(logger, DNET_LOG_ERROR,
 			"%s: trace_id: %08llx, tracebit: %d, backend_id: %d, caught exception: %s",
 			__func__, (unsigned long long)trace_id, tracebit, backend_id, e.what());
 	}
+
+	// scoped_count has to be increased in any case, since it will be followed by
+	// dnet_node_unset_trace_id() which doesn't know whether corresponding
+	// dnet_node_set_trace_id() succeeded or not
+	++scoped_count;
 }
 
 void dnet_node_unset_trace_id()
