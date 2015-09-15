@@ -2287,6 +2287,7 @@ async_iterator_result session::start_copy_iterator(const key &id,
 	}
 
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request) + ranges_size + groups_size);
+	memset(data.data(), 0, sizeof(dnet_iterator_request));
 
 	auto req = data.data<dnet_iterator_request>();
 
