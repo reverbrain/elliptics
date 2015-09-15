@@ -683,6 +683,9 @@ class session
 		 * this check on).
 		 * @id is used to find out host+backend where iteration runs. Group where iterator will run,
 		 * is being obtained from @session settings.
+		 *
+		 * Please note, that all iterators and @server_send() method only process keys in the first
+		 * group among those set in given session.
 		 */
 		async_iterator_result start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
 								uint32_t type, uint64_t flags,
