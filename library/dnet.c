@@ -505,8 +505,8 @@ err_out_send:
 					(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys,
 					send->write_error);
 
-			atomic_dec(&send->writes_pending);
-			pthread_cond_broadcast(&send->write_wait);
+			if (atomic_sub(&send->bytes_pending, re->size) < DNET_SERVER_SEND_WATERMARK_LOW)
+				pthread_cond_broadcast(&send->write_wait);
 
 			dnet_server_send_put(send);
 			free(wp);
@@ -540,7 +540,7 @@ struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd
 	ctl->groups = (int *)(ctl + 1);
 	memcpy(ctl->groups, groups, sizeof(int) * group_num);
 	ctl->group_num = group_num;
-	atomic_set(&ctl->writes_pending, 0);
+	atomic_set(&ctl->bytes_pending, 0);
 	atomic_set(&ctl->refcnt, 1);
 
 	err = pthread_cond_init(&ctl->write_wait, NULL);
@@ -609,11 +609,11 @@ int dnet_server_send_put(struct dnet_server_send_ctl *ctl)
 
 static int dnet_server_send_sync(struct dnet_server_send_ctl *ctl)
 {
-	while (atomic_read(&ctl->writes_pending) > 0) {
-		pthread_mutex_lock(&ctl->write_lock);
+	pthread_mutex_lock(&ctl->write_lock);
+	while (atomic_read(&ctl->bytes_pending) > 0) {
 		pthread_cond_wait(&ctl->write_wait, &ctl->write_lock);
-		pthread_mutex_unlock(&ctl->write_lock);
 	}
+	pthread_mutex_unlock(&ctl->write_lock);
 
 	return dnet_server_send_put(ctl);
 }
@@ -712,7 +712,7 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 		goto err_out_session_destroy;
 	}
 
-	atomic_inc(&send->writes_pending);
+	atomic_add(&send->bytes_pending, re->size);
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: %s: sending WRITE request, iterator response: %s, user_flags: %llx, ts: %lld.%09lld, "
 			"status: %d, size: %lld, iterated_keys: %lld/%lld",
@@ -760,14 +760,14 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 
 	err = dnet_server_send_write(send, re, dsize, fd, data_offset);
 
-	if (atomic_read(&send->writes_pending) > 1000) {
-		// wait for all write transactions to complete
-		while ((atomic_read(&send->writes_pending) > 500) && !st->__need_exit && !send->write_error) {
-			pthread_mutex_lock(&send->write_lock);
+	if (atomic_read(&send->bytes_pending) > DNET_SERVER_SEND_WATERMARK_HIGH) {
+		pthread_mutex_lock(&send->write_lock);
+		while ((atomic_read(&send->bytes_pending) > DNET_SERVER_SEND_WATERMARK_LOW) &&
+				!st->__need_exit && !send->write_error) {
 			if (!st->__need_exit)
 				pthread_cond_wait(&send->write_wait, &send->write_lock);
-			pthread_mutex_unlock(&send->write_lock);
 		}
+		pthread_mutex_unlock(&send->write_lock);
 	}
 
 	return err;

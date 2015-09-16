@@ -1028,6 +1028,12 @@ again:
 }
 
 /*
+ * Watermarks for number of bytes written into the wire
+ */
+#define DNET_SERVER_SEND_WATERMARK_HIGH		(30*1024*1024*1024L)
+#define DNET_SERVER_SEND_WATERMARK_LOW		DNET_SERVER_SEND_WATERMARK_HIGH / 2
+
+/*
  * Send data over network to another server as set of WRITE commands
  */
 struct dnet_server_send_ctl {
@@ -1043,7 +1049,7 @@ struct dnet_server_send_ctl {
 
 	pthread_mutex_t			write_lock;	/* Lock for @write_wait */
 	pthread_cond_t			write_wait;	/* Waiting for pending writes */
-	atomic_t			writes_pending;	/* Number of writes in-flight to remote servers */
+	atomic_t			bytes_pending;	/* Number of bytes in-flight to remote servers */
 
 	int				write_error;	/* Set to the first error occured during write
 							 * This will stop iterator. */
