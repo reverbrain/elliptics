@@ -848,6 +848,12 @@ int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
                            uint64_t offset, int64_t size, struct dnet_time *timestamp, uint64_t record_flags);
 int dnet_send_file_info_ts_without_fd(void *state, struct dnet_cmd *cmd, const void *data, int64_t size, struct dnet_time *timestamp);
 
+
+/*
+ * Send given number of bytes as reply command.
+ * It will fill transaction, command and ID from the original command and copy given data.
+ * It will set DNET_FLAGS_MORE if original command requested acknowledge or @more is set.
+ */
 int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
 int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
 		const void *odata, unsigned int size, int more);

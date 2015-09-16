@@ -314,10 +314,8 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsign
 	return err;
 }
 
-void dnet_queue_wait_threshold(void *state)
+static void dnet_queue_wait_threshold(struct dnet_net_state *st)
 {
-	struct dnet_net_state *st = state;
-
 	/* If send succeeded then we should increase queue size */
 	while ((atomic_read(&st->send_queue_size) > DNET_SEND_WATERMARK_HIGH) && !st->__need_exit) {
 		/* If high watermark is reached we should sleep */
@@ -328,7 +326,7 @@ void dnet_queue_wait_threshold(void *state)
 
 		pthread_mutex_lock(&st->send_lock);
 		// after successful dnet_send_reply the state can be removed from another thread
-		// do not wait send_wait of removed state because no one broadcast it
+		// do not wait on @send_wait of removed state because no one broadcasts it
 		if (!st->__need_exit)
 			pthread_cond_wait(&st->send_wait, &st->send_lock);
 		pthread_mutex_unlock(&st->send_lock);
@@ -357,7 +355,7 @@ int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
 	err = dnet_send_reply(state, cmd, odata, size, more);
 	if (err == 0) {
 		atomic_inc(&st->send_queue_size);
-		dnet_queue_wait_threshold(state);
+		dnet_queue_wait_threshold(st);
 	}
 
 	return err;
