@@ -695,6 +695,9 @@ class session
 		/*!
 		 * Copy iterator is the same as above, but also accepts vector of remote groups where data
 		 * will be copied/moved. There is only one type which copies data, so it is omitted from arguments.
+		 *
+		 * Please note, if destination groups contain group where iteration runs
+		 * (it is the first group set in session), iterator will write data into that group too.
 		 */
 		async_iterator_result start_copy_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
 								uint64_t flags,
