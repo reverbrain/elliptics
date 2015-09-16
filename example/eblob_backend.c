@@ -949,6 +949,28 @@ static int dnet_blob_set_data(struct dnet_config_backend *b,
 	return 0;
 }
 
+static int dnet_blob_set_datasort_dir(struct dnet_config_backend *b,
+				      const char *key __unused, const char *dir)
+{
+	struct eblob_backend_config *c = b->data;
+	struct stat st;
+	int err;
+
+	err = stat(dir, &st);
+	if (err == -1)
+		return -errno;
+
+	if (!S_ISDIR(st.st_mode))
+		return -ENOTDIR;
+
+	free(c->data.chunks_dir);
+	c->data.chunks_dir = strdup(dir);
+	if (!c->data.chunks_dir)
+		return -ENOMEM;
+
+	return 0;
+}
+
 static int dnet_blob_set_blob_size(struct dnet_config_backend *b,
                                    const char *key, const char *value)
 {
@@ -1266,11 +1288,13 @@ static void dnet_blob_config_cleanup(struct dnet_config_backend *b)
 		eblob_backend_cleanup(c);
 
 	free(c->data.file);
+	free(c->data.chunks_dir);
 }
 
 static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"sync", dnet_blob_set_sync},
 	{"data", dnet_blob_set_data},
+	{"datasort_dir", dnet_blob_set_datasort_dir},
 	{"blob_flags", dnet_blob_set_blob_flags},
 	{"blob_size", dnet_blob_set_blob_size},
 	{"records_in_blob", dnet_blob_set_records_in_blob},
