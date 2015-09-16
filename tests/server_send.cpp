@@ -302,6 +302,18 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, tests::create_session(n, {g}, 0, 0), num, id_prefix, data_prefix);
 	}
 
+	// the fourth stage - check that plain copy iterator doesn't remove data
+	iflags = 0;
+	id_prefix = "plain iterator test";
+	data_prefix = "plain iterator data";
+	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
+
+	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, src, num, id_prefix, data_prefix);
+	for (const auto &g : ssend_dst_groups) {
+		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, tests::create_session(n, {g}, 0, 0), num, id_prefix, data_prefix);
+	}
+
 	return true;
 }
 
