@@ -2341,7 +2341,7 @@ async_iterator_result session::cancel_iterator(const key &id, uint64_t iterator_
 	return iterator(id, data);
 }
 
-async_iterator_result session::server_send(const std::vector<std::string> &keys, uint64_t iflags, const std::vector<int> &groups)
+async_iterator_result session::server_send(const std::vector<dnet_raw_id> &ids, uint64_t iflags, const std::vector<int> &groups)
 {
 	if (get_groups().empty()) {
 		async_iterator_result result(*this);
@@ -2357,10 +2357,10 @@ async_iterator_result session::server_send(const std::vector<std::string> &keys,
 		return result;
 	}
 
-	if (keys.empty()) {
+	if (ids.empty()) {
 		async_iterator_result result(*this);
 		async_result_handler<iterator_result_entry> handler(result);
-		handler.complete(create_error(-ENXIO, "server_send: key list is empty"));
+		handler.complete(create_error(-ENXIO, "server_send: ids list is empty"));
 		return result;
 	}
 
@@ -2383,29 +2383,25 @@ async_iterator_result session::server_send(const std::vector<std::string> &keys,
 	};
 
 	std::map<la, std::vector<dnet_raw_id>> raw_ids;
-	for (auto key = keys.begin(), kend = keys.end(); key != kend; ++key) {
+	for (auto id_it = ids.begin(), id_end = ids.end(); id_it != id_end; ++id_it) {
 		la l;
-
-		transform(*key, l.id);
+		dnet_setup_id(&l.id, local_group, id_it->id);
 
 		err = dnet_lookup_addr(get_native(), NULL, 0, &l.id, local_group, &l.addr, &l.backend_id);
 		if (err != 0) {
 			async_iterator_result result(*this);
 			async_result_handler<iterator_result_entry> handler(result);
 			handler.complete(create_error(-ENXIO,
-					"server_send: could not locate backend for requested key %s", key->c_str()));
+					"server_send: could not locate backend for requested key %s",
+					dnet_dump_id(&l.id)));
 			return result;
 		}
 
-		dnet_raw_id raw;
-		memcpy(raw.id, l.id.id, DNET_ID_SIZE);
-
 		auto it = raw_ids.find(l);
 		if (it == raw_ids.end()) {
-			l.id.group_id = local_group;
-			raw_ids[l] = std::vector<dnet_raw_id>({raw});
+			raw_ids[l] = std::vector<dnet_raw_id>({*id_it});
 		} else {
-			it->second.push_back(raw);
+			it->second.push_back(*id_it);
 		}
 	}
 
@@ -2443,6 +2439,21 @@ async_iterator_result session::server_send(const std::vector<std::string> &keys,
 	}
 
 	return aggregated(*this, results.begin(), results.end());
+}
+
+async_iterator_result session::server_send(const std::vector<std::string> &keys, uint64_t iflags, const std::vector<int> &groups)
+{
+	std::vector<dnet_raw_id> ids;
+	for (auto key = keys.begin(), kend = keys.end(); key != kend; ++key) {
+		dnet_id id;
+		transform(*key, id);
+
+		dnet_raw_id raw;
+		memcpy(raw.id, id.id, DNET_ID_SIZE);
+		ids.emplace_back(raw);
+	}
+
+	return server_send(ids, iflags, groups);
 }
 
 async_exec_result session::exec(dnet_id *id, const std::string &event, const argument_data &data)
