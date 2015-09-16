@@ -2409,12 +2409,12 @@ async_iterator_result session::server_send(const std::vector<std::string> &keys,
 		}
 	}
 
-	const size_t groups_size = groups.size() * sizeof(int);
+	const size_t groups_size = groups.size() * sizeof(get_groups().front());
 
 	std::list<async_iterator_result> results;
-	for (const auto &it: raw_ids) {
-		auto &id = it.first;
-		auto &ids = it.second;
+	for (auto it = raw_ids.begin(), ids_end = raw_ids.end(); it != ids_end; ++it) {
+		auto &id = it->first;
+		auto &ids = it->second;
 
 		const size_t ids_size = ids.size() * sizeof(dnet_raw_id);
 
