@@ -360,11 +360,11 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 		size = 0;
 
 	t = dnet_trans_alloc(n, tsize);
-	t->wait_ts = *dnet_session_get_timeout(s);
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_complete;
 	}
+	t->wait_ts = *dnet_session_get_timeout(s);
 	t->complete = ctl->complete;
 	t->priv = ctl->priv;
 
