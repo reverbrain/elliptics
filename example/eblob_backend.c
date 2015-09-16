@@ -920,7 +920,6 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 
 	memset(&re, 0, sizeof(struct dnet_iterator_response));
 	re.total_keys = req->id_num;
-	re.flags = req->iflags;
 
 	/*
 	 * Set NEED_ACK bit to signal server-send controller that we want
@@ -966,6 +965,7 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 		}
 
 		re.key = ids[i];
+		re.flags = wc.flags; // these flags corresponse to DNET_RECORD_FLAGS_*
 		re.status = 0;
 		re.iterated_keys = i;
 		re.size = wc.total_data_size;
