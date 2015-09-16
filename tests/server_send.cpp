@@ -263,8 +263,9 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
 
 	// check every dst group, it must contain all keys originally written into src groups
-	for (const auto &g : ssend_dst_groups) {
-		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, tests::create_session(n, {g}, 0, 0), num, id_prefix, data_prefix);
+	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
+		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,
+				tests::create_session(n, {*g}, 0, 0), num, id_prefix, data_prefix);
 	}
 
 	// the second stage - play with OVERWRITE bit
@@ -286,8 +287,9 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
 	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
 
-	for (const auto &g : ssend_dst_groups) {
-		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, tests::create_session(n, {g}, 0, 0), num, id_prefix, data_prefix);
+	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
+		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,
+				tests::create_session(n, {*g}, 0, 0), num, id_prefix, data_prefix);
 	}
 
 
@@ -298,8 +300,9 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	iflags = DNET_IFLAGS_MOVE;
 	ELLIPTICS_TEST_CASE(ssend_test_server_send, src, num, id_prefix, data_prefix, ssend_dst_groups, iflags);
 	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
-	for (const auto &g : ssend_dst_groups) {
-		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, tests::create_session(n, {g}, 0, 0), num, id_prefix, data_prefix);
+	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
+		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,
+				tests::create_session(n, {*g}, 0, 0), num, id_prefix, data_prefix);
 	}
 
 	// the fourth stage - check that plain copy iterator doesn't remove data
@@ -310,8 +313,9 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 
 	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
 	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, src, num, id_prefix, data_prefix);
-	for (const auto &g : ssend_dst_groups) {
-		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, tests::create_session(n, {g}, 0, 0), num, id_prefix, data_prefix);
+	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
+		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,
+				tests::create_session(n, {*g}, 0, 0), num, id_prefix, data_prefix);
 	}
 
 	return true;
