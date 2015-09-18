@@ -272,6 +272,7 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, int *state)
 
 	backend_io = &node->io->backends[backend_id];
 	backend_io->need_exit = 0;
+	backend_io->read_only = backend.read_only_at_start;
 
 	for (auto it = backend.options.begin(); it != backend.options.end(); ++it) {
 		const dnet_backend_config_entry &entry = *it;

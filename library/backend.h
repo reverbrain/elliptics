@@ -58,7 +58,7 @@ struct dnet_backend_info
 
 	dnet_backend_info(dnet_logger &logger, uint32_t backend_id) :
 		log(new dnet_logger(logger, make_attributes(backend_id))),
-		group(0), cache(NULL), enable_at_start(false),
+		group(0), cache(NULL), enable_at_start(false), read_only_at_start(false),
 		state_mutex(new std::mutex), state(DNET_BACKEND_UNITIALIZED),
 		io_thread_num(0), nonblocking_io_thread_num(0)
 	{
@@ -79,6 +79,7 @@ struct dnet_backend_info
 		cache(other.cache),
 		history(other.history),
 		enable_at_start(other.enable_at_start),
+		read_only_at_start(other.read_only_at_start),
 		state_mutex(std::move(other.state_mutex)),
 		state(other.state),
 		last_start(other.last_start),
@@ -100,6 +101,7 @@ struct dnet_backend_info
 		cache = other.cache;
 		history = other.history;
 		enable_at_start = other.enable_at_start;
+		read_only_at_start = other.read_only_at_start;
 		state_mutex = std::move(other.state_mutex);
 		state = other.state;
 		last_start = other.last_start;
@@ -122,6 +124,7 @@ struct dnet_backend_info
 	void *cache;
 	std::string history;
 	bool enable_at_start;
+	bool read_only_at_start;
 
 	std::unique_ptr<std::mutex> state_mutex;
 	dnet_backend_state state;
