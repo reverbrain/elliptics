@@ -443,6 +443,10 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 			send->write_error = err;
 
 		if (atomic_dec_and_test(&wp->refcnt)) {
+			// it is in CPU byte order, has to be converted to before sending it to client
+			struct dnet_iterator_response *re = (struct dnet_iterator_response *)wp->data;
+			uint64_t resize = re->size;
+
 			if (send->iflags & DNET_IFLAGS_MOVE) {
 				if (!err) {
 					struct dnet_io_req *r;
@@ -488,12 +492,7 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 			}
 
 err_out_send:
-			err = dnet_send_reply(send->state, &send->cmd, wp->data, wp->dsize, 1);
-			if (err && !send->write_error)
-				send->write_error = err;
 
-			struct dnet_iterator_response *re = (struct dnet_iterator_response *)wp->data;
-			dnet_convert_iterator_response(re);
 			dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: sending response to client: %s, "
 					"user_flags: %llx, ts: %lld.%09lld, "
 					"status: %d, size: %lld, iterated_keys: %lld/%lld, write_error: %d",
@@ -505,7 +504,13 @@ err_out_send:
 					(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys,
 					send->write_error);
 
-			if (atomic_sub(&send->bytes_pending, re->size) < DNET_SERVER_SEND_WATERMARK_LOW)
+			dnet_convert_iterator_response(re);
+
+			err = dnet_send_reply(send->state, &send->cmd, wp->data, wp->dsize, 1);
+			if (err && !send->write_error)
+				send->write_error = err;
+
+			if (atomic_sub(&send->bytes_pending, resize) < DNET_SERVER_SEND_WATERMARK_LOW)
 				pthread_cond_broadcast(&send->write_wait);
 
 			dnet_server_send_put(send);
@@ -688,6 +693,7 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 	atomic_init(&wp->refcnt, send->group_num);
 	wp->send = send;
 
+	// it is in CPU byte order, it will have to be converted to LE before sending response to client
 	memcpy(wp->data, re, dsize);
 	wp->dsize = dsize;
 
@@ -723,7 +729,6 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 			(unsigned long long)re->timestamp.tsec, (unsigned long long)re->timestamp.tnsec,
 			re->status, (unsigned long long)re->size,
 			(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys);
-	dnet_convert_iterator_response(re);
 
 	/*
 	 * After calling this function we do not own @wp anymore
