@@ -1015,11 +1015,17 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 err_out_send_fail_reply:
 		re.status = err;
 		err = blob_send_reply(state, cmd, &re, 1);
+
+		// server has failed to send a reply to client, likely because of lack of memory
+		// we can not proceed with this request anymore, so its better to exit earlier
+		if (err)
+			goto err_out_put;
 	}
 
-	dnet_server_send_put(ctl);
-	return 0;
+	err = 0;
 
+err_out_put:
+	dnet_server_send_put(ctl);
 err_out_exit:
 	return err;
 }
