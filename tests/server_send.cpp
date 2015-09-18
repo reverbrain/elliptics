@@ -173,6 +173,12 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 				(unsigned long long)it->reply()->iterated_keys, (unsigned long long)it->reply()->total_keys);
 #endif
 
+			if (iflags & DNET_IFLAGS_DATA) {
+				BOOST_REQUIRE_EQUAL(it->command()->size, sizeof(struct dnet_iterator_response) + it->reply()->size);
+			} else {
+				BOOST_REQUIRE_EQUAL(it->command()->size, sizeof(struct dnet_iterator_response));
+			}
+
 			copied++;
 		}
 
@@ -253,10 +259,13 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	src.set_exceptions_policy(session::no_exceptions);
 	src.set_timeout(120);
 
-	uint64_t iflags = DNET_IFLAGS_MOVE;
+	uint64_t iflags = DNET_IFLAGS_MOVE | DNET_IFLAGS_DATA;
 
 	// the first stage - write many keys, move them, check that there are no keys
 	// in the source groups and that every destination group contains all keys written
+	//
+	// also test it with DATA flag - client should get not only iterator response
+	// per key, but also its data
 	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
 
 	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
