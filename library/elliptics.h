@@ -1051,7 +1051,7 @@ struct dnet_server_send_ctl {
 	pthread_cond_t			write_wait;	/* Waiting for pending writes */
 	atomic_t			bytes_pending;	/* Number of bytes in-flight to remote servers */
 
-	int				write_error;	/* Set to the first error occured during write
+	int				write_error;	/* Set to the first error occurred during write
 							 * This will stop iterator. */
 
 	atomic_t			refcnt;		/* Reference counter which will be increased for every

@@ -924,7 +924,7 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 	/*
 	 * Set NEED_ACK bit to signal server-send controller that we want
 	 * to send final ACK when controller will be destroyed, which in turn
-	 * will happend after all WRITE commands are completed.
+	 * will happen after all WRITE commands are completed.
 	 *
 	 * Command will be copied internally in @dnet_server_send_alloc(),
 	 * thus it is safe to clear that bit afterward.
@@ -965,7 +965,7 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 		}
 
 		re.key = ids[i];
-		re.flags = wc.flags; // these flags corresponse to DNET_RECORD_FLAGS_*
+		re.flags = wc.flags; // these flags correspond to DNET_RECORD_FLAGS_*
 		re.status = 0;
 		re.iterated_keys = i;
 		re.size = wc.total_data_size;
