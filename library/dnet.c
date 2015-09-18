@@ -1083,8 +1083,10 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 		sspriv = dnet_server_send_alloc(st, cmd, ireq->flags, dst_groups, ireq->group_num);
 		cmd->flags |= DNET_FLAGS_NEED_ACK;
 
-		if (err)
+		if (!sspriv) {
+			err = -ENOMEM;
 			goto err_out_exit;
+		}
 
 		cpriv.next_callback = dnet_iterator_callback_server_send;
 		cpriv.next_private = sspriv;
