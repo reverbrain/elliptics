@@ -603,7 +603,7 @@ static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *c
 	if (err) {
 		dnet_log(st->n, DNET_LOG_ERROR, "failed to validate route-list container from state: %s, err: %d",
 			dnet_state_dump_addr(st), err);
-		goto err_out_free;
+		goto err_out_exit;
 	}
 
 	backends = malloc(id_container->backends_count * sizeof(struct dnet_backends_id *));
@@ -628,7 +628,6 @@ static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *c
 		}
 	}
 
-err_out_free:
 	free(backends);
 err_out_exit:
 	return err;
