@@ -459,6 +459,8 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 					r = malloc(cmd_size);
 					if (!r) {
 						err = -ENOMEM;
+						if (!send->write_error)
+							send->write_error = err;
 						// we could update wp->data here, which is dnet_iterator_response
 						// but we do not really care about local errors, for example
 						// remove error is not handled too
@@ -492,6 +494,7 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 			}
 
 err_out_send:
+			re->status = send->write_error;
 
 			dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: sending response to client: %s, "
 					"user_flags: %llx, ts: %lld.%09lld, "
