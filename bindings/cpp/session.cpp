@@ -2250,6 +2250,13 @@ error_info session::mix_states(const key &id, std::vector<int> &groups)
 async_iterator_result session::start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
 		uint32_t type, uint64_t flags, const dnet_time& time_begin, const dnet_time& time_end)
 {
+	if (type == DNET_ITYPE_SERVER_SEND) {
+		async_iterator_result result(*this);
+		async_result_handler<iterator_result_entry> handler(result);
+		handler.complete(create_error(-EINVAL, "iterator: server-send iterator can not be started via this call"));
+		return result;
+	}
+
 	size_t ranges_size = ranges.size() * sizeof(ranges.front());
 
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request) + ranges_size);
