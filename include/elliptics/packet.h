@@ -1035,7 +1035,9 @@ enum dnet_iterator_types {
 					 * instead of sending chunks to client
 					 */
 	DNET_ITYPE_NETWORK,		/* iterator sends data chunks to client */
-	DNET_ITYPE_SERVER_SEND,	/* send iterated data to other server in the storage */
+	DNET_ITYPE_SERVER_SEND,		/* send iterated data to other servers in the storage via WRITE commands,
+					 * it doesn't sent uncommitted keys to servers, but sends response to client
+					 */
 	DNET_ITYPE_LAST,		/* Sanity */
 };
 

@@ -767,6 +767,17 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 
 	dnet_convert_iterator_response(re);
 
+	/*
+	 * Skip sending uncommitted keys to remote servers - we can not write them
+	 * since this will commit those keys on remote nodes, while they are uncommitted here locally.
+	 */
+	if (re->flags & DNET_RECORD_FLAGS_UNCOMMITTED) {
+		err = dnet_send_reply(send->state, &send->cmd, data, dsize, 1);
+		if (err && !send->write_error)
+			send->write_error = err;
+		return err;
+	}
+
 	err = dnet_server_send_write(send, re, dsize, fd, data_offset);
 
 	if (atomic_read(&send->bytes_pending) > DNET_SERVER_SEND_WATERMARK_HIGH) {
