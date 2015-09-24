@@ -429,9 +429,7 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 	 * replies and associated data.
 	 */
 	if (is_trans_destroyed(cmd)) {
-		err = -ENOENT;
-		if (cmd)
-			err = cmd->status;
+		err = cmd->status;
 
 		/*
 		 * Write CAS error is not a real 'error' in that regard, that we do not remove
@@ -481,6 +479,8 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 					lc->backend_id = -1;
 					lc->trace_id = cmd->trace_id;
 					lc->flags = DNET_FLAGS_NOLOCK;
+					if (send->cmd.flags & DNET_FLAGS_TRACE_BIT)
+						lc->flags |= DNET_FLAGS_TRACE_BIT;
 					lc->size = sizeof(struct dnet_io_attr);
 
 					io = r->data;
@@ -773,8 +773,7 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 		pthread_mutex_lock(&send->write_lock);
 		while ((atomic_read(&send->bytes_pending) > DNET_SERVER_SEND_WATERMARK_LOW) &&
 				!st->__need_exit && !send->write_error) {
-			if (!st->__need_exit)
-				pthread_cond_wait(&send->write_wait, &send->write_lock);
+			pthread_cond_wait(&send->write_wait, &send->write_lock);
 		}
 		pthread_mutex_unlock(&send->write_lock);
 	}
