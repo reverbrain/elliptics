@@ -31,7 +31,15 @@ static std::shared_ptr<nodes_data> global_data;
 
 static size_t backends_count = 1;
 static int stall_count = 2;
-static int check_timeout = 1;
+static int wait_timeout = 1;
+// Check timeout must be at least wait_timeout * stall_count seconds to
+// guarantee that reconnection process will not affect test_failed_connection_restore().
+// Otherwise reconnection thread may send transactions when command sending is already
+// disabled, while test logic is not even started, so stall counter can reach its limit
+// and BACKEND_STATUS will be send. These circumstances lead to network state destruction,
+// thereby requests from test_failed_connection_restore() will return ENXIO error,
+// instead of expected ETIMEDOUT error.
+static int check_timeout = wait_timeout * stall_count;
 
 static server_config default_value()
 {
@@ -59,7 +67,7 @@ static void configure_nodes(const std::string &path)
 
 	start_nodes_config start_config(results_reporter::get_stream(), std::move(servers), path);
 	start_config.fork = true;
-	start_config.client_wait_timeout = 1;
+	start_config.client_wait_timeout = wait_timeout;
 	start_config.client_check_timeout = check_timeout;
 	start_config.client_stall_count = stall_count;
 
@@ -103,7 +111,7 @@ static void test_failed_connection_restore(session &sess)
 
 	test_sess.toggle_all_command_send(true);
 
-	::sleep( check_timeout + 1 );
+	::sleep(check_timeout + 1);
 
 	ELLIPTICS_REQUIRE_ERROR(async_lookup_result2, sess.lookup(id), -ENOENT);
 	ELLIPTICS_REQUIRE(async_status_result2, sess.request_backends_status(node.remote()));
