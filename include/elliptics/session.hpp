@@ -167,17 +167,17 @@ class node
 
 		node &operator =(const node &other);
 
-		bool			is_valid() const;
+		bool is_valid() const;
 
-		void			add_remote(const address &addr);
-		void			add_remote(const std::vector<address> &addrs);
+		void add_remote(const address &addr);
+		void add_remote(const std::vector<address> &addrs);
 
-		void			set_timeouts(const int wait_timeout, const int check_timeout);
+		void set_timeouts(const int wait_timeout, const int check_timeout);
 
-		void			set_keepalive(int idle, int cnt, int interval);
+		void set_keepalive(int idle, int cnt, int interval);
 
-		logger			&get_log() const;
-		dnet_node		*get_native() const;
+		logger &get_log() const;
+		dnet_node *get_native() const;
 
 	protected:
 		std::shared_ptr<node_data> m_data;
@@ -248,152 +248,151 @@ class session
 		/*!
 		 * Converts string \a data to dnet_id \a id.
 		 */
-		void			transform(const std::string &data, dnet_id &id) const;
+		void transform(const std::string &data, dnet_id &id) const;
 		/*!
 		 * Converts string \a data to dnet_raw_id \a id.
 		 */
-		void			transform(const std::string &data, dnet_raw_id &id) const;
+		void transform(const std::string &data, dnet_raw_id &id) const;
 		/*!
 		 * \overload
 		 */
-		void			transform(const data_pointer &data, dnet_id &id) const;
+		void transform(const data_pointer &data, dnet_id &id) const;
 		/*!
 		 * Makes dnet_id be accessible by key::id() in the key \a id.
 		 */
-		void			transform(const key &id) const;
+		void transform(const key &id) const;
 
 		/*!
 		 * Sets \a groups to the session.
 		 */
-		void			set_groups(const std::vector<int> &groups);
+		void set_groups(const std::vector<int> &groups);
 		/*!
 		 * Gets groups of the session.
 		 */
-		std::vector<int>	get_groups() const;
+		std::vector<int> get_groups() const;
 
 		/*!
 		 * Filter all receiving entries by \a filter.
 		 *
 		 * Default value is filters::positive.
 		 */
-		void			set_filter(const result_filter &filter);
+		void set_filter(const result_filter &filter);
 		/*!
 		 * Returns filter.
 		 */
-		result_filter		get_filter() const;
+		result_filter get_filter() const;
 
 		/*!
 		 * Check success of operation by \a checker.
 		 *
 		 * Default value is checkers::at_least_one.
 		 */
-		void			set_checker(const result_checker &checker);
+		void set_checker(const result_checker &checker);
 		/*!
 		 * Returns checker.
 		 */
-		result_checker		get_checker() const;
+		result_checker get_checker() const;
 
-		void			set_error_handler(const result_error_handler &error_handler);
-		result_error_handler	get_error_handler() const;
+		void set_error_handler(const result_error_handler &error_handler);
+		result_error_handler get_error_handler() const;
 
 		/*!
 		 * Set exception policy \a policies.
 		 *
 		 * Default value is throw_at_wait | throw_at_get | throw_at_iterator_end.
 		 */
-		void			set_exceptions_policy(uint32_t policy);
+		void set_exceptions_policy(uint32_t policy);
 		/*!
 		 * Returns exception policy.
 		 */
-		uint32_t		get_exceptions_policy() const;
+		uint32_t get_exceptions_policy() const;
 
 		/*!
 		 * Sets command flags \a cflags to the session.
 		 */
-		void			set_cflags(uint64_t cflags);
+		void set_cflags(uint64_t cflags);
 
 		/*!
 		 * Sets namespace to \a ns, this mangles all keys that written
 		 * in this session so they won't collide with same key in any
 		 * other namespace.
 		 */
-		void			set_namespace(const std::string &ns);
+		void set_namespace(const std::string &ns);
 		/*!
 		 * \override
 		 */
-		void			set_namespace(const char *ns, int nsize);
+		void set_namespace(const char *ns, int nsize);
 
 		/*!
 		 * Get id that this session was stuck to.
 		 */
-		dnet_id			get_direct_id();
+		dnet_id get_direct_id();
 
 		/*!
 		 * Stick session to particular remote address.
 		 */
-		void			set_direct_id(const address &remote_addr);
-		void			set_direct_id(const address &remote_addr, uint32_t backend_id);
+		void set_direct_id(const address &remote_addr);
+		void set_direct_id(const address &remote_addr, uint32_t backend_id);
 
 		/*!
 		 * Gets command flags of the session.
 		 */
-		uint64_t		get_cflags() const;
+		uint64_t get_cflags() const;
 
 		/*!
 		 * Sets i/o flags \a ioflags to the session.
 		 */
-		void			set_ioflags(uint32_t ioflags);
+		void set_ioflags(uint32_t ioflags);
 		/*!
 		 * Gets i/o flags of the session.
 		 */
-		uint32_t		get_ioflags() const;
+		uint32_t get_ioflags() const;
 
 		/*!
 		 * Sets user flags \a user_flags to the session.
 		 */
-		void			set_user_flags(uint64_t user_flags);
+		void set_user_flags(uint64_t user_flags);
 
 		/*!
 		 * Sets timestamp for given session.
 		 * All write operations will use this timestamp, instead of system time.
 		 * If set to zero (default), system time will be used.
 		 */
-		void			set_timestamp(const dnet_time &ts);
+		void set_timestamp(const dnet_time &ts);
 		/*!
 		 * \overload
 		 */
-		void			set_timestamp(const dnet_time *ts);
-		void			get_timestamp(dnet_time *ts);
+		void set_timestamp(const dnet_time *ts);
+		void get_timestamp(dnet_time *ts);
 
 		/*!
 		 * Gets user flags of the session.
 		 */
-		uint64_t		get_user_flags() const;
+		uint64_t get_user_flags() const;
 
 		/*!
 		 * Set/get transaction timeout
 		 */
-		void			set_timeout(long timeout);
-		long			get_timeout() const;
+		void set_timeout(long timeout);
+		long get_timeout() const;
 
 		/*!
 		 * Sets/gets trace_id for all elliptics commands
 		 */
-		void			set_trace_id(trace_id_t trace_id);
-		trace_id_t		get_trace_id() const;
+		void set_trace_id(trace_id_t trace_id);
+		trace_id_t get_trace_id() const;
 
-		void			set_trace_bit(bool trace);
-		bool			get_trace_bit() const;
+		void set_trace_bit(bool trace);
+		bool get_trace_bit() const;
 
 		/*!
 		 * Read file by key \a id to \a file by \a offset and \a size.
 		 */
-		void			read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size);
+		void read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size);
 		/*!
 		 * Write file from \a file to server by key \a id, \a offset and \a size.
 		 */
-		void			write_file(const key &id, const std::string &file, uint64_t local_offset,
-							uint64_t offset, uint64_t size);
+		void write_file(const key &id, const std::string &file, uint64_t local_offset, uint64_t offset, uint64_t size);
 
 		/*!
 		 * Reads data from server by \a key id and dnet_io_attr \a io.
