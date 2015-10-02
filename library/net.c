@@ -587,7 +587,7 @@ static int dnet_trans_forward(struct dnet_io_req *r,
 	return dnet_trans_send(t, r);
 }
 
-static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_id_container *container)
+static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_id_container *id_container)
 {
 	struct dnet_backend_ids **backends;
 	int i, err = 0;
@@ -599,33 +599,35 @@ static int dnet_process_update_ids(struct dnet_net_state *st, struct dnet_cmd *c
 		goto err_out_exit;
 	}
 
-	backends = malloc(container->backends_count * sizeof(struct dnet_backend_ids));
-	if (!backends) {
-		dnet_log(st->n, DNET_LOG_ERROR, "failed to allocate memory for container from state: %s, err: %d",
+	err = dnet_validate_id_container(id_container, cmd->size);
+	if (err) {
+		dnet_log(st->n, DNET_LOG_ERROR, "failed to validate route-list container from state: %s, err: %d",
 			dnet_state_dump_addr(st), err);
+		goto err_out_exit;
+	}
+
+	backends = malloc(id_container->backends_count * sizeof(struct dnet_backends_id *));
+	if (!backends) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
-	err = dnet_validate_id_container(container, cmd->size, backends);
-	if (err) {
-		dnet_log(st->n, DNET_LOG_ERROR, "failed to validate route-list container from state: %s, err: %d",
-			dnet_state_dump_addr(st), err);
-		goto err_out_free;
-	}
+	dnet_id_container_fill_backends(id_container, backends);
 
-	for (i = 0; i < container->backends_count; ++i) {
+	for (i = 0; i < id_container->backends_count; ++i) {
 		err = dnet_idc_update_backend(st, backends[i]);
 		if (err) {
-			dnet_log(st->n, DNET_LOG_ERROR, "failed to update route-list for backend: %d from state: %s, err: %d",
-				backends[i]->backend_id, dnet_state_dump_addr(st), err);
+			dnet_log(st->n, DNET_LOG_ERROR, "Failed to update route-list: state: %s, backend: %d, err: %d",
+				dnet_state_dump_addr(st),
+				backends[i]->backend_id,
+				err);
 		} else {
-			dnet_log(st->n, DNET_LOG_NOTICE, "successfully to update route-list for backend: %d from state: %s",
-				backends[i]->backend_id, dnet_state_dump_addr(st));
+			dnet_log(st->n, DNET_LOG_NOTICE, "Successfully updated route-list: state: %s, backend: %d",
+				dnet_state_dump_addr(st),
+				backends[i]->backend_id);
 		}
 	}
 
-err_out_free:
 	free(backends);
 err_out_exit:
 	return err;
@@ -682,7 +684,8 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 
 		if (t->complete) {
 			if (t->command == DNET_CMD_READ) {
-				if ((cmd->size >= sizeof(struct dnet_io_attr)) && (t->alloc_size >= sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr))) {
+				if ((cmd->size >= sizeof(struct dnet_io_attr)) &&
+						(t->alloc_size >= sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr))) {
 					struct dnet_io_attr *recv_io = (struct dnet_io_attr *)(cmd + 1);
 
 					struct dnet_cmd *local_cmd = (struct dnet_cmd *)(t + 1);
@@ -778,8 +781,9 @@ static void dnet_state_remove_and_shutdown(struct dnet_net_state *st, int error)
 	if (error && (error != -EUCLEAN && error != -EEXIST))
 		level = DNET_LOG_ERROR;
 
-	dnet_log(st->n, level, "%s: resetting state: %s [%d]",
-			dnet_state_dump_addr(st), strerror(-error), error);
+	dnet_log(st->n, level, "%s: resetting state: %p: %s [%d], sockets: %d/%d",
+			dnet_state_dump_addr(st), st, strerror(-error), error,
+			st->read_s, st->write_s);
 
 	pthread_mutex_lock(&st->send_lock);
 
@@ -1066,6 +1070,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	st->idx = idx;
 
+	dnet_set_sockopt(n, s);
+
 	if (accepting_state) {
 		int sockets[2];
 
@@ -1104,13 +1110,14 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	fcntl(st->write_s, F_SETFD, FD_CLOEXEC);
 
-	dnet_log(n, DNET_LOG_DEBUG, "dnet_state_create: %s: sockets: %d/%d", dnet_addr_string(addr), st->read_s, st->write_s);
+	dnet_log(n, DNET_LOG_DEBUG, "dnet_state_create: %s: sockets: %d/%d, server: %d, addrs_count: %d, backends_count: %d",
+			dnet_addr_string(addr), st->read_s, st->write_s, server_node, addrs_count, backends_count);
 
 	err = dnet_state_micro_init(st, n, addr, join);
 	if (err)
 		goto err_out_dup_destroy;
 
-	if (n->client_prio) {
+	if (n->client_prio && !accepting_state) {
 		err = setsockopt(st->read_s, IPPROTO_IP, IP_TOS, &n->client_prio, 4);
 		if (err) {
 			err = -errno;
@@ -1156,8 +1163,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		if (!accepting_state && st->__join_state == DNET_JOIN) {
 			dnet_state_join(st);
 			dnet_auth_send(st);
-		}
 
+			dnet_state_set_server_prio(st);
+		}
 	} else {
 		pthread_mutex_lock(&n->state_lock);
 		list_add_tail(&st->node_entry, &n->empty_state_list);
@@ -1176,7 +1184,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	}
 
 	// do not release state if everything is ok
-	// library/net.cpp:907 will use state to request route table from remote node and so on
+	// library/net.cpp:967 will use state to request route table from remote node and so on
 	// but since state has been added into the route table it is not owned by 'creating' thread anymore,
 	// in particular connection can be reset, network thread will pick up reset epoll event and call
 	// dnet_state_reset() which will eventually kill state, while 'creating' thread is still using its pointer
@@ -1243,6 +1251,9 @@ static void dnet_state_send_clean(struct dnet_net_state *st)
 
 void dnet_state_destroy(struct dnet_net_state *st)
 {
+	dnet_log(st->n, DNET_LOG_NOTICE, "Going to destroy state %s [%p], socket: %d/%d, addr-num: %d.",
+		dnet_addr_string(&st->addr), st, st->read_s, st->write_s, st->addr_num);
+
 	dnet_state_remove(st);
 
 	if (st->read_s >= 0) {

@@ -909,6 +909,35 @@ nodes_data::ptr start_nodes(start_nodes_config &start_config) {
 
 		start_config.debug_stream << "Started server #" << (i + 1) << std::endl;
 
+		// this is needed to prevent simultanously started servers with exactly the same config
+		// they will connect to each other and simultaneously sent JOIN request,
+		// which all will fail. Eventually they will reconnect, but some tests may already fail
+		// to that time.
+		//
+		// Path to fail simultaneous connections:
+		// 1. dnet_add_state()
+		// 2. dnet_socket_connect()
+		// 3. dnet_process_socket()
+		// 4. dnet_state_create()
+		// At this point every node has connected to any other node and moved
+		// that connection into own DHT. Now every node sends JOIN request
+		// to remote nodes. Here is the stack for node, which has received JOIN request:
+		// 1. dnet_process_cmd_raw()
+		// 2. dnet_process_cmd_without_backend_raw()
+		// 3. dnet_route_list_join()
+		// 4. dnet_cmd_join_client()
+		// 5. dnet_state_move_to_dht() - this will fail, since there is already network
+		// state described above which lives in DHT with the same address as just has been received.
+		// Reset this connection. This connection is the one which has sent JOIN request above.
+		// Every connection has been reset now, every node starts reconnection.
+		// Boom!
+		//
+		// This small delay will allow 'earlier' server to fail to connect,
+		// and 'later' servers to be sole JOINing nodes,
+		// above scenario will likely not happen.
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
 		data->nodes.emplace_back(std::move(server));
 	}
 

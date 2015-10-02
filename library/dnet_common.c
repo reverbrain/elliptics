@@ -163,6 +163,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_UPDATE_IDS] = "UPDATE_IDS",
 	[DNET_CMD_BACKEND_CONTROL] = "BACKEND_CONTROL",
 	[DNET_CMD_BACKEND_STATUS] = "BACKEND_STATUS",
+	[DNET_CMD_SEND] = "SERVER_SEND",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
@@ -241,23 +242,9 @@ err_out_exit:
 	return err;
 }
 
-struct dnet_route_list_control
-{
-	struct dnet_wait *w;
-	struct dnet_addr *addrs;
-	int addrs_num;
-};
-
-static inline void dnet_route_list_control_put(struct dnet_route_list_control *control)
-{
-	if (atomic_dec_and_test(&control->w->refcnt)) {
-		free(control->addrs);
-		dnet_wait_destroy(control->w);
-		free(control);
-	}
-}
-
-int dnet_recv_route_list(struct dnet_net_state *st, int (*complete)(struct dnet_addr *addr, struct dnet_cmd *cmd, void *priv), void *priv)
+int dnet_recv_route_list(struct dnet_net_state *st,
+		int (*complete)(struct dnet_addr *addr, struct dnet_cmd *cmd, void *priv),
+		void *priv)
 {
 	struct dnet_io_req req;
 	struct dnet_node *n = st->n;
@@ -320,7 +307,8 @@ static void dnet_io_trans_control_fill_cmd(struct dnet_session *s, const struct 
 		cmd->backend_id = dnet_session_get_direct_backend(s);
 }
 
-static int dnet_io_trans_send_fail(struct dnet_session *s, struct dnet_addr *addr, struct dnet_io_control *ctl, int err, int destroy)
+static int dnet_io_trans_send_fail(struct dnet_session *s, struct dnet_addr *addr, struct dnet_io_control *ctl,
+		int err, int destroy)
 {
 	struct dnet_cmd cmd;
 	memset(&cmd, 0, sizeof(cmd));
@@ -439,6 +427,7 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 
 err_out_complete:
 	dnet_io_trans_send_fail(s, request_addr, ctl, err, 1);
+	return;
 
 err_out_destroy:
 	dnet_io_trans_send_fail(s, request_addr, ctl, err, 0);
@@ -682,13 +671,6 @@ struct dnet_node *dnet_get_node_from_state(void *state)
 		return NULL;
 	return st->n;
 }
-
-struct dnet_read_data_completion {
-	struct dnet_wait		*w;
-	void				*data;
-	uint64_t			size;
-	atomic_t			refcnt;
-};
 
 int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, const struct dnet_id *id, int group_id,
 		struct dnet_addr *addr, int *backend_id)
@@ -947,7 +929,7 @@ int dnet_flags(struct dnet_node *n)
 }
 
 /*!
- * Compares responses firt by key, then by timestamp
+ * Compares responses first by key, then by timestamp
  */
 static int dnet_iterator_response_cmp(const void *r1, const void *r2)
 {

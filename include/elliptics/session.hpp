@@ -167,17 +167,17 @@ class node
 
 		node &operator =(const node &other);
 
-		bool			is_valid() const;
+		bool is_valid() const;
 
-		void			add_remote(const address &addr);
-		void			add_remote(const std::vector<address> &addrs);
+		void add_remote(const address &addr);
+		void add_remote(const std::vector<address> &addrs);
 
-		void			set_timeouts(const int wait_timeout, const int check_timeout);
+		void set_timeouts(const int wait_timeout, const int check_timeout);
 
-		void			set_keepalive(int idle, int cnt, int interval);
+		void set_keepalive(int idle, int cnt, int interval);
 
-		logger			&get_log() const;
-		dnet_node		*get_native() const;
+		logger &get_log() const;
+		dnet_node *get_native() const;
 
 	protected:
 		std::shared_ptr<node_data> m_data;
@@ -248,69 +248,69 @@ class session
 		/*!
 		 * Converts string \a data to dnet_id \a id.
 		 */
-		void			transform(const std::string &data, dnet_id &id) const;
+		void transform(const std::string &data, dnet_id &id) const;
 		/*!
 		 * Converts string \a data to dnet_raw_id \a id.
 		 */
-		void			transform(const std::string &data, dnet_raw_id &id) const;
+		void transform(const std::string &data, dnet_raw_id &id) const;
 		/*!
 		 * \overload
 		 */
-		void			transform(const data_pointer &data, dnet_id &id) const;
+		void transform(const data_pointer &data, dnet_id &id) const;
 		/*!
 		 * Makes dnet_id be accessible by key::id() in the key \a id.
 		 */
-		void			transform(const key &id) const;
+		void transform(const key &id) const;
 
 		/*!
 		 * Sets \a groups to the session.
 		 */
-		void			set_groups(const std::vector<int> &groups);
+		void set_groups(const std::vector<int> &groups);
 		/*!
 		 * Gets groups of the session.
 		 */
-		std::vector<int>	get_groups() const;
+		std::vector<int> get_groups() const;
 
 		/*!
 		 * Filter all receiving entries by \a filter.
 		 *
 		 * Default value is filters::positive.
 		 */
-		void			set_filter(const result_filter &filter);
+		void set_filter(const result_filter &filter);
 		/*!
 		 * Returns filter.
 		 */
-		result_filter		get_filter() const;
+		result_filter get_filter() const;
 
 		/*!
 		 * Check success of operation by \a checker.
 		 *
 		 * Default value is checkers::at_least_one.
 		 */
-		void			set_checker(const result_checker &checker);
+		void set_checker(const result_checker &checker);
 		/*!
 		 * Returns checker.
 		 */
-		result_checker		get_checker() const;
+		result_checker get_checker() const;
 
-		void			set_error_handler(const result_error_handler &error_handler);
-		result_error_handler	get_error_handler() const;
+		void set_error_handler(const result_error_handler &error_handler);
+		result_error_handler get_error_handler() const;
 
 		/*!
 		 * Set exception policy \a policies.
 		 *
 		 * Default value is throw_at_wait | throw_at_get | throw_at_iterator_end.
 		 */
-		void			set_exceptions_policy(uint32_t policy);
+		void set_exceptions_policy(uint32_t policy);
 		/*!
 		 * Returns exception policy.
 		 */
-		uint32_t		get_exceptions_policy() const;
+		uint32_t get_exceptions_policy() const;
 
 		/*!
 		 * Sets command flags \a cflags to the session.
 		 */
-		void			set_cflags(uint64_t cflags);
+		void set_cflags(uint64_t cflags);
 
 		/*!
 		 * Sets namespace to \a ns, this mangles all keys that written
@@ -321,37 +321,37 @@ class session
 		/*!
 		 * \override
 		 */
-		void			set_namespace(const char *ns, int nsize);
+		void set_namespace(const char *ns, int nsize);
 
 		/*!
 		 * Get id that this session was stuck to.
 		 */
-		dnet_id			get_direct_id();
+		dnet_id get_direct_id();
 
 		/*!
 		 * Stick session to particular remote address.
 		 */
-		void			set_direct_id(const address &remote_addr);
-		void			set_direct_id(const address &remote_addr, uint32_t backend_id);
+		void set_direct_id(const address &remote_addr);
+		void set_direct_id(const address &remote_addr, uint32_t backend_id);
 
 		/*!
 		 * Gets command flags of the session.
 		 */
-		uint64_t		get_cflags() const;
+		uint64_t get_cflags() const;
 
 		/*!
 		 * Sets i/o flags \a ioflags to the session.
 		 */
-		void			set_ioflags(uint32_t ioflags);
+		void set_ioflags(uint32_t ioflags);
 		/*!
 		 * Gets i/o flags of the session.
 		 */
-		uint32_t		get_ioflags() const;
+		uint32_t get_ioflags() const;
 
 		/*!
 		 * Sets user flags \a user_flags to the session.
 		 */
-		void			set_user_flags(uint64_t user_flags);
+		void set_user_flags(uint64_t user_flags);
 
 		/*!
 		 * Sets timestamp for given session.
@@ -363,37 +363,36 @@ class session
 		 * \overload
 		 */
 		void set_timestamp(const dnet_time *ts);
-		void			get_timestamp(dnet_time *ts);
+		void get_timestamp(dnet_time *ts);
 
 		/*!
 		 * Gets user flags of the session.
 		 */
-		uint64_t		get_user_flags() const;
+		uint64_t get_user_flags() const;
 
 		/*!
 		 * Set/get transaction timeout
 		 */
-		void			set_timeout(long timeout);
-		long			get_timeout() const;
+		void set_timeout(long timeout);
+		long get_timeout() const;
 
 		/*!
 		 * Sets/gets trace_id for all elliptics commands
 		 */
-		void			set_trace_id(trace_id_t trace_id);
-		trace_id_t		get_trace_id() const;
+		void set_trace_id(trace_id_t trace_id);
+		trace_id_t get_trace_id() const;
 
-		void			set_trace_bit(bool trace);
-		bool			get_trace_bit() const;
+		void set_trace_bit(bool trace);
+		bool get_trace_bit() const;
 
 		/*!
 		 * Read file by key \a id to \a file by \a offset and \a size.
 		 */
-		void			read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size);
+		void read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size);
 		/*!
 		 * Write file from \a file to server by key \a id, \a offset and \a size.
 		 */
-		void			write_file(const key &id, const std::string &file, uint64_t local_offset,
-							uint64_t offset, uint64_t size);
+		void write_file(const key &id, const std::string &file, uint64_t local_offset, uint64_t offset, uint64_t size);
 
 		/*!
 		 * Reads data from server by \a key id and dnet_io_attr \a io.
@@ -407,8 +406,10 @@ class session
 		/*!
 		 * \overload read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 		 * Allows to specify the command \a cmd.
+		 * In particular, command can be DNET_CMD_READ and DNET_CMD_READ_RANGE
 		 */
-		async_read_result read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd);
+		async_read_result read_data(const key &id, const std::vector<int> &groups,
+				const dnet_io_attr &io, unsigned int cmd);
 		/*!
 		 * \overload read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 		 * Allows to specify the single \a group.
@@ -467,14 +468,16 @@ class session
 		async_write_result write_data(const key &id, const argument_data &file, uint64_t remote_offset);
 
 		/*!
-		 * Writes data \a file by the key \a id and remote offset \a remote_offset chunk by chunk with a size \a chunk_size.
+		 * Writes data \a file by the key \a id and remote offset \a remote_offset chunk by chunk
+		 * with chunk size equals to \a chunk_size.
 		 *
 		 * Returns async_write_result.
 		 *
 		 * \note Calling this method is equal to consecutive calling
 		 * of write_prepare(), write_plain() and write_commit().
 		 */
-		async_write_result write_data(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t chunk_size);
+		async_write_result write_data(const key &id, const data_pointer &file,
+				uint64_t remote_offset, uint64_t chunk_size);
 
 
 		/*!
@@ -498,7 +501,8 @@ class session
 		 *
 		 * Returns async_write_result.
 		 */
-		async_write_result write_cas(const key &id, const argument_data &file, const dnet_id &old_csum, uint64_t remote_offset);
+		async_write_result write_cas(const key &id, const argument_data &file,
+				const dnet_id &old_csum, uint64_t remote_offset);
 
 		/*!
 		 * Prepares \a psize bytes place to write data by \a id and writes data by \a file and by \a remote_offset
@@ -510,7 +514,8 @@ class session
 		 *       If you about to write data by offset, then psize should defines final size of full object
 		 *       rather then expecting that server reserves psize bytes after remote_offset of current object.
 		 */
-		async_write_result write_prepare(const key &id, const argument_data &file, uint64_t remote_offset, uint64_t psize);
+		async_write_result write_prepare(const key &id, const argument_data &file,
+				uint64_t remote_offset, uint64_t psize);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset in prepared place.
@@ -538,7 +543,8 @@ class session
 		 *       to actual number of bytes written by client, but size of the reserved on disk area will be equal
 		 *       to prepare size.
 		 */
-		async_write_result write_commit(const key &id, const argument_data &file, uint64_t remote_offset, uint64_t csize);
+		async_write_result write_commit(const key &id, const argument_data &file,
+				uint64_t remote_offset, uint64_t csize);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
@@ -555,7 +561,7 @@ class session
 		 * Returns address (ip and port pair) of remote node where
 		 * data with key \a id may be in group \a group_id.
 		 */
-		std::string		lookup_address(const key &id, int group_id = 0);
+		std::string lookup_address(const key &id, int group_id = 0);
 
 		/*!
 		 * Lookups information for key \a id.
@@ -611,7 +617,7 @@ class session
 		/*!
 		 * Returns the number of session states.
 		 */
-		int			state_num();
+		int state_num();
 
 		/*!
 		 * Requests execution of custom command at all backends of all server nodes.
@@ -630,19 +636,20 @@ class session
 		/*!
 		 * Changes node \a status on given \a address.
 		 */
-		async_node_status_result	update_status(const address &addr, const dnet_node_status &status);
+		async_node_status_result update_status(const address &addr, const dnet_node_status &status);
 
 		/*!
 		 * Request node \a status on given \a address.
 		 */
-		async_node_status_result	request_node_status(const address &addr);
+		async_node_status_result request_node_status(const address &addr);
 
 		async_backend_control_result enable_backend(const address &addr, uint32_t backend_id);
 		async_backend_control_result disable_backend(const address &addr, uint32_t backend_id);
 		async_backend_control_result start_defrag(const address &addr, uint32_t backend_id);
 		async_backend_control_result start_compact(const address &addr, uint32_t backend_id);
 		async_backend_control_result stop_defrag(const address &addr, uint32_t backend_id);
-		async_backend_control_result set_backend_ids(const address &addr, uint32_t backend_id, const std::vector<dnet_raw_id> &ids);
+		async_backend_control_result set_backend_ids(const address &addr, uint32_t backend_id,
+				const std::vector<dnet_raw_id> &ids);
 		async_backend_control_result make_readonly(const address &addr, uint32_t backend_id);
 		async_backend_control_result make_writable(const address &addr, uint32_t backend_id);
 		async_backend_control_result set_delay(const address &addr, uint32_t backend_id, uint32_t delay);
@@ -667,13 +674,57 @@ class session
 		 */
 		std::vector<dnet_route_entry> get_routes();
 
+		/*!
+		 * Starts iterator with given type (@dnet_iterator_types), flags (DNET_IFLAGS_*),
+		 * id ranges (each range specifies start/end key pair) - any iterated key must match at least one range,
+		 * if no ranges specified (and no DNET_IFLAGS_KEY_RANGE specified) - all keys match.
+		 * The same applies to key timestamp begin/end range (DNET_IFLAGS_TS_RANGE has to be set to turn
+		 * this check on).
+		 * @id is used to find out host+backend where iteration runs. Group where iterator will run,
+		 * is being obtained from @session settings.
+		 *
+		 * Please note, that all iterators and @server_send() method only process keys in the first
+		 * group among those set in given session.
+		 */
 		async_iterator_result start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
 								uint32_t type, uint64_t flags,
 								const dnet_time& time_begin = dnet_time(),
 								const dnet_time& time_end = dnet_time());
+
+		/*!
+		 * Copy iterator is the same as above, but also accepts vector of remote groups where data
+		 * will be copied/moved. There is only one type which copies data, so it is omitted from arguments.
+		 *
+		 * Please note, if destination groups contain group where iteration runs
+		 * (it is the first group set in session), iterator will write data into that group too.
+		 */
+		async_iterator_result start_copy_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
+								uint64_t flags,
+								const dnet_time& time_begin,
+								const dnet_time& time_end,
+								const std::vector<int> &dst_groups);
+
+		/*!
+		 * Every iterator result entry contains iterator ID (unique for each iterator running on given node),
+		 * which can be used to pause/continue and cancel (stop) iterator.
+		 */
 		async_iterator_result pause_iterator(const key &id, uint64_t iterator_id);
 		async_iterator_result continue_iterator(const key &id, uint64_t iterator_id);
 		async_iterator_result cancel_iterator(const key &id, uint64_t iterator_id);
+
+		/*!
+		 * Similar to iterator, but instead of running over all keys on remote backend,
+		 * remote server nodes will read all specified keys (which live on local backends)
+		 * and send them to remote nodes.
+		 *
+		 * API splits requests among appropriate hosts/backends internally.
+		 * @iterator_result_entry is returned for every copied key, error is returned
+		 * if there is no key or write has failed.
+		 */
+		async_iterator_result server_send(const std::vector<std::string> &keys, uint64_t flags,
+				const std::vector<int> &groups);
+		async_iterator_result server_send(const std::vector<dnet_raw_id> &ids, uint64_t flags,
+				const std::vector<int> &groups);
 
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data.
@@ -714,7 +765,8 @@ class session
 		 * Result contains only the information about starting of event procession, so there is no
 		 * information if it was finally processed successfully.
 		 */
-		async_push_result push(dnet_id *id, const exec_context &context, const std::string &event, const argument_data &data);
+		async_push_result push(dnet_id *id, const exec_context &context,
+				const std::string &event, const argument_data &data);
 		/*!
 		 * Reply \a data to initial starter of the process specified by \a context.
 		 *
@@ -723,7 +775,8 @@ class session
 		 * Returns async_reply_result.
 		 * Result contains information if starter received the reply.
 		 */
-		async_reply_result reply(const exec_context &context, const argument_data &data, exec_context::final_state state);
+		async_reply_result reply(const exec_context &context,
+				const argument_data &data, exec_context::final_state state);
 
 		/*!
 		 * Reads all data from server nodes by the list \a ios.
@@ -798,7 +851,8 @@ class session
 		 *
 		 * Returns async_generic_result.
 		 */
-		async_generic_result add_to_capped_collection(const key &id, const index_entry &index, int limit, bool remove_data);
+		async_generic_result add_to_capped_collection(const key &id, const index_entry &index,
+				int limit, bool remove_data);
 		/*!
 		 * \brief Removes \a id from \a indexes.
 		 *
@@ -911,10 +965,10 @@ class session
 		/*!
 		 * Returns pointer to dnet_session.
 		 */
-		dnet_session *	get_native();
+		dnet_session *get_native();
 
 	protected:
-		std::shared_ptr<session_data>		m_data;
+		std::shared_ptr<session_data> m_data;
 
 		async_exec_result request(dnet_id *id, const exec_context &context);
 		async_iterator_result iterator(const key &id, const data_pointer& request);

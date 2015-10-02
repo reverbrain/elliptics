@@ -408,6 +408,7 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	pthread_rwlock_wrlock(&st->idc_lock);
 	dnet_idc_insert_nolock(st, idc);
 	pthread_rwlock_unlock(&st->idc_lock);
+
 	list_add_tail(&idc->group_entry, &g->idc_list);
 
 	if (dnet_log_enabled(n->log, DNET_LOG_DEBUG)) {
@@ -423,10 +424,12 @@ int dnet_idc_update_backend(struct dnet_net_state *st, struct dnet_backend_ids *
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 
-	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, total ids: %d, added ids: %d, received ids: %d, state: %s, backend: %d, idc: %p, time-took: %ld usecs.",
-			g->group_id, g->id_num, num, id_num, dnet_state_dump_addr(st), backend->backend_id, idc, diff);
-
-	dnet_state_set_server_prio(st);
+	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, "
+			"total ids: %d, added ids: %d, received ids: %d, "
+			"state: %s, backend: %d, idc: %p, time-took: %ld usecs.",
+			g->group_id,
+			g->id_num, num, id_num,
+			dnet_state_dump_addr(st), backend->backend_id, idc, diff);
 
 	return 0;
 

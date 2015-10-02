@@ -37,6 +37,11 @@
 extern "C" {
 #endif
 
+/*
+ * Header note fpr @dnet_commands enum
+ * When adding new command, take a look at @dnet_cmd_needs_backend(),
+ * it must be updated if new non-backend command is added.
+ */
 enum dnet_commands {
 	DNET_CMD_LOOKUP = 1,			/* Lookup address by ID and per-object info: size, permissions and so on*/
 	DNET_CMD_REVERSE_LOOKUP,		/* Lookup ID by address */
@@ -70,9 +75,15 @@ enum dnet_commands {
 	DNET_CMD_UPDATE_IDS,			/* Update buckets' information */
 	DNET_CMD_BACKEND_CONTROL,		/* Special command to start or stop backends */
 	DNET_CMD_BACKEND_STATUS,		/* Special command to see current statuses of backends */
+	DNET_CMD_SEND,				/* Send given set of local keys to remote groups */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
+/*
+ * Footnote ^^^^
+ * When adding new command, take a look at @dnet_cmd_needs_backend(),
+ * it must be updated if new non-backend command is added.
+ */
 
 /*
  * dnet_monitor_categories provides ability to request monitor statistics partially or fully.
@@ -326,6 +337,14 @@ struct dnet_backend_ids
 	struct dnet_raw_id ids[0];
 } __attribute__ ((packed));
 
+static inline void dnet_convert_dnet_backend_ids(struct dnet_backend_ids *ictl)
+{
+	ictl->backend_id = dnet_bswap32(ictl->backend_id);
+	ictl->group_id = dnet_bswap32(ictl->group_id);
+	ictl->flags = dnet_bswap32(ictl->flags);
+	ictl->ids_count = dnet_bswap32(ictl->ids_count);
+}
+
 struct dnet_backend_control
 {
 	uint32_t backend_id;
@@ -340,30 +359,67 @@ struct dnet_backend_control
 struct dnet_id_container
 {
 	int backends_count;
-	struct dnet_backend_ids backends[0];
 } __attribute__ ((packed));
 
-static inline int dnet_validate_id_container(struct dnet_id_container *ids, size_t size, struct dnet_backend_ids **backends)
+static inline void dnet_convert_id_container(struct dnet_id_container *cnt)
+{
+	cnt->backends_count = dnet_bswap32(cnt->backends_count);
+}
+
+static inline int dnet_validate_id_container(struct dnet_id_container *ids, size_t size)
 {
 	int i;
+	int err = 0;
 	size_t total_size = sizeof(struct dnet_id_container);
-	struct dnet_backend_ids *backend;
+	char *ptr = (char *)(ids + 1);
 
-	for (i = 0; i < ids->backends_count; ++i) {
-		backend = (struct dnet_backend_ids *)(total_size + (char *)ids);
-		if (backends)
-			backends[i] = backend;
-
-		total_size += sizeof(struct dnet_backend_ids);
-		if (total_size > size)
-			return -EINVAL;
-
-		total_size += backend->ids_count * sizeof(struct dnet_raw_id);
+	dnet_convert_id_container(ids);
+	if (ids->backends_count * sizeof(struct dnet_backend_ids) + sizeof(struct dnet_id_container) > size) {
+		err = -EINVAL;
+		goto err_out_exit;
 	}
 
-	if (total_size != size)
-		return -EINVAL;
-	return 0;
+	for (i = 0; i < ids->backends_count; ++i) {
+		struct dnet_backend_ids *backend;
+
+		if (total_size + sizeof(struct dnet_backend_ids) > size) {
+			err = -EINVAL;
+			goto err_out_exit;
+		}
+
+		backend = (struct dnet_backend_ids *)ptr;
+
+		dnet_convert_dnet_backend_ids(backend);
+
+		total_size += sizeof(struct dnet_backend_ids) + backend->ids_count * sizeof(struct dnet_raw_id);
+		if (total_size > size) {
+			err = -EINVAL;
+			goto err_out_exit;
+		}
+
+		ptr += sizeof(struct dnet_backend_ids) + backend->ids_count * sizeof(struct dnet_raw_id);
+	}
+
+	if (total_size != size) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+err_out_exit:
+	return err;
+}
+
+static inline void dnet_id_container_fill_backends(struct dnet_id_container *ids, struct dnet_backend_ids **backends)
+{
+	int i;
+	char *ptr = (char *)(ids + 1);
+
+	for (i = 0; i < ids->backends_count; ++i) {
+		struct dnet_backend_ids *backend = (struct dnet_backend_ids *)ptr;
+
+		backends[i] = backend;
+		ptr += sizeof(struct dnet_backend_ids) + backend->ids_count * sizeof(struct dnet_raw_id);
+	}
 }
 
 struct dnet_addr_cmd
@@ -944,12 +1000,25 @@ enum {
 #define DNET_IFLAGS_TS_RANGE		(1<<2)
 /* When set iterator will return only key with empty metadata (user_flags and timestamp) */
 #define DNET_IFLAGS_NO_META		(1<<3)
+/*
+ * Server-send iterator should move data not copy.
+ * This will force iterator/server-send logic to queue REMOVE command locally
+ * if remote write has succeeeded.
+ */
+#define DNET_IFLAGS_MOVE		(1<<4)
+/*
+ * Overwrite data. If this flag is not set, we only write data if there is no remote copy at all.
+ * Data will still be transferred over the network.
+ */
+#define DNET_IFLAGS_OVERWRITE		(1<<5)
 
 /* Sanity */
 #define DNET_IFLAGS_ALL			(DNET_IFLAGS_DATA | \
 					 DNET_IFLAGS_KEY_RANGE | \
 					 DNET_IFLAGS_TS_RANGE | \
-					 DNET_IFLAGS_NO_META)
+					 DNET_IFLAGS_NO_META | \
+					 DNET_IFLAGS_MOVE | \
+					 DNET_IFLAGS_OVERWRITE)
 
 /*
  * Defines how iterator should behave
@@ -966,6 +1035,9 @@ enum dnet_iterator_types {
 					 * instead of sending chunks to client
 					 */
 	DNET_ITYPE_NETWORK,		/* iterator sends data chunks to client */
+	DNET_ITYPE_SERVER_SEND,		/* send iterated data to other servers in the storage via WRITE commands,
+					 * it doesn't sent uncommitted keys to servers, but sends response to client
+					 */
 	DNET_ITYPE_LAST,		/* Sanity */
 };
 
@@ -997,9 +1069,12 @@ struct dnet_iterator_request
 	uint64_t			range_num;	/* Number of ranges for iterating */
 	struct dnet_time		time_begin;	/* Start time */
 	struct dnet_time		time_end;	/* End time */
-	uint32_t			itype;		/* Callback to use: Net/File, XXX: enum */
+	uint32_t			itype;		/* Callback to use: Net/File/Server, XXX: enum */
 	uint64_t			flags;		/* DNET_IFLAGS_* */
-	uint64_t			reserved[5];
+	uint32_t			group_num;	/* Number of remote groups to send iterated data for server-send
+							   iterator type */
+	uint32_t			__reserved32;
+	uint64_t			reserved[4];
 } __attribute__ ((packed));
 
 static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r)
@@ -1009,6 +1084,7 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 	r->itype = dnet_bswap32(r->itype);
 	r->action = dnet_bswap32(r->action);
 	r->range_num = dnet_bswap64(r->range_num);
+	r->group_num = dnet_bswap32(r->group_num);
 	dnet_convert_time(&r->time_begin);
 	dnet_convert_time(&r->time_end);
 }
@@ -1144,6 +1220,21 @@ static inline void dnet_convert_monitor_stat_request(struct dnet_monitor_stat_re
 {
 	r->categories = dnet_bswap32(r->categories);
 }
+
+
+struct dnet_server_send_request {
+	int		id_num;
+	int		group_num;
+	uint64_t	iflags;
+};
+
+static inline void dnet_convert_server_send_request(struct dnet_server_send_request *req)
+{
+	req->id_num = dnet_bswap32(req->id_num);
+	req->group_num = dnet_bswap32(req->group_num);
+	req->iflags = dnet_bswap64(req->iflags);
+}
+
 
 #ifdef __cplusplus
 }

@@ -31,8 +31,11 @@ target_link_libraries(dnet_notify ${ECOMMON_LIBRARIES} elliptics_cpp)
 add_executable(dnet_ids ids.c)
 target_link_libraries(dnet_ids "")
 
-add_executable(iterate iterate.cpp)
-target_link_libraries(iterate ${ECOMMON_LIBRARIES} elliptics_cpp boost_program_options)
+add_executable(dnet_iterate iterate.cpp)
+target_link_libraries(dnet_iterate ${ECOMMON_LIBRARIES} elliptics_cpp boost_program_options)
+
+add_executable(dnet_iterate_move iterate_move.cpp)
+target_link_libraries(dnet_iterate_move ${ECOMMON_LIBRARIES} elliptics_cpp boost_program_options)
 
 install(TARGETS
         dnet_ioserv
@@ -41,4 +44,6 @@ install(TARGETS
         dnet_index
         dnet_notify
         dnet_ids
+	dnet_iterate
+	dnet_iterate_move
     RUNTIME DESTINATION bin COMPONENT runtime)

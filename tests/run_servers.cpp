@@ -130,7 +130,11 @@ static void stop_servers(int sig, siginfo_t *info, void *)
 		}
 		out << "\"" << test::endl;
 	} else {
-		test::log << "Caught signal: " << sig << ", err: " << info->si_errno << ", pid: " << info->si_pid << ", status: " << info->si_status << test::endl;
+		test::log << "Caught signal: " << sig <<
+			", err: " << info->si_errno <<
+			", pid: " << info->si_pid <<
+			", status: " << info->si_status <<
+			test::endl;
 	}
 
 	std::shared_ptr<tests::nodes_data> data;
@@ -193,7 +197,8 @@ void read_option(const rapidjson::Value &doc, const std::string &value, int64_t 
 	result = default_value;
 }
 
-static int fill_config(tests::config_data &config, std::vector<tests::config_data> &backends, std::string &prefix, const rapidjson::Value &options, bool is_server)
+static int fill_config(tests::config_data &config, std::vector<tests::config_data> &backends,
+		std::string &prefix, const rapidjson::Value &options, bool is_server)
 {
 	for (auto it = options.MemberBegin(); it != options.MemberEnd(); ++it) {
 		const std::string name(it->name.GetString(), it->name.GetStringLength());
@@ -330,7 +335,8 @@ static int run_servers(const rapidjson::Value &doc)
 	}
 
 	try {
-		tests::start_nodes_config start_config(std::cerr, std::move(configs), std::string(path.GetString(), path.GetStringLength()));
+		tests::start_nodes_config start_config(std::cerr, std::move(configs),
+				std::string(path.GetString(), path.GetStringLength()));
 		start_config.fork = fork;
 		start_config.monitor = monitor;
 		start_config.isolated = isolated;

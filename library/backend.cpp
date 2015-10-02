@@ -55,7 +55,8 @@ err_out_exit:
 	return err;
 }
 
-static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num, unsigned long long storage_free, struct dnet_addr *cfg_addrs, size_t backend_id)
+static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num,
+		unsigned long long storage_free, struct dnet_addr *cfg_addrs, size_t backend_id)
 {
 	int fd, err, num;
 	const char *file = "ids";
@@ -131,22 +132,29 @@ err_out_exit:
 	return NULL;
 }
 
-static int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io, int io_thread_num, int nonblocking_io_thread_num)
+static int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io,
+		int io_thread_num, int nonblocking_io_thread_num)
 {
 	int err;
 
 	err = dnet_backend_command_stats_init(io);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "dnet_backend_io_init: backend: %zu, failed to allocate command stat structure: %d",
+		dnet_log(n, DNET_LOG_ERROR, "dnet_backend_io_init: backend: %zu, "
+				"failed to allocate command stat structure: %d",
 				io->backend_id, err);
 		goto err_out_exit;
 	}
 
-	err = dnet_work_pool_alloc(&io->pool.recv_pool, n, io, io_thread_num, DNET_WORK_IO_MODE_BLOCKING, dnet_io_process);
+	err = dnet_work_pool_alloc(&io->pool.recv_pool, n, io,
+			io_thread_num, DNET_WORK_IO_MODE_BLOCKING,
+			dnet_io_process);
 	if (err) {
 		goto err_out_command_stats_cleanup;
 	}
-	err = dnet_work_pool_alloc(&io->pool.recv_pool_nb, n, io, nonblocking_io_thread_num, DNET_WORK_IO_MODE_NONBLOCKING, dnet_io_process);
+
+	err = dnet_work_pool_alloc(&io->pool.recv_pool_nb, n, io,
+			nonblocking_io_thread_num, DNET_WORK_IO_MODE_NONBLOCKING,
+			dnet_io_process);
 	if (err) {
 		err = -ENOMEM;
 		goto err_out_free_recv_pool;
@@ -207,7 +215,8 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, int *state)
 		std::lock_guard<std::mutex> guard(*backend.state_mutex);
 		*state = backend.state;
 		if (backend.state != DNET_BACKEND_DISABLED) {
-			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, trying to activate not disabled backend, elapsed: %s",
+			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, "
+					"trying to activate not disabled backend, elapsed: %s",
 				backend_id, elapsed(start));
 			switch (*state) {
 				case DNET_BACKEND_ENABLED:
@@ -249,7 +258,8 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, int *state)
 
 		if (!found) {
 			err = -EBADF;
-			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, have not found backend section in configuration file, elapsed: %s",
+			dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, "
+				"have not found backend section in configuration file, elapsed: %s",
 				backend_id, elapsed(start));
 			goto err_out_exit;
 		}
@@ -307,6 +317,12 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, int *state)
 
 	ids_num = 0;
 	ids = dnet_ids_init(node, backend.history.c_str(), &ids_num, backend.config.storage_free, node->addrs, backend_id);
+	if (ids == NULL) {
+		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, history path: %s, "
+				"failed to initialize ids, elapsed: %s",
+				backend_id, backend.history.c_str(), elapsed(start));
+		goto err_out_cache_cleanup;
+	}
 	err = dnet_route_list_enable_backend(node->route, backend_id, backend.group, ids, ids_num);
 	free(ids);
 
@@ -454,7 +470,8 @@ int dnet_backend_init_all(struct dnet_node *node)
 				results.emplace_back(clean_sess.enable_backend(node->st->addr, backend_id));
 			}
 
-			async_backend_control_result result = ioremap::elliptics::aggregated(sess, results.begin(), results.end());
+			async_backend_control_result result =
+				ioremap::elliptics::aggregated(sess, results.begin(), results.end());
 			result.wait();
 
 			err = result.error().code();
@@ -513,7 +530,9 @@ static int dnet_backend_set_ids(dnet_node *node, uint32_t backend_id, dnet_raw_i
 	dnet_backend_info &backend = backends[backend_id];
 
 	if (backend.history.empty()) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: backend_id: %u, failed to open temporary ids file: history is not specified", backend_id);
+		dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: backend_id: %u, "
+				"failed to open temporary ids file: history is not specified",
+				backend_id);
 		return -EINVAL;
 	}
 
@@ -526,7 +545,9 @@ static int dnet_backend_set_ids(dnet_node *node, uint32_t backend_id, dnet_raw_i
 	std::ofstream out(tmp_ids, std::ofstream::binary | std::ofstream::trunc);
 	if (!out) {
 		err = -errno;
-		dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: backend_id: %u, failed to open temporary ids file: %s, err: %d", backend_id, tmp_ids, err);
+		dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: backend_id: %u, "
+				"failed to open temporary ids file: %s, err: %d",
+				backend_id, tmp_ids, err);
 		return err;
 	}
 
@@ -537,7 +558,9 @@ static int dnet_backend_set_ids(dnet_node *node, uint32_t backend_id, dnet_raw_i
 
 		if (!out) {
 			err = -errno;
-			dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: backend_id: %u, failed to write ids to temporary file: %s, err: %d", backend_id, tmp_ids, err);
+			dnet_log(node, DNET_LOG_ERROR, "backend_set_ids: backend_id: %u, "
+					"failed to write ids to temporary file: %s, err: %d",
+					backend_id, tmp_ids, err);
 		} else {
 
 			if (!err) {
@@ -547,7 +570,8 @@ static int dnet_backend_set_ids(dnet_node *node, uint32_t backend_id, dnet_raw_i
 						err = std::rename(tmp_ids, target_ids);
 						if (err)
 							break;
-						err = dnet_route_list_enable_backend(node->route, backend_id, backend.group, ids, ids_count);
+						err = dnet_route_list_enable_backend(node->route,
+								backend_id, backend.group, ids, ids_count);
 						break;
 					case DNET_BACKEND_DISABLED:
 						err = std::rename(tmp_ids, target_ids);
@@ -605,12 +629,14 @@ static int dnet_cmd_backend_control_dangerous(struct dnet_net_state *st, struct 
 	struct dnet_backend_control *control = reinterpret_cast<dnet_backend_control *>(data);
 
 	if (control->backend_id >= backends.size()) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_control: there is no such backend: %u, state: %s", control->backend_id, dnet_state_dump_addr(st));
+		dnet_log(node, DNET_LOG_ERROR, "backend_control: there is no such backend: %u, state: %s",
+				control->backend_id, dnet_state_dump_addr(st));
 		return -EINVAL;
 	}
 
 	if (cmd->size != sizeof(dnet_backend_control) + control->ids_count * sizeof(dnet_raw_id)) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_control: command size is not enough for ids, state: %s", dnet_state_dump_addr(st));
+		dnet_log(node, DNET_LOG_ERROR, "backend_control: command size is not enough for ids, state: %s",
+				dnet_state_dump_addr(st));
 		return -EINVAL;
 	}
 
@@ -619,7 +645,8 @@ static int dnet_cmd_backend_control_dangerous(struct dnet_net_state *st, struct 
 
 	const dnet_backend_info &backend = backends[control->backend_id];
 	if (backend.state == DNET_BACKEND_UNITIALIZED) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_control: there is no such backend: %u, state: %s", control->backend_id, dnet_state_dump_addr(st));
+		dnet_log(node, DNET_LOG_ERROR, "backend_control: there is no such backend: %u, state: %s",
+				control->backend_id, dnet_state_dump_addr(st));
 		return -EINVAL;
 	}
 
@@ -638,7 +665,8 @@ static int dnet_cmd_backend_control_dangerous(struct dnet_net_state *st, struct 
 		break;
 	case DNET_BACKEND_START_DEFRAG:
 		if (cb.defrag_start) {
-			err = cb.defrag_start(cb.command_private, static_cast<enum dnet_backend_defrag_level>(control->defrag_level));
+			err = cb.defrag_start(cb.command_private,
+				static_cast<enum dnet_backend_defrag_level>(control->defrag_level));
 		} else {
 			err = -ENOTSUP;
 		}
@@ -703,7 +731,9 @@ int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	dnet_node *node = st->n;
 
 	if (cmd->size < sizeof(dnet_backend_control)) {
-		dnet_log(node, DNET_LOG_ERROR, "backend_control: command size is not enough for dnet_backend_control, state: %s", dnet_state_dump_addr(st));
+		dnet_log(node, DNET_LOG_ERROR,
+				"backend_control: command size is not enough for dnet_backend_control, state: %s",
+				dnet_state_dump_addr(st));
 		return -EINVAL;
 	}
 
@@ -734,7 +764,8 @@ int dnet_cmd_backend_status(struct dnet_net_state *st, struct dnet_cmd *cmd, voi
 	const auto &backends = node->config_data->backends->backends;
 	const size_t total_size = sizeof(dnet_backend_status_list) + backends.size() * sizeof(dnet_backend_status);
 
-	std::unique_ptr<dnet_backend_status_list, free_destroyer> list(reinterpret_cast<dnet_backend_status_list *>(calloc(1, total_size)));
+	std::unique_ptr<dnet_backend_status_list, free_destroyer>
+		list(reinterpret_cast<dnet_backend_status_list *>(calloc(1, total_size)));
 	if (!list) {
 		return -ENOMEM;
 	}
@@ -763,7 +794,8 @@ int dnet_cmd_backend_status(struct dnet_net_state *st, struct dnet_cmd *cmd, voi
 	return err;
 }
 
-void dnet_backend_info::parse(ioremap::elliptics::config::config_data *data, const ioremap::elliptics::config::config &backend)
+void dnet_backend_info::parse(ioremap::elliptics::config::config_data *data,
+		const ioremap::elliptics::config::config &backend)
 {
 	std::string type = backend.at<std::string>("type");
 
@@ -789,7 +821,9 @@ void dnet_backend_info::parse(ioremap::elliptics::config::config_data *data, con
 	}
 
 	if (!found_backend)
-		throw ioremap::elliptics::config::config_error() << backend.at("type").path() << " is unknown backend";
+		throw ioremap::elliptics::config::config_error() <<
+			backend.at("type").path() <<
+			" is unknown backend";
 
 	group = backend.at<uint32_t>("group");
 	history = backend.at<std::string>("history");

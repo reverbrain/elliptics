@@ -209,6 +209,7 @@ err_out_exit:
 // Keep this enums in sync with enums from dnet_process_cmd_without_backend_raw
 static int dnet_cmd_needs_backend(int command)
 {
+	// backend is not needed for:
 	switch (command) {
 	case DNET_CMD_AUTH:
 	case DNET_CMD_STATUS:
@@ -636,7 +637,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			if (atomic_read(&st->send_queue_size) > 0)
 				if (atomic_dec(&st->send_queue_size) == DNET_SEND_WATERMARK_LOW) {
 					dnet_log(st->n, DNET_LOG_DEBUG,
-							"State low_watermark reached: %s: %d, waking up",
+							"State low_watermark reached: %s: %ld, waking up",
 							dnet_addr_string(&st->addr),
 							atomic_read(&st->send_queue_size));
 					pthread_cond_broadcast(&st->send_wait);
@@ -741,7 +742,8 @@ static int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event 
 	}
 
 	if (ev->events & (EPOLLHUP | EPOLLERR)) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask 0x%x", dnet_state_dump_addr(st), ev->events);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask 0x%x, socket: %d",
+				dnet_state_dump_addr(st), ev->events, ev->data.fd);
 		err = -ECONNRESET;
 	}
 err_out_exit:

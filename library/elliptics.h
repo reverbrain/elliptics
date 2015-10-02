@@ -738,17 +738,7 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t 
 int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r);
 
 
-/*
- * Send given number of bytes as reply command.
- * It will fill transaction, command and ID from the original command and copy given data.
- * It will set DNET_FLAGS_MORE if original command requested acknowledge or @more is set.
- *
- * If cmd->cmd is DNET_CMD_SYNC then plain data will be sent back, otherwise transaction
- * reply will be generated. So effectively difference is in DNET_TRANS_REPLY bit presence.
- */
 int __attribute__((weak)) dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int recursive);
-int __attribute__((weak)) dnet_send_reply(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
-int __attribute__((weak)) dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd, const void *odata, unsigned int size, int more);
 void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r);
 
 struct dnet_config;
@@ -927,13 +917,23 @@ uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n);
  */
 struct dnet_iterator_common_private {
 	struct dnet_iterator_request	*req;		/* Original request */
-	struct dnet_iterator_range		*range;	/* Original ranges */
+	struct dnet_iterator_range	*range;		/* Original ranges */
 	struct dnet_iterator		*it;		/* Iterator control structure */
-	int				(*next_callback)(void *priv, void *data, uint64_t dsize);
-	void				*next_private;	/* One of predefined callbacks */
+
+	/* This callback will be invoked by dnet_iterator_callback_common(), which is invoked by low-level backend iterator
+	 * @priv - callback specific private data, @next_private below, like @dnet_iterator_send_private
+	 * @data - @dnet_iterator_response + data read from the backend @fd (only if DNET_IFLAGS_DATA is set in @req->flags)
+	 * @dsize - total size of @data, will only be equal to size of the response if DNET_IFLAGS_DATA is not set
+	 * @fd - low-level backend fd (if supported)
+	 * @data_offset - offset of the data for each key within @fd
+	 */
+	int				(*next_callback)(void *priv, void *data, uint64_t dsize, int fd, uint64_t data_offset);
+	/* Private data for callback */
+	void				*next_private;
+
 	uint64_t			total_keys;	/* number of keys that will be iterated */
-	atomic_t			iterated_keys;	/* number of keys that are already iterated */
-	atomic_t			skipped_keys;	/* number of keys that were skipped in a row */
+	atomic_t			iterated_keys;	/* number of keys that have been already iterated */
+	atomic_t			skipped_keys;	/* number of keys that have been skipped */
 };
 
 /*
@@ -1026,6 +1026,40 @@ again:
 	}
 	return 0;
 }
+
+/*
+ * Watermarks for number of bytes written into the wire
+ */
+#define DNET_SERVER_SEND_WATERMARK_HIGH		(30*1024*1024*1024L)
+#define DNET_SERVER_SEND_WATERMARK_LOW		DNET_SERVER_SEND_WATERMARK_HIGH / 2
+
+/*
+ * Send data over network to another server as set of WRITE commands
+ */
+struct dnet_server_send_ctl {
+	void				*state;		/* Client connection used to send progress status
+							 * As void* to allow low-level backends to set it up
+							 */
+	struct dnet_cmd			cmd;		/* Original client's command */
+
+	uint64_t			iflags;		/* Iterator flags */
+
+	int				*groups;	/* Groups to send WRITE commands */
+	int				group_num;
+
+	pthread_mutex_t			write_lock;	/* Lock for @write_wait */
+	pthread_cond_t			write_wait;	/* Waiting for pending writes */
+	atomic_t			bytes_pending;	/* Number of bytes in-flight to remote servers */
+
+	int				write_error;	/* Set to the first error occurred during write
+							 * This will stop iterator. */
+
+	atomic_t			refcnt;		/* Reference counter which will be increased for every
+							 * async WRITE operation. get/put methods should be used
+							 * if structure will be provided to async routings.
+							 */
+};
+
 
 #ifdef __cplusplus
 }

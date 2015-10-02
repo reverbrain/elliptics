@@ -136,8 +136,8 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 
 	if (scoped_count >= DNET_SCOPED_LIMIT) {
 		dnet_log_only_log(logger, DNET_LOG_ERROR,
-			"logic error: you must not call dnet_node_set_trace_id twice, dnet_node_unset_trace_id call missed");
-		++scoped_count;
+			"logic error: you may not call dnet_node_set_trace_id twice, dnet_node_unset_trace_id call missed");
+		scoped_count++;
 		return;
 	}
 
@@ -156,14 +156,20 @@ void dnet_node_set_trace_id(dnet_logger *logger, uint64_t trace_id, int tracebit
 			attributes.insert(std::make_pair(std::string("backend_id"), blackhole::log::attribute_t(backend_id)));
 		}
 
+
 		new (local_attributes) scoped_attributes_t(*logger, std::move(attributes));
 
 		// Set all bits to ensure that it has tracebit set
 		backend_trace_id_hook = scoped_trace_id_hook[scoped_count];
-	} catch (...) {
-		local_attributes = NULL;
+	} catch (const std::exception &e) {
+		dnet_log_only_log(logger, DNET_LOG_ERROR,
+			"%s: trace_id: %08llx, tracebit: %d, backend_id: %d, caught exception: %s",
+			__func__, (unsigned long long)trace_id, tracebit, backend_id, e.what());
 	}
 
+	// scoped_count has to be increased in any case, since it will be followed by
+	// dnet_node_unset_trace_id() which doesn't know whether corresponding
+	// dnet_node_set_trace_id() succeeded or not
 	++scoped_count;
 }
 
@@ -171,17 +177,20 @@ void dnet_node_unset_trace_id()
 {
 	using namespace blackhole_scoped_attributes;
 
-	--scoped_count;
+	if (scoped_count > 0) {
+		--scoped_count;
 
-	if (scoped_count < DNET_SCOPED_LIMIT) {
-		auto &local_attributes = scoped_attributes[scoped_count];
-		local_attributes->~scoped_attributes_t();
-		local_attributes = NULL;
+		if (scoped_count < DNET_SCOPED_LIMIT) {
+			auto &local_attributes = scoped_attributes[scoped_count];
+			local_attributes->~scoped_attributes_t();
+			local_attributes = NULL;
 
-		if (scoped_count > 0)
-			backend_trace_id_hook = scoped_trace_id_hook[scoped_count - 1];
-		else
-			backend_trace_id_hook = 0;
+			if (scoped_count > 0)
+				backend_trace_id_hook = scoped_trace_id_hook[scoped_count - 1];
+			else
+				backend_trace_id_hook = 0;
+
+		}
 	}
 }
 
