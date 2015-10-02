@@ -164,7 +164,7 @@ static int dnet_backend_io_init(struct dnet_node *n, struct dnet_backend_io *io,
 
 err_out_free_recv_pool:
 	n->need_exit = 1;
-	dnet_work_pool_cleanup(&io->pool.recv_pool);
+	dnet_work_pool_exit(&io->pool.recv_pool);
 err_out_command_stats_cleanup:
 	dnet_backend_command_stats_cleanup(io);
 err_out_exit:
@@ -175,8 +175,8 @@ static void dnet_backend_io_cleanup(struct dnet_node *n, struct dnet_backend_io 
 {
 	(void) n;
 
-	dnet_work_pool_cleanup(&io->pool.recv_pool);
-	dnet_work_pool_cleanup(&io->pool.recv_pool_nb);
+	dnet_work_pool_exit(&io->pool.recv_pool);
+	dnet_work_pool_exit(&io->pool.recv_pool_nb);
 	dnet_backend_command_stats_cleanup(io);
 
 	dnet_log(n, DNET_LOG_NOTICE, "dnet_backend_io_cleanup: backend: %zu", io->backend_id);

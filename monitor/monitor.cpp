@@ -68,8 +68,8 @@ std::unique_ptr<monitor_config> monitor_config::parse(const elliptics::config::c
 
 monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 : m_node(n)
-, m_server(*this, get_monitor_port(n), cfg->family)
 , m_statistics(*this, cfg)
+, m_server(*this, get_monitor_port(n), cfg->family)
 {
 #if defined(HAVE_HANDYSTATS) && !defined(HANDYSTATS_DISABLE)
 	if (cfg->handystats_config != nullptr) {

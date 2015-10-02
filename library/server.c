@@ -220,17 +220,17 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node.");
 
 	/*
-	 * Monitor uses all others, so it should be stopped at first.
+	 * Stop network and backend thread pools
+	 */
+	dnet_node_stop_common_resources(n);
+
+	/*
+	 * Monitor uses all others, so it should be stopped before cleaning node resources.
+	 * Also it should be stopped after stopping thread pools, because some requests
+	 * from i/o thread pool are processed in monitor.
 	 */
 	dnet_monitor_exit(n);
 
-	/*
-	 * Cache can be accessed from the io threads, so firstly stop them.
-	 * Cache uses backend to dump all ansynced data to the disk, so
-	 * backend must be destroyed the last.
-	 *
-	 * After all of them finish destroying the node, all it's counters and so on.
-	 */
 	dnet_node_cleanup_common_resources(n);
 
 	dnet_route_list_destroy(n->route);
@@ -249,4 +249,3 @@ void dnet_server_node_destroy(struct dnet_node *n)
 
 	free(n);
 }
-

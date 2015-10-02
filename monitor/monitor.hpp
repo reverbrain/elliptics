@@ -77,8 +77,8 @@ public:
 
 private:
 	struct dnet_node	*m_node;
-	server		m_server;
 	statistics	m_statistics;
+	server		m_server;
 };
 
 monitor* get_monitor(struct dnet_node *n);
