@@ -951,7 +951,6 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 		}
 
 		memcpy(st->version, socket->version, sizeof(st->version));
-		dnet_set_sockopt(state->node, socket->s);
 
 		socket->buffer.reset();
 		state->succeed_count++;

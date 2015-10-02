@@ -1070,6 +1070,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	st->idx = idx;
 
+	dnet_set_sockopt(n, s);
+
 	if (accepting_state) {
 		int sockets[2];
 
