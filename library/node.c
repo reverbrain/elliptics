@@ -795,7 +795,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	return n;
 
 err_out_io_exit:
-	dnet_io_exit(n);
+	dnet_io_stop(n);
+	dnet_io_cleanup(n);
 err_out_crypto_cleanup:
 	dnet_crypto_cleanup(n);
 err_out_free:
@@ -818,15 +819,20 @@ void dnet_set_need_exit(struct dnet_node *n)
 	n->need_exit = 1;
 }
 
+void dnet_node_stop_common_resources(struct dnet_node *n)
+{
+	dnet_set_need_exit(n);
+	dnet_iterator_cancel_all(n);
+	dnet_check_thread_stop(n);
+
+	dnet_io_stop(n);
+}
+
 void dnet_node_cleanup_common_resources(struct dnet_node *n)
 {
 	struct dnet_addr_storage *it, *atmp;
 
-	n->need_exit = 1;
-	dnet_iterator_cancel_all(n);
-	dnet_check_thread_stop(n);
-
-	dnet_io_exit(n);
+	dnet_io_cleanup(n);
 
 	pthread_attr_destroy(&n->attr);
 
@@ -850,6 +856,7 @@ void dnet_node_destroy(struct dnet_node *n)
 {
 	dnet_log(n, DNET_LOG_DEBUG, "Destroying node.");
 
+	dnet_node_stop_common_resources(n);
 	dnet_node_cleanup_common_resources(n);
 	dnet_counter_destroy(n);
 

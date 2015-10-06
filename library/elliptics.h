@@ -272,6 +272,9 @@ void dnet_set_backend_weight(struct dnet_net_state *st, int backend_id, uint32_t
 struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, const struct dnet_id *id, int *backend_id);
 struct dnet_net_state *dnet_node_state(struct dnet_node *n);
 
+/* Set need_exit flag, cancel iterators, stop and join node threads */
+void dnet_node_stop_common_resources(struct dnet_node *n);
+/* Free resources of node. Must be called after dnet_node_stop_common_resources() */
 void dnet_node_cleanup_common_resources(struct dnet_node *n);
 
 int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
@@ -464,7 +467,7 @@ struct dnet_work_pool_place
 	struct dnet_work_pool	*pool;
 };
 
-void dnet_work_pool_cleanup(struct dnet_work_pool_place *place);
+void dnet_work_pool_exit(struct dnet_work_pool_place *place);
 int dnet_work_pool_alloc(struct dnet_work_pool_place *place, struct dnet_node *n,
 	struct dnet_backend_io *io, int num, int mode, void *(* process)(void *));
 
@@ -516,7 +519,10 @@ int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev)
 int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg);
 void *dnet_io_process(void *data_);
 int dnet_server_io_init(struct dnet_node *n);
-void dnet_io_exit(struct dnet_node *n);
+/* Set need_exit flag, stop and join pool threads */
+void dnet_io_stop(struct dnet_node *n);
+/* Free pool resources of node. Must be called after dnet_io_stop() */
+void dnet_io_cleanup(struct dnet_node *n);
 
 void dnet_io_req_free(struct dnet_io_req *r);
 
