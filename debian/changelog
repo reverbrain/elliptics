@@ -1,3 +1,37 @@
+elliptics (2.26.8.0) unstable; urgency=low
+
+  * cleanup: stop all node thread pools, then destroy monitor, then cleanup node thread pools
+  * net: correctly set socket option to the proper socket
+  * Indent fixes
+  * session: implemented server-send method, which sends given keys from one server node to multiple remote groups
+  * iterator: implemented server-send iterator, which sends all iterated keys to multiple remote groups
+  * package: depend on eblob 0.23.5+, where chunk_dir option has been added
+  * trans: fixed possible NULL pointer dereference
+  * config: read_only option for backend
+  * route: fixed ids update possible unintialized pointer free
+  * small fix: use variable after checking that it isn't null
+  * atomic: sub/add should return new value like inc/dec do
+  * atomic: all atomics are actually long, not int
+  * Updated debug logs, fixed minor bug with server socket prio setting. Fixed BE/LE issues when sending ID container
+  * backend: fixed ponential NULL pointer dereference
+  * tests: added small delay and big description for simultaneously started servers
+  * route: fixed JOIN command with zero enabled backends
+  * id: refactor and fix backend id container handling
+  * state: extended a bit state reset debug
+  * trans: fixed dnet_trans_iterate_move_transaction(), it must delete transaction from any list where it might live via trans_list_entry
+  * route: fixed route list validation
+  * packet: added comments about new commands and relation to dnet_cmd_needs_backend()
+  * config: 'datasort_dir' option in backend section
+  * session: read_data() comment update
+  * Added more connection debug
+  * iterator: added example iterator which runs over specified group and copies/moves data to requierd destination point
+  * dnet: if there was any error - send ACK to notify client with error code and destroy transaction. Previously transaction would stuck and timeout if there is checksum error.
+  * trans: if IO transaction can not be allocated, do not call completion twice
+  * crypto: fixed invalid processing of data block larger than buffer in sha512_file()/sha512_file_ctx()
+  * timeout: accurately check timeouted transactions using microseconds
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 06 Oct 2015 16:03:00 +0400
+
 elliptics (2.26.7.0) unstable; urgency=low
 
   * state: split backend weight into cache/disk pair and update them separately according to IO flags
