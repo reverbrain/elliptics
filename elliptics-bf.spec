@@ -118,6 +118,8 @@ rm -rf %{buildroot}
 
 %files client
 %defattr(-,root,root,-)
+%{_bindir}/dnet_iterate
+%{_bindir}/dnet_iterate_move
 %{_bindir}/dnet_find
 %{_bindir}/dnet_ioclient
 %{_bindir}/dnet_index

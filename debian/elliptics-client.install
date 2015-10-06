@@ -1,5 +1,7 @@
 usr/lib/libelliptics_client.so.*
 usr/lib/libelliptics_cpp.so.*
+usr/bin/dnet_iterate_move
+usr/bin/dnet_iterate
 usr/bin/dnet_find
 usr/bin/dnet_ioclient
 usr/bin/dnet_index
