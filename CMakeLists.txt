@@ -26,7 +26,6 @@ add_definitions(-DCONFIG_ELLIPTICS_VERSION_3=${ELLIPTICS_VERSION_3})
 option(WITH_PYTHON "Build python bindings" ON)
 option(WITH_COCAINE "Build with cocaine support" ON)
 option(WITH_EXAMPLES "Build example applications" ON)
-option(HAVE_MODULE_BACKEND_SUPPORT "Build ioserv with shared library backend support" ON)
 
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
 set(Boost_NO_BOOST_CMAKE TRUE)
@@ -91,11 +90,6 @@ endif()
 # Find eblob
 find_package(Eblob REQUIRED)
 include_directories(${EBLOB_INCLUDE_DIRS})
-
-if (HAVE_MODULE_BACKEND_SUPPORT)
-    add_definitions(-DHAVE_MODULE_BACKEND_SUPPORT=1)
-    add_subdirectory(example/module_backend)
-endif()
 
 # Handystats instrumentation
 option(WITH_STATS "Build with runtime statistics gathering" ON)
@@ -169,8 +163,6 @@ install(FILES
         include/elliptics/timer.hpp
         include/elliptics/utils.hpp
         include/elliptics/backends.h
-        include/elliptics/module_backend.h
-        include/elliptics/module_backend.hpp
         include/elliptics/logger.hpp
         DESTINATION include/elliptics/
         )

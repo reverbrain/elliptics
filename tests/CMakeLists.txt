@@ -30,14 +30,12 @@ add_library(test_common STATIC
     ../example/backends.c
     ../example/eblob_backend.cpp
     ../example/eblob_backend.c
-    ../example/module_backend/core/module_backend_t.c
-    ../example/module_backend/core/dlopen_handle_t.c
     test_base.hpp
     test_base.cpp
     test_session.hpp
     test_session.cpp)
 set_target_properties(test_common ${TEST_PROPERTIES})
-set(TEST_COMMON_LIBRARIES elliptics elliptics_client elliptics_cocaine elliptics_cpp dl ${Boost_LIBRARIES})
+set(TEST_COMMON_LIBRARIES elliptics elliptics_client elliptics_cocaine elliptics_cpp ${Boost_LIBRARIES})
 if(WITH_COCAINE)
     list(APPEND TEST_COMMON_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
     list(APPEND TEST_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
