@@ -127,11 +127,7 @@ int dnet_ext_hdr_write(const struct dnet_ext_list_hdr *ehdr, int fd, uint64_t of
 int dnet_backend_register(struct dnet_config_data *data, struct dnet_config_backend *b);
 
 struct dnet_config_backend *dnet_eblob_backend_info(void);
-struct dnet_config_backend *dnet_file_backend_info(void);
 struct dnet_config_backend *dnet_module_backend_info(void);
-
-int dnet_file_backend_init(void);
-void dnet_file_backend_exit(void);
 
 int dnet_module_backend_init(void);
 void dnet_module_backend_exit(void);

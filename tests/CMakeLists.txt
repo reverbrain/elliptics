@@ -27,8 +27,6 @@ add_library(test_common STATIC
     ../example/common.c
     ../example/config.cpp
     ../example/config_impl.cpp
-    ../example/file_backend.cpp
-    ../example/file_backend.c
     ../example/backends.c
     ../example/eblob_backend.cpp
     ../example/eblob_backend.c

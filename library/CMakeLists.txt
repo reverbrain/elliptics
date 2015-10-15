@@ -25,8 +25,6 @@ set(ELLIPTICS_SRCS
     ../example/config.hpp
     ../example/config.cpp
     ../example/config_impl.cpp
-    ../example/file_backend.cpp
-    ../example/file_backend.c
     ../example/backends.c
     ../example/eblob_backend.cpp
     ../example/eblob_backend.c
