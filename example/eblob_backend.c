@@ -180,6 +180,70 @@ static int blob_lookup(struct eblob_backend *b, struct eblob_key *key, struct eb
 	return err;
 }
 
+static int blob_cas_timestamp(struct eblob_backend_config *c, struct eblob_key *key, struct dnet_io_attr *io)
+{
+	struct dnet_ext_list_hdr ehdr;
+	struct dnet_ext_list elist;
+	struct eblob_backend *b = c->eblob;
+	struct eblob_write_control wc = { .data_fd = -1 };
+	int err;
+
+	dnet_ext_list_init(&elist);
+
+	err = blob_lookup(b, key, &wc);
+	if (err < 0) {
+		if (err != -ENOENT) {
+			dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-cas-timestamp: LOOKUP: %d: %s",
+				 dnet_dump_id_str(io->id), err, strerror(-err));
+			goto err_out_exit;
+		}
+
+		/* There is no record, write is safe. */
+		err = 0;
+		goto err_out_exit;
+	}
+
+	/* If it is data with extended header, we must check timestamp.
+	 * Otherwise allow overwrite.
+	 */
+	if (!(wc.flags & BLOB_DISK_CTL_EXTHDR)) {
+		err = 0;
+		goto err_out_exit;
+	}
+
+	/* Sanity */
+	if (wc.total_data_size < sizeof(struct dnet_ext_list_hdr)) {
+		err = -ERANGE;
+		goto err_out_exit;
+	}
+
+	err = dnet_ext_hdr_read(&ehdr, wc.data_fd, wc.data_offset);
+	if (err != 0)
+		goto err_out_exit;
+	dnet_ext_hdr_to_list(&ehdr, &elist);
+
+	/*
+	 * On-disk timestamp is higher than that in data to be written.
+	 * Do not allow this write.
+	 */
+	if (dnet_time_cmp(&elist.timestamp, &io->timestamp) > 0) {
+		dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: cas: disk timestamp is higher "
+				"than data to be written timestamp: disk-ts: %lld.%lld, data-ts: %lld.%lld",
+			dnet_dump_id_str(io->id),
+			(unsigned long long)elist.timestamp.tsec, (unsigned long long)elist.timestamp.tnsec,
+			(unsigned long long)io->timestamp.tsec, (unsigned long long)io->timestamp.tnsec);
+
+		err = -EBADFD;
+		goto err_out_exit;
+	}
+
+	err = 0;
+
+err_out_exit:
+	dnet_ext_list_destroy(&elist);
+	return err;
+}
+
 static int blob_write(struct eblob_backend_config *c, void *state,
 		struct dnet_cmd *cmd, void *data)
 {
@@ -213,6 +277,16 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 		flags |= BLOB_DISK_CTL_NOCSUM;
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
+
+	/*
+	 * Check timestamp of the existing record if compare-and-swap timestamp flag is set.
+	 * If on-disk record's timestamp is higher than that in IO structure, do not allow this write.
+	 */
+	if (io->flags & DNET_IO_FLAGS_CAS_TIMESTAMP) {
+		err = blob_cas_timestamp(c, &key, io);
+		if (err)
+			goto err_out_exit;
+	}
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
 		/*

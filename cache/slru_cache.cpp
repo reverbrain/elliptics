@@ -194,6 +194,26 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 		}
 	}
 
+	if (io->flags & DNET_IO_FLAGS_CAS_TIMESTAMP) {
+		TIMER_SCOPE("write.cas_timestamp");
+
+		if (raw.size() != 0) {
+			struct dnet_time cache_ts = it->timestamp();
+
+			// cache timestamp is greater than timestamp of the data to be written
+			// do not allow it
+			if (dnet_time_cmp(&cache_ts, &io->timestamp) > 0) {
+				dnet_log(m_node, DNET_LOG_ERROR, "%s: cas: cache timestamp is larger "
+						"than data to be written timestamp: "
+						"cache-ts: %lld.%lld, data-ts: %lld.%lld",
+						dnet_dump_id(&cmd->id),
+						(unsigned long long)cache_ts.tsec, (unsigned long long)cache_ts.tnsec,
+						(unsigned long long)io->timestamp.tsec, (unsigned long long)io->timestamp.tnsec);
+				return -EBADFD;
+			}
+		}
+	}
+
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: CAS checked", dnet_dump_id_str(id));
 
 	size_t new_data_size = 0;

@@ -544,6 +544,14 @@ static inline void dnet_convert_list(struct dnet_list *l)
  */
 #define DNET_IO_FLAGS_WRITE_NO_FILE_INFO	(1<<14)
 
+/*
+ * Compare-and-set timestamp flag.
+ * When set, it is only allowed to write data if its timestamp is higher or equal
+ * to the timestamp of the on-disk record. This applies to prepare/commit writes too,
+ * since prepare write command writes header which contains timestamp to disk.
+ */
+#define DNET_IO_FLAGS_CAS_TIMESTAMP	(1<<15)
+
 static inline const char *dnet_flags_dump_ioflags(uint64_t flags)
 {
 	static __thread char buffer[256];
