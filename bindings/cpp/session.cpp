@@ -984,7 +984,6 @@ async_write_result session::write_data(const dnet_io_attr &io, const argument_da
 async_write_result session::write_data(const key &id, const argument_data &file, uint64_t remote_offset)
 {
 	transform(id);
-	dnet_id raw = id.id();
 
 	dnet_io_control ctl;
 
@@ -999,7 +998,7 @@ async_write_result session::write_data(const key &id, const argument_data &file,
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 
-	memcpy(&ctl.id, &raw, sizeof(dnet_id));
+	ctl.id = id.id();
 
 	ctl.fd = -1;
 
