@@ -801,10 +801,6 @@ void dnet_backend_info::parse(ioremap::elliptics::config::config_data *data,
 
 	dnet_config_backend *backends_info[] = {
 		dnet_eblob_backend_info(),
-		dnet_file_backend_info(),
-#ifdef HAVE_MODULE_BACKEND_SUPPORT
-		dnet_module_backend_info(),
-#endif
 	};
 
 	bool found_backend = false;

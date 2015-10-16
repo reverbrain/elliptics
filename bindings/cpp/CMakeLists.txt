@@ -21,10 +21,8 @@ set(ELLIPTICS_CPP_SRCS
     key.cpp
     ../../foreign/cmp/cmp.c
 # Added includes for better IDE's experience
-    ../../include/elliptics/module_backend.hpp
     ../../include/elliptics/interface.h
     ../../include/elliptics/utils.hpp
-    ../../include/elliptics/module_backend.h
     ../../include/elliptics/cppdef.h
     ../../include/elliptics/backends.h
     ../../include/elliptics/session.hpp

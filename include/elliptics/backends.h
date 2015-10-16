@@ -124,17 +124,11 @@ int dnet_ext_hdr_read(struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset);
 __attribute__((warn_unused_result))
 int dnet_ext_hdr_write(const struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset);
 
-int dnet_backend_register(struct dnet_config_data *data, struct dnet_config_backend *b);
-
+/*
+ * To enable new backend, one has to update
+ * library/backend.cpp dnet_backend_info::parse() method
+ */
 struct dnet_config_backend *dnet_eblob_backend_info(void);
-struct dnet_config_backend *dnet_file_backend_info(void);
-struct dnet_config_backend *dnet_module_backend_info(void);
-
-int dnet_file_backend_init(void);
-void dnet_file_backend_exit(void);
-
-int dnet_module_backend_init(void);
-void dnet_module_backend_exit(void);
 
 int dnet_eblob_backend_init(void);
 void dnet_eblob_backend_exit(void);

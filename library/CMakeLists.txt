@@ -25,20 +25,10 @@ set(ELLIPTICS_SRCS
     ../example/config.hpp
     ../example/config.cpp
     ../example/config_impl.cpp
-    ../example/file_backend.cpp
-    ../example/file_backend.c
     ../example/backends.c
     ../example/eblob_backend.cpp
     ../example/eblob_backend.c
     )
-
-if (HAVE_MODULE_BACKEND_SUPPORT)
-    list(APPEND ELLIPTICS_SRCS
-        ../example/module_backend/core/module_backend_t.c
-        ../example/module_backend/core/dlopen_handle_t.c)
-
-    list(APPEND ELLIPTICS_LIBRARIES dl)
-endif()
 
 add_library(elliptics_ids STATIC ids.cpp)
 if(UNIX OR MINGW)
