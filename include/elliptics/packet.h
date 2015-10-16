@@ -549,6 +549,8 @@ static inline void dnet_convert_list(struct dnet_list *l)
  * When set, it is only allowed to write data if its timestamp is higher or equal
  * to the timestamp of the on-disk record. This applies to prepare/commit writes too,
  * since prepare write command writes header which contains timestamp to disk.
+ *
+ * When both compare-and-swap and timestamp cas flags are specified, checksum cas is checked first.
  */
 #define DNET_IO_FLAGS_CAS_TIMESTAMP	(1<<15)
 
@@ -1015,8 +1017,9 @@ enum {
  */
 #define DNET_IFLAGS_MOVE		(1<<4)
 /*
- * Overwrite data. If this flag is not set, we only write data if there is no remote copy at all.
- * Data will still be transferred over the network.
+ * Overwrite data. If this flag is NOT set, we only write data if remote timestamp is less
+ * that that in data being written. When NOT set, data will still be transferred over the network,
+ * even if remote timestamp doesn't allow us to overwrite data.
  */
 #define DNET_IFLAGS_OVERWRITE		(1<<5)
 

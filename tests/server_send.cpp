@@ -77,6 +77,28 @@ static void ssend_configure(const std::string &path)
 	ssend_servers = tests::start_nodes(cfg);
 }
 
+static void ssend_test_insert_many_keys_old_ts(session &s, int num, const std::string &id_prefix, const std::string &data_prefix)
+{
+	s.set_trace_id(rand());
+	for (int i = 0; i < num; ++i) {
+		std::string id = id_prefix + lexical_cast(i);
+		std::string data = data_prefix + lexical_cast(i);
+
+		key k(id);
+		s.transform(k);
+
+		dnet_io_attr io;
+		memset(&io, 0, sizeof(dnet_io_attr));
+
+		memcpy(io.id, k.raw_id().id, DNET_ID_SIZE);
+
+		dnet_current_time(&io.timestamp);
+		io.timestamp.tsec -= 1000;
+
+		ELLIPTICS_REQUIRE(res, s.write_data(io, data));
+	}
+}
+
 static void ssend_test_insert_many_keys(session &s, int num, const std::string &id_prefix, const std::string &data_prefix)
 {
 	s.set_trace_id(rand());
@@ -281,9 +303,11 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	//
 	//
 	// there are no keys in @ssend_src_groups at this point
-	// write new data with the same keys as we have moved
+	// write new data with the same keys as we have moved,
+	// but with older timestamp than that already written,
+	// so that move with timestamp cas would fail
 	data_prefix = "new data prefix";
-	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
+	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys_old_ts, src, num, id_prefix, data_prefix);
 
 	// it should actually fail to move any key, since data is different and we
 	// do not set OVERWRITE bit, thus reading from source groups should succeeed

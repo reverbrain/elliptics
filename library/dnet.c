@@ -663,12 +663,12 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 	ctl.io.user_flags = re->user_flags;
 	ctl.io.total_size = re->size;
 	ctl.io.size = re->size;
-	ctl.io.flags = DNET_IO_FLAGS_WRITE_NO_FILE_INFO;
+	ctl.io.flags = DNET_IO_FLAGS_WRITE_NO_FILE_INFO | DNET_IO_FLAGS_CAS_TIMESTAMP;
 
-	// overwrite doesn't care whether remote key differs from local
-	// when this flag is not set, we only overwrite the same data or if there is no remote copy at all
-	if (!(send->iflags & DNET_IFLAGS_OVERWRITE))
-		ctl.io.flags |= DNET_IO_FLAGS_COMPARE_AND_SWAP;
+	// overwrite doesn't care whether remote timestamp differs from local
+	// when this flag is set, we overwrite data no matter what lives at destination node
+	if (send->iflags & DNET_IFLAGS_OVERWRITE)
+		ctl.io.flags &= ~DNET_IO_FLAGS_CAS_TIMESTAMP;
 
 	// deliberately do not set DNET_FLAGS_NEED_ACK
 	// if WRITE command has failed, @dnet_process_cmd_with_backend_raw() will set this bit automatically,
