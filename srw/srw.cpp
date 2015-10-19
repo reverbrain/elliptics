@@ -88,6 +88,11 @@ class dnet_upstream_t: public cocaine::api::stream_t
 			dnet_state_put(m_state);
 		}
 
+		/*
+		 * This function is called when worker sends chunk to reply stream.
+		 * We need to decode reply, check if it is a string (since we don't want to serialize
+		 * objects here), prepend with SPH header for the client and send elliptics reply.
+		 */
 		virtual void write(const char *chunk, size_t size) {
 			int err = 0;
 			/* Chunk should be decoded */
@@ -516,10 +521,8 @@ class srw {
 
 				it->second->update(event, sph);
 
-				dnet_shared_upstream_t upstream(std::make_shared<dnet_upstream_t>(
-                                                    m_node, st, cmd, sph,
-                                                    std::bind(&srw::complete_job, this, id_str, sph_wrapper(sph))
-												));
+				dnet_shared_upstream_t upstream(std::make_shared<dnet_upstream_t>( m_node, st, cmd, sph,
+												std::bind(&srw::complete_job, this, id_str, sph_wrapper(sph))));
 
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
 					m_jobs.insert(std::make_pair((int)sph->src_key, upstream));
@@ -570,16 +573,12 @@ class srw {
 
 		void complete_job(std::string id, sph_wrapper sph)
 		{
-			char sph_str[DNET_DUMP_NUM * 2 + 1];
-			dnet_dump_id_len_raw(sph.sph.src.id, DNET_DUMP_NUM, sph_str);
-			sph_str[2 * DNET_DUMP_NUM] = '\0';
-
 			std::unique_lock<std::mutex> guard(m_lock);
 
 			jobs_map_t::iterator it = m_jobs.find(sph.sph.src_key);
 			if (it == m_jobs.end()) {
 				dnet_log(m_node, DNET_LOG_ERROR, "%s: sph: %s: %s: no job: %d to complete",
-					id.c_str(), sph_str, sph.event.c_str(), sph.sph.src_key);
+					id.c_str(), dnet_dump_id_str(sph.sph.src.id), sph.event.c_str(), sph.sph.src_key);
 				return;
 			}
 
