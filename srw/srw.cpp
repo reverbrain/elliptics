@@ -104,7 +104,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 			}
 
 			if (err) {
-				error(err, "protocol error");
+				reply(true, NULL, 0);
 				return;
 			}
 
@@ -142,7 +142,6 @@ class dnet_upstream_t: public cocaine::api::stream_t
 		virtual void error(int code, const std::string &message) {
 			m_error = -code;
 			SRW_LOG(*m_node->log, DNET_LOG_ERROR, "app/" + m_sph.event, "%s: %d", message, code);
-			reply(true, NULL, 0);
 		}
 
 		void reply(bool completed, const char *reply, size_t size) {
