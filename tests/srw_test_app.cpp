@@ -23,6 +23,7 @@ public:
 
 	void init(const std::string &cocaine_event, const std::vector<std::string> &chunks, cocaine::framework::response_ptr response);
 	void echo(const std::string &cocaine_event, const std::vector<std::string> &chunks, cocaine::framework::response_ptr response);
+	void response(const std::string &cocaine_event, const std::vector<std::string> &chunks, cocaine::framework::response_ptr response);
 	void noreply(const std::string &cocaine_event, const std::vector<std::string> &chunks, cocaine::framework::response_ptr response);
 };
 
@@ -34,6 +35,7 @@ app_context::app_context(cocaine::framework::dispatch_t& dispatch)
 
 	dispatch.on("noreply", this, &app_context::noreply);
 	dispatch.on("echo", this, &app_context::echo);
+	dispatch.on("response", this, &app_context::response);
 	dispatch.on("init", this, &app_context::init);
 
 	COCAINE_LOG_INFO(log, "%s, application started", id.c_str());
@@ -79,6 +81,17 @@ void app_context::echo(const std::string &event, const std::vector<std::string> 
 
 	elliptics::async_reply_result result = reply_client->reply(context, context.data(), elliptics::exec_context::final);
 	result.connect(std::bind(noop_function, response));
+}
+
+/* This test equals to echo, but sends reply via cocaine response stream */
+void app_context::response(const std::string &event, const std::vector<std::string> &chunks, cocaine::framework::response_ptr response)
+{
+	elliptics::exec_context context = elliptics::exec_context::from_raw(chunks[0].c_str(), chunks[0].size());
+
+	COCAINE_LOG_INFO(log, "response: event: %s, data-size: %ld", event.c_str(), context.data().size());
+
+	response->write(context.data().to_string());
+	response->close();
 }
 
 /**
