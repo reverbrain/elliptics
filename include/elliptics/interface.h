@@ -215,6 +215,47 @@ int dnet_iterator_response_container_read(int fd, uint64_t pos,
 int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t left_size,
 		int right_fd, uint64_t right_size);
 
+/*
+ * This structure is used to get information about given key position
+ * in the underlying backend. Backend will not send anything to client,
+ * there is no @dnet_net_state for this.
+ */
+struct dnet_io_local
+{
+	uint8_t			key[DNET_ID_SIZE];
+
+	/*
+	 * @timestamp and @user_flags is used in extended headers in metadata writes.
+	 */
+	struct dnet_time	timestamp;
+	uint64_t		user_flags;
+
+	/*
+	 * Total size of the object.
+	 */
+	uint64_t		total_size;
+
+	/*
+	 * Combination of DNET_RECORD_FLAGS_*
+	 */
+	uint64_t		record_flags;
+
+	/*
+	 * If object can be read from file, backend may put appropriate fd here.
+	 */
+	int			fd;
+	uint64_t		fd_offset;
+
+	/*
+	 * This structure is not supposed to be transferred over the network,
+	 * so reserved fields are not needed - all backends live in elliptics source tree.
+	 *
+	 * But if there will be any external backend which can not be recompiled with
+	 * elliptics update, these fields may be useful.
+	 */
+	uint64_t		reserved[8];
+};
+
 struct dnet_backend_callbacks {
 	/* command handler processes DNET_CMD_* commands */
 	int			(* command_handler)(void *state, void *priv, struct dnet_cmd *cmd, void *data);
@@ -253,6 +294,8 @@ struct dnet_backend_callbacks {
 	 * Returns dir used by backend
 	 */
 	char *			(* dir)(void);
+
+	int			(* lookup)(struct dnet_node *n, void *priv, struct dnet_io_local *io);
 };
 
 /*

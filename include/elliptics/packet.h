@@ -550,7 +550,7 @@ static inline void dnet_convert_list(struct dnet_list *l)
  * to the timestamp of the on-disk record. This applies to prepare/commit writes too,
  * since prepare write command writes header which contains timestamp to disk.
  *
- * When both compare-and-swap and timestamp cas flags are specified, checksum cas is checked first.
+ * When both compare-and-swap and timestamp cas flags are specified, timestamp cas is checked first.
  */
 #define DNET_IO_FLAGS_CAS_TIMESTAMP	(1<<15)
 
