@@ -68,6 +68,16 @@ struct sph_wrapper
 	}
 };
 
+/**
+ * This class handles reply stream from worker.
+ * Function write() accepts string from worker and sends it to the client
+ * started EXEC transaction if DNET_SPH_FLAGS_SRC_BLOCK was set.
+ * It allows to write interactive worker application in a straightforward way:
+ *  - read SPH + data from request stream
+ *  - do some useful job
+ *  - send reply via response stream
+ * Chunked replies are allowed by protocol.
+ */
 class dnet_upstream_t: public cocaine::api::stream_t
 {
 	public:
