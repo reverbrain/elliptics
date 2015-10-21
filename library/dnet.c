@@ -663,12 +663,12 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 	ctl.io.user_flags = re->user_flags;
 	ctl.io.total_size = re->size;
 	ctl.io.size = re->size;
-	ctl.io.flags = DNET_IO_FLAGS_WRITE_NO_FILE_INFO;
+	ctl.io.flags = DNET_IO_FLAGS_WRITE_NO_FILE_INFO | DNET_IO_FLAGS_CAS_TIMESTAMP;
 
-	// overwrite doesn't care whether remote key differs from local
-	// when this flag is not set, we only overwrite the same data or if there is no remote copy at all
-	if (!(send->iflags & DNET_IFLAGS_OVERWRITE))
-		ctl.io.flags |= DNET_IO_FLAGS_COMPARE_AND_SWAP;
+	// overwrite doesn't care whether remote timestamp differs from local
+	// when this flag is set, we overwrite data no matter what lives at destination node
+	if (send->iflags & DNET_IFLAGS_OVERWRITE)
+		ctl.io.flags &= ~DNET_IO_FLAGS_CAS_TIMESTAMP;
 
 	// deliberately do not set DNET_FLAGS_NEED_ACK
 	// if WRITE command has failed, @dnet_process_cmd_with_backend_raw() will set this bit automatically,
@@ -1253,7 +1253,7 @@ static int dnet_cmd_bulk_read(struct dnet_backend_io *backend, struct dnet_net_s
 	return err;
 }
 
-int dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id, void *remote_csum, int csize)
+static int dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_id *id, void *remote_csum, int csize)
 {
 	char csum[DNET_ID_SIZE];
 	int err = 0;
@@ -1296,6 +1296,57 @@ int dnet_cas_local(struct dnet_backend_io *backend, struct dnet_node *n, struct 
 		}
 	}
 
+	return err;
+}
+
+/*
+ * Check timestamp of the existing record if compare-and-swap timestamp flag is set.
+ * If on-disk record's timestamp is higher than that in IO structure, do not allow this write.
+ */
+static int dnet_cas_timestamp_local(struct dnet_backend_io *backend, struct dnet_node *n, struct dnet_io_attr *req)
+{
+	struct dnet_io_local io;
+	int err;
+
+	if (!backend->cb->lookup) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: cas: lookup operation is not supported in backend",
+				dnet_dump_id_str(req->id));
+		err = -ENOTSUP;
+		goto err_out_exit;
+	}
+
+	memset(((char *)&io) + DNET_ID_SIZE, 0, sizeof(struct dnet_io_local) - DNET_ID_SIZE);
+	memcpy(io.key, req->id, DNET_ID_SIZE);
+
+	io.fd = -1;
+
+	err = backend->cb->lookup(n, backend->cb->command_private, &io);
+	if (err) {
+		/*
+		 * There is no given key, allow this write
+		 */
+		if (err == -ENOENT) {
+			err = 0;
+			goto err_out_exit;
+		}
+
+		dnet_log(n, DNET_LOG_ERROR, "%s: cas: lookup operation has failed: %d",
+				dnet_dump_id_str(req->id), err);
+		goto err_out_exit;
+	}
+
+	if (dnet_time_cmp(&io.timestamp, &req->timestamp) > 0) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: cas: disk timestamp is higher "
+			"than data to be written timestamp: disk-ts: %lld.%lld, data-ts: %lld.%lld",
+			dnet_dump_id_str(req->id),
+			(unsigned long long)io.timestamp.tsec, (unsigned long long)io.timestamp.tnsec,
+			(unsigned long long)req->timestamp.tsec, (unsigned long long)req->timestamp.tnsec);
+
+		err = -EBADFD;
+		goto err_out_exit;
+	}
+
+err_out_exit:
 	return err;
 }
 
@@ -1464,11 +1515,19 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 				}
 			}
 
-			if ((io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) && (cmd->cmd == DNET_CMD_WRITE)) {
-				err = dnet_cas_local(backend, n, &cmd->id, io->parent, DNET_ID_SIZE);
+			if (cmd->cmd == DNET_CMD_WRITE) {
+				if (io->flags & DNET_IO_FLAGS_CAS_TIMESTAMP) {
+					err = dnet_cas_timestamp_local(backend, n, io);
+					if (err != 0)
+						break;
+				}
 
-				if (err != 0 && err != -ENOENT)
-					break;
+				if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
+					err = dnet_cas_local(backend, n, &cmd->id, io->parent, DNET_ID_SIZE);
+
+					if (err != 0 && err != -ENOENT)
+						break;
+				}
 			}
 
 			if (io->flags & DNET_IO_FLAGS_CACHE_ONLY)

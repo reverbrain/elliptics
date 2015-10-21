@@ -844,6 +844,69 @@ err_out_exit:
 	return err;
 }
 
+static int eblob_backend_lookup(struct dnet_node *n, void *priv, struct dnet_io_local *io)
+{
+	struct eblob_backend_config *c = priv;
+	struct eblob_backend *b = c->eblob;
+	struct eblob_key key;
+	struct dnet_ext_list_hdr ehdr;
+	struct dnet_ext_list elist;
+	struct eblob_write_control wc = { .data_fd = -1 };
+	uint64_t size, offset;
+	int err;
+
+	(void) n;
+	memcpy(key.id, io->key, EBLOB_ID_SIZE);
+
+	dnet_ext_list_init(&elist);
+
+	err = blob_lookup(b, &key, &wc);
+	if (err < 0) {
+		dnet_backend_log(c->blog, DNET_LOG_ERROR, "%s: EBLOB: blob-backend-lookup: LOOKUP: %d: %s",
+			 dnet_dump_id_str(io->key), err, strerror(-err));
+		goto err_out_exit;
+	}
+
+	io->record_flags = wc.flags;
+	io->fd = wc.data_fd;
+
+	size = wc.total_data_size;
+	offset = wc.data_offset;
+
+	if (!(wc.flags & BLOB_DISK_CTL_EXTHDR)) {
+		err = 0;
+		goto err_out_set_sizes;
+	}
+
+	/* Sanity */
+	if (wc.total_data_size < sizeof(struct dnet_ext_list_hdr)) {
+		err = -ERANGE;
+		goto err_out_set_sizes;
+	}
+
+	err = dnet_ext_hdr_read(&ehdr, wc.data_fd, wc.data_offset);
+	if (err != 0)
+		goto err_out_set_sizes;
+
+	dnet_ext_hdr_to_list(&ehdr, &elist);
+
+	io->timestamp = elist.timestamp;
+	io->user_flags = elist.flags;
+
+	size -= sizeof(struct dnet_ext_list_hdr);
+	offset += sizeof(struct dnet_ext_list_hdr);
+
+	err = 0;
+
+err_out_set_sizes:
+	io->total_size = size;
+	io->fd_offset = offset;
+
+err_out_exit:
+	dnet_ext_list_destroy(&elist);
+	return err;
+}
+
 static int blob_defrag_status(void *priv)
 {
 	struct eblob_backend_config *c = priv;
@@ -1405,6 +1468,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b)
 	b->cb.command_handler = eblob_backend_command_handler;
 	b->cb.backend_cleanup = eblob_backend_cleanup;
 	b->cb.checksum = eblob_backend_checksum;
+	b->cb.lookup = eblob_backend_lookup;
 
 	b->cb.iterator = dnet_eblob_iterator;
 
