@@ -113,29 +113,22 @@ class dnet_upstream_t: public cocaine::api::stream_t
 				return;
 			}
 
-			size_t data_size = sizeof(sph) +  m_sph.event.size() + obj.via.raw.size;
-			char *data = (char *)malloc(data_size);
-			if (!data) {
-				SRW_LOG(*m_node->log, DNET_LOG_ERROR, "app/" + m_sph.event, "unable to allocate memory: %d", errno);
-				return;
-			}
-
 			/* Make SPH reply for client */
-			char *p = data;
-			sph * sph_p = (sph*)data;
+			size_t data_size = sizeof(sph) +  m_sph.event.size() + obj.via.raw.size;
+			ioremap::elliptics::data_buffer data(data_size);
 
-			memcpy(data, &m_sph.sph, sizeof(sph));
-			p += sizeof(sph);
+			data.write(&m_sph.sph, sizeof(sph));
+			data.write(m_sph.event.data(), m_sph.event.size());
+			data.write(obj.via.raw.ptr, obj.via.raw.size);
 
+			/* Fix SPH sizes */
+			ioremap::elliptics::data_pointer data_ptr(std::move(data));
+
+			sph * sph_p = (sph*)(data_ptr.data());
 			sph_p->event_size = m_sph.event.size();
-			memcpy(p, m_sph.event.data(), m_sph.event.size());
-			p += m_sph.event.size();
-
 			sph_p->data_size = obj.via.raw.size;
-			memcpy(p, obj.via.raw.ptr, obj.via.raw.size);
 
-			reply(false, data, data_size);
-			free(data);
+			reply(false, data_ptr.data<const char>(), data_ptr.size());
 		}
 
 		virtual void close(void) {
