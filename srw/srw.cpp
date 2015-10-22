@@ -31,6 +31,8 @@
 #include <map>
 #include <vector>
 #include <sstream>
+#include <functional>
+#include <msgpack.hpp>
 
 #include <cocaine/context.hpp>
 #include <cocaine/logging.hpp>
@@ -53,17 +55,40 @@
 		("app", (__app__)) \
 		("source", "srw")
 
+struct sph_wrapper
+{
+	struct sph sph;
+	std::string event;
+
+	sph_wrapper(struct sph *p_sph)
+	{
+		char *data = (char *)(p_sph + 1);
+		event = std::string(data, p_sph->event_size);
+		sph = *p_sph;
+	}
+};
+
+/**
+ * This class handles reply stream from worker.
+ * Function write() accepts string from worker and sends it to the client
+ * started EXEC transaction if DNET_SPH_FLAGS_SRC_BLOCK was set.
+ * It allows to write interactive worker application in a straightforward way:
+ *  - read SPH + data from request stream
+ *  - do some useful job
+ *  - send reply via response stream
+ * Chunked replies are allowed by protocol.
+ */
 class dnet_upstream_t: public cocaine::api::stream_t
 {
 	public:
 		dnet_upstream_t(struct dnet_node *node, struct dnet_net_state *state, struct dnet_cmd *cmd,
-				const std::string &event, uint64_t sph_flags):
+				const sph_wrapper &sph, std::function<void()> deleter):
 		m_completed(false),
-		m_name(event),
 		m_node(node),
 		m_state(dnet_state_get(state)),
 		m_cmd(*cmd),
-		m_sph_flags(sph_flags),
+		m_sph(sph),
+		m_deleter(deleter),
 		m_error(0) {
 		}
 
@@ -73,18 +98,58 @@ class dnet_upstream_t: public cocaine::api::stream_t
 			dnet_state_put(m_state);
 		}
 
+		/*
+		 * This function is called when worker sends chunk to reply stream.
+		 * We need to decode reply, check if it is a string (since we don't want to serialize
+		 * objects here), prepend with SPH header for the client and send elliptics reply.
+		 */
 		virtual void write(const char *chunk, size_t size) {
-			reply(false, chunk, size);
+			int err = 0;
+			/* Chunk should be decoded */
+			msgpack::object obj;
+			size_t offset = 0;
+
+			msgpack::unpack_return rv = msgpack::unpack(chunk, size, &offset, &m_zone, &obj);
+			if (rv != msgpack::UNPACK_SUCCESS && rv != msgpack::UNPACK_EXTRA_BYTES) {
+				err = EINVAL;
+				SRW_LOG(*m_node->log, DNET_LOG_ERROR, "app/" + m_sph.event, "unable to unpack response");
+			} else if (obj.type != msgpack::type::RAW) {
+				err = EINVAL;
+				SRW_LOG(*m_node->log, DNET_LOG_ERROR, "app/" + m_sph.event, "insorrect response type, should be string, got: %d", obj.type);
+			}
+
+			if (err) {
+				reply(true, NULL, 0);
+				return;
+			}
+
+			/* Make SPH reply for client */
+			size_t data_size = sizeof(sph) +  m_sph.event.size() + obj.via.raw.size;
+			ioremap::elliptics::data_buffer data(data_size);
+
+			data.write(&m_sph.sph, sizeof(sph));
+			data.write(m_sph.event.data(), m_sph.event.size());
+			data.write(obj.via.raw.ptr, obj.via.raw.size);
+
+			/* Fix SPH sizes */
+			ioremap::elliptics::data_pointer data_ptr(std::move(data));
+
+			sph * sph_p = (sph*)(data_ptr.data());
+			sph_p->event_size = m_sph.event.size();
+			sph_p->data_size = obj.via.raw.size;
+
+			reply(false, data_ptr.data<const char>(), data_ptr.size());
 		}
 
 		virtual void close(void) {
-			SRW_LOG(*m_node->log, DNET_LOG_NOTICE, "app/" + m_name, "%s", "job completed");
+			SRW_LOG(*m_node->log, DNET_LOG_NOTICE, "app/" + m_sph.event, "%s", "job completed");
 			reply(true, NULL, 0);
+			m_deleter();
 		}
 
 		virtual void error(int code, const std::string &message) {
 			m_error = -code;
-			SRW_LOG(*m_node->log, DNET_LOG_ERROR, "app/" + m_name, "%s: %d", message, code);
+			SRW_LOG(*m_node->log, DNET_LOG_ERROR, "app/" + m_sph.event, "%s: %d", message, code);
 		}
 
 		void reply(bool completed, const char *reply, size_t size) {
@@ -94,7 +159,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 
 			m_completed = completed;
 
-			if ((m_sph_flags & DNET_SPH_FLAGS_SRC_BLOCK) || (reply && size)) {
+			if ((m_sph.sph.flags & DNET_SPH_FLAGS_SRC_BLOCK) || (reply && size)) {
 				if (reply && size) {
 					if (completed)
 						m_cmd.flags &= ~DNET_FLAGS_NEED_ACK;
@@ -108,13 +173,14 @@ class dnet_upstream_t: public cocaine::api::stream_t
 
 	private:
 		bool m_completed;
-		std::string m_name;
 		struct dnet_node *m_node;
 		std::mutex m_lock;
 		struct dnet_net_state *m_state;
 		struct dnet_cmd m_cmd;
-		uint64_t m_sph_flags;
+		sph_wrapper m_sph;
+		std::function<void()> m_deleter;
 		int m_error;
+		msgpack::zone m_zone;
 };
 
 typedef std::shared_ptr<dnet_upstream_t> dnet_shared_upstream_t;
@@ -458,7 +524,8 @@ class srw {
 
 				it->second->update(event, sph);
 
-				dnet_shared_upstream_t upstream(std::make_shared<dnet_upstream_t>(m_node, st, cmd, event, (uint64_t)sph->flags));
+				dnet_shared_upstream_t upstream(std::make_shared<dnet_upstream_t>(m_node, st, cmd, sph,
+												std::bind(&srw::complete_job, this, id_str, sph_wrapper(sph))));
 
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
 					m_jobs.insert(std::make_pair((int)sph->src_key, upstream));
@@ -479,6 +546,10 @@ class srw {
 					}
 
 					stream->write((const char *)sph, total_size(sph) + sizeof(struct sph));
+					/*
+					 * Request stream should be closed after all data was sent to prevent resource leackage.
+					 */
+					stream->close();
 
 				} catch (const std::exception &e) {
 					dnet_log(m_node, DNET_LOG_ERROR, "%s: sph: %s: %s: enqueue/write-exception: queue: %s, src-key-orig: %d, "
@@ -504,6 +575,20 @@ class srw {
 			}
 
 			return err;
+		}
+
+		void complete_job(std::string id, sph_wrapper sph)
+		{
+			std::unique_lock<std::mutex> guard(m_lock);
+
+			jobs_map_t::iterator it = m_jobs.find(sph.sph.src_key);
+			if (it == m_jobs.end()) {
+				dnet_log(m_node, DNET_LOG_ERROR, "%s: sph: %s: %s: no job: %d to complete",
+					id.c_str(), dnet_dump_id_str(sph.sph.src.id), sph.event.c_str(), sph.sph.src_key);
+				return;
+			}
+
+			m_jobs.erase(it);
 		}
 
 	private:

@@ -49,6 +49,10 @@ static void init_application(session &sess, const std::string &app_name)
 	init_application_impl(sess, app_name, *global_data);
 }
 
+/**
+ * This test checks response path via elliptics client created inside worker.
+ * It was the only working way to response.
+ */
 static void send_echo(session &sess, const std::string &app_name, const std::string &data)
 {
 	key key_id = app_name;
@@ -56,6 +60,23 @@ static void send_echo(session &sess, const std::string &app_name, const std::str
 	dnet_id id = key_id.id();
 
 	ELLIPTICS_REQUIRE(exec_result, sess.exec(&id, app_name + "@echo", data));
+
+	sync_exec_result result = exec_result;
+	BOOST_REQUIRE_EQUAL(result.size(), 1);
+	BOOST_REQUIRE_EQUAL(result[0].context().data().to_string(), data);
+}
+
+/**
+ * This test checks response path via cocaine response stream.
+ * From client's point of view there should be no difference.
+ */
+static void send_response(session &sess, const std::string &app_name, const std::string &data)
+{
+	key key_id = app_name;
+	key_id.transform(sess);
+	dnet_id id = key_id.id();
+
+	ELLIPTICS_REQUIRE(exec_result, sess.exec(&id, app_name + "@response", data));
 
 	sync_exec_result result = exec_result;
 	BOOST_REQUIRE_EQUAL(result.size(), 1);
@@ -167,6 +188,8 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(init_application, create_session(n, { 1 }, 0, 0), application_name());
 	ELLIPTICS_TEST_CASE(send_echo, create_session(n, { 1 }, 0, 0), application_name(), "some-data");
 	ELLIPTICS_TEST_CASE(send_echo, create_session(n, { 1 }, 0, 0), application_name(), "some-data and long-data.. like this");
+	ELLIPTICS_TEST_CASE(send_response, create_session(n, { 1 }, 0, 0), application_name(), "some-data");
+	ELLIPTICS_TEST_CASE(send_response, create_session(n, { 1 }, 0, 0), application_name(), "some-data and long-data.. like this");
 	ELLIPTICS_TEST_CASE(timeout_test, create_session(n, { 1 }, 0, 0), application_name());
 
 	return true;
