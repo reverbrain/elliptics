@@ -546,6 +546,9 @@ class srw {
 					}
 
 					stream->write((const char *)sph, total_size(sph) + sizeof(struct sph));
+					/*
+					 * Request stream should be closed after all data was sent to prevent resource leackage.
+					 */
 					stream->close();
 
 				} catch (const std::exception &e) {
