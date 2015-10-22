@@ -524,7 +524,7 @@ class srw {
 
 				it->second->update(event, sph);
 
-				dnet_shared_upstream_t upstream(std::make_shared<dnet_upstream_t>( m_node, st, cmd, sph,
+				dnet_shared_upstream_t upstream(std::make_shared<dnet_upstream_t>(m_node, st, cmd, sph,
 												std::bind(&srw::complete_job, this, id_str, sph_wrapper(sph))));
 
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
