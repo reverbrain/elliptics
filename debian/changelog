@@ -1,3 +1,12 @@
+elliptics (2.26.9.0) unstable; urgency=low
+
+  * io: added timestamp compare-and-swap flag, it allows to write data only when on-disk timestamp is less than to be written data timestamp, or when there is no data on disk.
+  * backends: remove filesystem and module backends
+  * srw: added ability to reply via response stream
+  * package: put iterator examples into client package
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 24 Oct 2015 03:20:50 +0400
+
 elliptics (2.26.8.0) unstable; urgency=low
 
   * cleanup: stop all node thread pools, then destroy monitor, then cleanup node thread pools

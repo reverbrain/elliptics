@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.8.0
+Version:	2.26.9.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -145,6 +145,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Oct 24 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.9.0
+- io: added timestamp compare-and-swap flag, it allows to write data only when on-disk timestamp is less than to be written data timestamp, or when there is no data on disk.
+- backends: remove filesystem and module backends
+- srw: added ability to reply via response stream
+- package: put iterator examples into client package
+
 * Tue Oct 06 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.8.0
 - cleanup: stop all node thread pools, then destroy monitor, then cleanup node thread pools
 - net: correctly set socket option to the proper socket
