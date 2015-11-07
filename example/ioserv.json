@@ -30,9 +30,11 @@
 		"wait_timeout": 60,
 		"check_timeout": 60,
 		"io_thread_num": 16,
+		"stall_count": 3,
 		"nonblocking_io_thread_num": 16,
 		"net_thread_num": 4,
 		"daemon": false,
+		"parallel": true,
 		"auth_cookie": "qwerty",
 		"bg_ionice_class": 3,
 		"bg_ionice_prio": 0,
@@ -57,7 +59,9 @@
 			"blob_flags": "158",
 			"blob_size": "10G",
 			"records_in_blob": "1000000",
-			"periodic_timeout": 15
+			"periodic_timeout": 15,
+			"read_only": false,
+			"datasort_dir": "/opt/elliptics/defrag/"
 		}
 	]
 }
