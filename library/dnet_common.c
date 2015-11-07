@@ -778,33 +778,43 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, uint32_t ioflags
 		return -ENOMEM;
 	}
 
-	if (n->flags & DNET_CFG_RANDOMIZE_STATES) {
+	/*
+	 * ioflags has highest priority, if it has mix-states bit, it must be taken into account
+	 */
+	if ((n->flags & DNET_CFG_RANDOMIZE_STATES) && !(ioflags & DNET_IO_FLAGS_MIX_STATES)) {
 		for (i = 0; i < group_num; ++i) {
 			weights[i].weight = rand();
 			weights[i].group_id = groups[i];
 		}
 		num = group_num;
 	} else {
-		if (!(n->flags & DNET_CFG_MIX_STATES) || !id) {
+		/*
+		 * Only try to mix states according to their weights if we have ID to find backend.
+		 *
+		 * If ioflags have mix-states bit, mix states
+		 * If ioflags do not have mix-states bit, but node flags contain this bit, mix states
+		 */
+
+		if (id && ((ioflags & DNET_IO_FLAGS_MIX_STATES) || (n->flags & DNET_CFG_MIX_STATES))) {
+			memset(weights, 0, group_num * sizeof(*weights));
+
+			for (i = 0, num = 0; i < group_num; ++i) {
+				id->group_id = groups[i];
+
+				st = dnet_state_get_first_with_backend(n, id, &backend_id);
+				if (st) {
+					const int err = dnet_get_backend_weight(st, backend_id, ioflags, &weights[num].weight);
+					if (!err) {
+						weights[num].group_id = id->group_id;
+						num++;
+					}
+
+					dnet_state_put(st);
+				}
+			}
+		} else {
 			*groupsp = groups;
 			return group_num;
-		}
-
-		memset(weights, 0, group_num * sizeof(*weights));
-
-		for (i = 0, num = 0; i < group_num; ++i) {
-			id->group_id = groups[i];
-
-			st = dnet_state_get_first_with_backend(n, id, &backend_id);
-			if (st) {
-				const int err = dnet_get_backend_weight(st, backend_id, ioflags, &weights[num].weight);
-				if (!err) {
-					weights[num].group_id = id->group_id;
-					num++;
-				}
-
-				dnet_state_put(st);
-			}
 		}
 	}
 

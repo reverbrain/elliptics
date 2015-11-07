@@ -59,6 +59,7 @@ enum elliptics_cflags {
 
 enum elliptics_ioflags {
 	ioflags_default			= 0,
+	ioflags_mix_states		= DNET_IO_FLAGS_MIX_STATES,
 	ioflags_append			= DNET_IO_FLAGS_APPEND,
 	ioflags_prepare			= DNET_IO_FLAGS_PREPARE,
 	ioflags_commit			= DNET_IO_FLAGS_COMMIT,
@@ -421,6 +422,7 @@ BOOST_PYTHON_MODULE(core)
 		"cache_remove_from_disk\n    is set and object is being removed from cache,\n"
 		                        "    then remove object from disk too")
 		.value("default", ioflags_default)
+		.value("mix_states", ioflags_mix_states)
 		.value("append", ioflags_append)
 		.value("prepare", ioflags_prepare)
 		.value("commit", ioflags_commit)
