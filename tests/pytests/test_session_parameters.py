@@ -20,6 +20,7 @@ from conftest import set_property, raises, make_session
 import elliptics
 
 io_flags = set((elliptics.io_flags.default,
+                elliptics.io_flags.mix_states,
                 elliptics.io_flags.append,
                 elliptics.io_flags.prepare,
                 elliptics.io_flags.commit,
