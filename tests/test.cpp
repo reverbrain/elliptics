@@ -1194,6 +1194,20 @@ static void test_read_latest_non_existing(session &sess, const std::string &id)
 	ELLIPTICS_REQUIRE_ERROR(read_data, sess.read_latest(id, 0, 0), -ENOENT);
 }
 
+// This test checks that read with DNET_IO_FLAGS_MIX_STATES succeeds and doesn't lock up.
+static void test_read_mix_states_ioflags(session &sess, const std::string &id)
+{
+	std::string data = "mix states test data";
+
+	sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_MIX_STATES);
+
+	ELLIPTICS_REQUIRE(write_result, sess.write_data(id, data, 0));
+	ELLIPTICS_REQUIRE(read_result, sess.read_data(id, 0, 0));
+	read_result_entry result = read_result.get_one();
+
+	BOOST_REQUIRE_EQUAL(result.file().to_string(), data);
+}
+
 /*!
  * \brief test_merge_indexes
  *
@@ -1482,6 +1496,7 @@ bool register_tests(test_suite *suite, node n)
 	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 1, 2 }, 0, 0), -ENOENT);
 	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 1 }, 0, 0), -ENOENT);
 	ELLIPTICS_TEST_CASE(test_lookup_non_existing, create_session(n, { 99 }, 0, 0), -ENXIO);
+	ELLIPTICS_TEST_CASE(test_read_mix_states_ioflags, create_session(n, {1, 2}, 0, 0), "read-mix-states-ioflags");
 #ifndef NO_SERVER
 	ELLIPTICS_TEST_CASE(test_requests_to_own_server, create_session(node::from_raw(global_data->nodes.front().get_native()), { 1, 2, 3 }, 0, 0));
 #endif
