@@ -394,7 +394,11 @@ class WindowedDC(WindowedRecovery):
             KeyRecover(self.ctx, *key, node=self.node, callback=self.callback)
             return True
         except StopIteration:
-            pass
+            last = False
+            with self.lock:
+                last = self.recovers_in_progress == 0
+            if last:
+                self.complete.set()
         return False
 
 
