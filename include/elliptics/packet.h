@@ -474,12 +474,6 @@ static inline void dnet_convert_list(struct dnet_list *l)
 /* Internal server flag, used when we want to skip data sending */
 #define DNET_IO_FLAGS_SKIP_SENDING	(1<<0)
 
-/*
- * When set, force client to mix states according to their weights.
- * It deliberately matches DNET_IO_FLAGS_SKIP_SENDING above, since they can not be set simultaneously.
- */
-#define DNET_IO_FLAGS_MIX_STATES	(1<<0)
-
 /* Append given data at the end of the object */
 #define DNET_IO_FLAGS_APPEND		(1<<1)
 
@@ -560,11 +554,17 @@ static inline void dnet_convert_list(struct dnet_list *l)
  */
 #define DNET_IO_FLAGS_CAS_TIMESTAMP	(1<<15)
 
+/*
+ * When set, force client to mix states according to their weights.
+ */
+#define DNET_IO_FLAGS_MIX_STATES	(1<<16)
+
+
 static inline const char *dnet_flags_dump_ioflags(uint64_t flags)
 {
 	static __thread char buffer[256];
 	static struct flag_info infos[] = {
-		{ DNET_IO_FLAGS_MIX_STATES, "skip_sending/mix_states" },
+		{ DNET_IO_FLAGS_SKIP_SENDING, "skip_sending" },
 		{ DNET_IO_FLAGS_APPEND, "append" },
 		{ DNET_IO_FLAGS_PREPARE, "prepare" },
 		{ DNET_IO_FLAGS_COMMIT, "commit" },
@@ -579,6 +579,7 @@ static inline const char *dnet_flags_dump_ioflags(uint64_t flags)
 		{ DNET_IO_FLAGS_COMPARE_AND_SWAP, "cas" },
 		{ DNET_IO_FLAGS_CHECKSUM, "checksum/no_file_info" },
 		{ DNET_IO_FLAGS_CAS_TIMESTAMP, "cas_timestamp" },
+		{ DNET_IO_FLAGS_MIX_STATES, "mix_states" },
 	};
 
 	dnet_flags_dump_raw(buffer, sizeof(buffer), flags, infos, sizeof(infos) / sizeof(infos[0]));
