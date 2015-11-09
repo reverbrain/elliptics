@@ -2221,7 +2221,12 @@ async_iterator_result session::iterator(const key &id, const data_pointer& reque
 	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
 	ctl.cmd = DNET_CMD_ITERATOR;
 
-	dnet_convert_iterator_request(request.data<dnet_iterator_request>());
+	dnet_iterator_request *req = request.data<dnet_iterator_request>();
+	if (req->range_num)
+		req->flags |= DNET_IFLAGS_KEY_RANGE;
+
+	dnet_convert_iterator_request(req);
+
 	ctl.data = request.data();
 	ctl.size = request.size();
 
