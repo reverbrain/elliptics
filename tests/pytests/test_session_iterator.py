@@ -147,11 +147,15 @@ class TestSession:
         node_id, node, backend = iter(session.routes.get_unique_routes()[0])
         ranges = convert_ranges((session.routes.get_address_backend_ranges(node, backend)[0],))
 
+        # We could set flags=elliptics.iterator_flags.key_range,
+        # but it should be done automatically if there is at least one range.
+        # So this test also checks that behaviour.
+        flags = 0
         iterator = session.start_iterator(
             id=node_id,
             ranges=ranges,
             type=elliptics.iterator_types.network,
-            flags=elliptics.iterator_flags.key_range,
+            flags=flags,
             time_begin=elliptics.Time(0, 0),
             time_end=elliptics.Time(2 ** 64 - 1, 2 ** 64 - 1))
 
