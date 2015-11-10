@@ -471,7 +471,7 @@ static inline void dnet_convert_list(struct dnet_list *l)
  * please also add it to elliptics_ioflags and to BOOST_PYTHON_MODULE(core) in elliptics_python.cpp
  */
 
-/* Internal flag, used when we want to skip data sending */
+/* Internal server flag, used when we want to skip data sending */
 #define DNET_IO_FLAGS_SKIP_SENDING	(1<<0)
 
 /* Append given data at the end of the object */
@@ -554,6 +554,12 @@ static inline void dnet_convert_list(struct dnet_list *l)
  */
 #define DNET_IO_FLAGS_CAS_TIMESTAMP	(1<<15)
 
+/*
+ * When set, force client to mix states according to their weights.
+ */
+#define DNET_IO_FLAGS_MIX_STATES	(1<<16)
+
+
 static inline const char *dnet_flags_dump_ioflags(uint64_t flags)
 {
 	static __thread char buffer[256];
@@ -571,8 +577,9 @@ static inline const char *dnet_flags_dump_ioflags(uint64_t flags)
 		{ DNET_IO_FLAGS_CACHE_ONLY, "cache_only" },
 		{ DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK, "remove_from_disk" },
 		{ DNET_IO_FLAGS_COMPARE_AND_SWAP, "cas" },
-		{ DNET_IO_FLAGS_CHECKSUM, "checksum" },
-		{ DNET_IO_FLAGS_WRITE_NO_FILE_INFO, "no_file_info" },
+		{ DNET_IO_FLAGS_CHECKSUM, "checksum/no_file_info" },
+		{ DNET_IO_FLAGS_CAS_TIMESTAMP, "cas_timestamp" },
+		{ DNET_IO_FLAGS_MIX_STATES, "mix_states" },
 	};
 
 	dnet_flags_dump_raw(buffer, sizeof(buffer), flags, infos, sizeof(infos) / sizeof(infos[0]));

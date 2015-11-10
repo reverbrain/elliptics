@@ -65,9 +65,12 @@ enum elliptics_ioflags {
 	ioflags_overwrite		= DNET_IO_FLAGS_OVERWRITE,
 	ioflags_nocsum			= DNET_IO_FLAGS_NOCSUM,
 	ioflags_plain_write		= DNET_IO_FLAGS_PLAIN_WRITE,
+	ioflags_nodata			= DNET_IO_FLAGS_NODATA,
 	ioflags_cache			= DNET_IO_FLAGS_CACHE,
 	ioflags_cache_only		= DNET_IO_FLAGS_CACHE_ONLY,
 	ioflags_cache_remove_from_disk	= DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK,
+	ioflags_cas_timestamp		= DNET_IO_FLAGS_CAS_TIMESTAMP,
+	ioflags_mix_states		= DNET_IO_FLAGS_MIX_STATES,
 };
 
 enum elliptics_record_flags {
@@ -419,7 +422,10 @@ BOOST_PYTHON_MODULE(core)
 		"cache_only\n    Means we do not want to sink to disk,\n"
 		            "    just return whatever cache processing returned (even error)\n"
 		"cache_remove_from_disk\n    is set and object is being removed from cache,\n"
-		                        "    then remove object from disk too")
+		                        "    then remove object from disk too"
+		"cas_timestamp\n    When set, write will only succeed if data timestamp is higher than timestamp stored on disk\n"
+		"mix_states\n    Read request with this flag forces replica selection according to their weights\n")
+
 		.value("default", ioflags_default)
 		.value("append", ioflags_append)
 		.value("prepare", ioflags_prepare)
@@ -427,10 +433,12 @@ BOOST_PYTHON_MODULE(core)
 		.value("overwrite", ioflags_overwrite)
 		.value("nocsum", ioflags_nocsum)
 		.value("plain_write", ioflags_plain_write)
-		.value("nodata", ioflags_plain_write)
+		.value("nodata", ioflags_nodata)
 		.value("cache", ioflags_cache)
 		.value("cache_only", ioflags_cache_only)
 		.value("cache_remove_from_disk", ioflags_cache_remove_from_disk)
+		.value("cas_timestamp", ioflags_cas_timestamp)
+		.value("mix_states", ioflags_mix_states)
 	;
 
 	bp::enum_<elliptics_record_flags>("record_flags",

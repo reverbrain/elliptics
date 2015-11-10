@@ -29,7 +29,10 @@ io_flags = set((elliptics.io_flags.default,
                 elliptics.io_flags.nodata,
                 elliptics.io_flags.cache,
                 elliptics.io_flags.cache_only,
-                elliptics.io_flags.cache_remove_from_disk))
+                elliptics.io_flags.cache_remove_from_disk,
+                elliptics.io_flags.cas_timestamp,
+                elliptics.io_flags.mix_states,
+                ))
 
 command_flags = set((elliptics.command_flags.default,
                      elliptics.command_flags.direct,
