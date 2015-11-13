@@ -1,3 +1,14 @@
+elliptics (2.26.9.1) unstable; urgency=low
+
+  * tests: set iterator flags to zero in read-one-range test
+  * tests: added simple mix-states test which tests that reads and writes succeed, it doesn't check whether groups are actually mixed or not, this is done in weights test, where global node's mix states flags is tested
+  * iterator: automatically set key-range flag if there is at least one range in the request
+  * recovery: fixed hanging up when there is no key which should be recovered
+  * config: added new options into example config
+  * ioflags: added mix-states flag, which forces groups to be mixed according to state weights
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 13 Nov 2015 03:33:24 +0400
+
 elliptics (2.26.9.0) unstable; urgency=low
 
   * io: added timestamp compare-and-swap flag, it allows to write data only when on-disk timestamp is less than to be written data timestamp, or when there is no data on disk.

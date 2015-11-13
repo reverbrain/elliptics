@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.9.0
+Version:	2.26.9.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -81,7 +81,8 @@ export LDFLAGS="-Wl,-z,defs"
 export DESTDIR="%{buildroot}"
 %{cmake} -DWITH_COCAINE=on .
 
-make %{?_smp_mflags}
+#make %{?_smp_mflags}
+make
 
 make test
 
@@ -145,6 +146,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Nov 13 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.9.1
+- tests: set iterator flags to zero in read-one-range test
+- tests: added simple mix-states test which tests that reads and writes succeed, it doesn't check whether groups are actually mixed or not, this is done in weights test, where global node's mix states flags is tested
+- iterator: automatically set key-range flag if there is at least one range in the request
+- recovery: fixed hanging up when there is no key which should be recovered
+- config: added new options into example config
+- ioflags: added mix-states flag, which forces groups to be mixed according to state weights
+
 * Sat Oct 24 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.9.0
 - io: added timestamp compare-and-swap flag, it allows to write data only when on-disk timestamp is less than to be written data timestamp, or when there is no data on disk.
 - backends: remove filesystem and module backends
