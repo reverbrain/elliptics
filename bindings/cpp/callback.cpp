@@ -68,6 +68,9 @@ public:
 		return false;
 	}
 
+	// how many independent transactions share this handler plus call below
+	// call below and corresponding +1 is needed, since transactions can be completed
+	// before send_impl() calls this method to setup this 'reference counter'
 	bool set_total(size_t total)
 	{
 		m_handler.set_total(total);
