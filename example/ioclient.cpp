@@ -448,16 +448,18 @@ int main(int argc, char *argv[])
 		}
 
 		if (lookup) {
-			sync_lookup_result res = s.lookup(std::string(lookup));
+			sync_lookup_result res = s.lookup(create_id(id, lookup));
 			for(auto it = res.begin(), end = res.end(); it != end; ++it) {
 				auto info = it->file_info();
-				auto storage = it->storage_address();
-				std::cout	<< "Storage address: " << (char*)storage->addr << "\n"
-							<< "File path: " << it->file_path() << "\n"
-							<< " File info: " << "\n"
-								<< "\tsize: "	<< info->size << "\n"
-								<< "\toffset: " << info->offset << "\n"
-								<< "\ttime: " << info->mtime.tsec << "/" << info->mtime.tnsec << std::endl;
+				std::cout << "Storage address: " << dnet_addr_string(it->storage_address()) << "\n"
+					<< "Group: " << it->command()->id.group_id << "\n"
+					<< "Backend: " << it->command()->backend_id << "\n"
+					<< "File path: " << it->file_path() << "\n"
+					<< "File info: " << "\n"
+						<< "\tsize: "	<< info->size << "\n"
+						<< "\toffset: " << info->offset << "\n"
+						<< "\tmtime: " << dnet_print_time(&info->mtime)
+						<< std::endl;
 			}
 		}
 
