@@ -6,11 +6,11 @@ set(TEST_PROPERTIES PROPERTIES LINK_FLAGS "${TEST_LINK_FLAGS}" LINKER_LANGUAGE C
 set(TEST_LIBRARIES  test_common elliptics elliptics_client elliptics_cpp ${Boost_LIBRARIES})
 set(TEST_IOSERV_PATH "${CMAKE_CURRENT_BINARY_DIR}/../example/dnet_ioserv")
 set(TEST_ENV
-    TEST_COCAINE_CONFIG=${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf
-    TEST_COCAINE_PLUGINS=${CMAKE_CURRENT_BINARY_DIR}/../cocaine/plugins
-    TEST_COCAINE_APP=${CMAKE_CURRENT_BINARY_DIR}/dnet_cpp_srw_test_app.tar
-    TEST_IOSERV_PATH=${TEST_IOSERV_PATH}
-    LD_LIBRARY_PATH=${TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}
+    TEST_COCAINE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf"
+    TEST_COCAINE_PLUGINS="${CMAKE_CURRENT_BINARY_DIR}/../cocaine/plugins"
+    TEST_COCAINE_APP="${CMAKE_CURRENT_BINARY_DIR}/dnet_cpp_srw_test_app.tar"
+    TEST_IOSERV_PATH="${TEST_IOSERV_PATH}"
+    LD_LIBRARY_PATH="${TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}"
 )
 
 if(WITH_COCAINE)
@@ -96,7 +96,7 @@ function(add_test_target name)
     # message("DEPS ${deps}")
 
     add_custom_target(${name}
-        COMMAND ${TEST_ENV} "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" ${tests}
+        COMMAND env ${TEST_ENV} "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py" "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" ${tests}
         DEPENDS ${tests} ${deps}
         SOURCES "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_tests.py"
     )
