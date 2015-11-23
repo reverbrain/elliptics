@@ -952,14 +952,14 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 
 		memcpy(st->version, socket->version, sizeof(st->version));
 
-		socket->buffer.reset();
-		state->succeed_count++;
-		socket->ok = 1;
-
 		dnet_log(state->node, DNET_LOG_INFO, "Connected to %s, backends-num: %d, addr-num: %d, idx: %d, socket: %d/%d",
 			dnet_addr_string(&socket->addr),
 			int(id_container->backends_count), int(cnt->addr_num), idx,
 			st->read_s, st->write_s);
+
+		socket->buffer.reset();
+		state->succeed_count++;
+		socket->ok = 1;
 
 
 		if (socket->ask_route_list) {
