@@ -285,8 +285,12 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 
 	session src(n);
 	src.set_groups(ssend_src_groups);
-	src.set_exceptions_policy(session::no_exceptions);
 	src.set_timeout(120);
+
+	session src_noexception(n);
+	src_noexception.set_groups(ssend_src_groups);
+	src_noexception.set_exceptions_policy(session::no_exceptions);
+	src_noexception.set_timeout(120);
 
 	uint64_t iflags = DNET_IFLAGS_MOVE | DNET_IFLAGS_DATA;
 
@@ -298,7 +302,9 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
 
 	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags, 0);
-	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
+	// use no-exception session, since every read must return error here,
+	// with default session this ends up with exception at get/wait/result access time
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src_noexception, num, id_prefix, -ENOENT);
 
 	// check every dst group, it must contain all keys originally written into src groups
 	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
@@ -326,7 +332,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	// and all keys in @ssend_dst_groups should have been updated
 	iflags = DNET_IFLAGS_OVERWRITE | DNET_IFLAGS_MOVE;
 	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags, 0);
-	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src_noexception, num, id_prefix, -ENOENT);
 
 	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,
@@ -340,7 +346,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	data_prefix = "server_send method test data";
 	iflags = DNET_IFLAGS_MOVE;
 	ELLIPTICS_TEST_CASE(ssend_test_server_send, src, num, id_prefix, data_prefix, ssend_dst_groups, iflags);
-	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src_noexception, num, id_prefix, -ENOENT);
 	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,
 				tests::create_session(n, {*g}, 0, 0), num, id_prefix, data_prefix);
