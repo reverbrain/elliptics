@@ -494,14 +494,18 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 			}
 
 err_out_send:
-			re->status = send->write_error;
+			if (send->write_error)
+				re->status = send->write_error;
+			if (!re->status)
+				re->status = err;
 
 			dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: sending response to client: %s, "
-					"user_flags: %llx, ts: %lld.%09lld, "
+					"user_flags: %llx, ts: %s (%lld.%09lld), "
 					"status: %d, size: %lld, iterated_keys: %lld/%lld, write_error: %d",
 					__func__,
 					dnet_dump_id(&send->cmd.id), dnet_dump_id_str(re->key.id),
 					(unsigned long long)re->user_flags,
+					dnet_print_time(&re->timestamp),
 					(unsigned long long)re->timestamp.tsec, (unsigned long long)re->timestamp.tnsec,
 					re->status, (unsigned long long)re->size,
 					(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys,
