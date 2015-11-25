@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.9.1
+Version:	2.26.9.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -146,6 +146,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 25 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.9.2
+- fixed crash caused by using freed memory
+- tests: server-send tests operate with 2 sessions
+- tests: server_send tests now check response status
+- server_send: set response status to reflect possible write/remove errors
+- ioclient: use dnet_print_time() to print modification time
+- server_send: filters and checkers should only work for aggregated result
+- basic_handler: added comment desribing set_total() method
+- trans: added error debug into common transaction allocation path when we've failed to find a state
+- ioclient: print group id when lookup succeeds
+- ioclient: fixed lookup info dump, allow to use raw ID specified via -I option
+
 * Fri Nov 13 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.9.1
 - tests: set iterator flags to zero in read-one-range test
 - tests: added simple mix-states test which tests that reads and writes succeed, it doesn't check whether groups are actually mixed or not, this is done in weights test, where global node's mix states flags is tested

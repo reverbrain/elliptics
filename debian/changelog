@@ -1,3 +1,18 @@
+elliptics (2.26.9.2) unstable; urgency=low
+
+  * fixed crash caused by using freed memory
+  * tests: server-send tests operate with 2 sessions
+  * tests: server_send tests now check response status
+  * server_send: set response status to reflect possible write/remove errors
+  * ioclient: use dnet_print_time() to print modification time
+  * server_send: filters and checkers should only work for aggregated result
+  * basic_handler: added comment desribing set_total() method
+  * trans: added error debug into common transaction allocation path when we've failed to find a state
+  * ioclient: print group id when lookup succeeds
+  * ioclient: fixed lookup info dump, allow to use raw ID specified via -I option
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 25 Nov 2015 21:28:37 +0400
+
 elliptics (2.26.9.1) unstable; urgency=low
 
   * tests: set iterator flags to zero in read-one-range test
