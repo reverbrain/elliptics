@@ -2416,37 +2416,49 @@ async_iterator_result session::server_send(const std::vector<dnet_raw_id> &ids, 
 		}
 	}
 
-	const size_t groups_size = groups.size() * sizeof(get_groups().front());
+	const size_t groups_size = groups.size() * sizeof(groups.front());
 
 	std::list<async_iterator_result> results;
-	for (auto it = raw_ids.begin(), ids_end = raw_ids.end(); it != ids_end; ++it) {
-		auto &id = it->first;
-		auto &ids = it->second;
 
-		const size_t ids_size = ids.size() * sizeof(dnet_raw_id);
+	{
+		session_scope scope(*this);
 
-		data_pointer data = data_pointer::allocate(sizeof(dnet_server_send_request) + ids_size + groups_size);
-		auto req = data.data<dnet_server_send_request>();
-		req->id_num = ids.size();
-		req->group_num = groups.size();
-		req->iflags = iflags;
+		// Ensure checkers and filters will work only for aggregated request
+		set_filter(filters::all_with_ack);
+		set_checker(checkers::no_check);
+		set_exceptions_policy(no_exceptions);
 
-		dnet_convert_server_send_request(req);
+		session sess = clean_clone();
 
-		memcpy(data.skip<dnet_server_send_request>().data(), ids.data(), ids_size);
-		memcpy(data.skip(ids_size + sizeof(dnet_server_send_request)).data(), groups.data(), groups_size);
+		for (auto it = raw_ids.begin(), ids_end = raw_ids.end(); it != ids_end; ++it) {
+			auto &id = it->first;
+			auto &ids = it->second;
 
-		dnet_trans_control ctl;
-		memset(&ctl, 0, sizeof(dnet_trans_control));
-		ctl.id = id.id;
-		ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
-		ctl.cmd = DNET_CMD_SEND;
+			const size_t ids_size = ids.size() * sizeof(dnet_raw_id);
 
-		ctl.data = data.data();
-		ctl.size = data.size();
+			data_pointer data = data_pointer::allocate(sizeof(dnet_server_send_request) + ids_size + groups_size);
+			auto req = data.data<dnet_server_send_request>();
+			req->id_num = ids.size();
+			req->group_num = groups.size();
+			req->iflags = iflags;
 
-		async_iterator_result res = async_result_cast<iterator_result_entry>(*this, send_to_single_state(*this, ctl));
-		results.emplace_back(std::move(res));
+			dnet_convert_server_send_request(req);
+
+			memcpy(data.skip<dnet_server_send_request>().data(), ids.data(), ids_size);
+			memcpy(data.skip(ids_size + sizeof(dnet_server_send_request)).data(), groups.data(), groups_size);
+
+			dnet_trans_control ctl;
+			memset(&ctl, 0, sizeof(dnet_trans_control));
+			ctl.id = id.id;
+			ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
+			ctl.cmd = DNET_CMD_SEND;
+
+			ctl.data = data.data();
+			ctl.size = data.size();
+
+			async_iterator_result res = async_result_cast<iterator_result_entry>(sess, send_to_single_state(*this, ctl));
+			results.emplace_back(std::move(res));
+		}
 	}
 
 	return aggregated(*this, results.begin(), results.end());

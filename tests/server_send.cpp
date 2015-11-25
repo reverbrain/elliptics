@@ -153,9 +153,9 @@ static std::vector<dnet_raw_id> ssend_ids(session &s)
 	return ret;
 }
 
-static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int num, uint64_t iflags)
+static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int num, uint64_t iflags, int status)
 {
-	auto run_over_single_backend = [] (session &s, const key &id, const std::vector<int> &dst_groups, uint64_t iflags) {
+	auto run_over_single_backend = [] (session &s, const key &id, const std::vector<int> &dst_groups, uint64_t iflags, int status) {
 		std::vector<dnet_iterator_range> ranges;
 		dnet_iterator_range whole;
 		memset(whole.key_begin.id, 0, sizeof(dnet_raw_id));
@@ -173,27 +173,32 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 
 		int copied = 0;
 
-		//char buffer[2*DNET_ID_SIZE + 1] = {0};
+		char buffer[2*DNET_ID_SIZE + 1] = {0};
 
 		logger &log = s.get_logger();
 
 		for (auto it = iter.begin(), end = iter.end(); it != end; ++it) {
-#if 0
+#if 1
 			// we have to explicitly convert all members from dnet_iterator_response
 			// since it is packed and there will be alignment issues and
 			// following error:
 			// error: cannot bind packed field ... to int&
 			BH_LOG(log, DNET_LOG_DEBUG,
 					"ssend_test: "
-					"key: %s, backend: %d, user_flags: %llx, ts: %lld.%09lld, status: %d, size: %lld, "
+					"key: %s, backend: %d, user_flags: %llx, ts: %s (%lld.%09lld), "
+					"status: %d (should be: %d), size: %lld, "
 					"iterated_keys: %lld/%lld",
 				dnet_dump_id_len_raw(it->reply()->key.id, DNET_ID_SIZE, buffer),
 				(int)it->command()->backend_id,
 				(unsigned long long)it->reply()->user_flags,
+				dnet_print_time(&it->reply()->timestamp),
 				(unsigned long long)it->reply()->timestamp.tsec, (unsigned long long)it->reply()->timestamp.tnsec,
-				(int)it->reply()->status, (unsigned long long)it->reply()->size,
+				(int)it->reply()->status, status, (unsigned long long)it->reply()->size,
 				(unsigned long long)it->reply()->iterated_keys, (unsigned long long)it->reply()->total_keys);
 #endif
+
+			BOOST_REQUIRE_EQUAL(it->command()->status, 0);
+			BOOST_REQUIRE_EQUAL(it->reply()->status, status);
 
 			if (iflags & DNET_IFLAGS_DATA) {
 				BOOST_REQUIRE_EQUAL(it->command()->size, sizeof(struct dnet_iterator_response) + it->reply()->size);
@@ -214,7 +219,7 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 	int copied = 0;
 	std::vector<dnet_raw_id> ids = ssend_ids(s);
 	for (const auto &id: ids) {
-		copied += run_over_single_backend(s, id, dst_groups, iflags);
+		copied += run_over_single_backend(s, id, dst_groups, iflags, status);
 	}
 
 	BOOST_REQUIRE_EQUAL(copied, num);
@@ -244,6 +249,8 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 	int copied = 0;
 	auto iter = s.server_send(keys, iflags, dst_groups);
 	for (auto it = iter.begin(), iter_end = iter.end(); it != iter_end; ++it) {
+		BOOST_REQUIRE_EQUAL(it->command()->status, 0);
+		BOOST_REQUIRE_EQUAL(it->reply()->status, 0);
 #if 0
 		// we have to explicitly convert all members from dnet_iterator_response
 		// since it is packed and there will be alignment issues and
@@ -278,8 +285,12 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 
 	session src(n);
 	src.set_groups(ssend_src_groups);
-	src.set_exceptions_policy(session::no_exceptions);
 	src.set_timeout(120);
+
+	session src_noexception(n);
+	src_noexception.set_groups(ssend_src_groups);
+	src_noexception.set_exceptions_policy(session::no_exceptions);
+	src_noexception.set_timeout(120);
 
 	uint64_t iflags = DNET_IFLAGS_MOVE | DNET_IFLAGS_DATA;
 
@@ -290,8 +301,10 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	// per key, but also its data
 	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
 
-	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
-	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
+	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags, 0);
+	// use no-exception session, since every read must return error here,
+	// with default session this ends up with exception at get/wait/result access time
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src_noexception, num, id_prefix, -ENOENT);
 
 	// check every dst group, it must contain all keys originally written into src groups
 	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
@@ -311,14 +324,15 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 
 	// it should actually fail to move any key, since data is different and we
 	// do not set OVERWRITE bit, thus reading from source groups should succeeed
-	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
+	// -EBADFD should be returned for cas/timestamp-cas errors
+	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags, -EBADFD);
 	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, src, num, id_prefix, data_prefix);
 
 	// with OVERWRITE bit move should succeed - there should be no keys in @ssend_src_groups
 	// and all keys in @ssend_dst_groups should have been updated
 	iflags = DNET_IFLAGS_OVERWRITE | DNET_IFLAGS_MOVE;
-	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
-	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
+	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags, 0);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src_noexception, num, id_prefix, -ENOENT);
 
 	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,
@@ -332,7 +346,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	data_prefix = "server_send method test data";
 	iflags = DNET_IFLAGS_MOVE;
 	ELLIPTICS_TEST_CASE(ssend_test_server_send, src, num, id_prefix, data_prefix, ssend_dst_groups, iflags);
-	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src, num, id_prefix, -ENOENT);
+	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src_noexception, num, id_prefix, -ENOENT);
 	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,
 				tests::create_session(n, {*g}, 0, 0), num, id_prefix, data_prefix);
@@ -344,7 +358,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	data_prefix = "plain iterator data";
 	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys, src, num, id_prefix, data_prefix);
 
-	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags);
+	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags, 0);
 	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, src, num, id_prefix, data_prefix);
 	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,

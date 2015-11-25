@@ -452,12 +452,13 @@ int main(int argc, char *argv[])
 			for(auto it = res.begin(), end = res.end(); it != end; ++it) {
 				auto info = it->file_info();
 				std::cout << "Storage address: " << dnet_addr_string(it->storage_address()) << "\n"
+					<< "Group: " << it->command()->id.group_id << "\n"
 					<< "Backend: " << it->command()->backend_id << "\n"
 					<< "File path: " << it->file_path() << "\n"
-					<< " File info: " << "\n"
+					<< "File info: " << "\n"
 						<< "\tsize: "	<< info->size << "\n"
 						<< "\toffset: " << info->offset << "\n"
-						<< "\ttime: " << info->mtime.tsec << "/" << info->mtime.tnsec
+						<< "\tmtime: " << dnet_print_time(&info->mtime)
 						<< std::endl;
 			}
 		}
