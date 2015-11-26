@@ -35,20 +35,23 @@ add_library(test_common STATIC
     test_session.hpp
     test_session.cpp)
 set_target_properties(test_common ${TEST_PROPERTIES})
-set(TEST_COMMON_LIBRARIES elliptics elliptics_client elliptics_cocaine elliptics_cpp ${Boost_LIBRARIES})
+set(TEST_COMMON_LIBRARIES elliptics elliptics_client elliptics_cpp ${Boost_LIBRARIES})
 if(WITH_COCAINE)
-    list(APPEND TEST_COMMON_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
+    list(APPEND TEST_COMMON_LIBRARIES elliptics_cocaine ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
     list(APPEND TEST_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
 endif()
 target_link_libraries(test_common ${TEST_COMMON_LIBRARIES})
 
-# add_test_target({target} {test-executable} DEPENDS {required-dependencies})
 #
-# Defines target for running a test
-# Test executable is a target for building a test.
-# Dependencies are not only build dependencies but also runtime dependencies.
-# (Some tests, for example, launch dnet_ioserv directly,
-# so it must be build for those tests to be able to run)
+# add_test_target({target} {test-executables} DEPENDS {required-dependencies})
+#
+# Defines target for running a set of test modules.
+#
+# {test-executables} is a list of test modules build targets.
+#
+# {required-dependencies} should specify both build dependencies and runtime dependencies.
+# Such as dnet_ioserv, private instances of which are being created during execution of
+# many tests.
 #
 function(add_test_target name)
     # Keyword DEPENDS separates test names from dependencies
@@ -99,8 +102,27 @@ function(add_test_target name)
     )
 endfunction(add_test_target)
 
-set(TESTS_DEPS dnet_run_servers)
+# All C++ tests (except one or two) launch their own private instance of
+# dnet_ioserv to run against it. So its a common runtime dependency.
+set(TESTS_DEPS dnet_ioserv)
 
+#
+# Definitions of C++ test modules and test targets.
+#
+# How to add new C++ test module:
+#  1. define build target using add_executable() etc.
+#  2. define test target using add_test_target()
+#  3. add build target name to TESTS_LIST
+#
+# As a rule, target names should follow this scheme: if {name} is a base
+# test name, then build target should be named "dnet_{name}_test",
+# and test target should be named "test_{name}".
+#
+# Easiest way to add new test is to copy one of the definition blocks
+# below and replace base names.
+#
+#TODO: may be its worth making utility function for test definition block
+#
 add_executable(dnet_cpp_misc_test test.cpp)
 set_target_properties(dnet_cpp_misc_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_misc_test ${TEST_LIBRARIES})
@@ -129,17 +151,17 @@ add_test_target(test_capped dnet_cpp_capped_test DEPENDS ${TESTS_DEPS})
 add_executable(dnet_backends_test backends_test.cpp)
 set_target_properties(dnet_backends_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_backends_test ${TEST_LIBRARIES})
-add_test_target(test_backends dnet_backends_test DEPENDS ${TESTS_DEPS} dnet_ioserv)
+add_test_target(test_backends dnet_backends_test DEPENDS ${TESTS_DEPS})
 
 add_executable(dnet_weights_test weights_test.cpp)
 set_target_properties(dnet_weights_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_weights_test ${TEST_LIBRARIES})
-add_test_target(test_weights dnet_weights_test DEPENDS ${TESTS_DEPS} dnet_ioserv)
+add_test_target(test_weights dnet_weights_test DEPENDS ${TESTS_DEPS})
 
 add_executable(dnet_reconnect_test reconnect_test.cpp)
 set_target_properties(dnet_reconnect_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_reconnect_test ${TEST_LIBRARIES})
-add_test_target(test_reconnect dnet_reconnect_test DEPENDS ${TESTS_DEPS} dnet_ioserv)
+add_test_target(test_reconnect dnet_reconnect_test DEPENDS ${TESTS_DEPS})
 
 add_executable(dnet_locks_test locks_test.cpp)
 set_target_properties(dnet_locks_test ${TEST_PROPERTIES})
@@ -156,12 +178,16 @@ set_target_properties(dnet_server_send_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_server_send_test ${TEST_LIBRARIES})
 add_test_target(test_server_send dnet_server_send_test DEPENDS ${TESTS_DEPS})
 
-#FIXME: add set_target_properties?
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
+#FIXME: add set_target_properties?
+# set_target_properties(dnet_cpp_indexes_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)
-#FIXME: is this also a test?
-# add_test_target(test_cpp_stats dnet_cpp_stats_test DEPENDS ${TESTS_DEPS})
+#FIXME: is this also a test? Then uncomment the next line and add it to the TESTS_LIST below.
+# add_test_target(test_indexes dnet_cpp_indexes_test)
 
+#
+# General list of test modules (implemented in C++).
+#
 set(TESTS_LIST
     dnet_cpp_misc_test
     dnet_cpp_api_test
@@ -176,15 +202,16 @@ set(TESTS_LIST
     dnet_server_send_test
 )
 
-set(RUN_SERVERS_LIBRARIES ${TEST_LIBRARIES})
-
 if(WITH_COCAINE)
     include_directories(../cocaine/include)
 
+    #
+    # Define target `test_srw`
+    #
     add_executable(dnet_cpp_srw_test srw_test.cpp srw_test.hpp)
     set_target_properties(dnet_cpp_srw_test ${TEST_PROPERTIES})
     target_link_libraries(dnet_cpp_srw_test ${TEST_LIBRARIES} ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
-    add_test_target(test_srw dnet_cpp_srw_test DEPENDS ${TESTS_DEPS} dnet_cpp_srw_test_app elliptics-extensions)
+    add_test_target(test_srw dnet_cpp_srw_test DEPENDS dnet_cpp_srw_test_app elliptics-extensions)
 
     add_executable(dnet_cpp_srw_test_app srw_test_app.cpp)
     set_target_properties(dnet_cpp_srw_test_app ${TEST_PROPERTIES})
@@ -196,14 +223,21 @@ if(WITH_COCAINE)
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     )
 
-    list(APPEND RUN_SERVERS_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
+    #
+    # Append test_srw to general list of tests
+    #
     list(APPEND TESTS_LIST dnet_cpp_srw_test)
-    list(APPEND TESTS_DEPS dnet_cpp_srw_test_app)
+    list(APPEND TESTS_DEPS dnet_cpp_srw_test_app elliptics-extensions)
 endif()
 
-add_executable(dnet_run_servers run_servers.cpp)
-target_link_libraries(dnet_run_servers ${RUN_SERVERS_LIBRARIES})
+#
+# Tests written in python use dnet_run_servers to instantiate testing environments.
+#
+list(APPEND TESTS_DEPS dnet_run_servers)
 
+#
+# Target `test` execute all available tests (both implemented in C++ and in python)
+#
 add_test_target(test ${TESTS_LIST} DEPENDS ${TESTS_DEPS})
 
 add_custom_command(TARGET test
@@ -234,6 +268,9 @@ add_custom_command(TARGET test
         export LD_LIBRARY_PATH=.:.. &&
         ${TEST_ENV} py.test ${PYTESTS_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/pytests
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pytests)
+
+add_executable(dnet_run_servers run_servers.cpp)
+target_link_libraries(dnet_run_servers ${TEST_LIBRARIES})
 
 install(TARGETS dnet_run_servers
     RUNTIME DESTINATION bin COMPONENT runtime)
