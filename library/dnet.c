@@ -517,7 +517,7 @@ err_out_send:
 				new_pending = 5 * re->size * 1000000 / usec;
 			}
 
-			dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: sending response to client: %s, "
+			dnet_log(st->n, DNET_LOG_INFO, "%s: %s: sending response to client: %s, "
 					"user_flags: %llx, ts: %s (%lld.%09lld), "
 					"status: %d, size: %lld, iterated_keys: %lld/%lld, write_error: %d, "
 					"pending_bytes: %ld, limit: %ld -> %ld",
@@ -760,7 +760,7 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 
 	atomic_add(&send->bytes_pending, re->size);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: %s: sending WRITE request, iterator response: %s, user_flags: %llx, ts: %s (%lld.%09lld), "
+	dnet_log(n, DNET_LOG_INFO, "%s: %s: sending WRITE request, iterator response: %s, user_flags: %llx, ts: %s (%lld.%09lld), "
 			"status: %d, size: %lld, iterated_keys: %lld/%lld",
 			__func__,
 			dnet_dump_id(&send->cmd.id), dnet_dump_id_str(re->key.id),
