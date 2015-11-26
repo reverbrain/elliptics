@@ -407,6 +407,7 @@ static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize, i
 struct dnet_iterator_server_send_write_private {
 	atomic_t			refcnt;
 	struct dnet_server_send_ctl	*send;
+	struct timeval			start;
 	uint64_t			dsize;
 	char				data[0];
 };
@@ -444,6 +445,7 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 			// it is in CPU byte order, has to be converted to before sending it to client
 			struct dnet_iterator_response *re = (struct dnet_iterator_response *)wp->data;
 			uint64_t resize = re->size;
+			long new_pending = 0;
 
 			if (send->iflags & DNET_IFLAGS_MOVE) {
 				if (!err) {
@@ -499,9 +501,26 @@ err_out_send:
 			if (!re->status)
 				re->status = err;
 
+			if (!err && !re->status) {
+				long usec;
+				struct timeval tv;
+
+				gettimeofday(&tv, NULL);
+
+				usec = (tv.tv_sec - wp->start.tv_sec) * 1000000 + (tv.tv_usec - wp->start.tv_usec);
+
+				/*
+				 * Maximum number of bytes written into the wire and not yet acknowledged.
+				 * It is equal to 'current speed' times 5 seconds, since 5 seconds is default wait timeout
+				 * for write command.
+				 */
+				new_pending = 5 * re->size * 1000000 / usec;
+			}
+
 			dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: sending response to client: %s, "
 					"user_flags: %llx, ts: %s (%lld.%09lld), "
-					"status: %d, size: %lld, iterated_keys: %lld/%lld, write_error: %d",
+					"status: %d, size: %lld, iterated_keys: %lld/%lld, write_error: %d, "
+					"pending_bytes: %ld, limit: %ld -> %ld",
 					__func__,
 					dnet_dump_id(&send->cmd.id), dnet_dump_id_str(re->key.id),
 					(unsigned long long)re->user_flags,
@@ -509,7 +528,9 @@ err_out_send:
 					(unsigned long long)re->timestamp.tsec, (unsigned long long)re->timestamp.tnsec,
 					re->status, (unsigned long long)re->size,
 					(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys,
-					send->write_error);
+					send->write_error,
+					atomic_read(&send->bytes_pending), send->bytes_pending_max, new_pending);
+
 
 			dnet_convert_iterator_response(re);
 
@@ -517,8 +538,17 @@ err_out_send:
 			if (err && !send->write_error)
 				send->write_error = err;
 
-			if ((atomic_sub(&send->bytes_pending, resize) < DNET_SERVER_SEND_WATERMARK_LOW) || send->write_error)
+
+			pthread_mutex_lock(&send->write_lock);
+			if ((atomic_sub(&send->bytes_pending, resize) < send->bytes_pending_max/2) || send->write_error)
 				pthread_cond_broadcast(&send->write_wait);
+
+			if (new_pending > 0 && new_pending < DNET_SERVER_SEND_WATERMARK_HIGH) {
+				send->bytes_pending_max = new_pending;
+			} else {
+				send->bytes_pending_max = DNET_SERVER_SEND_WATERMARK_HIGH;
+			}
+			pthread_mutex_unlock(&send->write_lock);
 
 			dnet_server_send_put(send);
 			free(wp);
@@ -548,6 +578,7 @@ struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd
 
 	ctl->state = state;
 	ctl->cmd = *cmd;
+	ctl->bytes_pending_max = DNET_SERVER_SEND_WATERMARK_HIGH;
 	ctl->iflags = iflags;
 	ctl->groups = (int *)(ctl + 1);
 	memcpy(ctl->groups, groups, sizeof(int) * group_num);
@@ -699,6 +730,7 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 
 	atomic_init(&wp->refcnt, send->group_num);
 	wp->send = send;
+	gettimeofday(&wp->start, NULL);
 
 	// it is in CPU byte order, it will have to be converted to LE before sending response to client
 	memcpy(wp->data, re, dsize);
@@ -728,11 +760,12 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 
 	atomic_add(&send->bytes_pending, re->size);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: %s: sending WRITE request, iterator response: %s, user_flags: %llx, ts: %lld.%09lld, "
+	dnet_log(n, DNET_LOG_NOTICE, "%s: %s: sending WRITE request, iterator response: %s, user_flags: %llx, ts: %s (%lld.%09lld), "
 			"status: %d, size: %lld, iterated_keys: %lld/%lld",
 			__func__,
 			dnet_dump_id(&send->cmd.id), dnet_dump_id_str(re->key.id),
 			(unsigned long long)re->user_flags,
+			dnet_print_time(&re->timestamp),
 			(unsigned long long)re->timestamp.tsec, (unsigned long long)re->timestamp.tnsec,
 			re->status, (unsigned long long)re->size,
 			(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys);
@@ -784,12 +817,14 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 
 	err = dnet_server_send_write(send, re, dsize, fd, data_offset);
 
-	if (atomic_read(&send->bytes_pending) > DNET_SERVER_SEND_WATERMARK_HIGH) {
+	if (atomic_read(&send->bytes_pending) > send->bytes_pending_max) {
 		pthread_mutex_lock(&send->write_lock);
-		while ((atomic_read(&send->bytes_pending) > DNET_SERVER_SEND_WATERMARK_LOW) &&
+
+		while ((atomic_read(&send->bytes_pending) > send->bytes_pending_max / 2) &&
 				!st->__need_exit && !send->write_error) {
 			pthread_cond_wait(&send->write_wait, &send->write_lock);
 		}
+
 		pthread_mutex_unlock(&send->write_lock);
 	}
 
