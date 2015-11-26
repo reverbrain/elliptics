@@ -69,7 +69,7 @@ static void run_on_single_backend(const bpo::variables_map &vm,
 		elliptics::session &s, const dnet_id &id)
 {
 	// checking iterator flags
-	uint64_t iflags = DNET_IFLAGS_NO_META;
+	uint64_t iflags = 0;
 
 	if (vm.count("overwrite")) {
 		iflags |= DNET_IFLAGS_OVERWRITE;
