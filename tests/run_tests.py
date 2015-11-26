@@ -67,7 +67,7 @@ def main():
             file.add(tests_base_dir + '/' + test[1], test[1])
             file.close()
 
-    print('Tests are finised')
+    print('Tests are finished')
 
     if all_ok:
         exit(0)
