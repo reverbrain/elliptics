@@ -763,14 +763,15 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 	atomic_add(&send->bytes_pending, re->size);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: %s: sending WRITE request, iterator response: %s, user_flags: %llx, ts: %s (%lld.%09lld), "
-			"status: %d, size: %lld, iterated_keys: %lld/%lld",
+			"status: %d, size: %lld, iterated_keys: %lld/%lld, pending_bytes: %ld, limit: %ld",
 			__func__,
 			dnet_dump_id(&send->cmd.id), dnet_dump_id_str(re->key.id),
 			(unsigned long long)re->user_flags,
 			dnet_print_time(&re->timestamp),
 			(unsigned long long)re->timestamp.tsec, (unsigned long long)re->timestamp.tnsec,
 			re->status, (unsigned long long)re->size,
-			(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys);
+			(unsigned long long)re->iterated_keys, (unsigned long long)re->total_keys,
+			atomic_read(&send->bytes_pending), send->bytes_pending_max);
 
 	/*
 	 * After calling this function we do not own @wp anymore
