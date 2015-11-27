@@ -319,8 +319,8 @@ static void dnet_queue_wait_threshold(struct dnet_net_state *st)
 	/* If send succeeded then we should increase queue size */
 	while ((atomic_read(&st->send_queue_size) > DNET_SEND_WATERMARK_HIGH) && !st->__need_exit) {
 		/* If high watermark is reached we should sleep */
-		dnet_log(st->n, DNET_LOG_ERROR,
-				"State high_watermark reached: %s: %ld, sleeping",
+		dnet_log(st->n, DNET_LOG_NOTICE,
+				"State high_watermark reached by iterator: %s: %ld, sleeping",
 				dnet_addr_string(&st->addr),
 				atomic_read(&st->send_queue_size));
 
@@ -331,7 +331,7 @@ static void dnet_queue_wait_threshold(struct dnet_net_state *st)
 			pthread_cond_wait(&st->send_wait, &st->send_lock);
 		pthread_mutex_unlock(&st->send_lock);
 
-		dnet_log(st->n, DNET_LOG_ERROR, "State woken up: %s: %ld",
+		dnet_log(st->n, DNET_LOG_NOTICE, "State woken up, iterator will continue: %s: %ld",
 				dnet_addr_string(&st->addr),
 				atomic_read(&st->send_queue_size));
 	}
