@@ -749,6 +749,8 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 
 	dnet_session_set_trace_id(s, send->cmd.trace_id);
 	dnet_session_set_trace_bit(s, !!(send->cmd.flags & DNET_FLAGS_TRACE_BIT));
+	if (dnet_session_get_timeout(s)->tv_sec < 60)
+		dnet_session_set_timeout(s, 60);
 
 	err = dnet_session_set_groups(s, send->groups, send->group_num);
 	if (err) {
