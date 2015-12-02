@@ -1049,6 +1049,7 @@ struct dnet_server_send_ctl {
 
 	uint64_t			iflags;		/* Iterator flags */
 
+	int                             backend_id;     /* Source backend_id */
 	int				*groups;	/* Groups to send WRITE commands */
 	int				group_num;
 

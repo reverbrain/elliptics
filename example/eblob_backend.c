@@ -965,6 +965,7 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 	struct dnet_server_send_ctl *ctl;
 	int *groups;
 	int i, err;
+	int backend_id;
 
 	struct dnet_ext_list elist;
 	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
@@ -994,7 +995,8 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 	 */
 	cmd->flags |= DNET_FLAGS_NEED_ACK;
 
-	ctl = dnet_server_send_alloc(state, cmd, req->iflags, groups, req->group_num);
+	backend_id = cfg->data.stat_id;
+	ctl = dnet_server_send_alloc(state, cmd, req->iflags, groups, req->group_num, backend_id);
 	if (!ctl) {
 		err = -ENOMEM;
 		goto err_out_exit;

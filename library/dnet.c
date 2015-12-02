@@ -476,9 +476,9 @@ static int dnet_iterator_server_send_complete(struct dnet_addr *addr, struct dne
 					lc = r->header;
 					dnet_setup_id(&lc->id, send->cmd.id.group_id, cmd->id.id);
 					lc->cmd = DNET_CMD_DEL;
-					lc->backend_id = -1;
+					lc->backend_id = send->backend_id;
 					lc->trace_id = cmd->trace_id;
-					lc->flags = DNET_FLAGS_NOLOCK;
+					lc->flags = DNET_FLAGS_NOLOCK | DNET_FLAGS_DIRECT | DNET_FLAGS_DIRECT_BACKEND;
 					if (send->cmd.flags & DNET_FLAGS_TRACE_BIT)
 						lc->flags |= DNET_FLAGS_TRACE_BIT;
 					lc->size = sizeof(struct dnet_io_attr);
@@ -530,7 +530,7 @@ err_out_send:
 }
 
 struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd *cmd, uint64_t iflags,
-		int *groups, int group_num)
+						    int *groups, int group_num, int backend_id)
 {
 	int err;
 	struct dnet_net_state *st = state;
@@ -549,6 +549,7 @@ struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd
 	ctl->state = state;
 	ctl->cmd = *cmd;
 	ctl->iflags = iflags;
+	ctl->backend_id = backend_id;
 	ctl->groups = (int *)(ctl + 1);
 	memcpy(ctl->groups, groups, sizeof(int) * group_num);
 	ctl->group_num = group_num;
@@ -1112,7 +1113,7 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 		 * dnet_cmd, thus it will store command structure without NEED_ACK bit.
 		 */
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-		sspriv = dnet_server_send_alloc(st, cmd, ireq->flags, dst_groups, ireq->group_num);
+		sspriv = dnet_server_send_alloc(st, cmd, ireq->flags, dst_groups, ireq->group_num, backend->backend_id);
 		cmd->flags |= DNET_FLAGS_NEED_ACK;
 
 		if (!sspriv) {
