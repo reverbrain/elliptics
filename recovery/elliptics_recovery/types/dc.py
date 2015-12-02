@@ -15,7 +15,7 @@
 # =============================================================================
 
 import logging
-from ..utils.misc import elliptics_create_node, dump_key_data, KeyInfo
+from ..utils.misc import elliptics_create_node, dump_key_data, KeyInfo, load_key_data
 from ..range import IdRange
 from ..etime import Time
 from ..iterator import Iterator, MergeData, IteratorResult
@@ -162,13 +162,13 @@ def merged_results(ctx, results):
                 pass
 
 
-
 def merge_results(arg):
     ctx, range_id, results = arg
     log.debug("Merging iteration results of range: {0}".format(range_id))
 
     filename = os.path.join(ctx.tmp_dir, 'merge_%d' % (range_id))
     dump_filename = os.path.join(ctx.tmp_dir, 'dump_%d' % (range_id))
+    newest_key_stats = dict()
 
     counter = 0
     with open(filename, 'w') as f:
@@ -176,11 +176,16 @@ def merge_results(arg):
             for key_data in merged_results(ctx, results):
                 counter += 1
                 dump_key_data(key_data, f)
+
+                key_infos = key_data[1]
+                newest_key_group = key_infos[0].group_id
+                newest_key_stats[newest_key_group] = newest_key_stats.get(newest_key_group, 0) + 1
+
                 if ctx.dump_keys:
                     df.write('{0}\n'.format(key_data[0]))
 
     ctx.stats.counter("total_keys", counter)
-    return filename, dump_filename
+    return filename, dump_filename, newest_key_stats
 
 
 def get_ranges(ctx):
@@ -225,18 +230,80 @@ def final_merge(ctx, results):
     ctx.stats.timer('main', 'final_merge')
     log.info("final merge")
 
-    ctx.merged_filename = os.path.join(ctx.tmp_dir, 'merged_result')
     dump_filename = os.path.join(ctx.tmp_dir, 'dump')
-    with open(ctx.merged_filename, 'wb') as mf:
-        with open(dump_filename, 'wb') as df:
-            for res in (r for r in results if r):
-                shutil.copyfileobj(open(res[0], 'rb'), mf)
-                os.remove(res[0])
-                shutil.copyfileobj(open(res[1], 'rb'), df)
-                os.remove(res[1])
+    with open(dump_filename, 'wb') as df:
+        for _, dump_filename, _ in results:
+            shutil.copyfileobj(open(dump_filename, 'rb'), df)
+            os.remove(dump_filename)
 
-    log.debug("Merged_filename: %s, address: %s, groups: %s, tmp_dir: %s",
-              ctx.merged_filename, ctx.address, ctx.groups, ctx.tmp_dir)
+    log.debug("final_merge: address: %s, groups: %s, tmp_dir: %s",
+              ctx.address, ctx.groups, ctx.tmp_dir)
+
+
+def dump_key(ctx, key, key_infos, newest_key_group):
+    if key_infos[0].group_id != newest_key_group:
+        index = [k.group_id for k in key_infos].index(newest_key_group)
+        tmp = list(key_infos)
+        tmp[0], tmp[index] = tmp[index], tmp[0]
+        key_infos = tuple(tmp)
+
+    key_data = (key, key_infos)
+    key_info = key_infos[0]
+    is_chunked = key_info.size > ctx.chunk_size
+    same_ts = lambda lhs, rhs: lhs.timestamp == rhs.timestamp
+    same_uncommitted = [info for info in key_infos
+                        if info.flags & elliptics.record_flags.uncommitted and same_ts(info, key_info)]
+    is_all_uncommitted = same_uncommitted == key_infos and key_info.timestamp < ctx.prepare_timeout
+
+    log.debug("Dumping key: {0}, group: {1}".format(key_data[0], newest_key_group))
+    if is_chunked or is_all_uncommitted:
+        dump_key_data(key_data, ctx.rest_file)
+    else:
+        if newest_key_group not in ctx.bucket_files:
+            filename = os.path.join(ctx.tmp_dir, 'bucket_%d' % (newest_key_group))
+            ctx.bucket_files[newest_key_group] = open(filename, 'wb+')
+        dump_key_data(key_data, ctx.bucket_files[newest_key_group])
+
+
+def fill_buckets(ctx, results):
+    '''
+    This function distributes keys among multiple files (buckets).
+    One bucket is 'rest_keys' and other buckets are 'bucket_xx', where xx == group_id.
+    'bucket_xx' contains newest keys that should be recovered from group xx to other groups
+    via server_send. If a key could not be recovered with server_send it is placed to 'rest_keys'.
+
+    Also this function prepares bucket_order array. The array contains group_id's sorted by amount
+    of keys in appropriate bucket. This array will be used by server_send recovery process.
+    '''
+    newest_key_stats = dict()
+    for _, _, range_stats in results:
+        for group, count in range_stats.iteritems():
+            newest_key_stats[group] = newest_key_stats.get(group, 0) + count
+    log.debug("Fill buckets: newest_key_stats (group -> count): {}".format(newest_key_stats))
+
+    bucket = newest_key_stats.items()
+    bucket.sort(key=lambda t: t[1], reverse=True)
+
+    rest_keys_filename = os.path.join(ctx.tmp_dir, 'rest_keys')
+    ctx.rest_file = open(rest_keys_filename, 'wb')
+    ctx.bucket_files = dict()
+    ctx.bucket_order = [b[0] for b in bucket]
+    log.debug("Fill buckets: order: {}".format(ctx.bucket_order))
+
+    for filename, _, _ in results:
+        for key, key_infos in load_key_data(filename):
+            same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
+            same_info_groups = [info.group_id for info in key_infos if same_meta(info, key_infos[0])]
+
+            for group in ctx.bucket_order:
+                if group in same_info_groups:
+                    dump_key(ctx, key, key_infos, group)
+                    break
+
+
+def cleanup(ctx, results):
+    for filename, _, _ in results:
+        os.remove(filename)
 
 
 def main(ctx):
@@ -270,13 +337,19 @@ def main(ctx):
     try:
         log.info("Merging iteration results from different nodes")
         iresults = ctx.pool.imap(merge_results, ((ctx.portable(), ) + x for x in results.items()))
-        results = list(iresults)
+        results = [r for r in iresults if r]
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating.")
         ctx.stats.timer('main', 'finished')
         return False
 
     final_merge(ctx, results)
+
+    ctx.stats.timer('main', 'fill_buckets')
+    log.info("Filling buckets")
+    fill_buckets(ctx, results)
+
+    cleanup(ctx, results)
 
     if ctx.dry_run:
         ctx.stats.timer('main', 'finished')
@@ -312,37 +385,49 @@ def lookup_keys(ctx):
     session = elliptics.Session(node)
     session.trace_id = ctx.trace_id
     filename = os.path.join(ctx.tmp_dir, 'merged_result')
-    with open(filename, 'w') as merged_f:
-        with open(ctx.dump_file, 'r') as dump_f:
-            for str_id in dump_f:
-                id = elliptics.Id(str_id)
-                lookups = []
-                for g in ctx.groups:
-                    session.groups = [g]
-                    lookups.append(session.read_data(id, size=1))
-                key_infos = []
+    rest_keys_filename = os.path.join(ctx.tmp_dir, 'rest_keys')
+    ctx.rest_file = open(rest_keys_filename, 'wb')
+    ctx.bucket_files = dict()
+    group_freq = dict()
+    with open(ctx.dump_file, 'r') as dump_f:
+        for str_id in dump_f:
+            id = elliptics.Id(str_id)
+            lookups = []
+            for g in ctx.groups:
+                session.groups = [g]
+                lookups.append(session.read_data(id, size=1))
+            key_infos = []
 
-                for i, l in enumerate(lookups):
-                    try:
-                        result = l.get()[0]
-                        address = result.address
-                        key_infos.append(KeyInfo(address,
-                                                 ctx.groups[i],
-                                                 result.timestamp,
-                                                 result.total_size,
-                                                 result.user_flags,
-                                                 result.record_flags))
-                    except Exception, e:
-                        log.debug("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"
-                                  .format(id, ctx.groups[i], repr(e), traceback.format_exc()))
-                        stats.counter("lookups", -1)
-                if len(key_infos) > 0:
-                    key_data = (id, key_infos)
-                    dump_key_data(key_data, merged_f)
-                    stats.counter("lookups", len(key_infos))
-                else:
-                    log.error("Key: {0} is missing in all specified groups: {1}. It won't be recovered."
-                              .format(id, ctx.groups))
+            for i, l in enumerate(lookups):
+                try:
+                    result = l.get()[0]
+                    address = result.address
+                    key_infos.append(KeyInfo(address,
+                                             ctx.groups[i],
+                                             result.timestamp,
+                                             result.total_size,
+                                             result.user_flags,
+                                             result.record_flags))
+                except Exception, e:
+                    log.debug("Failed to lookup key: {0} in group: {1}: {2}, traceback: {3}"
+                              .format(id, ctx.groups[i], repr(e), traceback.format_exc()))
+                    stats.counter("lookups", -1)
+            if len(key_infos) > 0:
+                key_data = (id, key_infos)
+                if not skip_key_data(ctx, key_data):
+                    key_infos.sort(key=lambda x: (x.timestamp, x.size), reverse=True)
+                    newest_key_group = key_infos[0].group_id
+                    dump_key(ctx, id, key_infos, newest_key_group)
+                    group_freq[newest_key_group] = group_freq.get(newest_key_group, 0) + 1
+                stats.counter("lookups", len(key_infos))
+            else:
+                log.error("Key: {0} is missing in all specified groups: {1}. It won't be recovered."
+                          .format(id, ctx.groups))
+
+    bucket = group_freq.items()
+    bucket.sort(key=lambda t: t[1], reverse=True)
+    ctx.bucket_order = [b[0] for b in bucket]
+
     stats.timer('process', 'finished')
     return filename
 

@@ -22,6 +22,7 @@ import errno
 
 from elliptics_recovery.utils.misc import elliptics_create_node, RecoverStat, validate_index
 from elliptics_recovery.utils.misc import INDEX_MAGIC_NUMBER_LENGTH, load_key_data, WindowedRecovery
+from elliptics_recovery.dc_server_send import ServerSendRecovery
 
 import elliptics
 from elliptics import Address
@@ -383,7 +384,8 @@ class WindowedDC(WindowedRecovery):
     def __init__(self, ctx, node):
         super(WindowedDC, self).__init__(ctx, ctx.stats['recover'])
         self.node = node
-        self.keys = iterate_key(self.ctx.merged_filename, self.ctx.groups)
+        ctx.rest_file.flush()
+        self.keys = iterate_key(self.ctx.rest_file.name, self.ctx.groups)
 
     def run_one(self):
         try:
@@ -402,6 +404,14 @@ class WindowedDC(WindowedRecovery):
         return False
 
 
+def cleanup(ctx):
+    for f in ctx.bucket_files.itervalues():
+        os.remove(f.name)
+    del ctx.bucket_files
+    os.remove(ctx.rest_file.name)
+    del ctx.rest_file
+
+
 def recover(ctx):
     stats = ctx.stats['recover']
 
@@ -412,7 +422,9 @@ def recover(ctx):
                                  net_thread_num=4,
                                  io_thread_num=24,
                                  remotes=ctx.remotes)
-    result = WindowedDC(ctx, node).run()
+    result = ServerSendRecovery(ctx, node).recover()
+    result &= WindowedDC(ctx, node).run()
+    cleanup(ctx)
     stats.timer('recover', 'finished')
 
     return result
