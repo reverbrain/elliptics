@@ -982,9 +982,6 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 	ids = (struct dnet_raw_id *)(req + 1);
 	groups = (int *)(ids + req->id_num);
 
-	memset(&re, 0, sizeof(struct dnet_iterator_response));
-	re.total_keys = req->id_num;
-
 	/*
 	 * Set NEED_ACK bit to signal server-send controller that we want
 	 * to send final ACK when controller will be destroyed, which in turn
@@ -1020,6 +1017,14 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 
 
 	for (i = 0; i < req->id_num; ++i) {
+		memset(&re, 0, sizeof(struct dnet_iterator_response));
+		// set iterator response id to differentiate various commands
+		// client can use cmd->backend_id from reply though
+		re.id = cmd->backend_id;
+		re.key = ids[i];
+		re.iterated_keys = i;
+		re.total_keys = req->id_num;
+
 		memcpy(key.id, ids[i].id, EBLOB_ID_SIZE);
 
 		err = blob_lookup(b, &key, &wc);
@@ -1029,14 +1034,8 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 			goto err_out_send_fail_reply;
 		}
 
-		re.key = ids[i];
 		re.flags = wc.flags; // these flags correspond to DNET_RECORD_FLAGS_*
-		re.status = 0;
-		re.iterated_keys = i;
 		re.size = wc.total_data_size;
-		// set iterator response id to differentiate various commands
-		// client can use cmd->backend_id from reply though
-		re.id = cmd->backend_id;
 
 		data_offset = wc.data_offset;
 		record_offset = 0;
