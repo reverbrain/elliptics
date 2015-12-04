@@ -1348,6 +1348,9 @@ static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl, struct dnet_itera
 		},
 	};
 
+	if (ireq->itype == DNET_ITYPE_SERVER_SEND)
+		eictl.flags |= EBLOB_ITERATE_FLAGS_VERIFY_CHECKSUM;
+
 	if (ireq->range_num) {
 		unsigned int i;
 
