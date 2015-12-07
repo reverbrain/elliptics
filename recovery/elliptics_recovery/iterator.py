@@ -300,12 +300,12 @@ class Iterator(object):
                                                           leave_file=leave_file)
 
             ranges = [IdRange.elliptics_range(start, stop) for start, stop in key_ranges]
-            records = self.session.start_iterator(eid,
-                                                  ranges,
-                                                  itype,
-                                                  flags,
-                                                  timestamp_range[0],
-                                                  timestamp_range[1])
+            records = self._start_iterator(eid,
+                                           ranges,
+                                           itype,
+                                           flags,
+                                           timestamp_range)
+
             iterated_keys = 0
             total_keys = 0
 
@@ -322,9 +322,8 @@ class Iterator(object):
 
                 if iterated_keys % batch_size == 0:
                     yield (iterated_keys, total_keys, start, end)
-                if record.response.status != 0:
-                    continue
-                results[self.get_key_range_id(record.response.key)].append(record)
+
+                self._on_key_response(results, record)
             end = time.time()
 
             elapsed_time = records.elapsed_time()
@@ -339,23 +338,31 @@ class Iterator(object):
                            .format(address, backend_id, repr(e), traceback.format_exc()))
             yield None
 
-    @classmethod
-    def iterate_with_stats(cls, node, eid, timestamp_range,
+    def _start_iterator(self, eid, ranges, itype, flags, timestamp_range):
+        return self.session.start_iterator(eid,
+                                           ranges,
+                                           itype,
+                                           flags,
+                                           timestamp_range[0],
+                                           timestamp_range[1])
+
+    def _on_key_response(self, results, record):
+        if record.response.status == 0:
+            results[self.get_key_range_id(record.response.key)].append(record)
+
+    def iterate_with_stats(self, eid, timestamp_range,
                            key_ranges, tmp_dir, address, group_id, backend_id, batch_size,
-                           stats, flags, leave_file=False,
-                           separately=False, trace_id=0):
-        iterator = cls(node, group_id, separately, trace_id=trace_id)
-        result = iterator.start(eid=eid,
-                                timestamp_range=timestamp_range,
-                                flags=flags,
-                                key_ranges=key_ranges,
-                                tmp_dir=tmp_dir,
-                                address=address,
-                                backend_id=backend_id,
-                                group_id=group_id,
-                                batch_size=batch_size,
-                                leave_file=leave_file,
-                                )
+                           stats, flags, leave_file=False):
+        result = self.start(eid=eid,
+                            flags=flags,
+                            key_ranges=key_ranges,
+                            timestamp_range=timestamp_range,
+                            tmp_dir=tmp_dir,
+                            address=address,
+                            backend_id=backend_id,
+                            group_id=group_id,
+                            leave_file=leave_file,
+                            batch_size=batch_size,)
         result_len = 0
         for it in result:
             if it is None:
@@ -377,6 +384,19 @@ class Iterator(object):
             stats.set_counter('iterations', 1)
 
         return result, result_len
+
+
+class CopyIterator(Iterator):
+    def __init__(self, *args,  **kwargs):
+        super(CopyIterator, self).__init__(*args, **kwargs)
+
+    def _start_iterator(self, eid, ranges, itype, flags, timestamp_range):
+        flags |= elliptics.iterator_flags.move
+        return self.session.start_copy_iterator(eid, ranges, [eid.group_id], flags, timestamp_range[0], timestamp_range[1])
+
+    def _on_key_response(self, results, record):
+        if record.response.status != 0:
+            results[self.get_key_range_id(record.response.key)].append(record)
 
 
 class MergeData(object):

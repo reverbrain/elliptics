@@ -57,8 +57,8 @@ def iterate_node(arg):
             flags |= elliptics.iterator_flags.ts_range
 
         log.debug("Running iterator on node: {0}/{1}".format(address, backend_id))
-        results, results_len = Iterator.iterate_with_stats(
-            node=node,
+        iterator = Iterator(node, node_id.group_id, separately=True, trace_id=ctx.trace_id)
+        results, results_len = iterator.iterate_with_stats(
             eid=node_id,
             timestamp_range=timestamp_range,
             key_ranges=ranges,
@@ -69,9 +69,7 @@ def iterate_node(arg):
             batch_size=ctx.batch_size,
             stats=stats,
             flags=flags,
-            leave_file=True,
-            separately=True,
-            trace_id=ctx.trace_id)
+            leave_file=True)
         if results is None or results_len == 0:
             return None
 
