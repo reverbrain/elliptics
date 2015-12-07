@@ -185,7 +185,8 @@ int local_session::write(const dnet_id &id, const char *data, size_t size, uint6
 	io.user_flags = user_flags;
 	io.timestamp = timestamp;
 
-	dnet_current_time(&io.timestamp);
+	if (dnet_time_is_empty(&io.timestamp))
+		dnet_current_time(&io.timestamp);
 
 	data_buffer buffer(sizeof(dnet_io_attr) + size);
 	buffer.write(io);
