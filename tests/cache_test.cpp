@@ -50,6 +50,37 @@ static void configure_nodes(const std::string &path)
 	global_data = start_nodes(start_config);
 }
 
+static void test_cache_timestamp(session &sess)
+{
+	argument_data data("this is a timestamp test");
+
+	key k("this is a timestamp test key");
+	sess.transform(k);
+
+	dnet_io_control ctl;
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.data = data.data();
+
+	dnet_current_time(&ctl.io.timestamp);
+	ctl.io.flags = DNET_IO_FLAGS_CACHE;
+	ctl.io.start = 5;
+	ctl.io.size = data.size();
+
+	memcpy(&ctl.id, &k.id(), sizeof(dnet_id));
+	ctl.fd = -1;
+
+	ELLIPTICS_REQUIRE(write_result, sess.write_data(ctl));
+
+	sleep(ctl.io.start + 2);
+
+	ELLIPTICS_REQUIRE(read_result, sess.read_data(k, 0, 0));
+	auto io = read_result.get_one().io_attribute();
+
+	BOOST_REQUIRE_EQUAL(io->timestamp.tsec, ctl.io.timestamp.tsec);
+	BOOST_REQUIRE_EQUAL(io->timestamp.tnsec, ctl.io.timestamp.tnsec);
+}
+
 static void test_cache_records_sizes(session &sess)
 {
 	dnet_node *node = global_data->nodes[0].get_native();
@@ -263,6 +294,7 @@ std::string generate_data(size_t length)
 
 bool register_tests(test_suite *suite, node n)
 {
+	ELLIPTICS_TEST_CASE(test_cache_timestamp, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE));
 	ELLIPTICS_TEST_CASE(test_cache_records_sizes, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 	ELLIPTICS_TEST_CASE(test_cache_overflow, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 	ELLIPTICS_TEST_CASE(test_cache_overflow, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE));
