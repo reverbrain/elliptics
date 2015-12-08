@@ -684,6 +684,10 @@ class DumpRecover(object):
 
 
 class ServerSendRecovery(object):
+    '''
+    Special recovery class that tries to recover keys from backends that
+    should not contain this keys to proper backend via server-send operation.
+    '''
     def __init__(self, ctx, node, group):
         self.routes = self._prepare_routes(ctx, group)
         self.session = elliptics.Session(node)
@@ -695,6 +699,10 @@ class ServerSendRecovery(object):
         self.ctx = ctx
 
     def _prepare_routes(self, ctx, group):
+        '''
+        Returns list of triplets (address, backend, [ranges]),
+        where ranges are sorted by their left boundary.
+        '''
         def sort_ranges(ranges):
             ranges = sorted(ranges, key=lambda r: r[0])
             return reduce(lambda x, y: x + y, ranges, tuple())
@@ -718,13 +726,18 @@ class ServerSendRecovery(object):
         return routes
 
     def recover(self, keys):
+        '''
+        Tries to recover keys from every backend via server-send. Then it
+        removes keys with older timestamp or invalid checksum.
+        Returns list of keys that was not recovered via server-send.
+        '''
         log.info("Server-send bucket: num keys: {0}".format(len(keys)))
 
         def contain(key, ranges):
             index = bisect(ranges, key)
             return index % 2 == 1
 
-        responses = dict([(str(k), []) for k in keys])
+        responses = dict([(str(k), []) for k in keys]) # key -> [list of responses]
         for addr, backend_id, backend_ranges in self.routes:
             key_candidates = [k for k in keys if not contain(k, backend_ranges)]
             if key_candidates:
@@ -734,6 +747,9 @@ class ServerSendRecovery(object):
         return self._get_unrecovered_keys(responses)
 
     def _server_send(self, keys, addr, backend_id, responses):
+        '''
+        Calls server-send with a given list of keys to the specific backend.
+        '''
         log.debug("Server-send: address: {0}, backend: {1}, num keys: {2}".format(addr, backend_id, len(keys)))
 
         self.session.set_direct_id(addr, backend_id)
@@ -746,6 +762,9 @@ class ServerSendRecovery(object):
             responses[str(key)].append(r)
 
     def _remove_bad_keys(self, responses):
+        '''
+        Removes invalid keys with older timestamp or invalid checksum.
+        '''
         bad_keys = []
         for val in responses.itervalues():
             bad_keys.extend([r for r in val if self._check_bad_key(r)])
@@ -756,23 +775,36 @@ class ServerSendRecovery(object):
             self.session.set_direct_id(addr, backend_id)
             result = self.session.remove(key)
             results.append(result)
+
         for i, r in enumerate(results):
-            res = r.get()[0]
-            log.info("Removing key: {0}, status: ".format(bad_keys[i], res.status))
+            status = r.get()[0].status
+            log.info("Removing key: {0}, status: ".format(bad_keys[i], status))
 
     def _check_bad_key(self, response):
         status = response[1]
         return status == -errno.EBADFD or status == -errno.EILSEQ
 
     def _get_unrecovered_keys(self, responses):
+        '''
+        Returns keys that was not recovered via server-send.
+        '''
         keys = []
-        has_timeouted = lambda key_responses: any([r[1] == -errno.ETIMEDOUT for r in key_responses])
         for val in responses.iteritems():
             key_responses = val[1]
-            if not key_responses or has_timeouted(key_responses):
+            if not key_responses or self._check_unrecovered_key(key_responses):
                 key = elliptics.Id(val[0])
                 keys.append(key)
         return keys
+
+    def _check_unrecovered_key(self, responses):
+        '''
+        Returns True, if a valid key exists on the backend, but the key could not be recovered by any reason.
+        '''
+        for r in responses:
+            status = r[1]
+            if status < 0 and status != -errno.ENOENT and not self._check_bad_key(r):
+                return True
+        return False
 
 
 def dump_process_group((ctx, group)):
