@@ -36,7 +36,7 @@ from bisect import bisect
 from ..etime import Time
 from ..utils.misc import elliptics_create_node, RecoverStat, LookupDirect, RemoveDirect, WindowedRecovery
 from ..route import RouteList
-from ..iterator import CopyIterator
+from ..iterator import MergeRecoveryIterator
 from ..range import IdRange
 import elliptics
 
@@ -332,7 +332,7 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
         flags = elliptics.iterator_flags.key_range | elliptics.iterator_flags.ts_range
         key_ranges = [IdRange(r[0], r[1]) for r in ranges]
-        iterator = CopyIterator(node, eid.group_id, trace_id=ctx.trace_id)
+        iterator = MergeRecoveryIterator(node, eid.group_id, trace_id=ctx.trace_id)
         result, result_len = iterator.iterate_with_stats(eid=eid,
                                                          timestamp_range=timestamp_range,
                                                          key_ranges=key_ranges,

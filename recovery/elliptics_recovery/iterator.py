@@ -239,7 +239,7 @@ class Iterator(object):
         self.session.trace_id = trace_id
         self.separately = separately
 
-    def get_key_range_id(self, key):
+    def _get_key_range_id(self, key):
         if not self.separately:
             return 0
 
@@ -260,7 +260,6 @@ class Iterator(object):
 
     def start(self,
               eid=IdRange.ID_MIN,
-              itype=elliptics.iterator_types.network,
               flags=elliptics.iterator_flags.key_range | elliptics.iterator_flags.ts_range,
               key_ranges=(IdRange(IdRange.ID_MIN, IdRange.ID_MAX),),
               timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime()),
@@ -270,7 +269,6 @@ class Iterator(object):
               group_id=0,
               leave_file=False,
               batch_size=1024):
-        assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now"
         assert flags & elliptics.iterator_flags.data == 0, "Only metadata iterator is supported for now"
         assert len(key_ranges) > 0, "There should be at least one iteration range."
         self.ranges = key_ranges
@@ -302,7 +300,6 @@ class Iterator(object):
             ranges = [IdRange.elliptics_range(start, stop) for start, stop in key_ranges]
             records = self._start_iterator(eid,
                                            ranges,
-                                           itype,
                                            flags,
                                            timestamp_range)
 
@@ -338,17 +335,20 @@ class Iterator(object):
                            .format(address, backend_id, repr(e), traceback.format_exc()))
             yield None
 
-    def _start_iterator(self, eid, ranges, itype, flags, timestamp_range):
+    def _start_iterator(self, eid, ranges, flags, timestamp_range):
         return self.session.start_iterator(eid,
                                            ranges,
-                                           itype,
+                                           elliptics.iterator_types.network,
                                            flags,
                                            timestamp_range[0],
                                            timestamp_range[1])
 
     def _on_key_response(self, results, record):
         if record.response.status == 0:
-            results[self.get_key_range_id(record.response.key)].append(record)
+            self._save_record(results, record)
+
+    def _save_record(self, results, record):
+        results[self._get_key_range_id(record.response.key)].append(record)
 
     def iterate_with_stats(self, eid, timestamp_range,
                            key_ranges, tmp_dir, address, group_id, backend_id, batch_size,
@@ -386,17 +386,22 @@ class Iterator(object):
         return result, result_len
 
 
-class CopyIterator(Iterator):
+class MergeRecoveryIterator(Iterator):
+    '''
+    This class is used in merge recovery for backend iteratation on ranges which are not belong to
+    it using copy iterator. Every iterated key is moved to the backend, where it should exists.
+    If moving of some key was failed, then it saves the key to the results container.
+    '''
     def __init__(self, *args,  **kwargs):
-        super(CopyIterator, self).__init__(*args, **kwargs)
+        super(MergeRecoveryIterator, self).__init__(*args, **kwargs)
 
-    def _start_iterator(self, eid, ranges, itype, flags, timestamp_range):
+    def _start_iterator(self, eid, ranges, flags, timestamp_range):
         flags |= elliptics.iterator_flags.move
         return self.session.start_copy_iterator(eid, ranges, [eid.group_id], flags, timestamp_range[0], timestamp_range[1])
 
     def _on_key_response(self, results, record):
         if record.response.status != 0:
-            results[self.get_key_range_id(record.response.key)].append(record)
+            self._save_record(results, record)
 
 
 class MergeData(object):
