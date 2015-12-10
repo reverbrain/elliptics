@@ -30,11 +30,13 @@ import os
 from itertools import groupby
 import traceback
 import threading
+import errno
+from bisect import bisect
 
 from ..etime import Time
 from ..utils.misc import elliptics_create_node, RecoverStat, LookupDirect, RemoveDirect, WindowedRecovery
 from ..route import RouteList
-from ..iterator import Iterator
+from ..iterator import MergeRecoveryIterator
 from ..range import IdRange
 import elliptics
 
@@ -328,14 +330,10 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
     try:
         log.debug("Running iterator on node: {0}/{1}".format(address, backend_id))
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
-        flags = elliptics.iterator_flags.key_range
-        if ctx.no_meta:
-            flags |= elliptics.iterator_flags.no_meta
-        else:
-            flags |= elliptics.iterator_flags.ts_range
+        flags = elliptics.iterator_flags.key_range | elliptics.iterator_flags.ts_range
         key_ranges = [IdRange(r[0], r[1]) for r in ranges]
-        result, result_len = Iterator.iterate_with_stats(node=node,
-                                                         eid=eid,
+        iterator = MergeRecoveryIterator(node, eid.group_id, trace_id=ctx.trace_id)
+        result, result_len = iterator.iterate_with_stats(eid=eid,
                                                          timestamp_range=timestamp_range,
                                                          key_ranges=key_ranges,
                                                          tmp_dir=ctx.tmp_dir,
@@ -345,8 +343,7 @@ def iterate_node(ctx, node, address, backend_id, ranges, eid, stats):
                                                          batch_size=ctx.batch_size,
                                                          stats=stats,
                                                          flags=flags,
-                                                         leave_file=False,
-                                                         trace_id=ctx.trace_id)
+                                                         leave_file=False,)
         if result is None:
             return None
         log.info("Iterator {0}/{1} obtained: {2} record(s)"
@@ -686,6 +683,130 @@ class DumpRecover(object):
         return self.result
 
 
+class ServerSendRecovery(object):
+    '''
+    Special recovery class that tries to recover keys from backends that
+    should not contain this keys to proper backend via server-send operation.
+    '''
+    def __init__(self, ctx, node, group):
+        self.routes = self._prepare_routes(ctx, group)
+        self.session = elliptics.Session(node)
+        self.session.exceptions_policy = elliptics.exceptions_policy.no_exceptions
+        self.session.set_filter(elliptics.filters.all)
+        self.session.timeout = 60
+        self.session.groups = [group]
+        self.session.trace_id = ctx.trace_id
+        self.ctx = ctx
+
+    def _prepare_routes(self, ctx, group):
+        '''
+        Returns list of triplets (address, backend, [ranges]),
+        where ranges are sorted by their left boundary.
+        '''
+        def sort_ranges(ranges):
+            ranges = sorted(ranges, key=lambda r: r[0])
+            return reduce(lambda x, y: x + y, ranges, tuple())
+
+        group_routes = ctx.routes.filter_by_groups([group])
+        routes = []
+        if ctx.one_node:
+            if ctx.backend_id is not None:
+                ranges = group_routes.get_address_backend_ranges(ctx.address, ctx.backend_id)
+                routes = [(ctx.address, ctx.backend_id, sort_ranges(ranges))]
+            else:
+                for backend_id in group_routes.get_address_backends(ctx.address):
+                    ranges = group_routes.get_address_backend_ranges(ctx.address, backend_id)
+                    routes.append((ctx.address, backend_id, sort_ranges(ranges)))
+        else:
+            for addr, backend_id in group_routes.addresses_with_backends():
+                ranges = group_routes.get_address_backend_ranges(addr, backend_id)
+                routes.append((addr, backend_id, sort_ranges(ranges)))
+
+        log.info("Server-send recovery: group: {0}, num addresses: {1}".format(group, len(routes)))
+        return routes
+
+    def recover(self, keys):
+        '''
+        Tries to recover keys from every backend via server-send. Then it
+        removes keys with older timestamp or invalid checksum.
+        Returns list of keys that was not recovered via server-send.
+        '''
+        log.info("Server-send bucket: num keys: {0}".format(len(keys)))
+
+        def contain(key, ranges):
+            index = bisect(ranges, key)
+            return index % 2 == 1
+
+        responses = dict([(str(k), []) for k in keys]) # key -> [list of responses]
+        for addr, backend_id, backend_ranges in self.routes:
+            key_candidates = [k for k in keys if not contain(k, backend_ranges)]
+            if key_candidates:
+                self._server_send(key_candidates, addr, backend_id, responses)
+
+        self._remove_bad_keys(responses)
+        return self._get_unrecovered_keys(responses)
+
+    def _server_send(self, keys, addr, backend_id, responses):
+        '''
+        Calls server-send with a given list of keys to the specific backend.
+        '''
+        log.debug("Server-send: address: {0}, backend: {1}, num keys: {2}".format(addr, backend_id, len(keys)))
+
+        self.session.set_direct_id(addr, backend_id)
+        iterator = self.session.server_send(keys, elliptics.iterator_flags.move, list(self.session.groups))
+        for result in iterator:
+            status = result.response.status
+            key = result.response.key
+            r = (key, status, addr, backend_id)
+            log.debug("Server-send result: key: {0}, status: {1}".format(str(key), status))
+            responses[str(key)].append(r)
+
+    def _remove_bad_keys(self, responses):
+        '''
+        Removes invalid keys with older timestamp or invalid checksum.
+        '''
+        bad_keys = []
+        for val in responses.itervalues():
+            bad_keys.extend([r for r in val if self._check_bad_key(r)])
+
+        results = []
+        for k in bad_keys:
+            key, _, addr, backend_id = k
+            self.session.set_direct_id(addr, backend_id)
+            result = self.session.remove(key)
+            results.append(result)
+
+        for i, r in enumerate(results):
+            status = r.get()[0].status
+            log.info("Removing key: {0}, status: ".format(bad_keys[i], status))
+
+    def _check_bad_key(self, response):
+        status = response[1]
+        return status == -errno.EBADFD or status == -errno.EILSEQ
+
+    def _get_unrecovered_keys(self, responses):
+        '''
+        Returns keys that was not recovered via server-send.
+        '''
+        keys = []
+        for val in responses.iteritems():
+            key_responses = val[1]
+            if not key_responses or self._check_unrecovered_key(key_responses):
+                key = elliptics.Id(val[0])
+                keys.append(key)
+        return keys
+
+    def _check_unrecovered_key(self, responses):
+        '''
+        Returns True, if a valid key exists on the backend, but the key could not be recovered by any reason.
+        '''
+        for r in responses:
+            status = r[1]
+            if status < 0 and status != -errno.ENOENT and not self._check_bad_key(r):
+                return True
+        return False
+
+
 def dump_process_group((ctx, group)):
     log.debug("Processing group: {0}".format(group))
     stats = ctx.stats['group_{0}'.format(group)]
@@ -702,12 +823,15 @@ def dump_process_group((ctx, group)):
                                  remotes=ctx.remotes)
     ret = True
     with open(ctx.dump_file, 'r') as dump:
+        ss_rec = ServerSendRecovery(ctx, node, group)
         # splits ids from dump file in batchs and recovers it
         for batch_id, batch in groupby(enumerate(dump), key=lambda x: x[0] / ctx.batch_size):
             recovers = []
             rs = RecoverStat()
-            for _, val in batch:
-                rec = DumpRecover(routes=ctx.routes, node=node, id=elliptics.Id(val), group=group, ctx=ctx)
+            keys = [elliptics.Id(val) for _, val in batch]
+            keys = ss_rec.recover(keys)
+            for k in keys:
+                rec = DumpRecover(routes=ctx.routes, node=node, id=k, group=group, ctx=ctx)
                 recovers.append(rec)
                 rec.run()
             for r in recovers:
