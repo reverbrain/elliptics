@@ -513,6 +513,15 @@ err_out_send:
 				 * Maximum number of bytes written into the wire and not yet acknowledged.
 				 * It is equal to 'current speed' times 5 seconds, since 5 seconds is default wait timeout
 				 * for write command.
+				 *
+				 * This '5 seconds' rule could be extended to 60 seconds or million of seconds,
+				 * but practice shows that 60 seconds of data at the current speed overflows pipe
+				 * if remote backend starts to slow down.
+				 *
+				 * '5 seconds' is quite enough to fill 1gbit pipe.
+				 *
+				 * Write command timeout has been increased to 60 seconds to cover this 5 seconds of in-flight
+				 * transactions.
 				 */
 				new_pending = 5 * re->size * 1000000 / usec;
 			}
