@@ -1035,8 +1035,7 @@ again:
 /*
  * Watermarks for number of bytes written into the wire
  */
-#define DNET_SERVER_SEND_WATERMARK_HIGH		(30*1024*1024*1024L)
-#define DNET_SERVER_SEND_WATERMARK_LOW		DNET_SERVER_SEND_WATERMARK_HIGH / 2
+#define DNET_SERVER_SEND_WATERMARK_HIGH		(100*1024*1024L)
 
 /*
  * Send data over network to another server as set of WRITE commands
@@ -1054,10 +1053,12 @@ struct dnet_server_send_ctl {
 
 	pthread_mutex_t			write_lock;	/* Lock for @write_wait */
 	pthread_cond_t			write_wait;	/* Waiting for pending writes */
+	long				bytes_pending_max;	/* maximum size of the 'queue' of write requests */
 	atomic_t			bytes_pending;	/* Number of bytes in-flight to remote servers */
 
 	int				write_error;	/* Set to the first error occurred during write
 							 * This will stop iterator. */
+
 
 	atomic_t			refcnt;		/* Reference counter which will be increased for every
 							 * async WRITE operation. get/put methods should be used

@@ -2244,7 +2244,8 @@ error_info session::mix_states(const key &id, std::vector<int> &groups)
 
 	int num = dnet_mix_states(m_data->session_ptr, &raw, get_ioflags(), &groups_ptr.data());
 	if (num < 0)
-		return create_error(num, "could not fetch groups");
+		return create_error(num, id, "could not fetch groups, num: %zd, ioflags: %s",
+				groups.size(), dnet_flags_dump_ioflags(get_ioflags()));
 
 	groups.assign(groups_ptr.data(), groups_ptr.data() + num);
 

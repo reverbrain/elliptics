@@ -69,7 +69,7 @@ static void run_on_single_backend(const bpo::variables_map &vm,
 		elliptics::session &s, const dnet_id &id)
 {
 	// checking iterator flags
-	uint64_t iflags = DNET_IFLAGS_NO_META;
+	uint64_t iflags = 0;
 
 	if (vm.count("overwrite")) {
 		iflags |= DNET_IFLAGS_OVERWRITE;
@@ -178,6 +178,7 @@ int main(int argc, char *argv[])
 	std::string log_file, log_level;
 	int igroup;
 	std::vector<uint32_t> backends;
+	long wait_timeout;
 	bpo::options_description ell("Elliptics options");
 	ell.add_options()
 		("remote,r", bpo::value<std::vector<std::string>>(&remotes)->required()->composing(),
@@ -185,6 +186,7 @@ int main(int argc, char *argv[])
 		("group,g", bpo::value<int>(&igroup)->required(), "single remote group to iterate over")
 		("log-file", bpo::value<std::string>(&log_file)->default_value("/dev/stdout"), "log file")
 		("log-level", bpo::value<std::string>(&log_level)->default_value("error"), "log level: error, info, notice, debug")
+		("wait-timeout,w", bpo::value<long>(&wait_timeout)->default_value(120), "wait timeout in seconds")
 		("backend,b", bpo::value<std::vector<uint32_t>>(&backends)->composing(),
 		 	"remote backends in specified group, if not specified, iteration will run over all backends, "
 			"can be specified multiple times")
@@ -242,7 +244,7 @@ int main(int argc, char *argv[])
 
 
 		elliptics::session s(node);
-		s.set_timeout(120);
+		s.set_timeout(wait_timeout);
 		s.set_groups({igroup});
 		std::vector<dnet_route_entry> routes = s.get_routes();
 		if (routes.empty()) {
