@@ -17,6 +17,7 @@
 
 import os
 import sys
+import errno
 sys.path.insert(0, "")  # for running from cmake
 import pytest
 from conftest import make_session
@@ -100,6 +101,27 @@ def write_data(scope, session, keys, datas):
         results.append(session.write_data(k, datas[i]))
     for r in results:
         r.wait()
+
+
+def check_keys_absence(scope, session, keys):
+    '''
+    Checks that merge recovery removes moved @keys from the source backend.
+    '''
+    session = session.clone()
+    session.exceptions_policy = elliptics.core.exceptions_policy.no_exceptions
+    session.set_filter(elliptics.filters.all)
+    session.set_direct_id(scope.test_address, scope.test_backend)
+
+    routes = session.routes.filter_by_group(scope.test_group)
+    results = []
+    for k in keys:
+        addr, _, backend = routes.get_id_routes(session.transform(k))[0]
+        if addr != scope.test_address or backend != scope.test_backend:
+            results.append(session.lookup(k))
+
+    assert len(results) > 0
+    for r in results:
+        assert r.get()[0].status == -errno.ENOENT
 
 
 def check_data(scope, session, keys, datas, timestamp):
@@ -311,6 +333,7 @@ class TestRecovery:
 
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas, self.timestamp)
+        check_keys_absence(scope, session, self.keys)
 
     def test_enable_another_one_backend(self, server, simple_node):
         '''
@@ -353,6 +376,7 @@ class TestRecovery:
 
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas, self.timestamp)
+        check_keys_absence(scope, session, self.keys)
 
     def test_enable_all_group_backends(self, server, simple_node):
         '''
@@ -384,6 +408,7 @@ class TestRecovery:
 
         session.groups = (scope.test_group,)
         check_data(scope, session, self.keys, self.datas, self.timestamp)
+        check_keys_absence(scope, session, self.keys)
 
     def test_enable_second_group_one_backend(self, server, simple_node):
         '''

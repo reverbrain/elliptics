@@ -502,6 +502,17 @@ public:
 		return create_result(std::move(session::start_iterator(transform(id).id(), std_ranges, type, flags, time_begin.m_time, time_end.m_time)));
 	}
 
+	python_iterator_result start_copy_iterator(const bp::api::object &id, const bp::api::object &ranges,
+						   const bp::api::object &dst_groups,
+						   uint64_t flags,
+						   const elliptics_time& time_begin = elliptics_time(0, 0),
+						   const elliptics_time& time_end = elliptics_time(-1, -1)) {
+		auto std_ranges = convert_to_vector<dnet_iterator_range>(ranges);
+		auto std_dst_groups = convert_to_vector<int>(dst_groups);
+
+		return create_result(std::move(session::start_copy_iterator(transform(id).id(), std_ranges, flags, time_begin.m_time, time_end.m_time, std_dst_groups)));
+	}
+
 	python_iterator_result pause_iterator(const bp::api::object &id, const uint64_t &iterator_id) {
 		return create_result(std::move(session::pause_iterator(transform(id).id(), iterator_id)));
 	}
@@ -512,6 +523,18 @@ public:
 
 	python_iterator_result cancel_iterator(const bp::api::object &id, const uint64_t &iterator_id) {
 		return create_result(std::move(session::cancel_iterator(transform(id).id(), iterator_id)));
+	}
+
+	python_iterator_result server_send(const bp::api::object &keys, uint64_t iflags, const bp::api::object &groups) {
+		auto std_groups = convert_to_vector<int>(groups);
+		std::vector<dnet_raw_id> std_keys;
+		std_keys.reserve(bp::len(keys));
+
+		for (bp::stl_input_iterator<bp::api::object> it(keys), end; it != end; ++it) {
+			std_keys.push_back(transform(*it).raw_id());
+		}
+
+		return create_result(std::move(session::server_send(std_keys, iflags, std_groups)));
 	}
 
 	python_exec_result exec(const bp::api::object &id_or_context, const std::string &event, const bp::api::object &data, const int src_key) {
@@ -1521,6 +1544,41 @@ void init_elliptics_session() {
 		    "                       result.response.timestamp.tnsec,\n"
 		    "                       result.response_data))\n")
 
+		.def("start_copy_iterator", &elliptics_session::start_copy_iterator,
+		     bp::args("id", "ranges", "dst_groups", "flags", "time_begin", "time_end"),
+		    "start_copy_iterator(id, ranges, dst_groups, flags, time_begin, time_end)\n"
+		    "    Start copy iterator on the Elliptics node specified by @id. Return elliptics.AsyncResult.\n"
+		    "    -- id - elliptics.Id of the node where iteration should be executed\n"
+		    "    -- ranges - list of elliptics.IteratorRange by which keys on the node should be filtered\n"
+		    "    -- dst_groups - list of remote groups where data will be copied/moved\n"
+		    "    -- flags - bits set of elliptics.iterator_flags\n"
+		    "    -- time_begin - start of time range by which keys on the node should be filtered\n"
+		    "    -- time_end - end of time range by which keys on the node should be filtered\n\n"
+		    "    flags = elliptics.iterator_flags.key_range\n"
+		    "    id = session.routes.get_address_id(Address.from_host_port('host.com:1025'))\n"
+		    "    range = elliptics.IteratorRange()\n"
+		    "    range.key_begin = elliptics.Id([0] * 64, 1)\n"
+		    "    range.key_end = elliptics.Id([255] * 64, 1)\n"
+		    "    dst_groups = [2,3]\n"
+		    "    iterator = session.start_copy_iterator(id,\n"
+		    "                                      [range],\n"
+		    "                                      type,\n"
+		    "                                      flags,\n"
+		    "                                      elliptics.Time(0,0),\n"
+		    "                                      elliptics.Time(0,0),\n"
+		    "                                      dst_groups)\n\n"
+		    "    for result in iterator:\n"
+		    "        if result.status != 0:\n"
+		    "            raise AssertionError('Wrong status: {0}'.format(result.status))\n\n"
+		    "        iterator_id = result.id\n"
+		    "        print ('node: {0}, key: {1}, flags: {2}, ts: {3}/{4}, data: {5}'\n"
+		    "               .format(node,\n"
+		    "                       result.response.key,\n"
+		    "                       result.response.user_flags,\n"
+		    "                       result.response.timestamp.tsec,\n"
+		    "                       result.response.timestamp.tnsec,\n"
+		    "                       result.response_data))\n")
+
 		.def("pause_iterator", &elliptics_session::pause_iterator,
 		     bp::args("id", "iterator_id"),
 		    "pause_iterator(id, iterator_id)\n"
@@ -1560,6 +1618,19 @@ void init_elliptics_session() {
 		    "    id = session.routes.get_address_id(Address.from_host_port('host.com:1025'))\n"
 		    "    iterator = session.cancel_iterator(id, iterator_id)\n"
 		    "    iterator.wait()\n")
+
+// Server send operations
+
+		.def("server_send", &elliptics_session::server_send,
+		     bp::args("keys", "iflags", "groups"),
+		    "server_send(keys, iflags, groups)\n"
+		    "    Similar to iterator, but instead of running over all keys on remote backend,\n"
+		    "    remote server nodes will read all specified keys (which live on local backends)\n"
+		    "    and send them to remote nodes.\n"
+		    "    Returns elliptics.AsyncResult.\n"
+		    "    -- keys - iterable object which provides set of elliptics keys (elliptics.Id)\n"
+		    "    -- iflags - bits set of elliptics.iterator_flags\n"
+		    "    -- groups - iterable object which specifies groups to which data should be send\n")
 
 // Index operations
 

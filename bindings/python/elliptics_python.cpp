@@ -44,11 +44,13 @@ enum elliptics_iterator_types {
 };
 
 enum elliptics_iterator_flags {
-	iflag_default	= 0,
-	iflag_data	= DNET_IFLAGS_DATA,
-	iflag_key_range	= DNET_IFLAGS_KEY_RANGE,
-	iflag_ts_range	= DNET_IFLAGS_TS_RANGE,
-	iflag_no_meta	= DNET_IFLAGS_NO_META,
+	iflag_default		= 0,
+	iflag_data		= DNET_IFLAGS_DATA,
+	iflag_key_range		= DNET_IFLAGS_KEY_RANGE,
+	iflag_ts_range		= DNET_IFLAGS_TS_RANGE,
+	iflag_no_meta		= DNET_IFLAGS_NO_META,
+	iflags_move		= DNET_IFLAGS_MOVE,
+	iflags_overwrite	= DNET_IFLAGS_OVERWRITE
 };
 
 enum elliptics_cflags {
@@ -377,13 +379,20 @@ BOOST_PYTHON_MODULE(core)
 	    "default\n    There no filtering should be while iteration. All keys will be presented\n"
 	    "data\n    Iteration results should also includes objects datas\n"
 	    "key_range\n    elliptics.Id ranges should be used for filtering keys on the node while iteration\n"
-	    "ts_range\n    Time range should be used for filtering keys on the node while iteration"
-	    "no_meta\n    Iteration results will have empty key's metadata (user_flags and timestamp)")
+	    "ts_range\n    Time range should be used for filtering keys on the node while iteration\n"
+	    "no_meta\n    Iteration results will have empty key's metadata (user_flags and timestamp)\n"
+	    "move\n    Server-send iterator should move data not copy. This will force iterator/server-send logic\n"
+                  "    to queue REMOVE command locally if remote write has succeeeded.\n"
+	    "overwrite\n    Overwrite data. If this flag is NOT set, we only write data if remote timestamp is less\n"
+	               "    than in data being written. When NOT set, data will still be transferred over the network,\n"
+		       "    even if remote timestamp doesn't allow us to overwrite data.")
 		.value("default", iflag_default)
 		.value("data", iflag_data)
 		.value("key_range", iflag_key_range)
 		.value("ts_range", iflag_ts_range)
 		.value("no_meta", iflag_no_meta)
+		.value("move", iflags_move)
+		.value("overwrite", iflags_overwrite)
 	;
 
 	bp::enum_<elliptics_iterator_types>("iterator_types",

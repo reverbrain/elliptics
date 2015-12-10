@@ -1025,7 +1025,7 @@ enum {
 #define DNET_IFLAGS_MOVE		(1<<4)
 /*
  * Overwrite data. If this flag is NOT set, we only write data if remote timestamp is less
- * that that in data being written. When NOT set, data will still be transferred over the network,
+ * than in data being written. When NOT set, data will still be transferred over the network,
  * even if remote timestamp doesn't allow us to overwrite data.
  */
 #define DNET_IFLAGS_OVERWRITE		(1<<5)
