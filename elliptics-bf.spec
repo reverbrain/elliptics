@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.9.2
+Version:	2.26.9.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -146,6 +146,26 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 10 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.9.3
+- package: depend on eblob 0.23.11+, which contains new iterator flag to verify checksum
+- session: extended error message when dnet_mix_states() fails, include ioflags, key and number of groups
+- recovery: Iterator class refactoring
+- recovery: added description of ServerSendRecovery class & its methods
+- merge recovery: optimization: use copy-iterator & server-send for small/medium keys
+- tests: recovery: check that merge recovery removes moved keys from the source backend
+- tests: added test which writes data into cache with small lifetime/sync timeout, previously cache overwrote user's timestamp with current time, this test checks that timestamp is still valid
+- local_session: do not overwrite valid user's timestamp with current time
+- binding: python: added server_send & start_copy_iterator session methods
+- server_send: print queue size when sending write request
+- server_send: set larger write timeout if node's wait timeout is less than 60 seconds
+- iterate_move: example application should use zero iterator flags to prevent confusion (when no-meta flag is set, all timestamps are zeroed)
+- server_send: implemented dynamic size of the queue of pending writes
+- iterate_move: added wait timeout option
+- server_send: broadcast write error to all blocked thread
+- tests: cmake's add_custom_target() is unreliable with setting envvars
+- tests: instruction on how to add new c++ test and additional cleanup
+- iterate: set EBLOB_ITERATE_FLAGS_VERIFY_CHECKSUM for start_copy_iterator() (requires 0.23.11+ eblob)
+
 * Wed Nov 25 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.9.2
 - fixed crash caused by using freed memory
 - tests: server-send tests operate with 2 sessions
