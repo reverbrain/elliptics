@@ -114,6 +114,9 @@ class ServerSendRecovery(object):
         self.session.exceptions_policy = elliptics.exceptions_policy.no_exceptions
         self.session.timeout = 60
 
+        self.remove_session = self.session.clone()
+        self.remove_session.set_filter(elliptics.filters.all_final)
+
         self.result = True
 
         # next vars are used just for optimization
@@ -155,13 +158,13 @@ class ServerSendRecovery(object):
         self.session.set_groups([group])
 
         for b in keys_bunch.iteritems():
-            remote_groups = list(b[0])
+            remote_groups = b[0]
             newest_keys = list()
             key_infos_map = dict()
-            for k in b[1]:
-                log.debug("Prepare server-send key: {0}, group: {1}".format(k[0], k[0].group_id))
-                newest_keys.append(k[0])
-                key_infos_map[str(k[0])] = k[1]
+            for key, key_infos in b[1]:
+                log.debug("Prepare server-send key: {0}, group: {1}".format(key, key.group_id))
+                newest_keys.append(key)
+                key_infos_map[str(key)] = key_infos
 
             timeouted_keys = None
             for i in range(self.ctx.attempts):
@@ -170,9 +173,11 @@ class ServerSendRecovery(object):
                 #    log.debug("LOOKUP2: key: {0}, group: {1}, status: {2}".format(k, result.group_id, result.status))
                 if newest_keys:
                     log.info("Server-send: group: {0}, remote_groups: {1}, num_keys: {2}".format(group, remote_groups, len(newest_keys)))
-                    iterator = self.session.server_send(newest_keys, elliptics.iterator_flags.overwrite, remote_groups)
-                    timeouted_keys = self._check_server_send_results(iterator, key_infos_map, group)
+                    iterator = self.session.server_send(newest_keys, 0, remote_groups)
+                    timeouted_keys, corrupted_keys = self._check_server_send_results(iterator, key_infos_map, group)
                     newest_keys = timeouted_keys
+                    if corrupted_keys and not self.ctx.safe:
+                        self._remove_corrupted_keys(corrupted_keys, group)
 
             if timeouted_keys:
                 self._on_server_send_timeout(timeouted_keys, key_infos_map, group)
@@ -186,6 +191,7 @@ class ServerSendRecovery(object):
         recovers_in_progress = len(key_infos_map)
 
         timeouted_keys = []
+        corrupted_keys = []
         for index, result in enumerate(iterator):
             status = result.response.status
             self._update_stats(start_time, index + 1, recovers_in_progress, status)
@@ -193,10 +199,10 @@ class ServerSendRecovery(object):
             if status < 0:
                 key = result.response.key
                 key_infos = key_infos_map[str(key)]
-                self._on_server_send_fail(status, key, key_infos, timeouted_keys, group)
+                self._on_server_send_fail(status, key, key_infos, timeouted_keys, corrupted_keys, group)
                 continue
             log.debug("Recovered key: {0}, status {1}".format(result.response.key, status))
-        return timeouted_keys
+        return timeouted_keys, corrupted_keys
 
     def _on_server_send_timeout(self, keys, key_infos_map, group):
         '''
@@ -214,13 +220,30 @@ class ServerSendRecovery(object):
                     continue
             self.result = False
 
-    def _on_server_send_fail(self, status, key, key_infos, timeouted_keys, group):
+    def _on_server_send_fail(self, status, key, key_infos, timeouted_keys, corrupted_keys, group):
         log.error("Failed to server-send key: {0}, group: {1}, error: {2}".format(key, group, status))
+
         if status == -errno.ETIMEDOUT:
             timeouted_keys.append(key)
         else:
+            if status == -errno.EILSEQ:
+                corrupted_keys.append(key)
             next_group = self._get_next_group(key_infos, group)
             self.buckets.on_server_send_fail(key, key_infos, next_group)
+
+    def _remove_corrupted_keys(self, keys, group):
+        '''
+        Removes invalid keys with invalid checksum.
+        '''
+        self.remove_session.set_groups([group])
+        results = []
+        for k in keys:
+            result = self.remove_session.remove(k)
+            results.append(result)
+
+        for i, r in enumerate(results):
+            status = r.get()[0].status
+            log.info("Removing key: {0}, status: {1}".format(keys[i], status))
 
     def _get_dest_groups(self, key_infos):
         '''
