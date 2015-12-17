@@ -29,7 +29,7 @@ class BucketsManager(object):
 
         self.bucket_index = (self.bucket_index + 1) % len(self.ctx.bucket_order)
         group = self.ctx.bucket_order[self.bucket_index]
-        log.debug("Get next bucket: index: {0}, group: {1}, bucket_order: {2}".format(self.bucket_index, group, self.ctx.bucket_order))
+        log.info("Get next bucket: index: {0}, group: {1}, bucket_order: {2}".format(self.bucket_index, group, self.ctx.bucket_order))
         return self._get_bucket(group)
 
     def on_server_send_fail(self, key, key_infos, next_group):
@@ -43,7 +43,7 @@ class BucketsManager(object):
         '''
         Dumps key to 'rest_keys' bucket.
         '''
-        log.debug("Moving key to rest keys bucket: {0}".format(key))
+        log.info("Moving key to rest keys bucket: {0}".format(key))
         key_data = (key, key_infos)
         dump_key_data(key_data, self.ctx.rest_file)
 
@@ -144,7 +144,7 @@ class ServerSendRecovery(object):
         log.info("Server-send bucket: source group: {0}, num keys: {1}".format(group, len(keys)))
         keys_bunch = dict() # remote_groups -> [list of newest keys]
         for key, key_infos in keys:
-            filtered_key_infos = self._filter_key_infos(key_infos, group)
+            filtered_key_infos = self._get_unprocessed_key_infos(key_infos, group)
             if not self._can_use_server_send(filtered_key_infos):
                 self.buckets.move_to_rest_bucket(key, key_infos)
                 continue
@@ -192,9 +192,10 @@ class ServerSendRecovery(object):
 
         timeouted_keys = []
         corrupted_keys = []
-        for index, result in enumerate(iterator):
+        index = -1
+        for index, result in enumerate(iterator, 1):
             status = result.response.status
-            self._update_stats(start_time, index + 1, recovers_in_progress, status)
+            self._update_stats(start_time, index, recovers_in_progress, status)
 
             if status < 0:
                 key = result.response.key
@@ -202,6 +203,11 @@ class ServerSendRecovery(object):
                 self._on_server_send_fail(status, key, key_infos, timeouted_keys, corrupted_keys, group)
                 continue
             log.debug("Recovered key: {0}, status {1}".format(result.response.key, status))
+
+        if index < 0:
+            log.error("Server-send operation failed: group: {0}".format(group))
+            timeouted_keys = [elliptics.Id(k) for k in key_infos_map.iterkeys()]
+
         return timeouted_keys, corrupted_keys
 
     def _on_server_send_timeout(self, keys, key_infos_map, group):
@@ -211,7 +217,7 @@ class ServerSendRecovery(object):
         same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
         for key in keys:
             key_infos = key_infos_map[str(key)]
-            filtered_key_infos = self._filter_key_infos(key_infos, group)
+            filtered_key_infos = self._get_unprocessed_key_infos(key_infos, group)
             if len(filtered_key_infos) > 1:
                 current_meta = filtered_key_infos[0]
                 next_meta = filtered_key_infos[1]
@@ -223,7 +229,7 @@ class ServerSendRecovery(object):
     def _on_server_send_fail(self, status, key, key_infos, timeouted_keys, corrupted_keys, group):
         log.error("Failed to server-send key: {0}, group: {1}, error: {2}".format(key, group, status))
 
-        if status == -errno.ETIMEDOUT:
+        if status in (-errno.ETIMEDOUT, -errno.ENXIO):
             timeouted_keys.append(key)
         else:
             if status == -errno.EILSEQ:
@@ -236,14 +242,24 @@ class ServerSendRecovery(object):
         Removes invalid keys with invalid checksum.
         '''
         self.remove_session.set_groups([group])
-        results = []
-        for k in keys:
-            result = self.remove_session.remove(k)
-            results.append(result)
 
-        for i, r in enumerate(results):
-            status = r.get()[0].status
-            log.info("Removing key: {0}, status: {1}".format(keys[i], status))
+        for attempt in range(self.ctx.attempts):
+            if not keys:
+                break
+
+            results = []
+            for k in keys:
+                result = self.remove_session.remove(k)
+                results.append(result)
+
+            timeouted_keys = []
+            is_last_attempt = (attempt == self.ctx.attempts - 1)
+            for i, r in enumerate(results):
+                status = r.get()[0].status
+                log.info("Removing corrupted key: {0}, status: {1}, last attempt: {2}".format(keys[i], status, is_last_attempt))
+                if status == -errno.ETIMEDOUT:
+                    timeouted_keys.append(keys[i])
+            keys = timeouted_keys
 
     def _get_dest_groups(self, key_infos):
         '''
@@ -259,15 +275,16 @@ class ServerSendRecovery(object):
         missed_groups.extend(diff_groups)
         return missed_groups
 
-    def _filter_key_infos(self, key_infos, group):
+    def _get_unprocessed_key_infos(self, original_key_infos, group):
         '''
-        key_infos are sorted by key relevance (time, size). First N elements of key_infos
-        must be skipped if key_infos[N+1].group_id == group, because they have been
-        already processed (and failed).
+        Each element of @original_key_infos describes key's metadata for a particular group.
+        Recovery process successively iterates over elements of @original_key_infos.
+        This method returns elements from @original_key_infos that were not processed by
+        previous recovery iterations.
         '''
-        for i, k in enumerate(key_infos):
+        for i, k in enumerate(original_key_infos):
             if k.group_id == group:
-                return key_infos[i:]
+                return original_key_infos[i:]
         return []
 
     def _can_use_server_send(self, key_infos):
@@ -283,7 +300,7 @@ class ServerSendRecovery(object):
         '''
         Returns group_id among groups that hasn't been used for recovery yet.
         '''
-        key_infos = self._filter_key_infos(key_infos, group)
+        key_infos = self._get_unprocessed_key_infos(key_infos, group)
         if len(key_infos) > 1:
             return key_infos[1].group_id
         return -1
