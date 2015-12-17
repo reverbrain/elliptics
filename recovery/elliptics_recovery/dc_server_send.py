@@ -144,12 +144,17 @@ class ServerSendRecovery(object):
         log.info("Server-send bucket: source group: {0}, num keys: {1}".format(group, len(keys)))
         keys_bunch = dict() # remote_groups -> [list of newest keys]
         for key, key_infos in keys:
-            filtered_key_infos = self._get_unprocessed_key_infos(key_infos, group)
-            if not self._can_use_server_send(filtered_key_infos):
+            unprocessed_key_infos = self._get_unprocessed_key_infos(key_infos, group)
+
+            is_first_attempt = len(unprocessed_key_infos) == len(key_infos)
+            if is_first_attempt and self._process_uncommited_keys(key, key_infos):
+                continue
+
+            if not self._can_use_server_send(unprocessed_key_infos):
                 self.buckets.move_to_rest_bucket(key, key_infos)
                 continue
 
-            dest_groups = self._get_dest_groups(filtered_key_infos)
+            dest_groups = self._get_dest_groups(unprocessed_key_infos)
             index = frozenset(dest_groups)
             if index not in keys_bunch:
                 keys_bunch[index] = []
@@ -176,8 +181,8 @@ class ServerSendRecovery(object):
                     iterator = self.session.server_send(newest_keys, 0, remote_groups)
                     timeouted_keys, corrupted_keys = self._check_server_send_results(iterator, key_infos_map, group)
                     newest_keys = timeouted_keys
-                    if corrupted_keys and not self.ctx.safe:
-                        self._remove_corrupted_keys(corrupted_keys, group)
+                    if corrupted_keys:
+                        self._remove_corrupted_keys(corrupted_keys, [group])
 
             if timeouted_keys:
                 self._on_server_send_timeout(timeouted_keys, key_infos_map, group)
@@ -237,15 +242,18 @@ class ServerSendRecovery(object):
             next_group = self._get_next_group(key_infos, group)
             self.buckets.on_server_send_fail(key, key_infos, next_group)
 
-    def _remove_corrupted_keys(self, keys, group):
+    def _remove_corrupted_keys(self, keys, groups):
         '''
         Removes invalid keys with invalid checksum.
         '''
-        self.remove_session.set_groups([group])
+        if self.ctx.safe:
+            return
 
         for attempt in range(self.ctx.attempts):
             if not keys:
                 break
+
+            self.remove_session.set_groups(groups)
 
             results = []
             for k in keys:
@@ -253,13 +261,54 @@ class ServerSendRecovery(object):
                 results.append(result)
 
             timeouted_keys = []
+            timeouted_groups = set()
             is_last_attempt = (attempt == self.ctx.attempts - 1)
             for i, r in enumerate(results):
                 status = r.get()[0].status
                 log.info("Removing corrupted key: {0}, status: {1}, last attempt: {2}".format(keys[i], status, is_last_attempt))
                 if status == -errno.ETIMEDOUT:
                     timeouted_keys.append(keys[i])
-            keys = timeouted_keys
+                    timeouted_groups.add(keys[i].group_id)
+            keys, groups = timeouted_keys, list(timeouted_groups)
+
+    def _process_uncommited_keys(self, key, key_infos):
+        same_ts = lambda lhs, rhs: lhs.timestamp == rhs.timestamp
+        same_infos = [info for info in key_infos if same_ts(info, key_infos[0])]
+
+        same_uncommitted = [info for info in same_infos if info.flags & elliptics.record_flags.uncommitted]
+        has_uncommitted = len(same_uncommitted) > 0
+        if same_uncommitted == same_infos:
+            # if all such keys have exceeded prepare timeout - remove all replicas
+            # else skip recovering because the key is under writing and can be committed in nearest future.
+            same_groups = [info.group_id for info in same_infos]
+            if same_infos[0].timestamp < self.ctx.prepare_timeout:
+                groups = [info.group_id for info in key_infos]
+                log.info('Key: {0} replicas with newest timestamp: {1} from groups: {2} are uncommitted. '
+                         'Prepare timeout: {3} was exceeded. Remove all replicas from groups: {4}'
+                         .format(key, same_infos[0].timestamp, same_groups, self.ctx.prepare_timeout, groups))
+                self._remove_corrupted_keys([key], groups)
+            else:
+                log.info('Key: {0} replicas with newest timestamp: {1} from groups: {2} are uncommitted. '
+                         'Prepare timeout: {3} was not exceeded. The key is written now. Skip it.'
+                         .format(key, same_infos[0].timestamp, same_groups, self.ctx.prepare_timeout))
+            return True
+        elif has_uncommitted:
+            # removed incomplete replicas meta from same_infos
+            # they will be corresponding as different and will be overwritten
+            same_infos = [info for info in same_infos if info not in same_uncommitted]
+            incomplete_groups = [info.group_id for info in same_uncommitted]
+            same_groups = [info.group_id for info in same_infos]
+            log.info('Key: {0} has uncommitted replicas in groups: {1} and completed replicas in groups: {2}.'
+                     'The key will be recovered at groups with uncommitted replicas too.'
+                     .format(key, incomplete_groups, same_groups))
+
+            committed_infos = [info for info in key_infos if info not in same_uncommitted]
+            if committed_infos:
+                key_infos = same_uncommitted + committed_infos
+                next_group = committed_infos[0].group_id
+                self.buckets.on_server_send_fail(key, key_infos, next_group)
+
+        return has_uncommitted
 
     def _get_dest_groups(self, key_infos):
         '''
@@ -288,13 +337,7 @@ class ServerSendRecovery(object):
         return []
 
     def _can_use_server_send(self, key_infos):
-        return not self._check_key_chunked(key_infos) and not self._check_key_uncomitted(key_infos)
-
-    def _check_key_uncomitted(self, key_infos):
-        return key_infos[0].flags & elliptics.record_flags.uncommitted
-
-    def _check_key_chunked(self, key_infos):
-        return key_infos[0].size > self.ctx.chunk_size
+        return key_infos[0].size < self.ctx.chunk_size
 
     def _get_next_group(self, key_infos, group):
         '''
