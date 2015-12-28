@@ -2353,7 +2353,7 @@ async_iterator_result session::cancel_iterator(const key &id, uint64_t iterator_
 	return iterator(id, data);
 }
 
-async_iterator_result session::server_send(const std::vector<dnet_raw_id> &ids, uint64_t iflags, const std::vector<int> &groups)
+async_iterator_result session::server_send(const std::vector<key> &keys, uint64_t iflags, const std::vector<int> &groups)
 {
 	if (get_groups().empty()) {
 		async_iterator_result result(*this);
@@ -2369,10 +2369,10 @@ async_iterator_result session::server_send(const std::vector<dnet_raw_id> &ids, 
 		return result;
 	}
 
-	if (ids.empty()) {
+	if (keys.empty()) {
 		async_iterator_result result(*this);
 		async_result_handler<iterator_result_entry> handler(result);
-		handler.complete(create_error(-ENXIO, "server_send: ids list is empty"));
+		handler.complete(create_error(-ENXIO, "server_send: keys list is empty"));
 		return result;
 	}
 
@@ -2382,6 +2382,9 @@ async_iterator_result session::server_send(const std::vector<dnet_raw_id> &ids, 
 	struct la {
 		dnet_addr	addr;
 		int		backend_id;
+
+		// this ID is used to send set of keys to single remote node (addr+backend),
+		// which hosts all of them according to current route table
 		dnet_id		id;
 
 		bool operator<(const la &other) const {
@@ -2395,25 +2398,33 @@ async_iterator_result session::server_send(const std::vector<dnet_raw_id> &ids, 
 	};
 
 	std::map<la, std::vector<dnet_raw_id>> raw_ids;
-	for (auto id_it = ids.begin(), id_end = ids.end(); id_it != id_end; ++id_it) {
+	for (auto key_it = keys.begin(), id_end = keys.end(); key_it != id_end; ++key_it) {
 		la l;
-		dnet_setup_id(&l.id, local_group, id_it->id);
 
-		err = dnet_lookup_addr(get_native(), NULL, 0, &l.id, local_group, &l.addr, &l.backend_id);
+		err = dnet_lookup_addr(get_native(), NULL, 0, &key_it->id(), local_group, &l.addr, &l.backend_id);
 		if (err != 0) {
+			l.id = key_it->id();
+			l.id.group_id = local_group;
+
 			async_iterator_result result(*this);
 			async_result_handler<iterator_result_entry> handler(result);
 			handler.complete(create_error(-ENXIO,
-					"server_send: could not locate backend for requested key %s",
-					dnet_dump_id(&l.id)));
+					"server_send: could not locate backend for requested key %d:%s",
+					local_group, dnet_dump_id(&l.id)));
 			return result;
 		}
 
 		auto it = raw_ids.find(l);
 		if (it == raw_ids.end()) {
-			raw_ids[l] = std::vector<dnet_raw_id>({*id_it});
+			// we only have to setup @l.id when it is inserted into id map
+			// only address+backend are used for lookup in this map,
+			// while @l.id will be used later to specify remote node to send command to
+			l.id = key_it->id();
+			l.id.group_id = local_group;
+
+			raw_ids[l] = std::vector<dnet_raw_id>({key_it->raw_id()});
 		} else {
-			it->second.push_back(*id_it);
+			it->second.push_back(key_it->raw_id());
 		}
 	}
 
@@ -2465,19 +2476,29 @@ async_iterator_result session::server_send(const std::vector<dnet_raw_id> &ids, 
 	return aggregated(*this, results.begin(), results.end());
 }
 
-async_iterator_result session::server_send(const std::vector<std::string> &keys, uint64_t iflags, const std::vector<int> &groups)
+async_iterator_result session::server_send(const std::vector<dnet_raw_id> &ids, uint64_t iflags, const std::vector<int> &groups)
 {
-	std::vector<dnet_raw_id> ids;
-	for (auto key = keys.begin(), kend = keys.end(); key != kend; ++key) {
-		dnet_id id;
-		transform(*key, id);
+	std::vector<key> keys;
+	for (auto id = ids.begin(), id_end = ids.end(); id != id_end; ++id) {
+		key k(*id);
 
-		dnet_raw_id raw;
-		memcpy(raw.id, id.id, DNET_ID_SIZE);
-		ids.emplace_back(raw);
+		keys.emplace_back(k);
 	}
 
-	return server_send(ids, iflags, groups);
+	return server_send(keys, iflags, groups);
+}
+
+async_iterator_result session::server_send(const std::vector<std::string> &strs, uint64_t iflags, const std::vector<int> &groups)
+{
+	std::vector<key> keys;
+	for (auto s = strs.begin(), send = strs.end(); s != send; ++s) {
+		key k(*s);
+		k.transform(*this);
+
+		keys.emplace_back(k);
+	}
+
+	return server_send(keys, iflags, groups);
 }
 
 async_exec_result session::exec(dnet_id *id, const std::string &event, const argument_data &data)
