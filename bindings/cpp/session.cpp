@@ -2480,9 +2480,7 @@ async_iterator_result session::server_send(const std::vector<dnet_raw_id> &ids, 
 {
 	std::vector<key> keys;
 	for (auto id = ids.begin(), id_end = ids.end(); id != id_end; ++id) {
-		key k(*id);
-
-		keys.emplace_back(k);
+		keys.emplace_back(*id);
 	}
 
 	return server_send(keys, iflags, groups);
