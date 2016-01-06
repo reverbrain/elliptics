@@ -725,6 +725,8 @@ class session
 				const std::vector<int> &groups);
 		async_iterator_result server_send(const std::vector<dnet_raw_id> &ids, uint64_t flags,
 				const std::vector<int> &groups);
+		async_iterator_result server_send(const std::vector<key> &keys, uint64_t flags,
+				const std::vector<int> &groups);
 
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data.
