@@ -1,3 +1,9 @@
+elliptics (2.26.9.4) unstable; urgency=low
+
+  * session: added new server_send() method which works with vector of elliptics::key. This is the most generic method, others use it internally.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 10 Jan 2016 01:57:36 +0400
+
 elliptics (2.26.9.3) unstable; urgency=low
 
   * package: depend on eblob 0.23.11+, which contains new iterator flag to verify checksum

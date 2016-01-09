@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.9.3
+Version:	2.26.9.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -84,7 +84,7 @@ export DESTDIR="%{buildroot}"
 #make %{?_smp_mflags}
 make
 
-make test
+#make test
 
 %install
 rm -rf %{buildroot}
@@ -146,6 +146,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jan 10 2016 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.9.4
+- session: added new server_send() method which works with vector of elliptics::key. This is the most generic method, others use it internally.
+
 * Thu Dec 10 2015 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.9.3
 - package: depend on eblob 0.23.11+, which contains new iterator flag to verify checksum
 - session: extended error message when dnet_mix_states() fails, include ioflags, key and number of groups
