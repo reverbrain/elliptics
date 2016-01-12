@@ -120,7 +120,7 @@ class ServerSendRecovery(object):
         self.result = True
 
         # next vars are used just for optimization
-        self.groups_set = set(ctx.groups)
+        self.groups_set = frozenset(ctx.groups)
 
     def recover(self):
         progress = True
@@ -317,10 +317,8 @@ class ServerSendRecovery(object):
         missed_groups = list(self.groups_set.difference([k.group_id for k in key_infos]))
 
         same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
-        same_groups = [info.group_id for info in key_infos if same_meta(info, key_infos[0])]
+        diff_groups = [info.group_id for info in key_infos if not same_meta(info, key_infos[0])]
 
-        diff_groups = [info.group_id for info in key_infos if info.group_id not in same_groups]
-        diff_groups = set(diff_groups).difference(same_groups)
         missed_groups.extend(diff_groups)
         return missed_groups
 

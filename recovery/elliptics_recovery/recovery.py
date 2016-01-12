@@ -93,6 +93,7 @@ def main(options, args):
     ctx.one_node = bool(options.one_node)
     ctx.custom_recover = options.custom_recover
     ctx.no_meta = options.no_meta and (options.timestamp is None)
+    ctx.no_server_send = options.no_server_send
 
     try:
         ctx.trace_id = int(options.trace_id, 16)
@@ -411,4 +412,6 @@ def run(args=None):
                       'Records that exceeded this timeout will be removed. [default: %default]')
     parser.add_option('-T', '--trace-id', action='store', dest="trace_id", default='0',
                       help='Marks all recovery commands by trace_id at both recovery and server logs. This option accepts hex strings. [default: %default]')
+    parser.add_option('-U', '--no-server-send', action="store", dest="no_server_send", default=False,
+                      help='Do not use server-send for recovery. Disabling recovery via server-send useful if there is no network connection between groups')
     return main(*parser.parse_args(args))

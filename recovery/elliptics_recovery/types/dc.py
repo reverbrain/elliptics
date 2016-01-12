@@ -256,7 +256,7 @@ def dump_key(ctx, key, key_infos, newest_key_group):
     is_all_uncommitted = same_uncommitted == key_infos and key_info.timestamp < ctx.prepare_timeout
 
     log.debug("Dumping key: {0}, group: {1}".format(key_data[0], newest_key_group))
-    if is_chunked or is_all_uncommitted:
+    if ctx.no_server_send or is_chunked or is_all_uncommitted:
         dump_key_data(key_data, ctx.rest_file)
     else:
         if newest_key_group not in ctx.bucket_files:
