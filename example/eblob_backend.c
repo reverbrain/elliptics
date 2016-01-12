@@ -1389,7 +1389,6 @@ static enum dnet_log_level convert_to_dnet_log(int level)
 	case EBLOB_LOG_NOTICE:
 		return DNET_LOG_NOTICE;
 	case EBLOB_LOG_DEBUG:
-	case EBLOB_LOG_SPAM:
 		return DNET_LOG_DEBUG;
 	}
 }
