@@ -215,8 +215,7 @@
     -# get next bucket - file that contains newest keys from a specific group
     -# iterate over bucket keys by batch:
       -# for each key in the batch:
-        -# check that key can be recovered via server-send: key size is less than chunk size and
-          it isn't uncommitted
+        -# check that key can be recovered via server-send: key size is less than chunk size
         -# otherwise, move key to 'rest_keys'
       -# divide batch into multiple parts, where one part contains keys that should be recovered to the specific combination of destination groups:
         -# for each part call server-send and check server-send results:
