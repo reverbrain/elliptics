@@ -895,7 +895,7 @@ static void *dnet_io_process_network(void *data_)
 				++tmp;
 				err = dnet_state_accept_process(st, &evs[i]);
 			} else if ((evs[i].events & EPOLLOUT) || dnet_check_io(n->io)) {
-				// if event is send or io pool queues are not full then process it
+				// if this is sending event or io pool queues are not full then process it
 				++tmp;
 				err = dnet_state_net_process(st, &evs[i]);
 			} else {
