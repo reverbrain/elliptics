@@ -713,6 +713,7 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 			 */
 
 			pthread_mutex_lock(&st->trans_lock);
+			dnet_trans_update_timestamp(st, t);
 			dnet_trans_insert_timer_nolock(st, t);
 			pthread_mutex_unlock(&st->trans_lock);
 		}
