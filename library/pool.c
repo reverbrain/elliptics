@@ -898,9 +898,9 @@ static void *dnet_io_process_network(void *data_)
 				// if event is send or io pool queues are not full then process it
 				++tmp;
 				err = dnet_state_net_process(st, &evs[i]);
-			}
-			else
+			} else {
 				continue;
+			}
 
 			if (err == 0)
 				continue;
@@ -933,10 +933,10 @@ static void *dnet_io_process_network(void *data_)
 			}
 		}
 
-		// wait condition variable if no data was sended and io pool queues are still full
+		// wait condition variable if no data has been sent and io pool queues are still full
 		if (tmp == 0 && dnet_check_io(n->io) == 0) {
 			gettimeofday(&curr_tv, NULL);
-			// print log only if previous log was writed more then 1 seconds
+			// print log only if previous log was written more then 1 seconds ago
 			if ((curr_tv.tv_sec - prev_tv.tv_sec) > 1) {
 				dnet_log(n, DNET_LOG_INFO, "Net pool is suspended bacause io pool queues is full");
 				prev_tv = curr_tv;
