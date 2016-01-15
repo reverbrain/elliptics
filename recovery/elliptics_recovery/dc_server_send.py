@@ -220,6 +220,7 @@ class ServerSendRecovery(object):
         Moves keys to next bucket, if appropriate bucket meta is identical to current meta.
         '''
         same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
+        num_failed_keys = 0
         for key in keys:
             key_infos = key_infos_map[str(key)]
             filtered_key_infos = self._get_unprocessed_key_infos(key_infos, group)
@@ -229,7 +230,11 @@ class ServerSendRecovery(object):
                 if same_meta(current_meta, next_meta):
                     self.buckets.on_server_send_fail(key, key_infos, next_meta.group_id)
                     continue
+            num_failed_keys += 1
+
+        if num_failed_keys > 0:
             self.result = False
+            self._update_timeouted_keys_stats(num_failed_keys)
 
     def _on_server_send_fail(self, status, key, key_infos, timeouted_keys, corrupted_keys, group):
         log.error("Failed to server-send key: {0}, group: {1}, error: {2}".format(key, group, status))
@@ -351,5 +356,10 @@ class ServerSendRecovery(object):
         recovers_in_progress -= processed_keys
         self.stats.set_counter('recovery_speed', round(speed, 2))
         self.stats.set_counter('recovers_in_progress', recovers_in_progress)
-        self.stats.counter('recovered_keys', 1 if status == 0 else -1)
-        self.ctx.stats.counter('recovered_keys', 1 if status == 0 else -1)
+        if status != -errno.ETIMEDOUT:
+            self.stats.counter('recovered_keys', 1 if status == 0 else -1)
+            self.ctx.stats.counter('recovered_keys', 1 if status == 0 else -1)
+
+    def _update_timeouted_keys_stats(self, num_timeouted_keys):
+        self.stats.counter('recovered_keys', -num_timeouted_keys)
+        self.ctx.stats.counter('recovered_keys', -num_timeouted_keys)
