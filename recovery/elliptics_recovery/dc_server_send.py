@@ -22,22 +22,29 @@ class BucketsManager(object):
 
     def get_next_bucket(self):
         '''
-        Every call returns BucketKeys object in a round-robin manner.
+        Every call returns BucketKeys object from buckets list in a round-robin manner starting with the 1st.
+        The buckets list contains BucketKeys objects sorted by amount of keys in appropriate bucket.
         '''
         if not self.ctx.bucket_order:
             return None
 
         self.bucket_index = (self.bucket_index + 1) % len(self.ctx.bucket_order)
-        group = self.ctx.bucket_order[self.bucket_index]
-        log.info("Get next bucket: index: {0}, group: {1}, bucket_order: {2}".format(self.bucket_index, group, self.ctx.bucket_order))
-        return self._get_bucket(group)
+        group_id = self.ctx.bucket_order[self.bucket_index]
+        log.info("Get next bucket: index: {0}, group_id: {1}, bucket_order: {2}".format(self.bucket_index, group_id, self.ctx.bucket_order))
+        return self._get_bucket(group_id)
 
-    def on_server_send_fail(self, key, key_infos, next_group):
-        if next_group >= 0:
-            b = self._get_bucket(next_group)
-            b.add_key(key, key_infos)
+    def on_server_send_fail(self, key, original_key_infos, next_group_id):
+        '''
+        This method used on failure of recovery of a single @key.
+        If @next_group_id is defined, then @key with @original_key_infos moved
+        to the bucket corresponding to the @next_group_id, otherwise move them to the
+        'rest_keys' bucket that will be used by old recovery process (see dc_recovery.py).
+        '''
+        if next_group_id >= 0:
+            b = self._get_bucket(next_group_id)
+            b.add_key(key, original_key_infos)
         else:
-            self.move_to_rest_bucket(key, key_infos)
+            self.move_to_rest_bucket(key, original_key_infos)
 
     def move_to_rest_bucket(self, key, key_infos):
         '''
@@ -47,27 +54,27 @@ class BucketsManager(object):
         key_data = (key, key_infos)
         dump_key_data(key_data, self.ctx.rest_file)
 
-    def _get_bucket(self, group):
+    def _get_bucket(self, group_id):
         '''
-        Returns BucketKeys object for group_id == @group
+        Returns BucketKeys object for the corresponding @group_id
         '''
-        if group not in self.buckets:
-            if group not in self.ctx.bucket_files:
-                filename = os.path.join(self.ctx.tmp_dir, 'bucket_%d' % (group))
-                self.ctx.bucket_files[group] = open(filename, 'wb+')
-                self.ctx.bucket_order.append(group)
-            self.buckets[group] = BucketKeys(self.ctx.bucket_files[group], group)
-        return self.buckets[group]
+        if group_id not in self.buckets:
+            if group_id not in self.ctx.bucket_files:
+                filename = os.path.join(self.ctx.tmp_dir, 'bucket_%d' % (group_id))
+                self.ctx.bucket_files[group_id] = open(filename, 'wb+')
+                self.ctx.bucket_order.append(group_id)
+            self.buckets[group_id] = BucketKeys(self.ctx.bucket_files[group_id], group_id)
+        return self.buckets[group_id]
 
 
 class BucketKeys(object):
     '''
     BucketKeys provides simple container-like interface to a bucket file.
     '''
-    def __init__(self, bucket_file, group):
-        log.debug("Create bucket: group: {0}, bucket: {1}".format(group, bucket_file.name))
+    def __init__(self, bucket_file, group_id):
+        log.debug("Create bucket: group_id: {0}, bucket: {1}".format(group_id, bucket_file.name))
         self.bucket_file = bucket_file
-        self.group = group
+        self.group_id = group_id
 
     def get_keys(self, max_keys_num):
         '''
@@ -79,14 +86,14 @@ class BucketKeys(object):
                                 key=lambda x: x[0] / max_keys_num):
             yield [item[1] for item in batch]
 
-    def get_group(self):
-        return self.group
+    def get_group_id(self):
+        return self.group_id
 
     def clear(self):
         '''
         Truncates bucket file.
         '''
-        log.debug("Clear bucket: group: {0}, bucket: {1}".format(self.group, self.bucket_file.name))
+        log.debug("Clear bucket: group_id: {0}, bucket: {1}".format(self.group_id, self.bucket_file.name))
         self.bucket_file.seek(0)
         self.bucket_file.truncate()
 
@@ -94,7 +101,7 @@ class BucketKeys(object):
         '''
         Dumps key to the bucket file.
         '''
-        log.debug("Append key to bucket: group: {0}, bucket: {1}".format(self.group, self.bucket_file.name))
+        log.debug("Append key to bucket: group_id: {0}, bucket: {1}".format(self.group_id, self.bucket_file.name))
         key_data = (key, key_infos)
         dump_key_data(key_data, self.bucket_file)
 
@@ -129,22 +136,22 @@ class ServerSendRecovery(object):
             if bucket is None:
                 break
             #bucket.external_sort_by_physical_order()
-            group = bucket.get_group()
+            group_id = bucket.get_group_id()
             progress = False
             for keys in bucket.get_keys(self.ctx.batch_size):
                 progress = True
-                self._server_send(keys, group)
+                self._server_send(keys, group_id)
             bucket.clear()
         return self.result
 
-    def _server_send(self, keys, group):
+    def _server_send(self, keys, group_id):
         '''
-        Recovers bunch of newest @keys from replica with group_id == @group to other replicas via server-send.
+        Recovers bunch of newest @keys from replica with appropriate @group_id to other replicas via server-send.
         '''
-        log.info("Server-send bucket: source group: {0}, num keys: {1}".format(group, len(keys)))
+        log.info("Server-send bucket: source group_id: {0}, num keys: {1}".format(group_id, len(keys)))
         keys_bunch = dict() # remote_groups -> [list of newest keys]
         for key, key_infos in keys:
-            unprocessed_key_infos = self._get_unprocessed_key_infos(key_infos, group)
+            unprocessed_key_infos = self._get_unprocessed_key_infos(key_infos, group_id)
 
             is_first_attempt = len(unprocessed_key_infos) == len(key_infos)
             if is_first_attempt and self._process_uncommited_keys(key, key_infos):
@@ -160,14 +167,14 @@ class ServerSendRecovery(object):
                 keys_bunch[index] = []
             keys_bunch[index].append((key, key_infos))
 
-        self.session.set_groups([group])
+        self.session.set_groups([group_id])
 
         for b in keys_bunch.iteritems():
             remote_groups = b[0]
             newest_keys = list()
             key_infos_map = dict()
             for key, key_infos in b[1]:
-                log.debug("Prepare server-send key: {0}, group: {1}".format(key, key.group_id))
+                log.debug("Prepare server-send key: {0}, group_id: {1}".format(key, key.group_id))
                 newest_keys.append(key)
                 key_infos_map[str(key)] = key_infos
 
@@ -175,22 +182,22 @@ class ServerSendRecovery(object):
             for i in range(self.ctx.attempts):
                 #for k in newest_keys:
                 #    result = self.session.lookup(k).get()[0]
-                #    log.debug("LOOKUP2: key: {0}, group: {1}, status: {2}".format(k, result.group_id, result.status))
+                #    log.debug("LOOKUP2: key: {0}, group_id: {1}, status: {2}".format(k, result.group_id, result.status))
                 if newest_keys:
-                    log.info("Server-send: group: {0}, remote_groups: {1}, num_keys: {2}".format(group, remote_groups, len(newest_keys)))
+                    log.info("Server-send: group_id: {0}, remote_groups: {1}, num_keys: {2}".format(group_id, remote_groups, len(newest_keys)))
                     iterator = self.session.server_send(newest_keys, 0, remote_groups)
-                    timeouted_keys, corrupted_keys = self._check_server_send_results(iterator, key_infos_map, group)
+                    timeouted_keys, corrupted_keys = self._check_server_send_results(iterator, key_infos_map, group_id)
                     newest_keys = timeouted_keys
                     if corrupted_keys:
-                        self._remove_corrupted_keys(corrupted_keys, [group])
+                        self._remove_corrupted_keys(corrupted_keys, [group_id])
 
             if timeouted_keys:
-                self._on_server_send_timeout(timeouted_keys, key_infos_map, group)
+                self._on_server_send_timeout(timeouted_keys, key_infos_map, group_id)
 
-    def _check_server_send_results(self, iterator, key_infos_map, group):
+    def _check_server_send_results(self, iterator, key_infos_map, group_id):
         '''
         Check result of remote sending for every key.
-        Returns list of timeouted keys.
+        Returns lists of timeouted keys and corrupted keys.
         '''
         start_time = time.time()
         recovers_in_progress = len(key_infos_map)
@@ -205,25 +212,28 @@ class ServerSendRecovery(object):
             if status < 0:
                 key = result.response.key
                 key_infos = key_infos_map[str(key)]
-                self._on_server_send_fail(status, key, key_infos, timeouted_keys, corrupted_keys, group)
+                self._on_server_send_fail(status, key, key_infos, timeouted_keys, corrupted_keys, group_id)
                 continue
             log.debug("Recovered key: {0}, status {1}".format(result.response.key, status))
 
         if index < 0:
-            log.error("Server-send operation failed: group: {0}".format(group))
+            log.error("Server-send operation failed: group_id: {0}".format(group_id))
             timeouted_keys = [elliptics.Id(k) for k in key_infos_map.iterkeys()]
 
         return timeouted_keys, corrupted_keys
 
-    def _on_server_send_timeout(self, keys, key_infos_map, group):
+    def _on_server_send_timeout(self, keys, key_infos_map, group_id):
         '''
-        Moves keys to next bucket, if appropriate bucket meta is identical to current meta.
+        @keys - is a list of keys that were not recovered due to timeout.
+        Moves keys to next bucket, if appropriate bucket meta is identical to current meta,
+        because less relevant replica (e.g. with older timestamp) should not be used for
+        recovery due to temporary unavailability of relevant replica during recovery process.
         '''
         same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
         num_failed_keys = 0
         for key in keys:
             key_infos = key_infos_map[str(key)]
-            filtered_key_infos = self._get_unprocessed_key_infos(key_infos, group)
+            filtered_key_infos = self._get_unprocessed_key_infos(key_infos, group_id)
             if len(filtered_key_infos) > 1:
                 current_meta = filtered_key_infos[0]
                 next_meta = filtered_key_infos[1]
@@ -236,16 +246,22 @@ class ServerSendRecovery(object):
             self.result = False
             self._update_timeouted_keys_stats(num_failed_keys)
 
-    def _on_server_send_fail(self, status, key, key_infos, timeouted_keys, corrupted_keys, group):
-        log.error("Failed to server-send key: {0}, group: {1}, error: {2}".format(key, group, status))
+    def _on_server_send_fail(self, status, key, key_infos, timeouted_keys, corrupted_keys, group_id):
+        '''
+        Handle single failed @key.
+        Timeouted or corrupted @key is added to the corresponding container for further processing.
+        If @key is not timeouted, then try to move it to the next bucket without modifying its
+        list of meta (@key_infos). Timeouted keys are handled at _on_server_send_timeout().
+        '''
+        log.error("Failed to server-send key: {0}, group_id: {1}, error: {2}".format(key, group_id, status))
 
         if status in (-errno.ETIMEDOUT, -errno.ENXIO):
             timeouted_keys.append(key)
         else:
             if status == -errno.EILSEQ:
                 corrupted_keys.append(key)
-            next_group = self._get_next_group(key_infos, group)
-            self.buckets.on_server_send_fail(key, key_infos, next_group)
+            next_group_id = self._get_next_group_id(key_infos, group_id)
+            self.buckets.on_server_send_fail(key, key_infos, next_group_id)
 
     def _remove_corrupted_keys(self, keys, groups):
         '''
@@ -310,8 +326,8 @@ class ServerSendRecovery(object):
             committed_infos = [info for info in key_infos if info not in same_uncommitted]
             if committed_infos:
                 key_infos = same_uncommitted + committed_infos
-                next_group = committed_infos[0].group_id
-                self.buckets.on_server_send_fail(key, key_infos, next_group)
+                next_group_id = committed_infos[0].group_id
+                self.buckets.on_server_send_fail(key, key_infos, next_group_id)
 
         return has_uncommitted
 
@@ -327,7 +343,7 @@ class ServerSendRecovery(object):
         missed_groups.extend(diff_groups)
         return missed_groups
 
-    def _get_unprocessed_key_infos(self, original_key_infos, group):
+    def _get_unprocessed_key_infos(self, original_key_infos, group_id):
         '''
         Each element of @original_key_infos describes key's metadata for a particular group.
         Recovery process successively iterates over elements of @original_key_infos.
@@ -335,18 +351,18 @@ class ServerSendRecovery(object):
         previous recovery iterations.
         '''
         for i, k in enumerate(original_key_infos):
-            if k.group_id == group:
+            if k.group_id == group_id:
                 return original_key_infos[i:]
         return []
 
     def _can_use_server_send(self, key_infos):
         return key_infos[0].size < self.ctx.chunk_size
 
-    def _get_next_group(self, key_infos, group):
+    def _get_next_group_id(self, key_infos, group_id):
         '''
         Returns group_id among groups that hasn't been used for recovery yet.
         '''
-        key_infos = self._get_unprocessed_key_infos(key_infos, group)
+        key_infos = self._get_unprocessed_key_infos(key_infos, group_id)
         if len(key_infos) > 1:
             return key_infos[1].group_id
         return -1
