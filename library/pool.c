@@ -262,15 +262,16 @@ static void dnet_update_trans_timestamp_network(struct dnet_io_req *r)
 	if (cmd->flags & DNET_FLAGS_REPLY) {
 		struct dnet_trans *t;
 
-		/*
-		 * No need to lock @st->trans_lock, since this network thread is the only owner of the
-		 * transaction now, transaction hasn't been yet placed into IO queue.
-		 */
+		pthread_mutex_lock(&st->trans_lock);
 		t = dnet_trans_search(st, cmd->trans);
 		if (t) {
 			dnet_trans_update_timestamp(st, t);
-			dnet_trans_put(t);
+			dnet_trans_remove_timer_nolock(st, t);
+			dnet_trans_insert_timer_nolock(st, t);
 		}
+		pthread_mutex_unlock(&st->trans_lock);
+
+		dnet_trans_put(t);
 	}
 }
 
