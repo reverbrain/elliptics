@@ -396,7 +396,7 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize,
 	return dnet_io_req_queue(st, &r);
 }
 
-static void dnet_trans_update_timestamp(struct dnet_net_state *st, struct dnet_trans *t)
+void dnet_trans_update_timestamp(struct dnet_net_state *st, struct dnet_trans *t)
 {
 	struct timespec *wait_ts = t->wait_ts.tv_sec ? &t->wait_ts : &st->n->wait_ts;
 
@@ -661,8 +661,6 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 		if (t) {
 			if (!(flags & DNET_FLAGS_MORE)) {
 				dnet_trans_remove_nolock(st, t);
-			} else {
-				dnet_trans_update_timestamp(st, t);
 			}
 
 			/*

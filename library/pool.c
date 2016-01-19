@@ -254,6 +254,26 @@ static inline void make_thread_stat_id(char *buffer, int size, struct dnet_work_
 	}
 }
 
+static void dnet_update_trans_timestamp_network(struct dnet_io_req *r)
+{
+	struct dnet_net_state *st = r->st;
+	struct dnet_cmd *cmd = r->header;
+
+	if (cmd->flags & DNET_FLAGS_REPLY) {
+		struct dnet_trans *t;
+
+		/*
+		 * No need to lock @st->trans_lock, since this network thread is the only owner of the
+		 * transaction now, transaction hasn't been yet placed into IO queue.
+		 */
+		t = dnet_trans_search(st, cmd->trans);
+		if (t) {
+			dnet_trans_update_timestamp(st, t);
+			dnet_trans_put(t);
+		}
+	}
+}
+
 void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 {
 	struct dnet_work_pool_place *place = NULL;
@@ -280,6 +300,8 @@ void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd), nonblocking,
 			(unsigned long long)cmd->size, dnet_flags_dump_cflags(cmd->flags), tid, reply);
 	}
+
+	dnet_update_trans_timestamp_network(r);
 
 	if (cmd->flags & DNET_FLAGS_DIRECT_BACKEND)
 		backend_id = cmd->backend_id;
@@ -328,7 +350,8 @@ void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 			cmd->backend_id = -1;
 	}
 
-	dnet_log(n, DNET_LOG_DEBUG, "%s: %s: backend_id: %zd, place: %p, backend_place: %p, backend_place->pool->backend_id: %zd, cmd->backend_id: %d",
+	dnet_log(n, DNET_LOG_DEBUG, "%s: %s: backend_id: %zd, place: %p, backend_place: %p, "
+			"backend_place->pool->backend_id: %zd, cmd->backend_id: %d",
 		dnet_state_dump_addr(r->st), dnet_dump_id(r->header), backend_id, place, backend_place,
 		backend_place && backend_place->pool->io ? (ssize_t)backend_place->pool->io->backend_id : (ssize_t)-1,
 		cmd->backend_id);
