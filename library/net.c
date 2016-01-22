@@ -396,7 +396,7 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize,
 	return dnet_io_req_queue(st, &r);
 }
 
-static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t)
+void dnet_trans_update_timestamp(struct dnet_net_state *st, struct dnet_trans *t)
 {
 	struct timespec *wait_ts = t->wait_ts.tv_sec ? &t->wait_ts : &st->n->wait_ts;
 
@@ -404,9 +404,6 @@ static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t
 
 	t->time.tv_sec += wait_ts->tv_sec;
 	t->time.tv_usec += wait_ts->tv_nsec / 1000;
-
-	dnet_trans_remove_timer_nolock(st, t);
-	dnet_trans_insert_timer_nolock(st, t);
 }
 
 int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
@@ -419,8 +416,10 @@ int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 
 	pthread_mutex_lock(&st->trans_lock);
 	err = dnet_trans_insert_nolock(st, t);
-	if (!err)
-		dnet_trans_timestamp(st, t);
+	if (!err) {
+		dnet_trans_update_timestamp(st, t);
+		dnet_trans_insert_timer_nolock(st, t);
+	}
 	pthread_mutex_unlock(&st->trans_lock);
 	if (err)
 		goto err_out_put;
@@ -662,16 +661,21 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 		if (t) {
 			if (!(flags & DNET_FLAGS_MORE)) {
 				dnet_trans_remove_nolock(st, t);
-			} else {
-				dnet_trans_timestamp(st, t);
 			}
 
 			/*
-			 * Always remove transaction from 'timeout' list,
-			 * thus it will not be found by checker thread and
-			 * its callback will not be called under us
+			 * Remove transaction for the duration of callback processing,
+			 * otherwise timeout checking thread can catch up.
+			 *
+			 * Network thread also removes transaction from the tree, but network
+			 * thread can read multiple replies and put multiple packets into the IO queue,
+			 * which if processed here. Since code below inserts transaction into the timer tree
+			 * again after its callback has been completed, someone has to remove it.
+			 *
+			 * It is safe to remove transaction multiple times, but subsequent insertion will lead to crash,
+			 * if timestamp has been updated, since it is used as a key in the timer tree.
 			 */
-			list_del_init(&t->trans_list_entry);
+			dnet_trans_remove_timer_nolock(st, t);
 		}
 		pthread_mutex_unlock(&st->trans_lock);
 
@@ -710,11 +714,14 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 			dnet_trans_put(t);
 		} else {
 			/*
-			 * Put transaction back into the end of 'timeout' list with updated timestamp
+			 * Put transaction back into the end of 'timer' tree with updated timestamp.
+			 * Transaction had been removed from timer tree in @dnet_update_trans_timestamp_network() in network
+			 * thread right after whole data was read.
 			 */
 
 			pthread_mutex_lock(&st->trans_lock);
-			dnet_trans_timestamp(st, t);
+			dnet_trans_update_timestamp(st, t);
+			dnet_trans_insert_timer_nolock(st, t);
 			pthread_mutex_unlock(&st->trans_lock);
 		}
 

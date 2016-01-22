@@ -604,7 +604,18 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 		 * which will deadlock.
 		 */
 		dnet_trans_remove_nolock(st, t);
-		list_del_init(&t->trans_list_entry);
+
+		if (!list_empty(&t->trans_list_entry)) {
+			list_del(&t->trans_list_entry);
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: backend: %d, trans: %llu TIMEOUT/need-exit: stall transaction, "
+					"it was moved into some timeout list, but yet it exists in timer tree, "
+					"stall-check wait-ts: %ld, need-exit: %d, cmd: %s [%d], started: %s.%06lu",
+					dnet_state_dump_addr(st), dnet_dump_id(&t->cmd.id), t->cmd.backend_id, (unsigned long long)t->trans,
+					(unsigned long)t->wait_ts.tv_sec,
+					st->__need_exit,
+					dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
+					str, t->start.tv_usec);
+		}
 
 		list_add_tail(&t->trans_list_entry, head);
 		dnet_node_unset_trace_id();

@@ -737,6 +737,7 @@ static inline void dnet_counter_set(struct dnet_node *n, int counter, int err, i
 struct dnet_trans;
 int __attribute__((weak)) dnet_process_cmd_raw(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive);
 int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_io_req *r);
+void dnet_trans_update_timestamp(struct dnet_net_state *st, struct dnet_trans *t);
 
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size);
