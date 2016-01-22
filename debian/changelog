@@ -1,3 +1,20 @@
+elliptics (2.26.10.1) unstable; urgency=low
+
+  * trans: remove transaction from timer tree in network thread to allow IO thread to run long callbacks and this would not affect 'real' timing for transaction in question
+  * set blackhole-dev' version to `0.2.4-1`
+  * trans: update transaction's timestamp just after it has been received right in the network thread. This allows to account for long unavailability of the IO thread, but yet do not complete transaction with timeout error
+  * dc_recovery: fixed extra 'recovered_keys' stats update on timeout
+  * trans: fixed race between timeout scanning thread and completion callback invocation, the latter does not remove transaction from the timer tree and transaction may be grabbed and freed by timeout checking thread
+  * dc_recovery: updated recovery/recovery.qdoc
+  * dc_recovery: added option --no-server-send
+  * build: Removed `EBLOB_LOG_SPAM`
+  * dc_recovery: processing of uncommitted keys in server-send recovery
+  * dc_recovery: retries of timeouted remove & server-send operations
+  * dc_recovery: explicitly remove corrupted keys
+  * dc_recovery: optimization: use server-send for small/medium keys
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Jan 2016 02:05:00 +0400
+
 elliptics (2.26.9.4) unstable; urgency=low
 
   * session: added new server_send() method which works with vector of elliptics::key. This is the most generic method, others use it internally.
