@@ -266,8 +266,13 @@ static void dnet_update_trans_timestamp_network(struct dnet_io_req *r)
 		t = dnet_trans_search(st, cmd->trans);
 		if (t) {
 			dnet_trans_update_timestamp(st, t);
+
+			/*
+			 * Always remove transaction from 'timer' tree,
+			 * thus it will not be found by checker thread and
+			 * its callback will not be called under us.
+			 */
 			dnet_trans_remove_timer_nolock(st, t);
-			dnet_trans_insert_timer_nolock(st, t);
 		}
 		pthread_mutex_unlock(&st->trans_lock);
 
