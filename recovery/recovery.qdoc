@@ -195,6 +195,10 @@
   -# goes throw merged results and dumps all iterated keys.
     This dump file could be used for resuming recovery after some issues.
     Dump file has name 'dump' and is placed in tmp_dir specified by <b>-D DIR, --dir=DIR</b>.
+  -# distributes keys among buckets:
+    one bucket with name 'rest_keys' will contain keys which can't be recovered via server-send
+    number of group buckets with name 'bucket_xx' ('xx' is group_id) will contain keys
+    which can be recovered via server-send from corresponding group.
   -# runs custom recovery (or built-in implementation of it) against merged results.
 
   If dc was run with option <b>-f/--dump-file</b> it will make follow steps for each key from dump file:
@@ -203,7 +207,24 @@
   -# runs custom recovery (or built-in implementation of it) against merged results.
 
 
-  Built-in implementation of custom recovery for each key from merged results:\n
+  Built-in implementation of custom recovery for each key from merged results consists of two steps: server-send recovery with following rest-keys recovery.\n
+  If key could not be recovered via server-send, then it will be processed during rest-keys recovery.\n
+
+  Server-send recovery:
+  -# while there are non-empty buckets:
+    -# get next bucket - file that contains newest keys from a specific group
+    -# iterate over bucket keys by batch:
+      -# for each key in the batch:
+        -# check that key can be recovered via server-send: key size is less than chunk size
+        -# otherwise, move key to 'rest_keys'
+      -# divide batch into multiple parts, where one part contains keys that should be recovered to the specific combination of destination groups:
+        -# for each part call server-send and check server-send results:
+          -# if server-send failed to send some keys:
+            -# with timeout error - retry to send them max attempts times
+            -# with other errors - move them into the buckets from which those keys can be recovered
+               if there is no such bucket, move these keys into 'rest_keys'
+
+  Rest-keys recovery:
   -# finds node that has newest version
   -# reads key from that node
   -# check if data for the key is an index file

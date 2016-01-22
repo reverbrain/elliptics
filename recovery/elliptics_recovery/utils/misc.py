@@ -319,12 +319,17 @@ def dump_key_data(key_data, file):
     msgpack.pack(dump_data, file)
 
 
-def load_key_data(filepath):
+def load_key_data_from_file(keys_file):
     import msgpack
+    unpacker = msgpack.Unpacker(keys_file)
+    for data in unpacker:
+        yield (elliptics.Id(data[0], 0), tuple(KeyInfo.load(d) for d in data[1]))
+
+
+def load_key_data(filepath):
     with open(filepath, 'r') as input_file:
-        unpacker = msgpack.Unpacker(input_file)
-        for data in unpacker:
-            yield (elliptics.Id(data[0], 0), tuple(KeyInfo.load(d) for d in data[1]))
+        for r in load_key_data_from_file(input_file):
+            yield r
 
 
 class WindowedRecovery(object):
