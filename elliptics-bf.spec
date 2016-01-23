@@ -16,7 +16,7 @@ BuildRequires:	python-devel
 BuildRequires:	libcocaine-core2-devel >= 0.11.2.0
 BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
 BuildRequires:	eblob-devel >= 0.23.11
-BuildRequires:  libblackhole-devel = 0.2.4-1
+BuildRequires:  libblackhole-devel = 0.2.4
 BuildRequires:	libev-devel libtool-ltdl-devel
 BuildRequires:	cmake msgpack-devel python-msgpack
 BuildRequires:	handystats >= 1.10.2
