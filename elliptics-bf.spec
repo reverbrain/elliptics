@@ -67,7 +67,7 @@ cocaine-plugin-elliptics
 Summary:	Elliptics library C++ binding development headers and libraries
 Group:		Development/Libraries
 Requires:	%{name} = %{version}-%{release}
-Requires:   libblackhole-devel = 0.2.4-1
+Requires:	libblackhole-devel = 0.2.4
 
 
 %description client-devel
