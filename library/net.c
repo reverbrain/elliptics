@@ -556,10 +556,10 @@ static int dnet_trans_forward(struct dnet_io_req *r,
 	if (!t)
 		return -ENOMEM;
 
-	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
-
 	t->rcv_trans = cmd->trans;
 	cmd->trans = t->cmd.trans = t->trans = atomic_inc(&orig->n->trans);
+
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
 	dnet_convert_cmd(cmd);
 

@@ -266,12 +266,12 @@ int dnet_recv_route_list(struct dnet_net_state *st,
 	cmd->flags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT | DNET_FLAGS_NOLOCK;
 	cmd->status = 0;
 
-	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
-
 	cmd->cmd = t->command = DNET_CMD_ROUTE_LIST;
 
 	t->st = dnet_state_get(st);
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
+
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
 	dnet_convert_cmd(cmd);
 
@@ -365,7 +365,6 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	t->command = cmd->cmd;
 
 	memcpy(io, &ctl->io, sizeof(struct dnet_io_attr));
-	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
 	if ((s->cflags & DNET_FLAGS_DIRECT) == 0) {
 		t->st = dnet_state_get_first(n, &cmd->id);
@@ -385,6 +384,9 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	}
 
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
+
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
+
 	dnet_get_backend_weight(t->st, cmd->backend_id, io->flags, &backend_weight);
 	request_addr = dnet_state_addr(t->st);
 

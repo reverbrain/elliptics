@@ -467,6 +467,16 @@ public:
 		return create_result(std::move(session::set_backend_ids(address(host, port, family), backend_id, std_ids)));
 	}
 
+	python_backend_status_result set_delay(const std::string &host, int port, int family,
+	                                       uint32_t backend_id,
+	                                       uint32_t delay) {
+		return create_result(
+			session::set_delay(address(host, port, family),
+			                   backend_id,
+			                   delay)
+		);
+	}
+
 	python_backend_status_result request_backends_status(const std::string &host, int port, int family) {
 		return create_result(std::move(session::request_backends_status(address(host, port, family))));
 	}
@@ -1451,6 +1461,16 @@ void init_elliptics_session() {
 		     "    Sets new ids to backend with @backend_id at node addressed by @host, @port, @family.\n"
 		     "    Returns AsyncResult which provides status of the backend\n\n"
 		     "    backend_status = session.set_backend_ids(elliptics.Address.from_host_port_family(host='host', port=1025, family=AF_INET, 0, []).get[0].backends[0]\n")
+
+		.def("set_delay", &elliptics_session::set_delay,
+		     (bp::arg("host"), bp::arg("port"), bp::arg("family"), bp::arg("backend_id"), bp::arg("delay")),
+		     "set_delay(host, port, family, backend_id, delay)\n"
+		     "    Sets @delay at backend @backend_id on node addressed by @host, @port, @family\n"
+		     "    Corresponding backend will sleep @delay milliseconds before executing a command\n"
+		     "    Returns AsyncResult which provides new status of the backend\n\n"
+		     "    new_status = session.set_delay(elliptics.Address.from_host_port_family(host='host.com', port=1025, family=AF_INET), 0, 1000).get()[0].backends[0]\n"
+		     "    delay = new_state.delay"
+		)
 
 		.def("request_backends_status", &elliptics_session::request_backends_status,
 		     (bp::arg("host"), bp::arg("port"), bp::arg("family")),
