@@ -340,8 +340,12 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	}
 
 	fd_offset = wc.ctl_data_offset + sizeof(struct eblob_disk_control);
-	if (wc.flags & BLOB_DISK_CTL_EXTHDR)
+	if (wc.flags & BLOB_DISK_CTL_EXTHDR) {
 		fd_offset += ehdr_size;
+		if (wc.size) {
+			wc.size -= ehdr_size;
+		}
+	}
 
 	err = dnet_send_file_info_ts(state, cmd, wc.data_fd, fd_offset, wc.size, &elist.timestamp, wc.flags);
 	if (err) {

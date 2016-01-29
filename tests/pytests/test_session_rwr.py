@@ -29,7 +29,7 @@ def check_write_results(results, number, data, session):
     assert len(results) == number
     for r in results:
         assert type(r) == elliptics.core.LookupResultEntry
-        assert r.size == 48 + len(data)  # 48 is the size of data header
+        assert r.size == len(data)
         assert r.error.code == 0
         assert r.error.message == ''
         assert r.group_id in session.routes.get_address_groups(r.address)
