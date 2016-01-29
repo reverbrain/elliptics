@@ -264,6 +264,16 @@ class Session(Session):
                                                     backend_id=backend_id,
                                                     ids=ids)
 
+    def set_delay(self, address, backend_id, delay):
+        '''
+        Sets @delay in milliseconds for backend with @backend_id at node @address
+        '''
+        return super(Session, self).set_delay(host=address.host,
+                                              port=address.port,
+                                              family=address.family,
+                                              backend_id=backend_id,
+                                              delay=delay)
+
     def monitor_stat(self, address=None, categories=monitor_stat_categories.all):
         '''
         Gather monitor statistics of specified categories from @address.
