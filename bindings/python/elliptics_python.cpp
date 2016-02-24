@@ -57,6 +57,8 @@ enum elliptics_cflags {
 	cflags_default	= 0,
 	cflags_direct	= DNET_FLAGS_DIRECT,
 	cflags_nolock	= DNET_FLAGS_NOLOCK,
+	cflags_checksum = DNET_FLAGS_CHECKSUM,
+	cflags_nocache  = DNET_FLAGS_NOCACHE
 };
 
 enum elliptics_ioflags {
@@ -409,10 +411,14 @@ BOOST_PYTHON_MODULE(core)
 	    "default\n    The key is locked before performing an operation and unlocked when an operation will done\n"
 	    "direct\n    Request is sent to the specified Node bypassing the DHT ring\n"
 	    "nolock\n    Server will not check the key is locked and will not lock it during this transaction.\n"
-	            "    The operation will be handled in separated io thread pool")
+	            "    The operation will be handled in separated io thread pool\n"
+	    "checksum\n  Only valid flag for LOOKUP command - when set, return checksum in file_info structure\n"
+	    "nocache\n   Currently only valid flag for LOOKUP command - when set, don't check fileinfo in cache\n")
 		.value("default", cflags_default)
 		.value("direct", cflags_direct)
 		.value("nolock", cflags_nolock)
+		.value("checksum", cflags_checksum)
+		.value("nocache", cflags_nocache)
 	;
 
 	bp::enum_<elliptics_ioflags>("io_flags",
