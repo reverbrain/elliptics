@@ -36,7 +36,9 @@ io_flags = set((elliptics.io_flags.default,
 
 command_flags = set((elliptics.command_flags.default,
                      elliptics.command_flags.direct,
-                     elliptics.command_flags.nolock))
+                     elliptics.command_flags.nolock,
+                     elliptics.command_flags.checksum,
+                     elliptics.command_flags.nocache))
 
 exceptions_policy = set((elliptics.exceptions_policy.no_exceptions,
                          elliptics.exceptions_policy.throw_at_start,
