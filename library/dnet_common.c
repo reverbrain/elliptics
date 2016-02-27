@@ -917,7 +917,7 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_route_entry **entries) {
 				entry->group_id = idc->group->group_id;
 				entry->backend_id = idc->backend_id;
 			}
-			dnet_log(n, DNET_LOG_INFO, "%s: %s, group: %d, backend: %d, idc: %p",
+			dnet_log(n, DNET_LOG_DEBUG, "%s: %s, group: %d, backend: %d, idc: %p",
 				dnet_state_dump_addr(st), dnet_dump_id_str(idc->ids[0].raw.id),
 				idc->group->group_id, idc->backend_id, idc);
 		}
