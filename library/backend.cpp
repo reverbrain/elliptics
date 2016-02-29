@@ -318,9 +318,10 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, int *state)
 	ids_num = 0;
 	ids = dnet_ids_init(node, backend.history.c_str(), &ids_num, backend.config.storage_free, node->addrs, backend_id);
 	if (ids == NULL) {
+		err = -EINVAL;
 		dnet_log(node, DNET_LOG_ERROR, "backend_init: backend: %zu, history path: %s, "
-				"failed to initialize ids, elapsed: %s",
-				backend_id, backend.history.c_str(), elapsed(start));
+				"failed to initialize ids, elapsed: %s: %s [%d]",
+				backend_id, backend.history.c_str(), elapsed(start), strerror(-err), err);
 		goto err_out_cache_cleanup;
 	}
 	err = dnet_route_list_enable_backend(node->route, backend_id, backend.group, ids, ids_num);
