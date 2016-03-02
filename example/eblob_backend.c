@@ -49,6 +49,8 @@
 #include "monitor/measure_points.h"
 
 #include "example/eblob_backend.h"
+
+#include "library/elliptics.h"
 /*
  * FIXME: __unused is used internally by glibc, so it may cause conflicts.
  */
@@ -1077,6 +1079,10 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 		err = dnet_server_send_write(ctl, &re, sizeof(struct dnet_iterator_response), wc.data_fd, data_offset);
 		if (err)
 			goto err_out_send_fail_reply;
+
+		/* stop if an error is occurred during write */
+		if (ctl->write_error)
+			goto err_out_put;
 
 		continue;
 
