@@ -379,7 +379,7 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	}
 
 	if (!t->st) {
-		err = -ENXIO;
+		t->cmd.status = err = -ENXIO;
 		goto err_out_destroy;
 	}
 
