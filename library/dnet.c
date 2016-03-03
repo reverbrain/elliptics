@@ -827,6 +827,10 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 
 	err = dnet_server_send_write(send, re, dsize, fd, data_offset);
 
+	/* stop iterator if an error is occurred during write */
+	if (!err)
+		err = send->write_error;
+
 	if (atomic_read(&send->bytes_pending) > send->bytes_pending_max) {
 		pthread_mutex_lock(&send->write_lock);
 
