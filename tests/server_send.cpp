@@ -25,8 +25,6 @@
 using namespace ioremap::elliptics;
 using namespace boost::unit_test;
 
-#define ENABLE_LONG_TESTS 0
-
 static std::shared_ptr<tests::nodes_data> ssend_servers;
 
 static std::vector<int> ssend_src_groups = {1};
@@ -279,7 +277,7 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 	BOOST_REQUIRE_EQUAL(copied, num);
 }
 
-#if ENABLE_LONG_TESTS
+#if (!DISABLE_LONG_TEST)
 static void ssend_test_set_delay(session &s, const std::vector<int> &groups, uint64_t delay) {
 	struct backend {
 		dnet_addr addr;
@@ -413,7 +411,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	ELLIPTICS_TEST_CASE(ssend_test_server_send, src_noexception, 1, id_prefix, data_prefix,
 	                    std::vector<int>{1000}, iflags, -ENXIO);
 
-#if ENABLE_LONG_TESTS
+#if (!DISABLE_LONG_TEST)
 	/* Check that server_send returns error (-ETIMEDOUT) occurred during writing a record.
 	 * This test is disabled because it takes too much time.
 	 * TODO: Expedite the completion of the test by setting smaller timeout which require
