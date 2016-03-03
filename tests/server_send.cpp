@@ -226,7 +226,7 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 }
 
 static void ssend_test_server_send(session &s, int num, const std::string &id_prefix, const std::string &data_prefix,
-		const std::vector<int> &dst_groups, uint64_t iflags)
+		const std::vector<int> &dst_groups, uint64_t iflags, int status)
 {
 	logger &log = s.get_logger();
 
@@ -250,7 +250,7 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 	auto iter = s.server_send(keys, iflags, dst_groups);
 	for (auto it = iter.begin(), iter_end = iter.end(); it != iter_end; ++it) {
 		BOOST_REQUIRE_EQUAL(it->command()->status, 0);
-		BOOST_REQUIRE_EQUAL(it->reply()->status, 0);
+		BOOST_REQUIRE_EQUAL(it->reply()->status, status);
 #if 0
 		// we have to explicitly convert all members from dnet_iterator_response
 		// since it is packed and there will be alignment issues and
@@ -276,6 +276,42 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 
 	BOOST_REQUIRE_EQUAL(copied, num);
 }
+
+#if (!DISABLE_LONG_TEST)
+static void ssend_test_set_delay(session &s, const std::vector<int> &groups, uint64_t delay) {
+	struct backend {
+		dnet_addr addr;
+		int backend_id;
+
+		bool operator<(const backend &other) const {
+			if (auto cmp = dnet_addr_cmp(&addr, &other.addr))
+				return cmp < 0;
+			return backend_id < other.backend_id;
+		}
+	};
+
+	std::set<backend> backends;
+
+	for (const auto &route: s.get_routes()) {
+		if (std::find(groups.begin(), groups.end(), route.group_id) != groups.end()) {
+			backends.insert(backend{route.addr, route.backend_id});
+		}
+	}
+
+	std::vector<async_backend_control_result> results;
+	results.reserve(backends.size());
+
+	for (const auto &backend: backends) {
+		results.emplace_back(
+			s.set_delay(address(backend.addr), backend.backend_id, delay)
+		);
+	}
+
+	for (auto &result: results) {
+		result.wait();
+	}
+}
+#endif
 
 static bool ssend_register_tests(test_suite *suite, node &n)
 {
@@ -323,7 +359,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	ELLIPTICS_TEST_CASE(ssend_test_insert_many_keys_old_ts, src, num, id_prefix, data_prefix);
 
 	// it should actually fail to move any key, since data is different and we
-	// do not set OVERWRITE bit, thus reading from source groups should succeeed
+	// do not set OVERWRITE bit, thus reading from source groups should succeed
 	// -EBADFD should be returned for cas/timestamp-cas errors
 	ELLIPTICS_TEST_CASE(ssend_test_copy, src, ssend_dst_groups, num, iflags, -EBADFD);
 	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys, src, num, id_prefix, data_prefix);
@@ -345,7 +381,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	id_prefix = "server_send method test";
 	data_prefix = "server_send method test data";
 	iflags = DNET_IFLAGS_MOVE;
-	ELLIPTICS_TEST_CASE(ssend_test_server_send, src, num, id_prefix, data_prefix, ssend_dst_groups, iflags);
+	ELLIPTICS_TEST_CASE(ssend_test_server_send, src, num, id_prefix, data_prefix, ssend_dst_groups, iflags, 0);
 	ELLIPTICS_TEST_CASE(ssend_test_read_many_keys_error, src_noexception, num, id_prefix, -ENOENT);
 	for (auto g = ssend_dst_groups.begin(), gend = ssend_dst_groups.end(); g != gend; ++g) {
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,
@@ -364,6 +400,34 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 		ELLIPTICS_TEST_CASE(ssend_test_read_many_keys,
 				tests::create_session(n, {*g}, 0, 0), num, id_prefix, data_prefix);
 	}
+
+
+	/* Check that server_send returns error (-ENXIO) occurred while writing a record.
+	 */
+
+	id_prefix = "-ENXIO handling test";
+	data_prefix = "-ENXIO handling data";
+	iflags = 0;
+	ELLIPTICS_TEST_CASE(ssend_test_server_send, src_noexception, 1, id_prefix, data_prefix,
+	                    std::vector<int>{1000}, iflags, -ENXIO);
+
+#if (!DISABLE_LONG_TEST)
+	/* Check that server_send returns error (-ETIMEDOUT) occurred during writing a record.
+	 * This test is disabled because it takes too much time.
+	 * TODO: Expedite the completion of the test by setting smaller timeout which require
+	 *     the ability to set timeout to write commands which will be sent by dnet_ioserv
+	 *     while executing server-send.
+	 */
+	id_prefix = "-ETIMEDOUT handling test";
+	data_prefix = "-ETIMEDOUT handling data";
+	iflags = 0;
+
+	std::vector<int> delayed_groups{ssend_dst_groups[0]};
+	ELLIPTICS_TEST_CASE(ssend_test_set_delay, src, delayed_groups, 61000);
+
+	ELLIPTICS_TEST_CASE(ssend_test_server_send, src_noexception, 1, id_prefix, data_prefix,
+	                    delayed_groups, iflags, -ETIMEDOUT);
+#endif
 
 	return true;
 }

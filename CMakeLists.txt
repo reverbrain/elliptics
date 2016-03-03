@@ -25,6 +25,7 @@ add_definitions(-DCONFIG_ELLIPTICS_VERSION_3=${ELLIPTICS_VERSION_3})
 
 option(WITH_PYTHON "Build python bindings" ON)
 option(WITH_COCAINE "Build with cocaine support" ON)
+option(DISABLE_LONG_TEST "Disable tests which take long time" OFF)
 
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
 set(Boost_NO_BOOST_CMAKE TRUE)

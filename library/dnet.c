@@ -791,9 +791,6 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 	dnet_trans_create_send_all(s, &ctl);
 	dnet_session_destroy(s);
 
-	if (!err)
-		err = send->write_error;
-
 	return err;
 
 err_out_session_destroy:
@@ -829,6 +826,10 @@ static int dnet_iterator_callback_server_send(void *priv, void *data, uint64_t d
 	}
 
 	err = dnet_server_send_write(send, re, dsize, fd, data_offset);
+
+	/* stop iterator if an error is occurred during write */
+	if (!err)
+		err = send->write_error;
 
 	if (atomic_read(&send->bytes_pending) > send->bytes_pending_max) {
 		pthread_mutex_lock(&send->write_lock);
@@ -1525,7 +1526,7 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 			}
 
 			size_t req_size = sizeof(struct dnet_server_send_request) +
-						req->id_num * sizeof(struct dnet_raw_id) + 
+						req->id_num * sizeof(struct dnet_raw_id) +
 						req->group_num * sizeof(int);
 
 			if (cmd->size != req_size) {
