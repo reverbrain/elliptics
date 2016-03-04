@@ -4,6 +4,8 @@ import errno
 import time
 from itertools import groupby
 
+from sets import Set
+
 from elliptics_recovery.utils.misc import dump_key_data, load_key_data_from_file
 
 import elliptics
@@ -180,10 +182,10 @@ class ServerSendRecovery(object):
 
             timeouted_keys = None
             for i in range(self.ctx.attempts):
-                #for k in newest_keys:
-                #    result = self.session.lookup(k).get()[0]
-                #    log.debug("LOOKUP2: key: {0}, group_id: {1}, status: {2}".format(k, result.group_id, result.status))
                 if newest_keys:
+                    self.stats.counter('server_send' if i == 0 else 'server_send_retry', 1)
+                    if i > 0:
+                        self.ctx.stats.counter('retry_recover_keys', len(timeouted_keys))
                     log.info("Server-send: group_id: {0}, remote_groups: {1}, num_keys: {2}".format(group_id, remote_groups, len(newest_keys)))
                     iterator = self.session.server_send(newest_keys, 0, remote_groups)
                     timeouted_keys, corrupted_keys = self._check_server_send_results(iterator, key_infos_map, group_id)
@@ -204,21 +206,25 @@ class ServerSendRecovery(object):
 
         timeouted_keys = []
         corrupted_keys = []
+        succeeded_keys = Set()
         index = -1
         for index, result in enumerate(iterator, 1):
             status = result.response.status
             self._update_stats(start_time, index, recovers_in_progress, status)
 
+            key = result.response.key
             if status < 0:
-                key = result.response.key
                 key_infos = key_infos_map[str(key)]
                 self._on_server_send_fail(status, key, key_infos, timeouted_keys, corrupted_keys, group_id)
                 continue
-            log.debug("Recovered key: {0}, status {1}".format(result.response.key, status))
+            elif status == 0:
+                succeeded_keys.add(str(key))
+                log.debug("Recovered key: %s, status %d", result.response.key, status)
 
-        if index < 0:
-            log.error("Server-send operation failed: group_id: {0}".format(group_id))
-            timeouted_keys = [elliptics.Id(k) for k in key_infos_map.iterkeys()]
+        if index < len(key_infos_map):
+            log.error("Server-send operation failed: group_id: %d, received results: %d, expected: %d",
+                      group_id, index, len(key_infos_map))
+            timeouted_keys = [elliptics.Id(k) for k in key_infos_map.iterkeys() if k not in succeeded_keys]
 
         return timeouted_keys, corrupted_keys
 

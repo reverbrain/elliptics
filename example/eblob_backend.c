@@ -1,6 +1,6 @@
 /*
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
- * Copytight 2015+ Kirill Smorodinnikov <shaitkir@gmail.com>
+ * Copyright 2015+ Kirill Smorodinnikov <shaitkir@gmail.com>
  *
  * This file is part of Elliptics.
  *
