@@ -526,12 +526,13 @@ err_out_send:
 				new_pending = 5 * re->size * 1000000 / usec;
 			}
 
-			dnet_log(st->n, DNET_LOG_INFO, "%s: %s: sending response to client: %s, "
+			dnet_log(st->n, DNET_LOG_INFO, "%s: %s: sending response: %s to client: %s, "
 					"user_flags: %llx, ts: %s (%lld.%09lld), "
 					"status: %d, size: %lld, iterated_keys: %lld/%lld, write_error: %d, "
 					"pending_bytes: %ld, limit: %ld -> %ld",
 					__func__,
 					dnet_dump_id(&send->cmd.id), dnet_dump_id_str(re->key.id),
+					dnet_addr_string(&st->addr),
 					(unsigned long long)re->user_flags,
 					dnet_print_time(&re->timestamp),
 					(unsigned long long)re->timestamp.tsec, (unsigned long long)re->timestamp.tnsec,
