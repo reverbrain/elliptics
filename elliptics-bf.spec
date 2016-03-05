@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.10.1
+Version:	2.26.10.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -146,6 +146,22 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Mar 05 2016 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.10.2
+- dc recovery: fix skipping keys when a whole server-send is failed
+- server-send: add client address to 'sending response' log
+- cmake: add option to disable long tests
+- iterator-copy: stop eblob iterator if write error has been occurred
+- server-send: move the check of write error occurence
+- Fix status in ack for request failed with -ENXIO
+- server_send: add tests for bad cases
+- Fix hanging of backend initialization
+- route: do not spam logs with debug route table content every time route table is requested
+- binding: added cflags_checksum & cflags_nocache to python binding
+- Fixed data size in write response:
+- python: added `set_delay` method
+- fixed trans number in a result in case of timeout
+- spec: fixed version string comparison
+
 * Sat Jan 23 2016 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.10.1
 - trans: remove transaction from timer tree in network thread to allow IO thread to run long callbacks and this would not affect 'real' timing for transaction in question
 - set blackhole-dev' version to `0.2.4-1`
