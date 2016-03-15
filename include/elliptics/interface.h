@@ -950,6 +950,23 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 		struct dnet_iterator_response *re, uint64_t dsize,
 		int fd, uint64_t data_offset);
 
+static inline const char *dnet_print_io(const struct dnet_io_attr *io) {
+	static __thread char __dnet_print_io[256];
+	snprintf(__dnet_print_io, sizeof(__dnet_print_io),
+	         "io-flags: %s, "
+	         "io-offset: %llu, "
+	         "io-size: %llu/%llu, "
+	         "io-user-flags: 0x%llx, "
+	         "io-num: %llu, "
+	         "ts: '%s'",
+	         dnet_flags_dump_ioflags(io->flags),
+	         (unsigned long long)io->offset,
+	         (unsigned long long)io->size, (unsigned long long)io->total_size,
+	         (unsigned long long)io->user_flags,
+	         (unsigned long long)io->num,
+	         dnet_print_time(&io->timestamp));
+	return __dnet_print_io;
+}
 
 #ifdef __cplusplus
 }

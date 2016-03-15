@@ -449,10 +449,10 @@ again:
 
 		tid = c->trans;
 
-		dnet_log(n, DNET_LOG_DEBUG, "%s: received trans: %llu / 0x%llx, "
-				"reply: %d, size: %llu, flags: %s, status: %d.",
-				dnet_dump_id(&c->id), tid, (unsigned long long)c->trans,
-				!!(c->flags & DNET_FLAGS_REPLY),
+		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: received trans: %llu <- %s/%d: "
+				"size: %llu, cflags: %s, status: %d.",
+				dnet_dump_id(&c->id), dnet_cmd_string(c->cmd), tid,
+				dnet_state_dump_addr(st), c->backend_id,
 				(unsigned long long)c->size, dnet_flags_dump_cflags(c->flags), c->status);
 
 		r = malloc(c->size + sizeof(struct dnet_cmd) + sizeof(struct dnet_io_req));
@@ -935,12 +935,12 @@ static void *dnet_io_process_network(void *data_)
 				continue;
 
 			if ((err < 0 && err != -EAGAIN) || st->stall >= n->stall_count) {
-				char addr_str[128] = "no address";
+				char addr_str[128] = "<unknown>";
 				if (n->addr_num) {
 					dnet_addr_string_raw(&n->addrs[0], addr_str, sizeof(addr_str));
 				}
-				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %p", addr_str, st);
-				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %s", addr_str, dnet_state_dump_addr(st));
+				dnet_log(n, DNET_LOG_ERROR, "self: addr: %s, resetting state: %s (%p)",
+				         addr_str, dnet_state_dump_addr(st), st);
 
 				dnet_state_reset(st, err);
 
@@ -967,7 +967,7 @@ static void *dnet_io_process_network(void *data_)
 			gettimeofday(&curr_tv, NULL);
 			// print log only if previous log was written more then 1 seconds ago
 			if ((curr_tv.tv_sec - prev_tv.tv_sec) > 1) {
-				dnet_log(n, DNET_LOG_INFO, "Net pool is suspended bacause io pool queues is full");
+				dnet_log(n, DNET_LOG_INFO, "Net pool is suspended because io pool queues is full");
 				prev_tv = curr_tv;
 			}
 			// wait condition variable - io queues has a free slot or some socket has something to send

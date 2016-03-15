@@ -1068,6 +1068,17 @@ struct dnet_server_send_ctl {
 							 */
 };
 
+static inline const char* dnet_print_trans(const struct dnet_trans *t) {
+	static __thread char __dnet_print_trans[256];
+	snprintf(__dnet_print_trans, sizeof(__dnet_print_trans),
+	         "trans: %llu, st: %s/%d, cflags: %s, wait-ts: %ld",
+	         (unsigned long long)t->trans,
+	         dnet_state_dump_addr(t->st), t->cmd.backend_id,
+	         dnet_flags_dump_cflags(t->cmd.flags),
+	         t->wait_ts.tv_sec);
+	return __dnet_print_trans;
+}
+
 
 #ifdef __cplusplus
 }

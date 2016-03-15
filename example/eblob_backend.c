@@ -196,9 +196,8 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
 	int err;
 
-	dnet_backend_log(c->blog, DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %s",
-		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size,
-		dnet_flags_dump_ioflags(io->flags));
+	dnet_backend_log(c->blog, DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: %s",
+		dnet_dump_id_str(io->id), dnet_print_io(io));
 
 	dnet_convert_io_attr(io);
 

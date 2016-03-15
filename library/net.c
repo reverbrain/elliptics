@@ -576,7 +576,7 @@ static int dnet_trans_forward(struct dnet_io_req *r,
 		char saddr[128];
 		char daddr[128];
 
-		dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding %s trans: %s -> %s, trans: %llu -> %llu",
+		dnet_log(orig->n, DNET_LOG_INFO, "%s: %s: forwarding trans: %s -> %s, trans: %llu -> %llu",
 				dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->command),
 				dnet_addr_string_raw(&orig->addr, saddr, sizeof(saddr)),
 				dnet_addr_string_raw(&forward->addr, daddr, sizeof(daddr)),

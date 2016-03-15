@@ -86,9 +86,9 @@ int dnet_trans_insert_nolock(struct dnet_net_state *st, struct dnet_trans *a)
 	}
 
 	if (a->st && a->st->n)
-		dnet_log(a->st->n, DNET_LOG_NOTICE, "%s: added transaction: %llu -> %s.",
-			dnet_dump_id(&a->cmd.id), (unsigned long long)a->trans,
-			dnet_addr_string(&a->st->addr));
+		dnet_log(a->st->n, DNET_LOG_NOTICE, "%s: %s: added trans: %llu -> %s/%d",
+			dnet_dump_id(&a->cmd.id), dnet_cmd_string(a->cmd.cmd), (unsigned long long)a->trans,
+			dnet_addr_string(&a->st->addr), a->cmd.backend_id);
 
 	rb_link_node(&a->trans_entry, parent, n);
 	rb_insert_color(&a->trans_entry, root);
@@ -282,52 +282,36 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		if ((t->command == DNET_CMD_READ) && (t->alloc_size >= sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr))) {
+		if ((t->command == DNET_CMD_READ || t->command == DNET_CMD_WRITE) &&
+		    (t->alloc_size >= sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr))) {
 			struct dnet_cmd *local_cmd = (struct dnet_cmd *)(t + 1);
 			struct dnet_io_attr *local_io = (struct dnet_io_attr *)(local_cmd + 1);
-			struct timeval io_tv;
-			char time_str[64];
 			double old_backend_weight = 0.;
 			double new_backend_weight = 0.;
 
-			if (st && (t->cmd.status == 0) && local_io->size) {
+			if (st) {
 				const int err = dnet_get_backend_weight(st, t->cmd.backend_id, local_io->flags, &old_backend_weight);
-				if (!err) {
+				if (!err &&
+				    (t->command == DNET_CMD_READ) &&
+				    (t->cmd.status == 0) &&
+				    local_io->size) {
 					const double norm = (double)diff / (double)local_io->size;
 					new_backend_weight = 1.0 / ((1.0 / old_backend_weight + norm) / 2.0);
 					dnet_set_backend_weight(st, t->cmd.backend_id, local_io->flags, new_backend_weight);
+				} else {
+					new_backend_weight = old_backend_weight;
 				}
 			}
 
-			io_tv.tv_sec = local_io->timestamp.tsec;
-			io_tv.tv_usec = local_io->timestamp.tnsec / 1000;
-
-			localtime_r((time_t *)&io_tv.tv_sec, &tm);
-			strftime(time_str, sizeof(time_str), "%F %R:%S", &tm);
-
-			snprintf(io_buf, sizeof(io_buf),
-					", ioflags: %s, "
-					"io-offset: %llu, "
-					"io-size: %llu/%llu, "
-					"io-user-flags: 0x%llx, "
-					"ts: %ld.%06ld '%s.%06lu', "
-					"%s weight: %f -> %f",
-				dnet_flags_dump_ioflags(local_io->flags),
-				(unsigned long long)local_io->offset,
-				(unsigned long long)local_io->size, (unsigned long long)local_io->total_size,
-				(unsigned long long)local_io->user_flags,
-				io_tv.tv_sec, io_tv.tv_usec, time_str, io_tv.tv_usec,
-				(local_io->flags & (DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY)) ? "cache" : "disk",
-				old_backend_weight, new_backend_weight);
+			snprintf(io_buf, sizeof(io_buf), ", weight: %f -> %f, %s",
+				old_backend_weight, new_backend_weight, dnet_print_io(local_io));
 		}
 
-		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s/%d, stall: %d, "
+		dnet_log(st->n, DNET_LOG_INFO, "%s: %s: destruction %s, stall: %d, "
 				"time: %ld, started: %s.%06lu, cached status: %d%s",
 			dnet_dump_id(&t->cmd.id),
-			dnet_cmd_string(t->command),
-			(unsigned long long)t->trans,
-			!!(t->cmd.flags & DNET_FLAGS_REPLY),
-			dnet_state_dump_addr(t->st), t->cmd.backend_id,
+			dnet_cmd_string(t->cmd.cmd),
+			dnet_print_trans(t),
 			t->st->stall,
 			diff,
 			str, t->start.tv_usec,
@@ -427,12 +411,10 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	req.hsize = sizeof(struct dnet_cmd) + ctl->size;
 	req.fd = -1;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send %s trans: %llu -> %s/%d",
+	dnet_log(n, DNET_LOG_INFO, "%s: %s: created %s",
 			dnet_dump_id(&cmd->id),
-			dnet_cmd_string(ctl->cmd),
-			(unsigned long long)t->trans,
-			dnet_addr_string(&t->st->addr),
-			cmd->backend_id
+			dnet_cmd_string(cmd->cmd),
+			dnet_print_trans(t)
 		);
 
 	err = dnet_trans_send(t, &req);
@@ -582,12 +564,11 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 		// but blackhole currently has higher priority for scoped attributes =(
 		dnet_node_set_trace_id(st->n->log, t->cmd.trace_id, t->cmd.flags & DNET_FLAGS_TRACE_BIT, -1);
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: backend: %d, trans: %llu TIMEOUT/need-exit: "
-				"stall-check wait-ts: %ld, need-exit: %d, cmd: %s [%d], started: %s.%06lu",
-				dnet_state_dump_addr(st), dnet_dump_id(&t->cmd.id), t->cmd.backend_id, (unsigned long long)t->trans,
-				(unsigned long)t->wait_ts.tv_sec,
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: TIMEOUT/need-exit %s, "
+				"need-exit: %d, started: %s.%06lu",
+				dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->cmd.cmd),
+				dnet_print_trans(t),
 				st->__need_exit,
-				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
 
 		trans_moved++;
@@ -607,13 +588,12 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 
 		if (!list_empty(&t->trans_list_entry)) {
 			list_del(&t->trans_list_entry);
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: backend: %d, trans: %llu TIMEOUT/need-exit: stall transaction, "
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: backend: %d, TIMEOUT/need-exit: stall %s, "
 					"it was moved into some timeout list, but yet it exists in timer tree, "
-					"stall-check wait-ts: %ld, need-exit: %d, cmd: %s [%d], started: %s.%06lu",
-					dnet_state_dump_addr(st), dnet_dump_id(&t->cmd.id), t->cmd.backend_id, (unsigned long long)t->trans,
-					(unsigned long)t->wait_ts.tv_sec,
+					"need-exit: %d, started: %s.%06lu",
+					dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->cmd.cmd),
+					dnet_print_trans(t),
 					st->__need_exit,
-					dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 					str, t->start.tv_usec);
 		}
 
