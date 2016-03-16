@@ -390,18 +390,14 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	dnet_get_backend_weight(t->st, cmd->backend_id, io->flags, &backend_weight);
 	request_addr = dnet_state_addr(t->st);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: %s, size: %llu, offset: %llu, "
-			"fd: %d, local_offset: %llu -> %s/%d weight: %f, wait-ts: %ld, ioflags: %s, ionum: %llu",
+	dnet_log(n, DNET_LOG_INFO, "%s: %s: created %s, weight: %f, %s, fd: %d, local_offset: %llu",
 			dnet_dump_id(&ctl->id),
-			(unsigned long long)t->trans,
-			dnet_cmd_string(ctl->cmd), dnet_flags_dump_cflags(cmd->flags),
-			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
+			dnet_cmd_string(t->cmd.cmd),
+			dnet_print_trans(t),
+			backend_weight,
+			dnet_print_io(&ctl->io),
 			ctl->fd,
-			(unsigned long long)ctl->local_offset,
-		        dnet_addr_string(&t->st->addr), cmd->backend_id, backend_weight,
-			t->wait_ts.tv_sec,
-			dnet_flags_dump_ioflags(ctl->io.flags),
-			(unsigned long long)io->num);
+			(unsigned long long)ctl->local_offset);
 
 	dnet_convert_cmd(cmd);
 	dnet_convert_io_attr(io);

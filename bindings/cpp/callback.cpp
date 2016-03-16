@@ -47,9 +47,9 @@ public:
 		}
 
 		BH_LOG(m_logger, cmd->status ? DNET_LOG_ERROR : DNET_LOG_NOTICE,
-			"%s: handled reply from: %s, cmd: %s, flags: %s, trans: %lld, status: %d, size: %lld, client: %d, last: %d",
-			dnet_dump_id(&cmd->id), addr ? dnet_addr_string(addr) : "<unknown>", dnet_cmd_string(cmd->cmd),
-			dnet_flags_dump_cflags(cmd->flags), uint64_t(cmd->trans), int(cmd->status), uint64_t(cmd->size),
+			"%s: %s: handled reply from: %s, trans: %lld, cflags: %s, status: %d, size: %lld, client: %d, last: %d",
+			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), addr ? dnet_addr_string(addr) : "<unknown>",
+			uint64_t(cmd->trans), dnet_flags_dump_cflags(cmd->flags), int(cmd->status), uint64_t(cmd->size),
 			!(cmd->flags & DNET_FLAGS_REPLY), !(cmd->flags & DNET_FLAGS_MORE));
 
 		auto data = std::make_shared<callback_result_data>(addr, cmd);

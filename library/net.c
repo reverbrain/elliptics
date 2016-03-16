@@ -576,7 +576,7 @@ static int dnet_trans_forward(struct dnet_io_req *r,
 		char saddr[128];
 		char daddr[128];
 
-		dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding %s trans: %s -> %s, trans: %llu -> %llu",
+		dnet_log(orig->n, DNET_LOG_INFO, "%s: %s: forwarding trans: %s -> %s, trans: %llu -> %llu",
 				dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->command),
 				dnet_addr_string_raw(&orig->addr, saddr, sizeof(saddr)),
 				dnet_addr_string_raw(&forward->addr, daddr, sizeof(daddr)),
@@ -1293,7 +1293,7 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 	int cork;
 	int err = 0;
 	size_t offset = st->send_offset;
-	size_t total_size = r->dsize + r->hsize + r->fsize;
+	const size_t total_size = r->dsize + r->hsize + r->fsize;
 
 	if (total_size > sizeof(struct dnet_cmd)) {
 		/* Use TCP_CORK to send headers and packet body in one piece */
@@ -1302,15 +1302,14 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 	}
 
 	if (1) {
-		struct dnet_cmd *cmd = r->header;
-		if (!cmd)
-			cmd = r->data;
+		struct dnet_cmd *cmd = r->header ? r->header : r->data;
 		dnet_node_set_trace_id(st->n->log, cmd->trace_id, cmd->flags & DNET_FLAGS_TRACE_BIT, (ssize_t)-1);
-		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: %s, start-sent: %zd/%zd.",
-			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_addr_string(&st->addr),
-			(unsigned long long)cmd->trans,
+		dnet_log(st->n, st->send_offset == 0 ? DNET_LOG_INFO : DNET_LOG_DEBUG,
+			"%s: %s: sending trans: %lld -> %s/%d: size: %llu, cflags: %s, start-sent: %zd/%zd",
+			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), (unsigned long long)cmd->trans,
+			dnet_addr_string(&st->addr), cmd->backend_id,
 			(unsigned long long)cmd->size, dnet_flags_dump_cflags(cmd->flags),
-			st->send_offset, r->dsize + r->hsize + r->fsize);
+			st->send_offset, total_size);
 	}
 
 	if (r->hsize && r->header && st->send_offset < r->hsize) {
@@ -1326,7 +1325,7 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 			goto err_out_exit;
 	}
 
-	if (r->fd >= 0 && r->fsize && st->send_offset < (r->dsize + r->hsize + r->fsize)) {
+	if (r->fd >= 0 && r->fsize && st->send_offset < total_size) {
 		offset = st->send_offset - r->dsize - r->hsize;
 		err = dnet_send_fd_nolock(st, r->fd, r->local_offset + offset, r->fsize - offset);
 		if (err)
@@ -1347,14 +1346,13 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 err_out_exit:
 
 	if (1) {
-		struct dnet_cmd *cmd = r->header;
-		if (!cmd)
-			cmd = r->data;
-		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: %s, finish-sent: %zd/%zd.",
-			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_addr_string(&st->addr),
-			(unsigned long long)cmd->trans,
+		struct dnet_cmd *cmd = r->header ? r->header : r->data;
+		dnet_log(st->n, st->send_offset == total_size ? DNET_LOG_INFO : DNET_LOG_DEBUG,
+			"%s: %s: sending trans: %lld -> %s/%d: size: %llu, cflags: %s, finish-sent: %zd/%zd",
+			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), (unsigned long long)cmd->trans,
+			dnet_addr_string(&st->addr), cmd->backend_id,
 			(unsigned long long)cmd->size, dnet_flags_dump_cflags(cmd->flags),
-			st->send_offset, r->dsize + r->hsize + r->fsize);
+			st->send_offset, total_size);
 	}
 	dnet_node_unset_trace_id();
 
@@ -1371,7 +1369,7 @@ err_out_exit:
 	 * or under st->send_lock, if queue was empty and dnet_send*() caller directly invoked this function from dnet_io_req_queue()
 	 * instead of queueing.
 	 */
-	if (st->send_offset == r->dsize + r->hsize + r->fsize) {
+	if (st->send_offset == total_size) {
 		int nodelay = 1;
 		setsockopt(st->write_s, IPPROTO_TCP, TCP_NODELAY, &nodelay, 4);
 	}

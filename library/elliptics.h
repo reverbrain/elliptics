@@ -162,7 +162,7 @@ struct dnet_net_state
 	// Mapping backend_id -> struct dnet_idc
 	struct rb_root		idc_root;
 	// idc_lock is guard of idc_root structure, not values of idc_root items
-	pthread_rwlock_t        idc_lock;
+	pthread_rwlock_t	idc_lock;
 
 	struct dnet_node	*n;
 
@@ -991,16 +991,16 @@ static inline void dnet_version_decode(struct dnet_id *id, int version[4])
 
 static inline void dnet_indexes_shard_count_encode(struct dnet_id *id, int count)
 {
-    int *data = (int *)(id->id);
+	int *data = (int *)(id->id);
 
-    data[5] = dnet_bswap32(count);
+	data[5] = dnet_bswap32(count);
 }
 
 static inline void dnet_indexes_shard_count_decode(struct dnet_id *id, int *count)
 {
-    int *data = (int *)(id->id);
+	int *data = (int *)(id->id);
 
-    *count = dnet_bswap32(data[5]);
+	*count = dnet_bswap32(data[5]);
 }
 
 static inline int dnet_empty_addr(struct dnet_addr *addr)
@@ -1049,7 +1049,7 @@ struct dnet_server_send_ctl {
 
 	uint64_t			iflags;		/* Iterator flags */
 
-	int                             backend_id;     /* Source backend_id */
+	int				backend_id;	/* Source backend_id */
 	int				*groups;	/* Groups to send WRITE commands */
 	int				group_num;
 
@@ -1067,6 +1067,17 @@ struct dnet_server_send_ctl {
 							 * if structure will be provided to async routings.
 							 */
 };
+
+static inline const char* dnet_print_trans(const struct dnet_trans *t) {
+	static __thread char __dnet_print_trans[256];
+	snprintf(__dnet_print_trans, sizeof(__dnet_print_trans),
+	         "trans: %llu, st: %s/%d, cflags: %s, wait-ts: %ld",
+	         (unsigned long long)t->trans,
+	         dnet_state_dump_addr(t->st), t->cmd.backend_id,
+	         dnet_flags_dump_cflags(t->cmd.flags),
+	         t->wait_ts.tv_sec);
+	return __dnet_print_trans;
+}
 
 
 #ifdef __cplusplus
