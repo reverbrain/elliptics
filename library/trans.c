@@ -588,7 +588,7 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 
 		if (!list_empty(&t->trans_list_entry)) {
 			list_del(&t->trans_list_entry);
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: backend: %d, TIMEOUT/need-exit: stall %s, "
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: %s: TIMEOUT/need-exit: stall %s, "
 					"it was moved into some timeout list, but yet it exists in timer tree, "
 					"need-exit: %d, started: %s.%06lu",
 					dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->cmd.cmd),
