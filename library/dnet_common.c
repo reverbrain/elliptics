@@ -367,7 +367,10 @@ void dnet_io_trans_alloc_send(struct dnet_session *s, struct dnet_io_control *ct
 	memcpy(io, &ctl->io, sizeof(struct dnet_io_attr));
 
 	if ((s->cflags & DNET_FLAGS_DIRECT) == 0) {
-		t->st = dnet_state_get_first(n, &cmd->id);
+		int backend_id = 0;
+		t->st = dnet_state_get_first_with_backend(n, &cmd->id, &backend_id);
+		if (!(s->cflags & DNET_FLAGS_DIRECT_BACKEND))
+			cmd->backend_id = backend_id;
 	} else {
 		/* We're requested to execute request on particular node */
 		request_addr = &s->direct_addr;
