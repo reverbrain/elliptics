@@ -648,6 +648,25 @@ void dnet_set_backend_weight(struct dnet_net_state *st, int backend_id, uint32_t
 	pthread_rwlock_unlock(&st->idc_lock);
 }
 
+void dnet_update_backend_weight(struct dnet_net_state *st, int backend_id,
+                                int status, uint64_t ioflags, uint64_t size, long time) {
+	double old_weight = 0., new_weight = 0.;
+	if (!st)
+		return;
+
+	const err = dnet_get_backend_weight(st, backend_id, ioflags, &old_weight);
+	if (!err &&
+	    status == 0 &&
+	    size) {
+		const double norm = (double)time / (double) size;
+		new_weight = 1.0 / ((1.0 / old_weight + norm) / 2.0);
+		dnet_set_backend_weight(st, backend_id, ioflags, new_weight);
+	} else {
+		new_weight = old_weight;
+	}
+	return err;
+}
+
 struct dnet_net_state *dnet_state_get_first_with_backend(struct dnet_node *n, const struct dnet_id *id, int *backend_id)
 {
 	struct dnet_net_state *found;
