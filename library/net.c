@@ -653,6 +653,8 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 		struct dnet_trans *t = NULL;
 		uint64_t tid = cmd->trans;
 		uint64_t flags = cmd->flags;
+		struct timeval tv;
+		long diff;
 
 		HANDY_COUNTER_INCREMENT("io.replies", 1);
 
@@ -686,6 +688,9 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 			goto err_out_exit;
 		}
 
+		gettimeofday(&tv, NULL);
+		diff = (tv.tv_sec - t->start.tv_sec) * 1000000 + (tv.tv_usec - t->start.tv_usec);
+
 		if (t->complete) {
 			if (t->command == DNET_CMD_READ) {
 				if ((cmd->size >= sizeof(struct dnet_io_attr)) &&
@@ -703,6 +708,11 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 					local_io->timestamp = recv_io->timestamp;
 
 					dnet_convert_io_attr(local_io);
+
+					if (st && !(flags & DNET_FLAGS_MORE)) {
+						dnet_update_backend_weight(st, cmd->backend_id,
+						                           cmd->status, recv_io->flags, local_io->size, diff);
+					}
 				}
 			}
 			t->complete(dnet_state_addr(t->st), cmd, t->priv);
