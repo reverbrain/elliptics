@@ -38,7 +38,7 @@ extern "C" {
 #endif
 
 /*
- * Header note fpr @dnet_commands enum
+ * Header note for @dnet_commands enum
  * When adding new command, take a look at @dnet_cmd_needs_backend(),
  * it must be updated if new non-backend command is added.
  */
@@ -54,7 +54,7 @@ enum dnet_commands {
 						 * IO attribute which will have offset and size
 						 * parameters.
 						 */
-	DNET_CMD_LIST_DEPRECATED,		/* List all objects for given node ID. Deperacted and forbidden */
+	DNET_CMD_LIST_DEPRECATED,		/* List all objects for given node ID. Deprecated and forbidden */
 	DNET_CMD_EXEC,				/* Execute given command on the remote node */
 	DNET_CMD_ROUTE_LIST,			/* Receive route table from given node */
 	DNET_CMD_STAT_DEPRECATED,		/* Gather remote VM, LA and FS statistics */
@@ -64,7 +64,7 @@ enum dnet_commands {
 	DNET_CMD_STATUS,			/* Change elliptics node status */
 	DNET_CMD_READ_RANGE,			/* Read range of objects */
 	DNET_CMD_DEL_RANGE,			/* Remove range of objects */
-	DNET_CMD_AUTH,				/* Authentification cookie check */
+	DNET_CMD_AUTH,				/* Authentication cookie check */
 	DNET_CMD_BULK_READ,			/* Read a number of ids at one time */
 	DNET_CMD_DEFRAG_DEPRECATED,		/* Start defragmentation process if backend supports it. Deprecated and forbidden */
 	DNET_CMD_ITERATOR,			/* Start/stop/pause/status for server-side iterator */
@@ -155,7 +155,7 @@ enum dnet_backend_defrag_level {
 /* Transaction is about to be destroyed */
 #define DNET_FLAGS_DESTROY		(1<<2)
 
-/* Do not forward requst to antoher node even if given ID does not belong to our range */
+/* Do not forward request to another node even if given ID does not belong to our range */
 #define DNET_FLAGS_DIRECT		(1<<3)
 
 /* Do not locks operations - must be set for script callers or recursive operations */
