@@ -648,19 +648,18 @@ void dnet_set_backend_weight(struct dnet_net_state *st, int backend_id, uint32_t
 	pthread_rwlock_unlock(&st->idc_lock);
 }
 
-void dnet_update_backend_weight(struct dnet_net_state *st, int backend_id,
-                                int status, uint64_t ioflags, uint64_t size, long time) {
+void dnet_update_backend_weight(struct dnet_net_state *st, const struct dnet_cmd *cmd, uint64_t ioflags, long time) {
 	double old_weight = 0., new_weight = 0.;
 	if (!st)
 		return;
 
-	const err = dnet_get_backend_weight(st, backend_id, ioflags, &old_weight);
+	const err = dnet_get_backend_weight(st, cmd->backend_id, ioflags, &old_weight);
 	if (!err &&
-	    status == 0 &&
-	    size) {
-		const double norm = (double)time / (double) size;
+	    cmd->status == 0 &&
+	    cmd->size) {
+		const double norm = (double)time / (double) cmd->size;
 		new_weight = 1.0 / ((1.0 / old_weight + norm) / 2.0);
-		dnet_set_backend_weight(st, backend_id, ioflags, new_weight);
+		dnet_set_backend_weight(st, cmd->backend_id, ioflags, new_weight);
 	} else {
 		new_weight = old_weight;
 	}
