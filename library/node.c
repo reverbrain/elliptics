@@ -660,8 +660,6 @@ void dnet_update_backend_weight(struct dnet_net_state *st, const struct dnet_cmd
 		const double norm = (double)time / (double) cmd->size;
 		new_weight = 1.0 / ((1.0 / old_weight + norm) / 2.0);
 		dnet_set_backend_weight(st, cmd->backend_id, ioflags, new_weight);
-	} else {
-		new_weight = old_weight;
 	}
 	return err;
 }
