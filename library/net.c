@@ -711,7 +711,7 @@ int dnet_process_recv(struct dnet_backend_io *backend, struct dnet_net_state *st
 
 					if (st && !(flags & DNET_FLAGS_MORE)) {
 						dnet_update_backend_weight(st, cmd->backend_id,
-						                           cmd->status, recv_io->flags, local_io->size, diff);
+						                           cmd->status, recv_io->flags, cmd->size, diff);
 					}
 				}
 			}
