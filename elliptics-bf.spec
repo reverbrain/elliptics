@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.10.2
+Version:	2.26.10.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -146,6 +146,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Mar 24 2016 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.10.3
+- io: do not handle lookup by cache if it does not have the key, propagate error to dnet_cmd_process_raw() and call backend callback
+- Move updating backend's weight to dnet_process_recv
+- logs: fix mistake in format string
+- logs: changed level of start/finish sent log messages
+- logs: added helpers to print dnet_io_attr and dnet_trans
+- Indent fixes
+
 * Sat Mar 05 2016 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.10.2
 - dc recovery: fix skipping keys when a whole server-send is failed
 - server-send: add client address to 'sending response' log
