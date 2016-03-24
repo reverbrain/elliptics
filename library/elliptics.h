@@ -269,6 +269,7 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, const struct dn
 ssize_t dnet_state_search_backend(struct dnet_node *n, const struct dnet_id *id);
 int dnet_get_backend_weight(struct dnet_net_state *st, int backend_id, uint32_t ioflags, double *weight);
 void dnet_set_backend_weight(struct dnet_net_state *st, int backend_id, uint32_t ioflags, double weight);
+void dnet_update_backend_weight(struct dnet_net_state *st, const struct dnet_cmd *, uint64_t ioflags, long time);
 struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, const struct dnet_id *id, int *backend_id);
 struct dnet_net_state *dnet_node_state(struct dnet_node *n);
 

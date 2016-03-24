@@ -286,25 +286,12 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		    (t->alloc_size >= sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr))) {
 			struct dnet_cmd *local_cmd = (struct dnet_cmd *)(t + 1);
 			struct dnet_io_attr *local_io = (struct dnet_io_attr *)(local_cmd + 1);
-			double old_backend_weight = 0.;
-			double new_backend_weight = 0.;
+			double backend_weight = 0.;
 
-			if (st) {
-				const int err = dnet_get_backend_weight(st, t->cmd.backend_id, local_io->flags, &old_backend_weight);
-				if (!err &&
-				    (t->command == DNET_CMD_READ) &&
-				    (t->cmd.status == 0) &&
-				    local_io->size) {
-					const double norm = (double)diff / (double)local_io->size;
-					new_backend_weight = 1.0 / ((1.0 / old_backend_weight + norm) / 2.0);
-					dnet_set_backend_weight(st, t->cmd.backend_id, local_io->flags, new_backend_weight);
-				} else {
-					new_backend_weight = old_backend_weight;
-				}
-			}
+			dnet_get_backend_weight(st, t->cmd.backend_id, local_io->flags, &backend_weight);
 
-			snprintf(io_buf, sizeof(io_buf), ", weight: %f -> %f, %s",
-				old_backend_weight, new_backend_weight, dnet_print_io(local_io));
+			snprintf(io_buf, sizeof(io_buf), ", weight: %f, %s",
+			         backend_weight, dnet_print_io(local_io));
 		}
 
 		dnet_log(st->n, DNET_LOG_INFO, "%s: %s: destruction %s, stall: %d, "
