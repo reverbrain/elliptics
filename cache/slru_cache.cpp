@@ -395,12 +395,11 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	data_t* it = m_treap.find(id);
 	TIMER_STOP("lookup.find");
 
-	dnet_time timestamp;
-	memset(&timestamp, 0, sizeof(timestamp));
-
-	if (it) {
-		timestamp = it->timestamp();
+	if (!it) {
+		return -ENOENT;
 	}
+
+	auto timestamp = it->timestamp();
 
 	guard.unlock();
 
@@ -415,22 +414,13 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	cmd->flags &= ~(DNET_FLAGS_MORE | DNET_FLAGS_NEED_ACK);
 
 	if (err) {
-		if (!it) {
-			// there is no object neither in cache nor on disk,
-			// we want client to notify about that, send him ACK
-			cmd->flags |= DNET_FLAGS_NEED_ACK;
-			return err;
-		}
-
 		// zero size means 'we didn't find key on disk', but yet it exists in cache
 		// lookup by its nature is 'show me what is on disk' command
 		return dnet_send_file_info_ts_without_fd(st, cmd, NULL, 0, &timestamp);
 	}
 
-	dnet_file_info *info = data.skip<dnet_addr>().data<dnet_file_info>();
-	if (it) {
-		info->mtime = timestamp;
-	}
+	auto info = data.skip<dnet_addr>().data<dnet_file_info>();
+	info->mtime = timestamp;
 
 	return dnet_send_reply(st, cmd, data.data(), data.size(), 0);
 }

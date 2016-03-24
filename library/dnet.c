@@ -1601,7 +1601,7 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 			if (cmd->cmd == DNET_CMD_LOOKUP && !(cmd->flags & DNET_FLAGS_NOCACHE)) {
 				err = dnet_cmd_cache_lookup(backend, st, cmd);
 
-				if (err != -ENOTSUP) {
+				if (err != -ENOTSUP && err != -ENOENT) {
 					*handled_in_cache = 1;
 					break;
 				}
