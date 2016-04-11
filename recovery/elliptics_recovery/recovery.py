@@ -94,6 +94,7 @@ def main(options, args):
     ctx.custom_recover = options.custom_recover
     ctx.no_meta = options.no_meta and (options.timestamp is None)
     ctx.no_server_send = options.no_server_send
+    ctx.user_flags_set = frozenset(options.user_flags_set)
 
     try:
         ctx.trace_id = int(options.trace_id, 16)
@@ -414,4 +415,6 @@ def run(args=None):
                       help='Marks all recovery commands by trace_id at both recovery and server logs. This option accepts hex strings. [default: %default]')
     parser.add_option('-U', '--no-server-send', action="store", dest="no_server_send", default=False,
                       help='Do not use server-send for recovery. Disabling recovery via server-send useful if there is no network connection between groups')
+    parser.add_option('--user-flags', action='append', dest='user_flags_set', default=[],
+                      help='Recover key if at least one replica has user_flags from specified user_flags_set')
     return main(*parser.parse_args(args))
