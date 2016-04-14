@@ -94,7 +94,7 @@ def main(options, args):
     ctx.custom_recover = options.custom_recover
     ctx.no_meta = options.no_meta and (options.timestamp is None)
     ctx.no_server_send = options.no_server_send
-    ctx.user_flags_set = frozenset(options.user_flags_set)
+    ctx.user_flags_set = frozenset(int(user_flags) for user_flags in options.user_flags_set)
 
     try:
         ctx.trace_id = int(options.trace_id, 16)
