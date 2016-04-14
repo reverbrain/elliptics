@@ -425,8 +425,11 @@ class MergeData(object):
         if cmp_res == 0:
             cmp_res = cmp(other.value.timestamp, self.value.timestamp)
 
-            if cmp_res == 0:
-                cmp_res = cmp(self.value.size, other.value.size)
+        if cmp_res == 0:
+            cmp_res = cmp(self.value.size, other.value.size)
+
+        if cmp_res == 0:
+            cmp_res = cmp(other.value.user_flags, self.value.user_flags)
 
         return cmp_res
 

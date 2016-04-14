@@ -235,7 +235,7 @@ class ServerSendRecovery(object):
         because less relevant replica (e.g. with older timestamp) should not be used for
         recovery due to temporary unavailability of relevant replica during recovery process.
         '''
-        same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
+        same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size, lhs.user_flags) == (rhs.timestamp, rhs.size, rhs.user_flags)
         num_failed_keys = 0
         for key in keys:
             key_infos = key_infos_map[str(key)]
@@ -343,7 +343,7 @@ class ServerSendRecovery(object):
         '''
         missed_groups = list(self.groups_set.difference([k.group_id for k in key_infos]))
 
-        same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
+        same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size, lhs.user_flags) == (rhs.timestamp, rhs.size, rhs.user_flags)
         diff_groups = [info.group_id for info in key_infos if not same_meta(info, key_infos[0])]
 
         missed_groups.extend(diff_groups)

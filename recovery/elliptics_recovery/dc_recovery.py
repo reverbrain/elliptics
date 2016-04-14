@@ -99,7 +99,7 @@ class KeyRecover(object):
                      'The key will be recovered at groups with uncommitted replicas too.'
                      .format(self.key, incomplete_groups, same_groups))
 
-        same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
+        same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size, lhs.user_flags) == (rhs.timestamp, rhs.size, rhs.user_flags)
         same_infos = [info for info in self.key_infos if same_meta(info, same_infos[0])]
         self.key_flags = same_infos[0].flags
 
@@ -370,7 +370,7 @@ def iterate_key(filepath, groups):
 
             # if all key_infos has the same timestamp and size and there is no missed groups -
             # skip key, it is already up-to-date in all groups
-            same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
+            same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size, lhs.user_flags) == (rhs.timestamp, rhs.size, rhs.user_flags)
             if same_meta(key_infos[0], key_infos[-1]) and not missed_groups:
                 continue
 

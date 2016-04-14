@@ -295,7 +295,7 @@ def fill_buckets(ctx, results):
 
     for filename, _, _ in results:
         for key, key_infos in load_key_data(filename):
-            same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
+            same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size, lhs.user_flags) == (rhs.timestamp, rhs.size, rhs.user_flags)
             same_info_groups = [info.group_id for info in key_infos if same_meta(info, key_infos[0])]
 
             for group in ctx.bucket_order:
