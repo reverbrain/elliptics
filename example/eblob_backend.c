@@ -998,11 +998,15 @@ static int blob_send(struct eblob_backend_config *cfg, void *state, struct dnet_
 	cmd->flags |= DNET_FLAGS_NEED_ACK;
 
 	backend_id = cfg->data.stat_id;
-	ctl = dnet_server_send_alloc(state, cmd, req->iflags, groups, req->group_num, backend_id);
+	ctl = dnet_server_send_alloc(state, cmd, groups, req->group_num);
 	if (!ctl) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
+
+	ctl->iflags = req->iflags;
+	ctl->backend_id = backend_id;
+	ctl->timeout = req->timeout;
 
 	/*
 	 * Deliberately clear NEED_ACK bit

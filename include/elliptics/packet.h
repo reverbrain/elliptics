@@ -1091,7 +1091,7 @@ struct dnet_iterator_request
 	uint64_t			flags;		/* DNET_IFLAGS_* */
 	uint32_t			group_num;	/* Number of remote groups to send iterated data for server-send
 							   iterator type */
-	uint32_t			__reserved32;
+	uint32_t			timeout;	/* write session timeout */
 	uint64_t			reserved[4];
 } __attribute__ ((packed));
 
@@ -1103,6 +1103,7 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 	r->action = dnet_bswap32(r->action);
 	r->range_num = dnet_bswap64(r->range_num);
 	r->group_num = dnet_bswap32(r->group_num);
+	r->timeout = dnet_bswap32(r->timeout);
 	dnet_convert_time(&r->time_begin);
 	dnet_convert_time(&r->time_end);
 }
@@ -1243,13 +1244,17 @@ static inline void dnet_convert_monitor_stat_request(struct dnet_monitor_stat_re
 struct dnet_server_send_request {
 	int		id_num;
 	int		group_num;
+	int		timeout;
+	int		__reserved32;
 	uint64_t	iflags;
+	uint64_t	__reserved[9];
 };
 
 static inline void dnet_convert_server_send_request(struct dnet_server_send_request *req)
 {
 	req->id_num = dnet_bswap32(req->id_num);
 	req->group_num = dnet_bswap32(req->group_num);
+	req->timeout = dnet_bswap32(req->timeout);
 	req->iflags = dnet_bswap64(req->iflags);
 }
 

@@ -1054,6 +1054,8 @@ struct dnet_server_send_ctl {
 	int				*groups;	/* Groups to send WRITE commands */
 	int				group_num;
 
+	int				timeout;	/* write timeout */
+
 	pthread_mutex_t			write_lock;	/* Lock for @write_wait */
 	pthread_cond_t			write_wait;	/* Waiting for pending writes */
 	long				bytes_pending_max;	/* maximum size of the 'queue' of write requests */

@@ -942,8 +942,10 @@ struct dnet_vm_stat {
 int dnet_get_vm_stat(dnet_logger *l, struct dnet_vm_stat *st);
 
 struct dnet_server_send_ctl;
-struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd *cmd, uint64_t iflags,
-						    int *groups, int group_num, int backend_id);
+
+// all other fields of @dnet_server_send_ctl must be set manually, no need to increase number of parameters
+// groups are here since they will be allocated as one chunk with control structure itself
+struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd *cmd, int *groups, int group_num);
 struct dnet_server_send_ctl *dnet_server_send_get(struct dnet_server_send_ctl *ctl);
 int dnet_server_send_put(struct dnet_server_send_ctl *ctl);
 int dnet_server_send_write(struct dnet_server_send_ctl *send,
