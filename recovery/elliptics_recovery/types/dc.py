@@ -113,6 +113,9 @@ def skip_key_data(ctx, key_data):
     Checks that all groups are presented in key_data and
     all key_datas have equal timestamp and user_flags
     '''
+    if ctx.user_flags_set and all(info.user_flags not in ctx.user_flags_set for info in key_data[1]):
+        return True
+
     committed = lambda info: not (info.flags & elliptics.record_flags.uncommitted)
     count = sum(map(committed, key_data[1]))
     if count < len(ctx.groups):
@@ -292,7 +295,7 @@ def fill_buckets(ctx, results):
 
     for filename, _, _ in results:
         for key, key_infos in load_key_data(filename):
-            same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size) == (rhs.timestamp, rhs.size)
+            same_meta = lambda lhs, rhs: (lhs.timestamp, lhs.size, lhs.user_flags) == (rhs.timestamp, rhs.size, rhs.user_flags)
             same_info_groups = [info.group_id for info in key_infos if same_meta(info, key_infos[0])]
 
             for group in ctx.bucket_order:

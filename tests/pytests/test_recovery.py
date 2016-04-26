@@ -135,10 +135,11 @@ def check_data(scope, session, keys, datas, timestamp):
     assert [x.data for x in results] == datas
     timestamps = [x.timestamp for x in results]
     assert all(x == timestamp for x in timestamps)
+    assert all(x.user_flags == session.user_flags for x in results)
 
 
 def recovery(one_node, remotes, backend_id, address, groups,
-             session, rtype, log_file, tmp_dir, dump_file=None, no_meta=False):
+             rtype, log_file, tmp_dir, dump_file=None, no_meta=False, user_flags_set=()):
     '''
     Imports dnet_recovery tools and executes merge recovery. Checks result of merge.
     '''
@@ -175,6 +176,8 @@ def recovery(one_node, remotes, backend_id, address, groups,
         args += ['merge']
     elif rtype == RECOVERY.DC:
         args += ['dc']
+    for user_flags in user_flags_set:
+        args += ['--user-flags', user_flags]
 
     assert run(args) == 0
 
@@ -325,7 +328,6 @@ class TestRecovery:
                  backend_id=scope.test_backend,
                  address=scope.test_address,
                  groups=(scope.test_group,),
-                 session=session.clone(),
                  rtype=RECOVERY.MERGE,
                  no_meta=True,
                  log_file='merge_2_backends.log',
@@ -368,7 +370,6 @@ class TestRecovery:
                  backend_id=None,
                  address=scope.test_address,
                  groups=(scope.test_group,),
-                 session=session.clone(),
                  rtype=RECOVERY.MERGE,
                  log_file='merge_from_dump_3_backends.log',
                  tmp_dir='merge_from_dump_3_backends',
@@ -401,7 +402,6 @@ class TestRecovery:
                  backend_id=None,
                  address=scope.test_address,
                  groups=(scope.test_group,),
-                 session=session.clone(),
                  rtype=RECOVERY.MERGE,
                  log_file='merge_one_group.log',
                  tmp_dir='merge_one_group')
@@ -440,7 +440,6 @@ class TestRecovery:
                  backend_id=scope.test_backend2,
                  address=scope.test_address2,
                  groups=(scope.test_group, scope.test_group2,),
-                 session=session.clone(),
                  rtype=RECOVERY.DC,
                  log_file='dc_one_backend.log',
                  tmp_dir='dc_one_backend',
@@ -478,7 +477,6 @@ class TestRecovery:
                  backend_id=None,
                  address=scope.test_address2,
                  groups=(scope.test_group, scope.test_group2,),
-                 session=session.clone(),
                  rtype=RECOVERY.DC,
                  log_file='dc_from_dump_two_groups.log',
                  tmp_dir='dc_from_dump_two_groups',
@@ -526,7 +524,6 @@ class TestRecovery:
                  backend_id=None,
                  address=scope.test_address2,
                  groups=(scope.test_group, scope.test_group2, scope.test_group3),
-                 session=session.clone(),
                  rtype=RECOVERY.DC,
                  log_file='dc_three_groups.log',
                  tmp_dir='dc_three_groups')
@@ -586,7 +583,6 @@ class TestRecovery:
                  backend_id=None,
                  address=scope.test_address2,
                  groups=(scope.test_group, scope.test_group2, scope.test_group3),
-                 session=session.clone(),
                  rtype=RECOVERY.DC,
                  log_file='dc_corrupted_data.log',
                  tmp_dir='dc_corrupted_data')
@@ -876,7 +872,6 @@ class TestMerge:
                  backend_id=None,
                  address=scope.address,
                  groups=(scope.group,),
-                 session=scope.session.clone(),
                  rtype=RECOVERY.MERGE,
                  no_meta=False,
                  log_file='merge_with_uncommitted_keys.log',
@@ -1034,7 +1029,6 @@ class TestDC:
                  backend_id=None,
                  address=scope.routes.addresses()[0],
                  groups=scope.groups,
-                 session=scope.session.clone(),
                  rtype=RECOVERY.DC,
                  log_file='dc_with_uncommitted_keys.log',
                  tmp_dir='dc_with_uncommitted_keys')
@@ -1088,3 +1082,126 @@ class TestDC:
         disable_backends(scope.session, scope.session.routes.addresses_with_backends())
         remove_all_blobs(scope.session)
         enable_backends(scope.session, scope.routes.addresses_with_backends())
+
+
+@pytest.mark.incremental
+class TestRecoveryUserFlags:
+    '''
+    Checks recovery with specified user_flags_set: recover key if at least one replica
+    has user_flags from specified user_flags_set
+    '''
+    user_flags_set = [2]
+    timestamp = elliptics.Time.now()
+    timestamp_new = elliptics.Time(timestamp.tsec + 3600, timestamp.tnsec)
+    test_key = 'skip_test.key'
+    test_key2 = 'skip_test.key2'
+    test_key3 = 'skip_test.key3'
+    test_data = 'skip_test.data'
+    namespace = 'TestRecoveryUserFlags'
+
+    def prepare_test_data(self):
+        '''
+        Writes test keys with a specific user_flags and checks that operation was successfull:
+        1. Write test_key to test_groups with different user_flags that are not in user_flags_set.
+        2. Write test_key2 with different user_flags including ones from user_flags_set.
+        3. Write test_key3 with different user_flags. Replicas with user_flags from user_flags_set
+           are written with older timestamp.
+        '''
+        session = scope.session.clone()
+        session.timestamp = self.timestamp
+
+        for i, group_id in enumerate(scope.test_groups):
+            session.groups = [group_id]
+            session.user_flags = i
+            assert i not in self.user_flags_set
+
+            write_data(scope, session, [self.test_key], [self.test_data])
+            check_data(scope, session, [self.test_key], [self.test_data], self.timestamp)
+
+        for i, group_id in enumerate(scope.groups):
+            session.groups = [group_id]
+            session.user_flags = i
+
+            write_data(scope, session, [self.test_key2], [self.test_data])
+            check_data(scope, session, [self.test_key2], [self.test_data], self.timestamp)
+
+        for i, group_id in enumerate(scope.groups):
+            if i in self.user_flags_set:
+                timestamp = self.timestamp
+            else:
+                timestamp = self.timestamp_new
+
+            session.timestamp = timestamp
+            session.groups = [group_id]
+            session.user_flags = i
+
+            write_data(scope, session, [self.test_key3], [self.test_data])
+            check_data(scope, session, [self.test_key3], [self.test_data], timestamp)
+
+    def cleanup_backends(self):
+        '''
+        Cleanup test that makes follow:
+        1. disables all backends
+        2. removes all blobs
+        3. enables all backends on all nodes
+        '''
+        disable_backends(scope.session, scope.session.routes.addresses_with_backends())
+        remove_all_blobs(scope.session)
+        enable_backends(scope.session, scope.routes.addresses_with_backends())
+
+    def test_setup(self, server, simple_node):
+        '''
+        Initial test cases that prepare test cluster before running recovery. It includes:
+        1. preparing whole test class scope - making session, choosing node and backends etc.
+        2. initial cleanup - disabling all backends at all nodes and removing all blobs
+        3. enabling backends that will be used at test
+        4. preparing test keys
+        '''
+        self.scope = scope
+        self.scope.session = make_session(node=simple_node,
+                                          test_name='TestRecoveryUserFlags')
+        self.scope.routes = self.scope.session.routes
+        self.scope.groups = self.scope.routes.groups()[:3]
+        self.scope.test_groups = self.scope.groups[1:]
+
+        self.cleanup_backends()
+        self.prepare_test_data()
+
+    def test_recovery(self, server, simple_node):
+        '''
+        Runs recovery with filtration of keys by specifying user_flags_set and checks that:
+        1. test_key shouldn't be recovered
+        2. test_key2 replicas shouldn't countain user_flags that are not in user_flags_set
+        3. test_key3 replicas shouldn't countain user_flags that are in user_flags_set
+        '''
+        recovery(one_node=False,
+                 remotes=scope.routes.addresses(),
+                 backend_id=None,
+                 address=scope.routes.addresses()[0],
+                 groups=scope.groups,
+                 rtype=RECOVERY.DC,
+                 log_file='dc_recovery_user_flags.log',
+                 tmp_dir='dc_recovery_user_flags',
+                 user_flags_set=self.user_flags_set)
+
+        session = scope.session.clone()
+        session.exceptions_policy = elliptics.core.exceptions_policy.no_exceptions
+        session.set_filter(elliptics.filters.all)
+
+        for group_id in scope.groups:
+            session.groups = [group_id]
+
+            results = session.lookup(self.test_key).get()
+            if group_id in scope.test_groups:
+                assert all(r.status == 0 for r in results)
+            else:
+                assert all(r.status == -errno.ENOENT for r in results)
+
+            results = session.read_data(self.test_key2).get()
+            assert all(r.user_flags in self.user_flags_set for r in results)
+
+            results = session.read_data(self.test_key3).get()
+            assert all(r.user_flags not in self.user_flags_set for r in results)
+
+    def test_teardown(self, server, simple_node):
+        self.cleanup_backends()
