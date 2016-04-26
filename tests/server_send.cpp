@@ -249,8 +249,6 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 	int copied = 0;
 	auto iter = s.server_send(keys, iflags, dst_groups);
 	for (auto it = iter.begin(), iter_end = iter.end(); it != iter_end; ++it) {
-		BOOST_REQUIRE_EQUAL(it->command()->status, 0);
-		BOOST_REQUIRE_EQUAL(it->reply()->status, status);
 #if 0
 		// we have to explicitly convert all members from dnet_iterator_response
 		// since it is packed and there will be alignment issues and
@@ -267,6 +265,8 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 			(int)it->reply()->status, (unsigned long long)it->reply()->size,
 			(unsigned long long)it->reply()->iterated_keys, (unsigned long long)it->reply()->total_keys);
 #endif
+		BOOST_REQUIRE_EQUAL(it->command()->status, 0);
+		BOOST_REQUIRE_EQUAL(it->reply()->status, status);
 
 		copied++;
 	}
@@ -423,7 +423,7 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 	iflags = 0;
 
 	std::vector<int> delayed_groups{ssend_dst_groups[0]};
-	ELLIPTICS_TEST_CASE(ssend_test_set_delay, src, delayed_groups, 61000);
+	ELLIPTICS_TEST_CASE(ssend_test_set_delay, src, delayed_groups, 121000);
 
 	ELLIPTICS_TEST_CASE(ssend_test_server_send, src_noexception, 1, id_prefix, data_prefix,
 	                    delayed_groups, iflags, -ETIMEDOUT);
