@@ -346,6 +346,8 @@ int dnet_backend_init(struct dnet_node *node, size_t backend_id, int *state)
 	dnet_route_list_disable_backend(node->route, backend_id);
 err_out_cache_cleanup:
 	if (backend.cache) {
+		/* Set need_exit to stop cache's threads */
+		backend_io->need_exit = 1;
 		dnet_cache_cleanup(backend.cache);
 		backend.cache = NULL;
 		backend_io->cache = NULL;
