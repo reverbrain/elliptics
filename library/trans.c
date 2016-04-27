@@ -252,10 +252,12 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 		pthread_mutex_lock(&st->trans_lock);
 		list_del_init(&t->trans_list_entry);
-		pthread_mutex_unlock(&st->trans_lock);
 
-		if (t->trans_entry.rb_parent_color)
-			dnet_trans_remove(t);
+		if (t->trans_entry.rb_parent_color) {
+			dnet_trans_remove_nolock(st, t);
+		}
+
+		pthread_mutex_unlock(&st->trans_lock);
 	} else if (!list_empty(&t->trans_list_entry)) {
 		assert(0);
 	}
