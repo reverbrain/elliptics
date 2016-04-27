@@ -221,6 +221,7 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
 
 	t->alloc_size = size;
 	t->n = n;
+	t->wait_ts = n->wait_ts;
 
 	atomic_init(&t->refcnt, 1);
 	INIT_LIST_HEAD(&t->trans_list_entry);
@@ -375,8 +376,6 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	t->priv = ctl->priv;
 	if (s) {
 		t->wait_ts = *dnet_session_get_timeout(s);
-	} else {
-		t->wait_ts = n->wait_ts;
 	}
 
 	cmd = (struct dnet_cmd *)(t + 1);
