@@ -1,3 +1,20 @@
+elliptics (2.26.11.0) unstable; urgency=low
+
+  * trans: always set @wait_ts at allocation time to node's wait timeout
+  * 	it will be overwritten if there is session's timeout
+  * 	this fixes 'wait-ts: 0' strings in logs for transactions allocated without session like ROUTE_LIST
+  * trans: minor clanup, remove transaction from all lists/trees under one lock
+  * test: server_send() timeout test has to check iterator's result, not each key's status
+  * backend: fix hanging backend intialization
+  * session: set session timeout to copy iterator and server_send() control structure
+  * server_send: extend control structures and add write timeout, set it for write sessions
+  * node: fixed auto assignment
+  * recovery: cast options.user_flags_set to int
+  * pytests: added TestRecoveryUserFlags: checks recovery with specified user_flags_set
+  * recovery: added --user_flags option: recover key if at least one replica has user_flags from specified user_flags_set
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 13 May 2016 02:28:28 +0400
+
 elliptics (2.26.10.3) unstable; urgency=low
 
   * io: do not handle lookup by cache if it does not have the key, propagate error to dnet_cmd_process_raw() and call backend callback

@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.10.3
+Version:	2.26.11.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -146,6 +146,20 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri May 13 2016 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.11.0
+- trans: always set @wait_ts at allocation time to node's wait timeout
+- 	it will be overwritten if there is session's timeout
+- 	this fixes 'wait-ts: 0' strings in logs for transactions allocated without session like ROUTE_LIST
+- trans: minor clanup, remove transaction from all lists/trees under one lock
+- test: server_send() timeout test has to check iterator's result, not each key's status
+- backend: fix hanging backend intialization
+- session: set session timeout to copy iterator and server_send() control structure
+- server_send: extend control structures and add write timeout, set it for write sessions
+- node: fixed auto assignment
+- recovery: cast options.user_flags_set to int
+- pytests: added TestRecoveryUserFlags: checks recovery with specified user_flags_set
+- recovery: added --user_flags option: recover key if at least one replica has user_flags from specified user_flags_set
+
 * Thu Mar 24 2016 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.10.3
 - io: do not handle lookup by cache if it does not have the key, propagate error to dnet_cmd_process_raw() and call backend callback
 - Move updating backend's weight to dnet_process_recv
