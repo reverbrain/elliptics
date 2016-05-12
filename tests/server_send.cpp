@@ -249,8 +249,6 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 	int copied = 0;
 	auto iter = s.server_send(keys, iflags, dst_groups);
 	for (auto it = iter.begin(), iter_end = iter.end(); it != iter_end; ++it) {
-		BOOST_REQUIRE_EQUAL(it->command()->status, 0);
-		BOOST_REQUIRE_EQUAL(it->reply()->status, status);
 #if 0
 		// we have to explicitly convert all members from dnet_iterator_response
 		// since it is packed and there will be alignment issues and
@@ -267,6 +265,8 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 			(int)it->reply()->status, (unsigned long long)it->reply()->size,
 			(unsigned long long)it->reply()->iterated_keys, (unsigned long long)it->reply()->total_keys);
 #endif
+		BOOST_REQUIRE_EQUAL(it->command()->status, 0);
+		BOOST_REQUIRE_EQUAL(it->reply()->status, status);
 
 		copied++;
 	}
@@ -274,7 +274,15 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 	BH_LOG(log, DNET_LOG_NOTICE, "%s: keys: %d, dst_groups: %s, copied total: %d",
 			__func__, num, print_groups(dst_groups), copied);
 
-	BOOST_REQUIRE_EQUAL(copied, num);
+	// timeout check is different, session timeout (i.e. transaction timeout) is the same as timeout for every write
+	// command send by the iterator or server_send method, which means that if write expires (slow backend), session
+	// will expire too, so we have to check async_result.error() instead of how many keys have been completed with
+	// timeout error
+	if (status != -ETIMEDOUT) {
+		BOOST_REQUIRE_EQUAL(copied, num);
+	} else {
+		BOOST_REQUIRE_EQUAL(iter.error().code(), status);
+	}
 }
 
 #if (!DISABLE_LONG_TEST)
@@ -424,6 +432,8 @@ static bool ssend_register_tests(test_suite *suite, node &n)
 
 	std::vector<int> delayed_groups{ssend_dst_groups[0]};
 	ELLIPTICS_TEST_CASE(ssend_test_set_delay, src, delayed_groups, 61000);
+
+	src_noexception.set_timeout(30);
 
 	ELLIPTICS_TEST_CASE(ssend_test_server_send, src_noexception, 1, id_prefix, data_prefix,
 	                    delayed_groups, iflags, -ETIMEDOUT);

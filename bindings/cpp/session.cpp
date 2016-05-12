@@ -2310,6 +2310,7 @@ async_iterator_result session::start_copy_iterator(const key &id,
 	req->time_end = time_end;
 	req->range_num = ranges.size();
 	req->group_num = dst_groups.size();
+	req->timeout = get_timeout();
 
 	if (ranges_size)
 		memcpy(data.skip<dnet_iterator_request>().data(), &ranges.front(), ranges_size);
@@ -2453,6 +2454,7 @@ async_iterator_result session::server_send(const std::vector<key> &keys, uint64_
 			req->id_num = ids.size();
 			req->group_num = groups.size();
 			req->iflags = iflags;
+			req->timeout = get_timeout();
 
 			dnet_convert_server_send_request(req);
 

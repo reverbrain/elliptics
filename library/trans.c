@@ -221,6 +221,7 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
 
 	t->alloc_size = size;
 	t->n = n;
+	t->wait_ts = n->wait_ts;
 
 	atomic_init(&t->refcnt, 1);
 	INIT_LIST_HEAD(&t->trans_list_entry);
@@ -252,10 +253,12 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 		pthread_mutex_lock(&st->trans_lock);
 		list_del_init(&t->trans_list_entry);
-		pthread_mutex_unlock(&st->trans_lock);
 
-		if (t->trans_entry.rb_parent_color)
-			dnet_trans_remove(t);
+		if (t->trans_entry.rb_parent_color) {
+			dnet_trans_remove_nolock(st, t);
+		}
+
+		pthread_mutex_unlock(&st->trans_lock);
 	} else if (!list_empty(&t->trans_list_entry)) {
 		assert(0);
 	}
@@ -373,8 +376,6 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	t->priv = ctl->priv;
 	if (s) {
 		t->wait_ts = *dnet_session_get_timeout(s);
-	} else {
-		t->wait_ts = n->wait_ts;
 	}
 
 	cmd = (struct dnet_cmd *)(t + 1);

@@ -265,7 +265,7 @@ static void dnet_update_trans_timestamp_network(struct dnet_io_req *r)
 		pthread_mutex_lock(&st->trans_lock);
 		t = dnet_trans_search(st, cmd->trans);
 		if (t) {
-			dnet_trans_update_timestamp(st, t);
+			dnet_trans_update_timestamp(t);
 
 			/*
 			 * Always remove transaction from 'timer' tree,

@@ -569,8 +569,7 @@ err_out_send:
 	return err;
 }
 
-struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd *cmd, uint64_t iflags,
-						    int *groups, int group_num, int backend_id)
+struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd *cmd, int *groups, int group_num)
 {
 	int err;
 	struct dnet_net_state *st = state;
@@ -589,8 +588,6 @@ struct dnet_server_send_ctl *dnet_server_send_alloc(void *state, struct dnet_cmd
 	ctl->state = state;
 	ctl->cmd = *cmd;
 	ctl->bytes_pending_max = DNET_SERVER_SEND_WATERMARK_HIGH;
-	ctl->iflags = iflags;
-	ctl->backend_id = backend_id;
 	ctl->groups = (int *)(ctl + 1);
 	memcpy(ctl->groups, groups, sizeof(int) * group_num);
 	ctl->group_num = group_num;
@@ -760,6 +757,9 @@ int dnet_server_send_write(struct dnet_server_send_ctl *send,
 
 	dnet_session_set_trace_id(s, send->cmd.trace_id);
 	dnet_session_set_trace_bit(s, !!(send->cmd.flags & DNET_FLAGS_TRACE_BIT));
+	if (send->timeout)
+		dnet_session_set_timeout(s, send->timeout);
+
 	if (dnet_session_get_timeout(s)->tv_sec < 60)
 		dnet_session_set_timeout(s, 60);
 
@@ -1162,13 +1162,17 @@ static int dnet_iterator_start(struct dnet_backend_io *backend, struct dnet_net_
 		 * dnet_cmd, thus it will store command structure without NEED_ACK bit.
 		 */
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-		sspriv = dnet_server_send_alloc(st, cmd, ireq->flags, dst_groups, ireq->group_num, backend->backend_id);
+		sspriv = dnet_server_send_alloc(st, cmd, dst_groups, ireq->group_num);
 		cmd->flags |= DNET_FLAGS_NEED_ACK;
 
 		if (!sspriv) {
 			err = -ENOMEM;
 			goto err_out_exit;
 		}
+
+		sspriv->timeout = ireq->timeout;
+		sspriv->iflags = ireq->flags;
+		sspriv->backend_id = backend->backend_id;
 
 		cpriv.next_callback = dnet_iterator_callback_server_send;
 		cpriv.next_private = sspriv;
