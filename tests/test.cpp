@@ -1437,6 +1437,36 @@ static void test_requests_to_own_server(session &sess)
 }
 #endif
 
+/* Check that lookup doesn't validate records if checksum isn't requested and does if not:
+ * * write and corrupt one record
+ * * make lookup without requesting checksum and check that it is succeeded
+ * * make lookup with requesting checksum and check that it is failed with -EILSEQ (corruption detected)
+ */
+static void test_lookup_corrupted(session &sess, const std::string &id, const std::string &data)
+{
+	{
+		ELLIPTICS_REQUIRE(write_result, sess.write_data(id, data, 0));
+
+		/* Corrupt written record */
+		const int fd = open(write_result.get_one().file_path(), O_RDWR, 0644);
+		BOOST_REQUIRE_GT(fd, 0);
+		const std::string corruption = "vkn3i49hfbvs";
+		const off_t offset = write_result.get_one().file_info()->offset + 5;
+		BOOST_REQUIRE_EQUAL(pwrite(fd, corruption.c_str(), corruption.size(), offset),
+		                    corruption.size());
+		close(fd);
+	}
+	{
+		/* Lookup without requesting checksum */
+		ELLIPTICS_REQUIRE(lookup_result, sess.lookup(id));
+	}
+	{
+		/* Lookup with requesting checksum */
+		sess.set_cflags(DNET_FLAGS_CHECKSUM);
+		ELLIPTICS_REQUIRE_ERROR(lookup_result, sess.lookup(id), -EILSEQ);
+	}
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
@@ -1500,6 +1530,7 @@ bool register_tests(test_suite *suite, node n)
 #ifndef NO_SERVER
 	ELLIPTICS_TEST_CASE(test_requests_to_own_server, create_session(node::from_raw(global_data->nodes.front().get_native()), { 1, 2, 3 }, 0, 0));
 #endif
+	ELLIPTICS_TEST_CASE(test_lookup_corrupted, create_session(n, {1}, 0, 0), "lookup corrupted test key", "lookup corrupted test data");
 
 	return true;
 }
