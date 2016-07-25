@@ -33,8 +33,53 @@ error get_async_result_error(const python_async_result<T> &async) {
 }
 
 template <typename T>
-struct def_async_result<T>
-{
+typename python_async_result<T>::iterator &python_async_result<T>::iterator::operator=(const iterator &other) {
+	py_allow_threads_scoped pythr;
+	m_inner = other.m_inner;
+	return *this;
+}
+
+template <typename T>
+bool python_async_result<T>::iterator::operator==(const iterator &other) const {
+	py_allow_threads_scoped pythr;
+	return m_inner == other.m_inner;
+}
+
+template <typename T>
+bool python_async_result<T>::iterator::operator!=(const iterator &other) const {
+	py_allow_threads_scoped pythr;
+	return m_inner != other.m_inner;
+}
+
+template <typename T>
+T python_async_result<T>::iterator::operator*() const {
+	py_allow_threads_scoped pythr;
+	return *m_inner;
+}
+
+template <typename T>
+T *python_async_result<T>::iterator::operator->() const {
+	py_allow_threads_scoped pythr;
+	return m_inner.operator->();
+}
+
+template <typename T>
+typename python_async_result<T>::iterator &python_async_result<T>::iterator::operator++() {
+	py_allow_threads_scoped pythr;
+	++m_inner;
+	return *this;
+}
+
+template <typename T>
+typename python_async_result<T>::iterator python_async_result<T>::iterator::operator++(int) {
+	py_allow_threads_scoped pythr;
+	iterator tmp(m_inner);
+	++m_inner;
+	return tmp;
+}
+
+template <typename T>
+struct def_async_result<T> {
 	static void init() {
 		bp::class_<python_async_result<T>>(
 		        "AsyncResult", "Future for waiting/getting results from asynchronous execution of operation")
