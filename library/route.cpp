@@ -129,7 +129,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 				i, id_container->backends_count,
 				j, backend->ids_count, cnt->addr_num, idx,
 				backend->backend_id, backend->group_id,
-				dnet_dump_id_str(backend->ids[i].id));
+				dnet_dump_id_str(backend->ids[j].id));
 		}
 	}
 
