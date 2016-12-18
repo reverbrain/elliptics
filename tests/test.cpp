@@ -17,6 +17,8 @@
 #include "test_base.hpp"
 #include <algorithm>
 
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
 #define BOOST_TEST_NO_MAIN
 #include <boost/test/included/unit_test.hpp>
 
@@ -1568,7 +1570,7 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 		return NULL;
 	}
 
-	test_suite *suite = new test_suite("Local Test Suite");
+	test_suite *suite = new ELLIPTICS_MAKE_TEST_SUITE("Local Test Suite");
 
 	configure_nodes(remotes, path);
 

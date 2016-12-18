@@ -89,8 +89,16 @@ std::function<void ()> make(const char *, Method method, Args... args)
 	return std::bind(method, std::forward<Args>(args)...);
 }
 
+#if BOOST_VERSION > 105800
+#define ELLIPTICS_MAKE_TEST(...) \
+	boost::unit_test::make_test_case(tests::make(BOOST_STRINGIZE((__VA_ARGS__)), __VA_ARGS__), \
+			BOOST_TEST_STRINGIZE((__VA_ARGS__)), __FILE__, __LINE__)
+#define ELLIPTICS_MAKE_TEST_SUITE(name) boost::unit_test::test_suite((name), __FILE__, __LINE__)
+#else
 #define ELLIPTICS_MAKE_TEST(...) \
 	boost::unit_test::make_test_case(tests::make(BOOST_STRINGIZE((__VA_ARGS__)), __VA_ARGS__), BOOST_TEST_STRINGIZE((__VA_ARGS__)))
+#define ELLIPTICS_MAKE_TEST_SUITE(name) boost::unit_test::test_suite((name))
+#endif
 
 #ifdef USE_MASTER_SUITE
 #  define ELLIPTICS_TEST_CASE(M, C...) do { framework::master_test_suite().add(ELLIPTICS_MAKE_TEST(M, ##C )); } while (false)

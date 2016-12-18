@@ -9,7 +9,7 @@ import shutil
 
 def run_test(path, test):
     os.mkdir(path)
-    p = subprocess.Popen([test, '--path', path], stdout=sys.stdout,
+    p = subprocess.Popen([test, '--', '--path', path], stdout=sys.stdout,
                          stderr=subprocess.STDOUT, cwd=path)
     p.communicate()
 

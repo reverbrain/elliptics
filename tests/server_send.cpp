@@ -17,6 +17,9 @@
 #include "../library/elliptics.h"
 #include <algorithm>
 
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
+
 #define BOOST_TEST_NO_MAIN
 #include <boost/test/included/unit_test.hpp>
 
@@ -469,7 +472,7 @@ static boost::unit_test::test_suite *ssend_setup_tests(int argc, char *argv[])
 		return NULL;
 	}
 
-	test_suite *suite = new test_suite("Local Test Suite");
+	test_suite *suite = new ELLIPTICS_MAKE_TEST_SUITE("Local Test Suite");
 
 	ssend_configure(path);
 	ssend_register_tests(suite, *ssend_servers->node);

@@ -17,13 +17,16 @@
 #include "test_base.hpp"
 #include <algorithm>
 
+#include <boost/program_options.hpp>
+
+#include <boost/bind/bind.hpp>
+using namespace boost::placeholders;
+
+using namespace boost::unit_test;
 #define BOOST_TEST_NO_MAIN
 #include <boost/test/included/unit_test.hpp>
 
-#include <boost/program_options.hpp>
-
 using namespace ioremap::elliptics;
-using namespace boost::unit_test;
 
 namespace tests {
 
@@ -224,7 +227,7 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 		return NULL;
 	}
 
-	test_suite *suite = new test_suite("Local Test Suite");
+	test_suite *suite = new ELLIPTICS_MAKE_TEST_SUITE("Local Test Suite");
 
 	configure_nodes(remotes, path);
 
