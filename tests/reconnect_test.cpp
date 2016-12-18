@@ -17,9 +17,6 @@
 #include "test_session.hpp"
 #include "../library/elliptics.h"
 
-#include <boost/bind/bind.hpp>
-using namespace boost::placeholders;
-
 #define BOOST_TEST_NO_MAIN
 #include <boost/test/included/unit_test.hpp>
 

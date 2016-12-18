@@ -8,6 +8,13 @@
 # include <boost/bind/placeholders.hpp>
 #endif
 
+#if BOOST_VERSION > 105800
+#include <boost/bind/bind.hpp>
+#include <boost/bind/placeholders.hpp>
+using namespace boost::placeholders;
+#endif
+
+
 namespace tests {
 
 using namespace ioremap::elliptics;

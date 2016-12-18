@@ -17,14 +17,10 @@
 #include "test_base.hpp"
 #include <algorithm>
 
-#include <boost/program_options.hpp>
-
-#include <boost/bind/bind.hpp>
-using namespace boost::placeholders;
-
-using namespace boost::unit_test;
 #define BOOST_TEST_NO_MAIN
 #include <boost/test/included/unit_test.hpp>
+
+#include <boost/program_options.hpp>
 
 using namespace ioremap::elliptics;
 
