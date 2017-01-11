@@ -18,8 +18,13 @@ BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
 BuildRequires:	eblob-devel >= 0.23.11
 BuildRequires:  libblackhole-devel = 0.2.4
 BuildRequires:	libev-devel libtool-ltdl-devel
-BuildRequires:	cmake msgpack-devel python-msgpack
+BuildRequires:	cmake python-msgpack
 BuildRequires:	handystats >= 1.10.2
+%if 0%{?fedora} >= 24
+BuildRequires: compat-msgpack-devel
+%else
+BuildRequires: msgpack-devel
+%endif
 
 %define boost_ver %{nil}
 

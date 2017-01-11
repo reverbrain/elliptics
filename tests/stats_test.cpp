@@ -474,7 +474,7 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 
 	configure_nodes(path);
 
-	test_suite *suite = new test_suite("event statistics test suite");
+	test_suite *suite = new ELLIPTICS_MAKE_TEST_SUITE("event statistics test suite");
 	register_tests(suite);
 
 	return suite;

@@ -124,7 +124,7 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 		return nullptr;
 	}
 
-	test_suite *suite = new test_suite("crypto library test suite");
+	test_suite *suite = new ELLIPTICS_MAKE_TEST_SUITE("crypto library test suite");
 	register_tests(suite);
 
 	return suite;
