@@ -1,12 +1,12 @@
-./" 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
-./" All rights reserved.
+.\" 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
+.\" All rights reserved.
 
 .TH MAN 1 2013-07-10 "Linux" "Elliptics admin's guide"
 .SH NAME
 dnet_find \- find a key in a storage.
 .SH SYNOPSIS
-.B dnet_find \-r 
-.I host:port:family 
+.B dnet_find \-r
+.I host:port:family
 \-I
 .I id
 .B [-mlh]
@@ -14,27 +14,27 @@ dnet_find \- find a key in a storage.
 .P
 Run this command to find a key in a storage.
 .P
-Storage structure can be changed: storage can grow or shrink, or just it can be moved to another physical platform with the different parameters then it was. In this case some files in the storage can wait for recovery in unappropriate place creating reading/writing problems by this way. 
+Storage structure can be changed: storage can grow or shrink, or just it can be moved to another physical platform with the different parameters then it was. In this case some files in the storage can wait for recovery in unappropriate place creating reading/writing problems by this way.
 .P
-.I dnet_find 
-helps to detect keys that located at illegal (from the standpoint of the routing table) place. When such a problem detected, the 
-.I dnet_recovery 
-should be called. Read the 
-.B dnet_recovery (1) 
+.I dnet_find
+helps to detect keys that located at illegal (from the standpoint of the routing table) place. When such a problem detected, the
+.I dnet_recovery
+should be called. Read the
+.B dnet_recovery (1)
 document for more information.
 .P
-.I dnet_find 
+.I dnet_find
 connects to the specified node and gets the whole routing table there. Then it connects to each node from the table with the search request in special DIRECT mode (read the DNET_FLAGS_DIRECT description in the /usr/include/elliptics/packet.h). When node receives this request it searches through all it's keys even if the key should not be served by this node by the routing table.
 .SH OPTIONS
 .TP
 .B \-r host:port:family
-Address of a storage node, where 
-.I family 
-is either 2 (AF_INET) or 10 (AF_INET6). Example, 
+Address of a storage node, where
+.I family
+is either 2 (AF_INET) or 10 (AF_INET6). Example,
 .I example.host:1025:2.
 .TP
 .B \-I id
-Hashed key. You can get the hash from the key string by the command 
+Hashed key. You can get the hash from the key string by the command
 .B echo -n \*(lqkey-string\*(rq | sha512sum | awk '{print $1}'.
 .TP
 .B \-m level
@@ -42,7 +42,7 @@ Log level. You should pass numbers from 0 to 4. 4 is the highest level.
 .TP
 .B \-l log
 Log file,
-.I stdout 
+.I stdout
 by default.
 .TP
 .B \-h
@@ -52,18 +52,18 @@ Show help message and exit.
 Let's find a key "file_name":
 .P
 dnet_find -r localhost:1025:2 -I `echo -n "file_name" | sha512sum | awk '{print $1}'`
-.P 
+.P
 result:
 .P
 2013-09-24 13:14:47.728838 3084/3084 : 2:034c3671e643: FIND-OK object: 127.0.0.1:1025: should live at: 127.0.0.1:1025, offset: 3413, size: 752, mtime: 2013-06-14 14:30:43 MSK, path: /var/tmp/blob/data-0.13
 .P
 This answer shows us that specified key was found at
-.B FIND-OK object: 127.0.0.1:1025, 
+.B FIND-OK object: 127.0.0.1:1025,
 and it
-.B should live at: 127.0.0.1:1025. 
-Comparison of this messages tell us that the location of this file is correct. 
+.B should live at: 127.0.0.1:1025.
+Comparison of this messages tell us that the location of this file is correct.
 .P
-Also we have additional information about the record: 
+Also we have additional information about the record:
 .B offset: 3413, size: 752, mtime: 2013-06-14 14:30:43 MSK, path: /var/tmp/blob/data-0.13.
 .SH AUTHOR
 Evgeniy Polyakov (zbr@ioremap.net)

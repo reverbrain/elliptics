@@ -1,25 +1,25 @@
-./" 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
-./" All rights reserved.
+.\" 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
+.\" All rights reserved.
 
 .TH MAN 1 2013-07-10 "Linux" "Elliptics admin's guide"
 .SH NAME
 dnet_recovery \- recovery utility for elliptics
 .SH SYNOPSIS
-.B dnet_recovery [-hbdDgklLnNrsStem] 
+.B dnet_recovery [-hbdDgklLnNrsStem]
 .I type
 .SH DESCRIPTION
 Recovery mechanism for elliptics that utilizes iterators and metadata.
 It supports two recovery methods (
 .I type
 )
-: 
-.B merge 
-and 
+:
+.B merge
+and
 .B dc.
-Method 
-.B merge 
-is used for recovery within hash ring (aka group), 
-.B dc 
+Method
+.B merge
+is used for recovery within hash ring (aka group),
+.B dc
 is used for recovery across different hash rings thus maintaining replica counts.  More information about recovery process can be found at:
 
 http://doc.reverbrain.com/elliptics:replication.
@@ -46,7 +46,7 @@ Lock file used for recovery [default: dnet_recovery.lock].
 .B \-l file, \-\-log=file
 Output log messages from library to file [default: dnet_recovery.log].
 .TP
-.B \-L elliptics_log_level, \-\-log-level=elliptics_log_level 
+.B \-L elliptics_log_level, \-\-log-level=elliptics_log_level
 Elliptics client verbosity [default: 1]. You can pass numbers from 0 to 4. 4 is the highest level of verbosity.
 .TP
 .B \-n nprocess, \-\-nprocess=nprocess
@@ -56,9 +56,9 @@ Number of subprocesses [default: 1].
 Enable test mode: only count diffs without recovering [default: False].
 .TP
 .B \-r host:port:family, \-\-remote=host:port:family
-Address of a storage node, where 
-.I family 
-is either 2 (AF_INET) or 10 (AF_INET6). Example, 
+Address of a storage node, where
+.I family
+is either 2 (AF_INET) or 10 (AF_INET6). Example,
 .I example.host:1025:2.
 .TP
 .B \-s STAT, \-\-stat=STAT
