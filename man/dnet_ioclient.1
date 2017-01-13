@@ -1,37 +1,37 @@
-./" 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
-./" All rights reserved.
+.\" 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
+.\" All rights reserved.
 
 .TH MAN 1 2013-07-10 "Linux" "Elliptics admin's guide"
 .SH NAME
 dnet_ioclient \- client to elliptics.
 .SH SYNOPSIS
-.B dnet_ioclient \-r 
-.I host:port:family 
+.B dnet_ioclient \-r
+.I host:port:family
 .B [-WszaURIgcLlwmMFOSuNDCdiH]
 .P
 .SH DESCRIPTION
-.I dnet_ioclient 
+.I dnet_ioclient
 is a multitool, that can perform a plenty of operations on the storage, it can read and write data into the storage, execute server-side scripts, change configuration parameters of the node on the fly and get some statistics.
 .SH OPTIONS
 .TP
 .B \-r host:port:family
-Address of a storage node, where 
-.I family 
-is either 2 (AF_INET) or 10 (AF_INET6). Example, 
+Address of a storage node, where
+.I family
+is either 2 (AF_INET) or 10 (AF_INET6). Example,
 .I host:1025:2.
 .TP
 .B \-W file
 Write given file to the network storage. Example,
 
     dnet_ioclient -r host:1025:2 -g 1:2:3 -W "file"
-    
-You can use 
-.B \-I 
-option to set a hashed key instead of a 
+
+You can use
+.B \-I
+option to set a hashed key instead of a
 .B file.
 When
-.B \-I 
-option used 
+.B \-I
+option used
 .B file
 is applied as an input filename, not as a key string.
 .TP
@@ -45,7 +45,7 @@ Request VFS IO statistics from node.
 Request statistics from all connected nodes.
 .TP
 .B \-U status
-Change internal status of node. '1' - exit mode, '2' - read-only state. 
+Change internal status of node. '1' - exit mode, '2' - read-only state.
 
 If you call
 
@@ -54,13 +54,13 @@ If you call
 elliptics node will try to stop itself.
 .TP
 .B \-R file
-Read the specified file from the storage. If 
-.B \-I 
-is not used, then 
-.B file 
+Read the specified file from the storage. If
+.B \-I
+is not used, then
+.B file
 will be used as a key string and as a result file name.
-If 
-.B \-I 
+If
+.B \-I
 is used then
 .B file
 applied only for output.
@@ -68,33 +68,33 @@ applied only for output.
 For example,
 
     dnet_ioclient -r host:1025:2 -g 1:2:3 -R file_name
-    
-In this case 
-.B file_name 
+
+In this case
+.B file_name
 will be used both as a key string and as an output filename.
 
     dnet_ioclient -r host:1025:2 -g 1:2:3 -R file_name -I "6b8.."
-    
-In this case 
+
+In this case
 .B file_name
-will be used only for output file. Value of 
+will be used only for output file. Value of
 .B \-I
 option will be used as a hashed key.
 
 .TP
 .B \-I id
-Hashed key. This option can be used with all of the options that need a key (like 
-.B \-R 
-or 
+Hashed key. This option can be used with all of the options that need a key (like
+.B \-R
+or
 .B \-W
 options) to identificate required data in the storage.
 
 Hash value can be obtained from arbitrary string with the next call:
 
-    echo -n "key-string" | sha512sum | awk '{print $1}' 
+    echo -n "key-string" | sha512sum | awk '{print $1}'
 .TP
 .B \-g groups
-Group IDs to connect. If you need to perform operation for some groups (read/write operations, for example), you should provide colon-separated list of groups. For example, 
+Group IDs to connect. If you need to perform operation for some groups (read/write operations, for example), you should provide colon-separated list of groups. For example,
 .B 1:2:3.
 .TP
 .B \-c cmd-event
@@ -102,25 +102,25 @@ Execute command with the specified event on the remote node. For example,
 
     dnet_ioclient -r host:1025:2 -g 2 -c 'app@start-task'
 
-.I dnet_ioclient 
+.I dnet_ioclient
 with this option is performed in blocking mode. This means that, if server-side program does not response, our client will wait it for a long time before exit.
 .TP
 .B \-L file
 Get file location in the storage. Example,
 
     dnet_ioclient -r host:1025:2 -g 2 -L 'file_name'
-    
+
 .TP
 .B \-l log
 Log file,
-.B stdout 
+.B stdout
 by default.
 .TP
 .B \-w timeout
 Timeout (in seconds) is used to wait for operation completion. Read operations from multiply groups are made one by one, and this timeout is used for each operation. For example in case of
-.B dnet_ioclient -r host:1025:2 -g 1:2:3 -R file_name 
+.B dnet_ioclient -r host:1025:2 -g 1:2:3 -R file_name
 call real timeout will be
-.B timeout 
+.B timeout
 multiplied by 3.
 
 That is not right for the write operations which are performed simultaneously.
@@ -142,9 +142,9 @@ Read/write transaction size.
 .TP
 .B \-u file
 Tell the node to delete the
-.B file 
+.B file
 from the storage.
-Can be used whith the 
+Can be used whith the
 .B \-I
 option.
 .TP
@@ -154,19 +154,19 @@ Use this namespace for operations. Namespace is a prefix that added to the filen
 Assume that you have 2 different projects with the same filenames, and you need to save them in the storage. Just set the prefixes of projects (p1. and p2. for example) to this field for read/write/delete/ operations to have a different keys for the same filenames (p1.cfg.xml, p2.cfg.xml for example).
 .TP
 .B \-D file_name
-Read latest data for the given 
-.B file_name. 
-When used with the 
-.B \-I 
+Read latest data for the given
+.B file_name.
+When used with the
+.B \-I
 option
-.B file_name 
+.B file_name
 is ignored.
 
 "Latest" means that if we read data from more then one groups, client will fetch data with the latest modification time.
 
-With this option 
+With this option
 .I dnet_ioclient
-puts received data into 
+puts received data into
 .I stdout.
 
 Example,
@@ -182,19 +182,19 @@ Defragmentation and sorting request: 'start' - start defragmentation, 'status' -
 .B \-i flags
 IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h).
 .TP
-.B \-H 
+.B \-H
 Do not hash key string, use it as is.
 
-Elliptics key is of 64 bytes long. If your strings which you want to use as a keys less or equal this size you can pass it to elliptics as is with this option. As 
-.B \-I 
-option you can use it with the 
-.B \-W, \-D, \-R, \-u 
+Elliptics key is of 64 bytes long. If your strings which you want to use as a keys less or equal this size you can pass it to elliptics as is with this option. As
+.B \-I
+option you can use it with the
+.B \-W, \-D, \-R, \-u
 options.
 .TP
 .B \-h
 Show help message and exit.
 .SH EXAMPLES
-.P 
+.P
 Read/write file to the storage
 .P
 .B dnet_ioclient -r host:1025:2 -g 2 -W file_to_put
