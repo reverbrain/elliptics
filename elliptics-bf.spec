@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.11.0
+Version:	2.26.11.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jan 13 2017 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.11.1
+- man: converted to unix format, fixed comment macroses
+- python: use common python path
+- test: only include placeholders for newer boost
+- Updated elliptics to compile with gcc6 on fedora25 (updated boost and msgpack)
+- json: fixed isnan() invocation in c++ code
+- Add test for lookuping corrupted key
+- Validate record on lookup if its checksum is requested
+
 * Fri May 13 2016 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.11.0
 - trans: always set @wait_ts at allocation time to node's wait timeout
 - 	it will be overwritten if there is session's timeout
