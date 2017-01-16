@@ -100,17 +100,27 @@ static void test_failed_connection_restore(session &sess)
 
 	test_sess.toggle_all_command_send(false);
 
-	for (int i = 0; i < stall_count; ++i)
+	// using stall_count + 1 here to guarantee that state will actually
+	// be reset before this loop ends
+	for (int i = 0; i < stall_count + 1; ++i)
 	{
-		ELLIPTICS_REQUIRE_ERROR(async_lookup_result, sess.lookup(id), -ETIMEDOUT);
-	}
+		auto async = sess.lookup(id);
+		async.wait();
 
-	ELLIPTICS_REQUIRE_ERROR(async_status_result, sess.request_backends_status(node.remote()), -ETIMEDOUT);
+		// state reset could happen a bit earlier (as a result of route list update processing in dnet_check)
+		// if so we should just stop the loop
+		if (async.error().code() == -ENXIO) {
+			break;
+		}
+
+		BOOST_REQUIRE(async.error().code() == -ETIMEDOUT);
+	}
 
 	BOOST_REQUIRE_EQUAL(sess.state_num(), 0);
 
 	test_sess.toggle_all_command_send(true);
 
+	// wait until background thread will restore connection with server node
 	::sleep(check_timeout + 1);
 
 	ELLIPTICS_REQUIRE_ERROR(async_lookup_result2, sess.lookup(id), -ENOENT);
