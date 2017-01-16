@@ -14,6 +14,7 @@
 using namespace boost::placeholders;
 #endif
 
+#include <boost/test/results_reporter.hpp>
 
 namespace tests {
 
