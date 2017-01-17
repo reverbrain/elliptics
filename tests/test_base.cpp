@@ -1,5 +1,10 @@
 #define TEST_DO_NOT_INCLUDE_PLACEHOLDERS
 
+#ifdef HAVE_COCAINE
+#  include <cocaine/framework/services/storage.hpp>
+#endif
+
+
 #include "test_base.hpp"
 #include "../example/common.h"
 
@@ -17,10 +22,6 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
-
-#ifdef HAVE_COCAINE
-#  include <cocaine/framework/services/storage.hpp>
-#endif
 
 namespace tests {
 

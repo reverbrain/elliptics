@@ -19,10 +19,10 @@
 
 #define BOOST_TEST_NO_MAIN
 #include <boost/test/included/unit_test.hpp>
-
 #include <boost/program_options.hpp>
 
 using namespace ioremap::elliptics;
+using namespace boost::unit_test;
 
 namespace tests {
 
