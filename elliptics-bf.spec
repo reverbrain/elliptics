@@ -20,15 +20,9 @@ BuildRequires:  libblackhole-devel = 0.2.4
 BuildRequires:	libev-devel libtool-ltdl-devel
 BuildRequires:	cmake python-msgpack
 BuildRequires:	handystats >= 1.10.2
-%if 0%{?fedora} >= 24
-BuildRequires: compat-msgpack-devel
-%else
-BuildRequires: msgpack-devel
-%endif
+BuildRequires:  compat-msgpack-devel
 
-%define boost_ver %{nil}
-
-BuildRequires:	boost%{boost_ver}-devel
+BuildRequires:	boost-devel
 BuildRequires:	python-virtualenv
 
 Obsoletes: srw
