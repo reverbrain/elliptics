@@ -242,7 +242,7 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	dnet_convert_monitor_stat_request(req);
 	static const std::string disabled_reply = ioremap::monitor::compress("{\"monitor_status\":\"disabled\"}");
 
-	dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, categories: %lx, monitor: %p",
+	dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, categories: %" PRIx64 ", monitor: %p",
 		dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), req->categories, n->monitor);
 
 	auto real_monitor = ioremap::monitor::get_monitor(n);

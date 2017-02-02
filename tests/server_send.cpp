@@ -289,7 +289,7 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 static void ssend_test_set_delay(session &s, const std::vector<int> &groups, uint64_t delay) {
 	struct backend {
 		dnet_addr addr;
-		int backend_id;
+		uint32_t backend_id;
 
 		bool operator<(const backend &other) const {
 			if (auto cmp = dnet_addr_cmp(&addr, &other.addr))

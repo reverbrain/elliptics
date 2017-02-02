@@ -215,7 +215,7 @@ inline std::string convert_report(const rapidjson::Document &report)
 std::string statistics::report(uint64_t categories)
 {
 	rapidjson::Document report;
-	dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: collecting statistics for categories: %lx", categories);
+	dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: collecting statistics for categories: %" PRIx64, categories);
 	report.SetObject();
 	auto &allocator = report.GetAllocator();
 
@@ -265,7 +265,7 @@ std::string statistics::report(uint64_t categories)
 	}
 
 	dnet_log(m_monitor.node(), DNET_LOG_DEBUG,
-			"monitor: finished generating json statistics for categories: %lx", categories);
+			"monitor: finished generating json statistics for categories: %" PRIx64, categories);
 	return convert_report(report);
 }
 

@@ -64,7 +64,7 @@ err_out_exit:
 }
 
 struct proc_stat {
-	long threads_num;
+	int threads_num;
 	long rss;
 	unsigned long vsize;
 	unsigned long rsslim;
@@ -88,7 +88,7 @@ static int fill_proc_stat(dnet_logger *l, struct proc_stat &st) {
 		goto err_out_exit;
 	}
 
-	static const char f_str[] = "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %*u %*d %*d %*d %*d %ld %*d %*u %lu %ld %lu";
+	static const char f_str[] = "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %*u %*d %*d %*d %*d %d %*d %*u %lu %ld %lu";
 
 	err = fscanf(f, f_str, &st.threads_num, &st.vsize, &st.rss, &st.rsslim);
 	fclose(f);
@@ -145,7 +145,8 @@ static int fill_proc_net_stat(dnet_logger *l, std::map<std::string, net_interfac
 	}
 
 	while (1) {
-		err = fscanf(f, "%255s %lu %lu %lu %*u %*u %*u %*u %*u %lu %lu %lu %*u %*u %*u %*u %*u", buf,
+		err = fscanf(f, "%255s %" PRIu64 " %" PRIu64 " %" PRIu64 " ""%*u %*u %*u %*u %*u "
+				"%" PRIu64 " %" PRIu64 " %" PRIu64 " %*u %*u %*u %*u %*u", buf,
 			     &net_stat.rx.bytes, &net_stat.rx.packets, &net_stat.rx.errors,
 			     &net_stat.tx.bytes, &net_stat.tx.packets, &net_stat.tx.errors);
 		if (err < 0) {
@@ -241,14 +242,14 @@ static void fill_stat(dnet_node *node,
 	if (!err) {
 		stat_stat.AddMember("string_error", "", allocator);
 		stat_stat.AddMember("threads_num", st.threads_num, allocator);
-		stat_stat.AddMember("rss", st.rss, allocator);
-		stat_stat.AddMember("vsize", st.vsize, allocator);
-		stat_stat.AddMember("rsslim", st.rsslim, allocator);
-		stat_stat.AddMember("msize", st.msize, allocator);
-		stat_stat.AddMember("mresident", st.mresident, allocator);
-		stat_stat.AddMember("mshare", st.mshare, allocator);
-		stat_stat.AddMember("mcode", st.mcode, allocator);
-		stat_stat.AddMember("mdata", st.mdata, allocator);
+		stat_stat.AddMember("rss", (int64_t)st.rss, allocator);
+		stat_stat.AddMember("vsize", (uint64_t)st.vsize, allocator);
+		stat_stat.AddMember("rsslim", (uint64_t)st.rsslim, allocator);
+		stat_stat.AddMember("msize", (uint64_t)st.msize, allocator);
+		stat_stat.AddMember("mresident", (uint64_t)st.mresident, allocator);
+		stat_stat.AddMember("mshare", (uint64_t)st.mshare, allocator);
+		stat_stat.AddMember("mcode", (uint64_t)st.mcode, allocator);
+		stat_stat.AddMember("mdata", (uint64_t)st.mdata, allocator);
 	} else
 		stat_stat.AddMember("string_error", strerror(-err), allocator);
 
