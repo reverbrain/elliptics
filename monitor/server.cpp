@@ -128,8 +128,8 @@ void handler::handle_read(const boost::system::error_code &err, size_t size) {
 
 	if (req > 0) {
 		dnet_log(m_monitor.node(), DNET_LOG_DEBUG,
-				"monitor: server: got statistics request for categories: %" PRIx64 " from: %s:%d",
-				req, m_remote.c_str(), m_socket.remote_endpoint().port());
+				"monitor: server: got statistics request for categories: %llx from: %s:%d",
+				(unsigned long long)req, m_remote.c_str(), m_socket.remote_endpoint().port());
 		content = m_monitor.get_statistics().report(req);
 	}
 

@@ -75,9 +75,12 @@ monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 	if (cfg->handystats_config != nullptr) {
 		//TODO: add parse/configuration errors logging when handystats will allow to get them
 		if (HANDY_CONFIG_FILE(cfg->handystats_config)) {
-			BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, config file '%s'", cfg->handystats_config);
+			BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, config file '%s'",
+					cfg->handystats_config);
 		} else {
-			BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: initializing stats subsystem, error parsing config file '%s', using defaults", cfg->handystats_config);
+			BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: initializing stats subsystem, "
+					"error parsing config file '%s', using defaults",
+					cfg->handystats_config);
 		}
 	} else {
 		BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, no config file specified, using defaults");
@@ -242,8 +245,8 @@ int dnet_monitor_process_cmd(struct dnet_net_state *orig, struct dnet_cmd *cmd _
 	dnet_convert_monitor_stat_request(req);
 	static const std::string disabled_reply = ioremap::monitor::compress("{\"monitor_status\":\"disabled\"}");
 
-	dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, categories: %" PRIx64 ", monitor: %p",
-		dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), req->categories, n->monitor);
+	dnet_log(orig->n, DNET_LOG_DEBUG, "monitor: %s: %s: process MONITOR_STAT, categories: %llx, monitor: %p",
+		dnet_state_dump_addr(orig), dnet_dump_id(&cmd->id), (unsigned long long)req->categories, n->monitor);
 
 	auto real_monitor = ioremap::monitor::get_monitor(n);
 	if (!real_monitor)
