@@ -17,6 +17,9 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+
 #include "procfs_provider.hpp"
 
 #include "rapidjson/writer.h"
