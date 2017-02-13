@@ -37,7 +37,7 @@ void dump_states_stats(rapidjson::Value &stat, struct dnet_node *n, rapidjson::D
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(st, &n->empty_state_list, node_entry) {
 		rapidjson::Value state_value(rapidjson::kObjectType);
-		state_value.AddMember("send_queue_size", atomic_read(&st->send_queue_size), allocator)
+		state_value.AddMember("send_queue_size", (uint64_t)atomic_read(&st->send_queue_size), allocator)
 		           .AddMember("la", st->la, allocator)
 		           .AddMember("free", (uint64_t)st->free, allocator)
 		           .AddMember("stall", st->stall, allocator)

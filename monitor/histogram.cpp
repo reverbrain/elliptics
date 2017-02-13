@@ -95,8 +95,8 @@ rapidjson::Value& histogram::print_data(rapidjson::Value &stat_value,
 
 	stat_value.AddMember("time",
 	                     rapidjson::Value(rapidjson::kObjectType)
-	                         .AddMember("tv_sec", data.timestamp.tv_sec, allocator)
-	                         .AddMember("tv_usec", data.timestamp.tv_usec, allocator),
+	                         .AddMember("tv_sec", (uint64_t)data.timestamp.tv_sec, allocator)
+	                         .AddMember("tv_usec", (uint64_t)data.timestamp.tv_usec, allocator),
 	                     allocator);
 
 	return stat_value;

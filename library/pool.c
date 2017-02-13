@@ -366,7 +366,7 @@ void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 
 	pthread_mutex_unlock(&place->lock);
 
-	FORMATTED(HANDY_TIMER_START, ("pool.%s.queue.wait_time", thread_stat_id), (uint64_t)&r->req_entry);
+	FORMATTED(HANDY_TIMER_START, ("pool.%s.queue.wait_time", thread_stat_id), (unsigned long)&r->req_entry);
 	FORMATTED(HANDY_COUNTER_INCREMENT, ("pool.%s.queue.size", thread_stat_id), 1);
 	HANDY_COUNTER_INCREMENT("io.input.queue.size", 1);
 }
@@ -1041,7 +1041,7 @@ void *dnet_io_process(void *data_)
 		HANDY_COUNTER_DECREMENT("io.input.queue.size", 1);
 
 		FORMATTED(HANDY_COUNTER_DECREMENT, ("pool.%s.queue.size", thread_stat_id), 1);
-		FORMATTED(HANDY_TIMER_STOP, ("pool.%s.queue.wait_time", thread_stat_id), (uint64_t)r);
+		FORMATTED(HANDY_TIMER_STOP, ("pool.%s.queue.wait_time", thread_stat_id), (unsigned long)r);
 
 		FORMATTED(HANDY_COUNTER_INCREMENT, ("pool.%s.active_threads", thread_stat_id), 1);
 
