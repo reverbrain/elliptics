@@ -4,7 +4,7 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
 Version:	2.26.11.1
-Release:	1%{?dist}
+Release:	2%{?dist}
 
 License:	GPLv2+
 Group:		System Environment/Libraries
@@ -130,9 +130,8 @@ rm -rf %{buildroot}
 %{_bindir}/dnet_client
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
-%{python_sitelib}/elliptics/core.so.*
+%{python_sitelib}/elliptics
 %{python_sitelib}/elliptics_recovery/*
-%{python_sitelib}/elliptics/*.py*
 %{python_sitelib}/elliptics*.egg-info
 
 %files client-devel
@@ -141,10 +140,12 @@ rm -rf %{buildroot}
 %{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_cpp.so
 %{_datadir}/elliptics/cmake/*
-%{python_sitelib}/elliptics/core.so
 
 
 %changelog
+* Fri Aug 11 2017 Arkady L. Shane <ashejn@russianfedora.pro> - 2.26.11.1-2
+- push all python libraries to client package not client-devel
+
 * Fri Jan 13 2017 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.11.1
 - man: converted to unix format, fixed comment macroses
 - python: use common python path
