@@ -89,20 +89,39 @@ struct callback_one_handlers {
 };
 
 template <typename T>
-struct python_async_result
-{
-	typedef typename async_result<T>::iterator iterator;
+struct python_async_result {
+	class iterator : public std::iterator<std::input_iterator_tag, T, std::ptrdiff_t, T *, T> {
+	public:
+		iterator()
+		: m_inner() {}
+		iterator(const typename async_result<T>::iterator &other)
+		: m_inner(other) {}
+		iterator(const iterator &other)
+		: m_inner(other.m_inner) {}
+		~iterator() {}
 
-	std::shared_ptr<async_result<T>> scope;
+		iterator &operator=(const iterator &other);
+
+		bool operator==(const iterator &other) const;
+		bool operator!=(const iterator &other) const;
+
+		T operator*() const;
+		T *operator->() const;
+
+		iterator &operator ++();
+		iterator operator ++(int);
+	private:
+		typename async_result<T>::iterator m_inner;
+	};
 
 	iterator begin() {
 		py_allow_threads_scoped pythr;
-		return scope->begin();
+		return iterator{scope->begin()};
 	}
 
 	iterator end() {
 		py_allow_threads_scoped pythr;
-		return scope->end();
+		return iterator{scope->end()};
 	}
 
 	bp::list get() {
@@ -152,6 +171,8 @@ struct python_async_result
 		auto callback = boost::make_shared<callback_all_handler<T>>(handler);
 		scope->connect(boost::bind(&callback_all_handler<T>::on_results, callback, _1, _2));
 	}
+
+	std::shared_ptr<async_result<T>> scope;
 };
 
 template <typename T>

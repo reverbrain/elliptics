@@ -35,7 +35,8 @@ public:
 
 	void start() {
 		m_remote = m_socket.remote_endpoint().address().to_string();
-		dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: server: accepted client: %s:%d", m_remote.c_str(), m_socket.remote_endpoint().port());
+		dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: server: accepted client: %s:%d",
+				m_remote.c_str(), m_socket.remote_endpoint().port());
 		async_read();
 	}
 
@@ -126,7 +127,9 @@ void handler::handle_read(const boost::system::error_code &err, size_t size) {
 	std::string content = "";
 
 	if (req > 0) {
-		dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: server: got statistics request for categories: %lx from: %s:%d", req, m_remote.c_str(), m_socket.remote_endpoint().port());
+		dnet_log(m_monitor.node(), DNET_LOG_DEBUG,
+				"monitor: server: got statistics request for categories: %llx from: %s:%d",
+				(unsigned long long)req, m_remote.c_str(), m_socket.remote_endpoint().port());
 		content = m_monitor.get_statistics().report(req);
 	}
 
@@ -137,13 +140,15 @@ void handler::handle_read(const boost::system::error_code &err, size_t size) {
 void handler::async_write(std::string data) {
 	auto self(shared_from_this());
 	m_report = std::move(data);
-	dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: server: send requested statistics: started: %s:%d, size: %lu", m_remote.c_str(), m_socket.remote_endpoint().port(), m_report.size());
+	dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: server: send requested statistics: started: %s:%d, size: %zd",
+			m_remote.c_str(), m_socket.remote_endpoint().port(), m_report.size());
 	boost::asio::async_write(m_socket, boost::asio::buffer(m_report),
 	                         std::bind(&handler::handle_write, self));
 }
 
 void handler::handle_write() {
-	dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: server: send requested statistics: finished: %s:%d", m_remote.c_str(), m_socket.remote_endpoint().port());
+	dnet_log(m_monitor.node(), DNET_LOG_DEBUG, "monitor: server: send requested statistics: finished: %s:%d",
+			m_remote.c_str(), m_socket.remote_endpoint().port());
 	close();
 }
 

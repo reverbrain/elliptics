@@ -188,7 +188,8 @@ statistics::statistics(monitor& mon, struct dnet_config *cfg) : m_monitor(mon)
 	(void) cfg;
 	const auto monitor_cfg = get_monitor_config(mon.node());
 	if (monitor_cfg && monitor_cfg->has_top) {
-		m_top_stats = std::make_shared<top_stats>(monitor_cfg->top_length, monitor_cfg->events_size, monitor_cfg->period_in_seconds);
+		m_top_stats = std::make_shared<top_stats>(monitor_cfg->top_length,
+				monitor_cfg->events_size, monitor_cfg->period_in_seconds);
 	}
 }
 
@@ -215,7 +216,7 @@ inline std::string convert_report(const rapidjson::Document &report)
 std::string statistics::report(uint64_t categories)
 {
 	rapidjson::Document report;
-	dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: collecting statistics for categories: %lx", categories);
+	dnet_log(m_monitor.node(), DNET_LOG_INFO, "monitor: collecting statistics for categories: %llx", (unsigned long long)categories);
 	report.SetObject();
 	auto &allocator = report.GetAllocator();
 
@@ -265,7 +266,7 @@ std::string statistics::report(uint64_t categories)
 	}
 
 	dnet_log(m_monitor.node(), DNET_LOG_DEBUG,
-			"monitor: finished generating json statistics for categories: %lx", categories);
+			"monitor: finished generating json statistics for categories: %llx", (unsigned long long)categories);
 	return convert_report(report);
 }
 
