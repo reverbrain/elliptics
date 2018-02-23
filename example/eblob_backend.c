@@ -487,7 +487,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 				c->random_access = 0;
 
 			if (old_ra != c->random_access) {
-				dnet_backend_log(c->blog, DNET_LOG_ERROR,
+				dnet_backend_log(c->blog, DNET_LOG_NOTICE,
 					"EBLOB: switch RA %d -> %d, offset MSE: %llu, squared VM total: %llu",
 					old_ra, c->random_access, (unsigned long long)tmp, (unsigned long long)c->vm_total);
 			}
