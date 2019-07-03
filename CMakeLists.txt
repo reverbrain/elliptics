@@ -1,5 +1,5 @@
-cmake_minimum_required (VERSION 2.6 FATAL_ERROR)
-cmake_policy (VERSION 2.6.0)
+cmake_minimum_required (VERSION 2.8.7 FATAL_ERROR)
+cmake_policy (VERSION 2.8)
 
 #set(CMAKE_SKIP_RPATH OFF)
 #set(CMAKE_SKIP_BUILD_RPATH  OFF)
@@ -24,7 +24,7 @@ add_definitions(-DCONFIG_ELLIPTICS_VERSION_2=${ELLIPTICS_VERSION_2})
 add_definitions(-DCONFIG_ELLIPTICS_VERSION_3=${ELLIPTICS_VERSION_3})
 
 option(WITH_PYTHON "Build python bindings" ON)
-option(WITH_COCAINE "Build with cocaine support" ON)
+option(WITH_COCAINE "Build with cocaine support" OFF)
 option(DISABLE_LONG_TEST "Disable tests which take long time" OFF)
 
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
