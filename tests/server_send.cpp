@@ -183,7 +183,7 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 			// since it is packed and there will be alignment issues and
 			// following error:
 			// error: cannot bind packed field ... to int&
-			BH_LOG(log, DNET_LOG_DEBUG,
+			dnet_log_write(&log, DNET_LOG_DEBUG,
 					"ssend_test: "
 					"key: %s, backend: %d, user_flags: %llx, ts: %s (%lld.%09lld), "
 					"status: %d (should be: %d), size: %lld, "
@@ -209,8 +209,8 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 			copied++;
 		}
 
-		BH_LOG(log, DNET_LOG_NOTICE, "ssend_test: %s: dst_groups: %s, copied: %d",
-				id.to_string(),
+		dnet_log_write(&log, DNET_LOG_NOTICE, "ssend_test: %s: dst_groups: %s, copied: %d",
+				id.to_string().c_str(),
 				print_groups(dst_groups), copied);
 
 		return copied;
@@ -241,8 +241,8 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 		keys.push_back(id);
 	}
 
-	BH_LOG(log, DNET_LOG_NOTICE, "%s: keys: %d, dst_groups: %s, starting copy",
-			__func__, num, print_groups(dst_groups));
+	dnet_log_write(&log, DNET_LOG_NOTICE, "%s: keys: %d, dst_groups: %s, starting copy",
+			__func__, num, print_groups(dst_groups).c_str());
 
 	//char buffer[2*DNET_ID_SIZE + 1] = {0};
 
@@ -254,7 +254,7 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 		// since it is packed and there will be alignment issues and
 		// following error:
 		// error: cannot bind packed field ... to int&
-		BH_LOG(log, DNET_LOG_DEBUG,
+		dnet_log_write(&log, DNET_LOG_DEBUG,
 				"ssend_test: "
 				"key: %s, backend: %d, user_flags: %llx, ts: %lld.%09lld, status: %d, size: %lld, "
 				"iterated_keys: %lld/%lld",
@@ -271,7 +271,7 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 		copied++;
 	}
 
-	BH_LOG(log, DNET_LOG_NOTICE, "%s: keys: %d, dst_groups: %s, copied total: %d",
+	dnet_log_write(&log, DNET_LOG_NOTICE, "%s: keys: %d, dst_groups: %s, copied total: %d",
 			__func__, num, print_groups(dst_groups), copied);
 
 	// timeout check is different, session timeout (i.e. transaction timeout) is the same as timeout for every write

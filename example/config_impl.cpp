@@ -1,6 +1,6 @@
 #include "config.hpp"
 
-#include <blackhole/repository/config/parser/rapidjson.hpp>
+#include "elliptics/dynamic.hpp"
 
 #include <rapidjson/document.h>
 #include <rapidjson/filestream.h>
@@ -16,6 +16,56 @@ config_parser::config_parser()
 config_parser::~config_parser()
 {
 }
+
+using blackhole::dynamic_t;
+
+// Converter adapter specializations for rapidjson value.
+struct transformer_t {
+    typedef rapidjson::Value value_type;
+
+    static dynamic_t transform(const value_type& value) {
+        switch (value.GetType()) {
+        case rapidjson::kNullType:
+            throw std::runtime_error("null values are not supported");
+        case rapidjson::kFalseType:
+        case rapidjson::kTrueType:
+            return value.GetBool();
+        case rapidjson::kNumberType: {
+            if (value.IsInt()) {
+                return value.GetInt();
+            } else if (value.IsInt64()) {
+                return value.GetInt64();
+            } else if (value.IsUint()) {
+                return value.GetUint();
+            } else if (value.IsUint64()) {
+                return value.GetUint64();
+            } else {
+                return value.GetDouble();
+            }
+        }
+        case rapidjson::kStringType:
+            return value.GetString();
+        case rapidjson::kArrayType: {
+            dynamic_t::array_t array;
+            for (auto it = value.Begin(); it != value.End(); ++it) {
+                array.push_back(transformer_t::transform(*it));
+            }
+            return array;
+        }
+        case rapidjson::kObjectType: {
+            dynamic_t::object_t object;
+            for (auto it = value.MemberBegin(); it != value.MemberEnd(); ++it) {
+                std::string name = it->name.GetString();
+                dynamic_t value = transformer_t::transform(it->value);
+                object[name] = value;
+            }
+            return object;
+        }
+        default:
+            BOOST_ASSERT(false);
+        }
+    }
+};
 
 config config_parser::open(const std::string &path)
 {
@@ -80,7 +130,7 @@ config config_parser::open(const std::string &path)
 	if (!doc.IsObject())
 		throw config_error() << "root must be an object";
 
-	root_ = blackhole::repository::config::transformer_t<rapidjson::Value>::transform(doc);
+	root_ = transformer_t::transform(doc);
 	return root();
 }
 

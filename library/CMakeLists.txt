@@ -52,7 +52,7 @@ set_target_properties(elliptics PROPERTIES
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     LINKER_LANGUAGE CXX
     )
-target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} ${EBLOB_LIBRARIES} elliptics_common elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids elliptics_monitor elliptics_client elliptics_cpp)
+target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} ${EBLOB_LIBRARIES} elliptics_common elliptics_cache elliptics_ids elliptics_monitor elliptics_client elliptics_cpp)
 
 install(TARGETS elliptics
     LIBRARY DESTINATION lib${LIB_SUFFIX}

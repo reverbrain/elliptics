@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
 
 	try {
 		elliptics::file_logger logger(log_file.c_str(), elliptics::file_logger::parse_level(log_level));
-		elliptics::node node(ioremap::elliptics::logger(logger, blackhole::log::attributes_t()));
+		elliptics::node node(ioremap::elliptics::logger(logger, blackhole::attributes_t()));
 		for (auto r = remotes.begin(), rend = remotes.end(); r != rend; ++r) {
 			try {
 				node.add_remote(*r);

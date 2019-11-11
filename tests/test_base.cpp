@@ -214,7 +214,6 @@ server_config server_config::default_value()
 			("io_thread_num", 2)
 			("nonblocking_io_thread_num", 2)
 			("net_thread_num", 1)
-			("indexes_shard_count", 16)
 			("daemon", false)
 			("bg_ionice_class", 3)
 			("bg_ionice_prio", 0)
@@ -232,13 +231,6 @@ server_config server_config::default_value()
 			("defrag_timeout", 3600)
 			("defrag_percentage", 25);
 	return data;
-}
-
-server_config server_config::default_srw_value()
-{
-	server_config config = default_value();
-	config.options("srw_config", "tmp");
-	return config;
 }
 
 struct json_value_visitor : public boost::static_visitor<>
@@ -332,7 +324,7 @@ void server_config::write(const std::string &path)
 	frontends.SetArray();
 	frontends.PushBack(frontend, allocator);
 
-	rapidjson::Value log_level(file_logger::generate_level(DNET_LOG_DEBUG).c_str(), allocator);
+	rapidjson::Value log_level("debug", allocator);
 
 	rapidjson::Value logger;
 	logger.SetObject();
@@ -697,25 +689,6 @@ static std::string create_remote(const std::string &port)
 }
 
 typedef std::map<std::string, std::string> substitute_context;
-static void create_cocaine_config(const std::string &config_path, const std::string& template_text, const substitute_context& vars)
-{
-	std::string config_text = template_text;
-
-	for (auto it = vars.begin(); it != vars.end(); ++it) {
-		auto position = config_text.find(it->first);
-		if (position != std::string::npos)
-			config_text.replace(position, it->first.size(), it->second);
-	}
-
-	std::ofstream out;
-	out.open(config_path.c_str());
-
-	if (!out) {
-		throw std::runtime_error("Can not open file \"" + config_path + "\" for writing");
-	}
-
-	out.write(config_text.c_str(), config_text.size());
-}
 
 static void start_client_nodes(const start_nodes_config &start_config, const nodes_data::ptr &data, const std::vector<std::string> &remotes);
 
@@ -736,20 +709,6 @@ nodes_data::ptr start_nodes(start_nodes_config &start_config) {
 
 	std::string base_path;
 	std::string auth_cookie;
-	std::string cocaine_config_template;
-	std::string run_path;
-
-	{
-		char buffer[1024];
-
-		snprintf(buffer, sizeof(buffer), "%04x%04x", rand(), rand());
-		buffer[sizeof(buffer) - 1] = 0;
-		auth_cookie = buffer;
-
-		snprintf(buffer, sizeof(buffer), "/tmp/elliptics-test-run-%04x/", rand());
-		buffer[sizeof(buffer) - 1] = 0;
-		run_path = buffer;
-	}
 
 	std::set<std::string> all_ports;
 	const auto ports = generate_ports(start_config.configs.size(), all_ports);
@@ -780,31 +739,6 @@ nodes_data::ptr start_nodes(start_nodes_config &start_config) {
 
 	start_config.debug_stream << "Set base directory: \"" << base_path << "\"" << std::endl;
 
-	create_directory(run_path);
-	data->run_directory = directory_handler(run_path, true);
-	start_config.debug_stream << "Set cocaine run directory: \"" << run_path << "\"" << std::endl;
-
-	std::set<std::string> cocaine_unique_groups;
-	std::string cocaine_remotes;
-	std::string cocaine_groups;
-	for (size_t j = 0; j < start_config.configs.size(); ++j) {
-		if (j > 0)
-			cocaine_remotes += ", ";
-		cocaine_remotes += "\"127.0.0.1:" + ports[j] + ":2\"";
-		for (auto it = start_config.configs[j].backends.begin(); it != start_config.configs[j].backends.end(); ++it) {
-			const std::string group = it->string_value("group");
-			if (cocaine_unique_groups.insert(group).second) {
-				if (!cocaine_groups.empty())
-					cocaine_groups += ", ";
-				cocaine_groups += group;
-			}
-		}
-	}
-
-	const auto cocaine_locator_ports = generate_ports(start_config.configs.size(), all_ports);
-
-	std::vector<int> locator_ports;
-
 	start_config.debug_stream << "Starting " << start_config.configs.size() << " servers" << std::endl;
 
 	for (size_t i = 0; i < start_config.configs.size(); ++i) {
@@ -833,33 +767,6 @@ nodes_data::ptr start_nodes(start_nodes_config &start_config) {
 
 		if (!remotes.empty() && !start_config.isolated)
 			config.options("remote", remotes);
-
-		if (config.options.has_value("srw_config")) {
-			const std::string server_run_path = run_path + server_suffix;
-
-			if (cocaine_config_template.empty())
-				cocaine_config_template = read_file(cocaine_config_path().c_str());
-
-			create_directory(server_run_path);
-
-			// client only needs connection to one (any) locator service
-			if (!data->locator_port)
-				data->locator_port = boost::lexical_cast<int>(cocaine_locator_ports[i]);
-
-			locator_ports.push_back(boost::lexical_cast<int>(cocaine_locator_ports[i]));
-
-			const substitute_context cocaine_variables = {
-				{ "COCAINE_LOCATOR_PORT", cocaine_locator_ports[i] },
-				{ "COCAINE_PLUGINS_PATH", cocaine_config_plugins() },
-				{ "ELLIPTICS_REMOTES", cocaine_remotes },
-				{ "ELLIPTICS_GROUPS", cocaine_groups },
-				{ "COCAINE_LOG_PATH", server_path + "/cocaine.log" },
-				{ "COCAINE_RUN_PATH", server_run_path }
-			};
-			create_cocaine_config(server_path + "/cocaine.conf", cocaine_config_template, cocaine_variables);
-
-			config.options("srw_config", server_path + "/cocaine.conf");
-		}
 
 		if (config.log_path.empty())
 			config.log_path = server_path + "/log.log";
@@ -951,30 +858,6 @@ nodes_data::ptr start_nodes(start_nodes_config &start_config) {
 			}
 		}
 
-#ifdef HAVE_COCAINE
-		bool any_failed = false;
-
-		for (size_t i = 0; i < locator_ports.size(); ++i) {
-			try {
-				using namespace cocaine::framework;
-
-				service_manager_t::endpoint_t endpoint("127.0.0.1", locator_ports[i]);
-				auto manager = service_manager_t::create(endpoint);
-				auto storage = manager->get_service<storage_service_t>("storage");
-				(void) storage;
-
-				start_config.debug_stream << "Succesfully connected to Cocaine #" << (i + 1) << std::endl;
-			} catch (std::exception &) {
-				any_failed = true;
-				break;
-			}
-		}
-
-		if (any_failed) {
-			start_config.debug_stream << "Cocaine has not been started yet, try again in 1 second" << std::endl;
-			continue;
-		}
-#endif
 		break;
 	}
 
@@ -1012,7 +895,7 @@ static void start_client_nodes(const start_nodes_config &start_config, const nod
 	config.check_timeout = start_config.client_check_timeout;
 	config.stall_count = start_config.client_stall_count;
 
-	data->node.reset(new node(logger(*data->logger, blackhole::log::attributes_t()), config));
+	data->node.reset(new node(logger(*data->logger, blackhole::attributes_t()), config));
 	for (size_t i = 0; i < remotes.size(); ++i) {
 		data->node->add_remote(remotes[i].c_str());
 	}

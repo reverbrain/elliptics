@@ -1,27 +1,14 @@
 find_package(Boost REQUIRED COMPONENTS iostreams thread regex program_options system filesystem)
 
-set(TEST_LIBRARY_PATH "${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_CURRENT_BINARY_DIR}/../:${CMAKE_CURRENT_BINARY_DIR}/../library:${CMAKE_CURRENT_BINARY_DIR}/../srw:${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp:${CMAKE_CURRENT_BINARY_DIR}/../monitor")
+set(TEST_LIBRARY_PATH "${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_CURRENT_BINARY_DIR}/../:${CMAKE_CURRENT_BINARY_DIR}/../library:${CMAKE_CURRENT_BINARY_DIR}/../bindings/cpp:${CMAKE_CURRENT_BINARY_DIR}/../monitor")
 set(TEST_LINK_FLAGS "-Wl,-rpath,${TEST_LIBRARY_PATH}")
 set(TEST_PROPERTIES PROPERTIES LINK_FLAGS "${TEST_LINK_FLAGS}" LINKER_LANGUAGE CXX)
 set(TEST_LIBRARIES  test_common elliptics elliptics_client elliptics_cpp ${Boost_LIBRARIES})
 set(TEST_IOSERV_PATH "${CMAKE_CURRENT_BINARY_DIR}/../example/dnet_ioserv")
 set(TEST_ENV
-    TEST_COCAINE_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf"
-    TEST_COCAINE_PLUGINS="${CMAKE_CURRENT_BINARY_DIR}/../cocaine/plugins"
-    TEST_COCAINE_APP="${CMAKE_CURRENT_BINARY_DIR}/dnet_cpp_srw_test_app.tar"
     TEST_IOSERV_PATH="${TEST_IOSERV_PATH}"
     LD_LIBRARY_PATH="${TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}"
 )
-
-if(WITH_COCAINE)
-    add_definitions("-DHAVE_COCAINE")
-
-    include(../cmake/Modules/locate_library.cmake)
-    LOCATE_LIBRARY(LIBEV "ev++.h" "ev" "libev")
-
-    find_package(CocaineNative REQUIRED)
-    include_directories(${CocaineNative_INCLUDE_DIRS} ${LIBEV_INCLUDE_DIRS})
-endif()
 
 add_library(test_common STATIC
     ../example/common.c
@@ -36,10 +23,6 @@ add_library(test_common STATIC
     test_session.cpp)
 set_target_properties(test_common ${TEST_PROPERTIES})
 set(TEST_COMMON_LIBRARIES elliptics elliptics_client elliptics_cpp ${Boost_LIBRARIES})
-if(WITH_COCAINE)
-    list(APPEND TEST_COMMON_LIBRARIES elliptics_cocaine ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
-    list(APPEND TEST_LIBRARIES ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
-endif()
 target_link_libraries(test_common ${TEST_COMMON_LIBRARIES})
 
 #
@@ -143,11 +126,6 @@ set_target_properties(dnet_cpp_stats_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_stats_test ${TEST_LIBRARIES})
 add_test_target(test_stats dnet_cpp_stats_test DEPENDS ${TESTS_DEPS})
 
-add_executable(dnet_cpp_capped_test capped_test.cpp)
-set_target_properties(dnet_cpp_capped_test ${TEST_PROPERTIES})
-target_link_libraries(dnet_cpp_capped_test ${TEST_LIBRARIES})
-add_test_target(test_capped dnet_cpp_capped_test DEPENDS ${TESTS_DEPS})
-
 add_executable(dnet_backends_test backends_test.cpp)
 set_target_properties(dnet_backends_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_backends_test ${TEST_LIBRARIES})
@@ -178,13 +156,6 @@ set_target_properties(dnet_server_send_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_server_send_test ${TEST_LIBRARIES})
 add_test_target(test_server_send dnet_server_send_test DEPENDS ${TESTS_DEPS})
 
-add_executable(dnet_cpp_indexes_test indexes-test.cpp)
-#FIXME: add set_target_properties?
-# set_target_properties(dnet_cpp_indexes_test ${TEST_PROPERTIES})
-target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)
-#FIXME: is this also a test? Then uncomment the next line and add it to the TESTS_LIST below.
-# add_test_target(test_indexes dnet_cpp_indexes_test)
-
 #
 # General list of test modules (implemented in C++).
 #
@@ -193,7 +164,6 @@ set(TESTS_LIST
     dnet_cpp_api_test
     dnet_cpp_cache_test
     dnet_cpp_stats_test
-    dnet_cpp_capped_test
     dnet_backends_test
     dnet_weights_test
     dnet_reconnect_test
@@ -201,34 +171,6 @@ set(TESTS_LIST
     dnet_crypto_test
     dnet_server_send_test
 )
-
-if(WITH_COCAINE)
-    include_directories(../cocaine/include)
-
-    #
-    # Define target `test_srw`
-    #
-    add_executable(dnet_cpp_srw_test srw_test.cpp srw_test.hpp)
-    set_target_properties(dnet_cpp_srw_test ${TEST_PROPERTIES})
-    target_link_libraries(dnet_cpp_srw_test ${TEST_LIBRARIES} ${CocaineNative_LIBRARIES} ${LIBEV_LIBRARIES})
-    add_test_target(test_srw dnet_cpp_srw_test DEPENDS dnet_cpp_srw_test_app elliptics-extensions)
-
-    add_executable(dnet_cpp_srw_test_app srw_test_app.cpp)
-    set_target_properties(dnet_cpp_srw_test_app ${TEST_PROPERTIES})
-    target_link_libraries(dnet_cpp_srw_test_app elliptics_cpp ${CocaineNative_LIBRARIES} ${Boost_LIBRARIES} ${LIBEV_LIBRARIES})
-
-    add_custom_command(TARGET dnet_cpp_srw_test_app
-        POST_BUILD
-        COMMAND tar -cf dnet_cpp_srw_test_app.tar dnet_cpp_srw_test_app
-        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    )
-
-    #
-    # Append test_srw to general list of tests
-    #
-    list(APPEND TESTS_LIST dnet_cpp_srw_test)
-    list(APPEND TESTS_DEPS dnet_cpp_srw_test_app elliptics-extensions)
-endif()
 
 #
 # Tests written in python use dnet_run_servers to instantiate testing environments.
@@ -253,9 +195,6 @@ add_custom_command(TARGET test
 )
 
 set(PYTESTS_FLAGS "-v" "-l" "-x" "--timeout=1200" "--durations=20")
-if(NOT WITH_COCAINE)
-    list(APPEND PYTESTS_FLAGS "--without-cocaine")
-endif()
 
 add_custom_command(TARGET test
     POST_BUILD

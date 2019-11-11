@@ -743,11 +743,11 @@ int dnet_cmd_backend_control(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	struct dnet_backend_control *control = reinterpret_cast<dnet_backend_control *>(data);
 
 	try {
-		blackhole::log::attributes_t attributes = {
-			blackhole::attribute::make("backend_id", uint32_t(control->backend_id))
+		blackhole::attributes_t attributes = {
+			{"backend_id", uint32_t(control->backend_id)},
 		};
 
-		blackhole::scoped_attributes_t scoped(*node->log, std::move(attributes));
+		blackhole::attributes_t scoped(std::move(attributes));
 
 		return dnet_cmd_backend_control_dangerous(st, cmd, data);
 	} catch (std::bad_alloc &) {

@@ -29,11 +29,11 @@ int dnet_ids_update(struct dnet_node *n, int update_local, const char *file, str
 	char remote_id[1024];
 	sprintf(remote_id, "elliptics_node_ids_%s_%zu", dnet_addr_string(cfg_addrs), backend_id);
 
-	blackhole::log::attributes_t attributes;
+	blackhole::attributes_t attributes;
 //	attributes.insert(std::make_)
 
 	ioremap::elliptics::node node = ioremap::elliptics::node::from_raw(n, std::move(attributes));
-//	blackhole::log::attributes_t {
+//	blackhole::attributes_t {
 //		{ "remote_id", remote_id },
 //		{ "backend_id", backend_id },
 //		{ "file", file },

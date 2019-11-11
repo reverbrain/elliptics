@@ -163,7 +163,7 @@ class node
 		~node();
 
 		static node from_raw(dnet_node *n);
-		static node from_raw(dnet_node *n, blackhole::log::attributes_t attributes);
+		static node from_raw(dnet_node *n, blackhole::attributes_t attributes);
 
 		node &operator =(const node &other);
 
@@ -728,57 +728,6 @@ class session
 		async_iterator_result server_send(const std::vector<key> &keys, uint64_t flags,
 				const std::vector<int> &groups);
 
-		/*!
-		 * Starts execution for \a id of the given \a event with \a data.
-		 *
-		 * If \a id is null, event is sent to all groups specified in the session.
-		 *
-		 * Returns async_exec_result.
-		 * Result contains all replies sent by nodes processing this event.
-		 */
-		async_exec_result exec(dnet_id *id, const std::string &event, const argument_data &data);
-		/*!
-		 * Starts execution for \a id of the given \a event with \a data.
-		 * \a src_key used as sub-id to snap execution to a distinct worker,
-		 * execs with the same \a id and \a src_key will be processed by the same worker
-		 * (subject to worker execution mode).
-		 *
-		 * If \a id is null, event is sent to all groups specified in the session.
-		 *
-		 * Returns async_exec_result.
-		 * Result contains all replies sent by nodes processing this event.
-		 */
-		async_exec_result exec(dnet_id *id, int src_key, const std::string &event, const argument_data &data);
-		/*!
-		 * Sends execution request of the given \a event and \a data
-		 * to the party specified by a given \a context.
-		 *
-		 * Returns async_exec_result.
-		 * Result contains all replies sent by nodes processing this event.
-		 */
-		async_exec_result exec(const exec_context &context, const std::string &event, const argument_data &data);
-
-		/*!
-		 * Send an \a event with \a data to \a id continuing the process specified by \a context.
-		 *
-		 * If \a id is null event is sent to all groups specified in the session.
-		 *
-		 * Returns async_exec_result.
-		 * Result contains only the information about starting of event procession, so there is no
-		 * information if it was finally processed successfully.
-		 */
-		async_push_result push(dnet_id *id, const exec_context &context,
-				const std::string &event, const argument_data &data);
-		/*!
-		 * Reply \a data to initial starter of the process specified by \a context.
-		 *
-		 * If \a state is equal to exec_context::final it is the last reply, otherwise there will be more.
-		 *
-		 * Returns async_reply_result.
-		 * Result contains information if starter received the reply.
-		 */
-		async_reply_result reply(const exec_context &context,
-				const argument_data &data, exec_context::final_state state);
 
 		/*!
 		 * Reads all data from server nodes by the list \a ios.
@@ -814,147 +763,6 @@ class session
 		 */
 		async_write_result bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<std::string> &data);
 
-		/*!
-		 * \brief Set \a indexes for object \a id.
-		 *
-		 * It removes object from all indexes which are not in the list \a indexes.
-		 * All data in existen indexes are replaced by so from \a indexes.
-		 *
-		 * Returns async_set_indexes_result.
-		 */
-		async_set_indexes_result set_indexes(const key &id, const std::vector<index_entry> &indexes);
-		/*!
-		 * \overload
-		 */
-		async_set_indexes_result set_indexes(const key &id, const std::vector<std::string> &indexes,
-				const std::vector<data_pointer> &data);
-		/*!
-		 * \brief Update \a indexes for object \a id.
-		 *
-		 * Adds/updates data for \a indexes. This method doesn't modify any indexes not from the \a indexes list.
-		 *
-		 * Returns async_set_indexes_result.
-		 */
-		async_set_indexes_result update_indexes(const key &id, const std::vector<index_entry> &indexes);
-		/*!
-		 * \overload
-		 */
-		async_set_indexes_result update_indexes(const key &id, const std::vector<std::string> &indexes,
-				const std::vector<data_pointer> &data);
-		/*!
-		 * \brief Adds object \a id to capped collection \a index.
-		 *
-		 * As object is added to capped collection it displaces the oldest object from it in case if
-		 * the \a limit is reached.
-		 *
-		 * If \a remove_data is true in addition to displacing of the object it's data is also removed from the storage.
-		 *
-		 * \note The \a limit is satisfied for each shard and not for whole collection.
-		 *
-		 * Returns async_generic_result.
-		 */
-		async_generic_result add_to_capped_collection(const key &id, const index_entry &index,
-				int limit, bool remove_data);
-		/*!
-		 * \brief Removes \a id from \a indexes.
-		 *
-		 * It doesn't affect this object in any other indexes.
-		 *
-		 * Returns async_set_indexes_result.
-		 */
-		async_set_indexes_result remove_indexes(const key &id, const std::vector<dnet_raw_id> &indexes);
-		/*!
-		 * \overload
-		 */
-		async_set_indexes_result remove_indexes(const key &id, const std::vector<std::string> &indexes);
-		/*!
-		 * \internal
-		 */
-		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<index_entry> &indexes);
-		/*!
-		 * \internal
-		 */
-		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<std::string> &indexes,
-				const std::vector<data_pointer> &data);
-		/*!
-		 * \internal
-		 */
-		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<dnet_raw_id> &indexes);
-		/*!
-		 * \internal
-		 */
-		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<std::string> &indexes);
-		/*!
-		 * \internal
-		 */
-		async_generic_result remove_index_internal(const key &id);
-		/*!
-		 * \brief Removes the index \a id.
-		 *
-		 * Removes all objects previously added to index \a id from it.
-		 *
-		 * If \a remove_data is true method also removes all data of that objects from the storage.
-		 *
-		 * Returns async_generic_result.
-		 */
-		async_generic_result remove_index(const key &id, bool remove_data);
-
-		/*!
-		 * \brief Find all objects which contain all indexes from \a indexes.
-		 *
-		 * Returns async_find_indexes_result.
-		 */
-		async_find_indexes_result find_all_indexes(const std::vector<dnet_raw_id> &indexes);
-		/*!
-		 * \overload
-		 */
-		async_find_indexes_result find_all_indexes(const std::vector<std::string> &indexes);
-		/*!
-		 * \brief Find all objects which contain at least one of indexes from \a indexes.
-		 *
-		 * Returns async_find_indexes_result.
-		 */
-		async_find_indexes_result find_any_indexes(const std::vector<dnet_raw_id> &indexes);
-		/*!
-		 * \overload
-		 */
-		async_find_indexes_result find_any_indexes(const std::vector<std::string> &indexes);
-
-		/*!
-		 * \brief List all indexes where \a id is added.
-		 *
-		 * Returns async_list_indexes_result.
-		 */
-		async_list_indexes_result list_indexes(const key &id);
-
-		/*!
-		 * \brief Merge index tables stored at \a id.
-		 *
-		 * Reads index tables from groups \a from, merges them and writes result to \a to.
-		 *
-		 * \attention This is low-level function which merges not \b index \a id, but merges
-		 * data which is stored at key \a id.
-		 */
-		async_write_result merge_indexes(const key &id, const std::vector<int> &from, const std::vector<int> &to);
-
-		/*!
-		 * \brief Recover \a index so it will be consistent in all groups.
-		 *
-		 * This method recover not only list of objects in index but also list
-		 * of indexes of all objects at this indexes.
-		 */
-		async_generic_result recover_index(const key &index);
-
-		/*!
-		 * \brief Retrieves metadata about each index \a index
-		 *
-		 * Returns async_get_index_metadata_result.
-		 */
-		async_get_index_metadata_result get_index_metadata(const dnet_raw_id &index);
-		/*!
-		 * \overload
-		 */
-		async_get_index_metadata_result get_index_metadata(const std::string &index);
 
 		/*!
 		 * Returns logger object.
@@ -972,9 +780,7 @@ class session
 	protected:
 		std::shared_ptr<session_data> m_data;
 
-		async_exec_result request(dnet_id *id, const exec_context &context);
 		async_iterator_result iterator(const key &id, const data_pointer& request);
-		async_find_indexes_result find_indexes_internal(const std::vector<dnet_raw_id> &indexes, bool intersect);
 
 		error_info mix_states(const key &id, std::vector<int> &groups) __attribute__((warn_unused_result));
 };

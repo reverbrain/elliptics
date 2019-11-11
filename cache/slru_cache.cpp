@@ -19,10 +19,13 @@
 #endif
 
 #include "slru_cache.hpp"
+#include "local_session.h"
 #include "library/request_queue.h"
 #include <cassert>
 
 #include "monitor/measure_points.h"
+
+#include <deque>
 
 // Cache implementation is moderately instrumented with statistics gathering
 // to provide insight into details of different cache operations.
@@ -493,7 +496,7 @@ void slru_cache_t::sync_if_required(data_t* it, elliptics_unique_lock<std::mutex
 void slru_cache_t::insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data) {
 	TIMER_SCOPE("add_to_page");
 
-	elliptics_timer timer;
+        elliptics::timer timer;
 	size_t size = data->size();
 
 	// Recalc used space, free enough space for new data, move object to the end of the queue

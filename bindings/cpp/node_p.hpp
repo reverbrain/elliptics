@@ -17,7 +17,7 @@
 #define IOREMAP_ELLIPTICS_NODE_P_HPP
 
 #include <elliptics/cppdef.h>
-#include <blackhole/scoped_attributes.hpp>
+#include <blackhole/attributes.hpp>
 
 namespace ioremap { namespace elliptics {
 

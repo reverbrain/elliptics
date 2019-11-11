@@ -2,8 +2,12 @@
 #define CONFIG_HPP
 
 #include <elliptics/error.hpp>
-#include <blackhole/dynamic.hpp>
+#include <elliptics/dynamic.hpp>
 #include <blackhole/attribute.hpp>
+#include <blackhole/builder.hpp>
+#include <blackhole/scope/manager.hpp>
+#include <blackhole/sink.hpp>
+#include <blackhole/sink/console.hpp>
 
 #include <elliptics/session.hpp>
 #include "../library/backend.h"
@@ -102,7 +106,7 @@ struct config_value_caster_helper
 		type = integral | floating_point | string | boolean | vector
 	};
 
-	static_assert(integral || floating_point || string || boolean || vector, "Unsupported type");
+	static_assert(integral != 0 || floating_point != 0 || string != 0 || boolean != 0 || vector != 0, "Unsupported type");
 	static_assert((type == integral) || (type == floating_point) || (type == string) || (type == boolean) || (type == vector), "Internal type check error");
 
 	static T cast(const std::string &path, const dynamic_t &value)
@@ -343,7 +347,7 @@ private:
 
 struct config_data : public dnet_config_data
 {
-	config_data() : logger(logger_base, blackhole::log::attributes_t())
+	config_data() : logger(logger_base, blackhole::attributes_t())
 	{
 		dnet_empty_time(&config_timestamp);
 	}
@@ -355,9 +359,9 @@ struct config_data : public dnet_config_data
 	std::shared_ptr<config_parser>			parser;
 	dnet_time					config_timestamp;
 	dnet_backend_info_list				backends_guard;
+	ioremap::elliptics::logger_base                 logger_base;
+	ioremap::elliptics::logger                      logger;
 	std::string					logger_value;
-	ioremap::elliptics::logger_base			logger_base;
-	ioremap::elliptics::logger			logger;
 	std::vector<address>				remotes;
 	std::unique_ptr<cache::cache_config>		cache_config;
 	std::unique_ptr<monitor::monitor_config>	monitor_config;

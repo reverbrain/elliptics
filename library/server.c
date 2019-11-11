@@ -175,17 +175,6 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 			dnet_log(n, DNET_LOG_ERROR, "failed to init backends: %s %d", strerror(-err), err);
 			goto err_out_state_destroy;
 		}
-
-		if (!cfg->srw.config) {
-			dnet_log(n, DNET_LOG_INFO, "srw: no config");
-			n->srw = NULL;
-		} else {
-			err = dnet_srw_init(n, cfg);
-			if (err) {
-				dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d", strerror(-err), err);
-				goto err_out_backends_cleanup;
-			}
-		}
 	}
 
 	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at port %d.", cfg->port);
@@ -193,10 +182,6 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data)
 	pthread_sigmask(SIG_SETMASK, &previous_sigset, NULL);
 	return n;
 
-	dnet_srw_cleanup(n);
-err_out_backends_cleanup:
-	dnet_set_need_exit(n);
-	dnet_backend_cleanup_all(n);
 err_out_state_destroy:
 	dnet_state_put(n->st);
 err_out_route_list_destroy:
@@ -237,8 +222,6 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	n->route = NULL;
 
 	dnet_backend_cleanup_all(n);
-
-	dnet_srw_cleanup(n);
 
 	dnet_counter_destroy(n);
 	dnet_local_addr_cleanup(n);

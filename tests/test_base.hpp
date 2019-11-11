@@ -64,9 +64,9 @@ struct test_wrapper
 
 	void operator() () const
 	{
-		BH_LOG(*logger, DNET_LOG_INFO, "Start test: %s", test_name);
+		dnet_log_write(logger.get(), DNET_LOG_INFO, "Start test: %s", test_name.c_str());
 		test_body();
-		BH_LOG(*logger, DNET_LOG_INFO, "Finish test: %s", test_name);
+		dnet_log_write(logger.get(), DNET_LOG_INFO, "Finish test: %s", test_name.c_str());
 	}
 };
 
@@ -82,7 +82,7 @@ std::function<void ()> make(const char *test_name, Method method, session sess, 
 	sess.set_trace_id(trace_id);
 
 	test_wrapper wrapper = {
-		std::make_shared<ioremap::elliptics::logger>(sess.get_logger(), blackhole::log::attributes_t()),
+		std::make_shared<ioremap::elliptics::logger>(sess.get_logger(), blackhole::attributes_t()),
 		test_name,
 		std::bind(method, sess, std::forward<Args>(args)...)
 	};
@@ -176,7 +176,6 @@ protected:
 class server_config
 {
 public:
-	static server_config default_srw_value();
 	static server_config default_value();
 
 	void write(const std::string &path);

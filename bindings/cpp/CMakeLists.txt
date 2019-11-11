@@ -13,9 +13,7 @@ set(ELLIPTICS_CPP_SRCS
     callback.cpp
     functional_p.h
     session.cpp
-    session_indexes.cpp
     session_file.cpp
-    session_indexes.hpp
     result_entry.cpp
     exception.cpp
     key.cpp
@@ -27,7 +25,6 @@ set(ELLIPTICS_CPP_SRCS
     ../../include/elliptics/backends.h
     ../../include/elliptics/session.hpp
     ../../include/elliptics/result_entry.hpp
-    ../../include/elliptics/srw.h
     ../../include/elliptics/core.h
     ../../include/elliptics/debug.hpp
     ../../include/elliptics/error.hpp

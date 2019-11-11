@@ -231,7 +231,7 @@ int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st
 				 * When offset is larger then size of the file, operation is definitely incorrect
 				 */
 				if (io->offset >= d->size()) {
-					BH_LOG(*n->log, DNET_LOG_ERROR, "%s: %s cache: invalid offset: "
+					dnet_log_write(n->log, DNET_LOG_ERROR, "%s: %s cache: invalid offset: "
 							"offset: %llu, size: %llu, cached-size: %zd",
 							dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
 							(unsigned long long)io->offset, (unsigned long long)io->size,
@@ -264,7 +264,7 @@ int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st
 				break;
 		}
 	} catch (const std::exception &e) {
-		BH_LOG(*n->log, DNET_LOG_ERROR, "%s: %s cache operation failed: %s",
+		dnet_log_write(n->log, DNET_LOG_ERROR, "%s: %s cache operation failed: %s",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
 		err = -ENOENT;
 	}
@@ -286,7 +286,7 @@ int dnet_cmd_cache_lookup(struct dnet_backend_io *backend, struct dnet_net_state
 	try {
 		err = cache->lookup(cmd->id.id, st, cmd);
 	} catch (const std::exception &e) {
-		BH_LOG(*n->log, DNET_LOG_ERROR, "%s: %s cache operation failed: %s",
+		dnet_log_write(n->log, DNET_LOG_ERROR, "%s: %s cache operation failed: %s",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
 		err = -ENOENT;
 	}
@@ -299,7 +299,7 @@ void *dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend, cons
 	try {
 		return (void *)(new cache_manager(backend, n, *reinterpret_cast<const cache_config *>(config)));
 	} catch (const std::exception &e) {
-		BH_LOG(*n->log, DNET_LOG_ERROR, "Could not create cache: %s", e.what());
+		dnet_log_write(n->log, DNET_LOG_ERROR, "Could not create cache: %s", e.what());
 		return NULL;
 	}
 }

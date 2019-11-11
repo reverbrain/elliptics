@@ -24,6 +24,9 @@
 
 #include "node_p.hpp"
 
+#include <blackhole/logger.hpp>
+#include <blackhole/scope/manager.hpp>
+
 #include "elliptics/async_result_cast.hpp"
 
 namespace ioremap { namespace elliptics {
@@ -199,169 +202,6 @@ const dnet_addr &address::to_raw() const
 	return m_addr;
 }
 
-struct exec_context_data
-{
-	data_pointer srw_data;
-	std::string event;
-	data_pointer data;
-
-	static exec_context create_raw(const exec_context *other, const std::string &event, const argument_data &data)
-	{
-		std::shared_ptr<exec_context_data> p = std::make_shared<exec_context_data>();
-
-		p->srw_data = data_pointer::allocate(sizeof(sph) + event.size() + data.size());
-
-		sph *raw_sph = p->srw_data.data<sph>();
-		if (other) {
-			memcpy(p->srw_data.data<sph>(), other->m_data->srw_data.data<sph>(), sizeof(sph));
-		} else {
-			memset(raw_sph, 0, sizeof(sph));
-			raw_sph->src_key = -1;
-		}
-
-		char *raw_event = reinterpret_cast<char *>(raw_sph + 1);
-		memcpy(raw_event, event.data(), event.size());
-		char *raw_data = raw_event + event.size();
-		memcpy(raw_data, data.data(), data.size());
-
-		raw_sph->event_size = event.size();
-		raw_sph->data_size = data.size();
-
-		p->event = event;
-		p->data = data_pointer::from_raw(raw_data, raw_sph->data_size);
-
-		return exec_context(p);
-	}
-
-	static exec_context create(const std::string &event, const argument_data &data)
-	{
-		return create_raw(NULL, event, data);
-	}
-
-	static exec_context copy(const exec_context &other, const std::string &event, const argument_data &data)
-	{
-		return create_raw(&other, event, data);
-	}
-
-	static exec_context copy(const sph &other, const std::string &event, const argument_data &data)
-	{
-		sph tmp = other;
-		tmp.event_size = 0;
-		tmp.data_size = 0;
-		return copy(exec_context::from_raw(&tmp, sizeof(tmp)), event, data);
-	}
-};
-
-exec_context::exec_context()
-{
-}
-
-exec_context::exec_context(const data_pointer &data)
-{
-	error_info error;
-	exec_context tmp = parse(data, &error);
-	if (error)
-		error.throw_error();
-	m_data = tmp.m_data;
-}
-
-exec_context::exec_context(const std::shared_ptr<exec_context_data> &data) : m_data(data)
-{
-}
-
-exec_context::exec_context(const exec_context &other) : m_data(other.m_data)
-{
-}
-
-exec_context &exec_context::operator =(const exec_context &other)
-{
-	m_data = other.m_data;
-	return *this;
-}
-
-exec_context::~exec_context()
-{
-}
-
-exec_context exec_context::from_raw(const void *const_data, size_t size)
-{
-	data_pointer data = data_pointer::from_raw(const_cast<void*>(const_data), size);
-	return exec_context(data);
-}
-
-exec_context exec_context::parse(const data_pointer &data, error_info *error)
-{
-	if (data.size() < sizeof(sph)) {
-		*error = create_error(-EINVAL, "Invalid exec_context size: %zu, must be more than sph: %zu",
-				data.size(), sizeof(sph));
-		return exec_context();
-	}
-
-	sph *s = data.data<sph>();
-	if (data.size() != sizeof(sph) + s->event_size + s->data_size) {
-		*error = create_error(-EINVAL, "Invalid exec_context size: %zu, "
-				"must be equal to sph+event_size+data_size: %llu",
-				data.size(),
-				static_cast<unsigned long long>(sizeof(sph) + s->event_size + s->data_size));
-		return exec_context();
-	}
-
-	char *event = reinterpret_cast<char *>(s + 1);
-
-	auto priv = std::make_shared<exec_context_data>();
-	priv->srw_data = data;
-	priv->event.assign(event, event + s->event_size);
-	priv->data = data.skip<sph>().skip(s->event_size);
-	return exec_context(priv);
-}
-
-std::string exec_context::event() const
-{
-	return m_data ? m_data->event : std::string();
-}
-
-data_pointer exec_context::data() const
-{
-	return m_data ? m_data->data : data_pointer();
-}
-
-dnet_addr *exec_context::address() const
-{
-	return m_data ? &m_data->srw_data.data<sph>()->addr : NULL;
-}
-
-dnet_raw_id *exec_context::src_id() const
-{
-	return m_data ? &m_data->srw_data.data<sph>()->src : NULL;
-}
-
-int exec_context::src_key() const
-{
-	return m_data ? m_data->srw_data.data<sph>()->src_key : 0;
-}
-
-void exec_context::set_src_key(int src_key) const
-{
-	if (m_data) {
-		m_data->srw_data.data<sph>()->src_key = src_key;
-	}
-}
-
-data_pointer exec_context::native_data() const
-{
-	return m_data ? m_data->srw_data : data_pointer();
-}
-
-bool exec_context::is_final() const
-{
-	return m_data ? (m_data->srw_data.data<sph>()->flags & DNET_SPH_FLAGS_FINISH) : false;
-}
-
-bool exec_context::is_null() const
-{
-	return !m_data;
-}
-
 namespace filters {
 bool positive(const callback_result_entry &entry)
 {
@@ -465,14 +305,14 @@ void remove_on_fail_impl(session &sess_, const error_info &error, const std::vec
 	logger &log = sess.get_logger();
 
 	if (statuses.size() == 0) {
-		BH_LOG(log, DNET_LOG_ERROR, "Unexpected empty statuses list at remove_on_fail_impl");
+		dnet_logger_write(log, DNET_LOG_ERROR, "Unexpected empty statuses list at remove_on_fail_impl");
 		return;
 	}
 
-	BH_LOG(log, DNET_LOG_DEBUG, "%s: failed to exec %s: %s, going to remove_data",
+	dnet_logger_write(log, DNET_LOG_DEBUG, "%s: failed to exec %s: %s, going to remove_data",
 		dnet_dump_id(&statuses.front().id),
 		dnet_cmd_string(statuses.front().cmd),
-		error.message());
+		error.message().c_str());
 
 	std::vector<int> rm_groups;
 	for (auto it = statuses.begin(); it != statuses.end(); ++it) {
@@ -504,18 +344,18 @@ static void create_session_data(session_data &sess, struct dnet_node *node)
 	sess.policy = session::default_exceptions;
 }
 
-session_data::session_data(const node &n) : logger(n.get_log(), blackhole::log::attributes_t())
+session_data::session_data(const node &n) : logger(n.get_log(), blackhole::attributes_t())
 {
 	create_session_data(*this, n.get_native());
 }
 
-session_data::session_data(dnet_node *node) : logger(*dnet_node_get_logger(node), blackhole::log::attributes_t())
+session_data::session_data(dnet_node *node) : logger(*dnet_node_get_logger(node), blackhole::attributes_t())
 {
 	create_session_data(*this, node);
 }
 
 session_data::session_data(session_data &other)
-	: logger(other.logger, blackhole::log::attributes_t()),
+	: logger(other.logger, blackhole::attributes_t()),
 	  filter(other.filter),
 	  checker(other.checker),
 	  error_handler(other.error_handler),
@@ -718,10 +558,12 @@ long session::get_timeout(void) const
 void session::set_trace_id(trace_id_t trace_id)
 {
 	dnet_session_set_trace_id(m_data->session_ptr, trace_id);
-	blackhole::log::attributes_t attributes = {
-		keyword::request_id() = trace_id
+	blackhole::attributes_t attributes = {
+            {"request_id", trace_id}
 	};
-	m_data->logger = logger(m_data->logger, std::move(attributes));
+        auto new_l = logger(m_data->logger, std::move(attributes));
+
+	m_data->logger.manager().reset(new_l.manager().get());
 }
 
 trace_id_t session::get_trace_id() const
@@ -793,10 +635,10 @@ public:
 				&& (io->size == io->total_size)
 				&& (io->offset == 0)) {
 
-			BH_LOG(m_sess.get_logger(), DNET_LOG_INFO,
+			dnet_logger_write(m_sess.get_logger(), DNET_LOG_INFO,
 				"read_callback::read-recovery: %s: going to write %llu bytes -> %s groups",
 				dnet_dump_id_str(io->id), static_cast<unsigned long long>(io->size),
-				join_groups(m_failed_groups));
+				join_groups(m_failed_groups).c_str());
 
 			std::sort(m_failed_groups.begin(), m_failed_groups.end());
 			m_failed_groups.erase(std::unique(m_failed_groups.begin(), m_failed_groups.end()),
@@ -818,10 +660,10 @@ public:
 			write_ctl.cmd = DNET_CMD_WRITE;
 			write_ctl.cflags = m_control.cflags;
 
-			BH_LOG(m_sess.get_logger(), DNET_LOG_INFO,
+			dnet_logger_write(m_sess.get_logger(), DNET_LOG_INFO,
 				"read_callback::read-recovery: %s: write %llu bytes -> %s groups",
 				dnet_dump_id_str(io->id), static_cast<unsigned long long>(io->size),
-				join_groups(m_failed_groups));
+				join_groups(m_failed_groups).c_str());
 
 			new_sess.write_data(write_ctl);
 		}
@@ -2037,7 +1879,7 @@ class read_data_range_callback
 				char end_id[2*len + 1];
 				char id_str[2*len + 1];
 
-				BH_LOG(log, DNET_LOG_NOTICE, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d",
+				dnet_logger_write(log, DNET_LOG_NOTICE, "id: %s, start: %s: next: %s, end: %s, size: %zu, cmp: %d",
 					dnet_dump_id_len_raw(d->id.id, len, id_str),
 					dnet_dump_id_len_raw(d->start.id, len, start_id),
 					dnet_dump_id_len_raw(d->next.id, len, next_id),
@@ -2078,7 +1920,7 @@ class read_data_range_callback
 			} else {
 				dnet_io_attr *rep = &d->rep;
 
-				BH_LOG(d->sess.get_logger(),
+				dnet_logger_write(d->sess.get_logger(),
 					DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu",
 					dnet_dump_id(&d->id), (unsigned long long)rep->num, (unsigned long long)d->io.start,
 					(unsigned long long)d->io.num, (unsigned long long)d->io.size);
@@ -2141,7 +1983,7 @@ class remove_data_range_callback : public read_data_range_callback
 				d->last_exception = error;
 			} else {
 				if (d->has_any) {
-					BH_LOG(d->sess.get_logger(), DNET_LOG_NOTICE,
+					dnet_logger_write(d->sess.get_logger(), DNET_LOG_NOTICE,
 							"%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu",
 							dnet_dump_id(&d->id),
 							(unsigned long long)d->rep.num, (unsigned long long)d->io.start,
@@ -2186,7 +2028,6 @@ async_read_result session::remove_data_range(const dnet_io_attr &io, int group_i
 
 std::vector<dnet_route_entry> session::get_routes()
 {
-	scoped_trace_id guard(*this);
 	cstyle_scoped_pointer<dnet_route_entry> entries;
 
 	int count = dnet_get_routes(m_data->session_ptr, &entries.data());
@@ -2195,12 +2036,6 @@ std::vector<dnet_route_entry> session::get_routes()
 		return std::vector<dnet_route_entry>();
 
 	return std::vector<dnet_route_entry>(entries.data(), entries.data() + count);
-}
-
-async_exec_result session::request(dnet_id *id, const exec_context &context)
-{
-	session sess = clean_clone();
-	return async_result_cast<exec_result_entry>(*this, send_srw_command(sess, id, context.m_data->srw_data.data<sph>()));
 }
 
 async_iterator_result session::iterator(const key &id, const data_pointer& request)
@@ -2501,71 +2336,6 @@ async_iterator_result session::server_send(const std::vector<std::string> &strs,
 	return server_send(keys, iflags, groups);
 }
 
-async_exec_result session::exec(dnet_id *id, const std::string &event, const argument_data &data)
-{
-	return exec(id, -1, event, data);
-}
-
-async_exec_result session::exec(dnet_id *id, int src_key, const std::string &event, const argument_data &data)
-{
-	exec_context context = exec_context_data::create(event, data);
-
-	sph *s = context.m_data->srw_data.data<sph>();
-	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
-	s->src_key = src_key;
-
-	if (id)
-		memcpy(s->src.id, id->id, sizeof(s->src.id));
-
-	return request(id, context);
-}
-
-async_exec_result session::exec(const exec_context &tmp_context, const std::string &event, const argument_data &data)
-{
-	exec_context context = exec_context_data::copy(tmp_context, event, data);
-
-	sph *s = context.m_data->srw_data.data<sph>();
-	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
-
-	dnet_id id;
-	dnet_setup_id(&id, 0, s->src.id);
-
-	return request(&id, context);
-}
-
-async_push_result session::push(dnet_id *id, const exec_context &tmp_context,
-		const std::string &event, const argument_data &data)
-{
-	exec_context context = exec_context_data::copy(tmp_context, event, data);
-
-	sph *s = context.m_data->srw_data.data<sph>();
-	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
-	s->flags &= ~(DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH);
-
-	return request(id, context);
-}
-
-async_reply_result session::reply(const exec_context &tmp_context,
-		const argument_data &data, exec_context::final_state state)
-{
-	exec_context context = exec_context_data::copy(tmp_context, tmp_context.event(), data);
-
-	sph *s = context.m_data->srw_data.data<sph>();
-
-	s->flags |= DNET_SPH_FLAGS_REPLY;
-	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
-
-	if (state == exec_context::final)
-		s->flags |= DNET_SPH_FLAGS_FINISH;
-	else
-		s->flags &= ~DNET_SPH_FLAGS_FINISH;
-
-	dnet_id id;
-	dnet_setup_id(&id, 0, s->src.id);
-
-	return request(&id, context);
-}
-
 struct io_attr_comparator
 {
 	bool operator() (const dnet_io_attr &io1, const dnet_io_attr &io2)
@@ -2666,7 +2436,7 @@ public:
 			id = next_id;
 		}
 
-		debug("BULK_READ, callback: %p, group: %d, count: %d", this, group_id, count);
+		debug("BULK_READ, callback: %p, group: %d, count: %zd", this, group_id, count);
 
 		return aggregated(m_sess, results.begin(), results.end());
 	}
@@ -2675,7 +2445,7 @@ public:
 	{
 		(void) error;
 
-		debug("BULK_READ, callback: %p, ios_set.size: %llu, group_index: %llu, group_count: %llu",
+		debug("BULK_READ, callback: %p, ios_set.size: %zu, group_index: %zu, group_count: %zu",
 		      this, m_ios_set.size(), m_group_index, m_groups.size());
 
 		// all results are found or all groups are iterated
