@@ -211,7 +211,7 @@ static void ssend_test_copy(session &s, const std::vector<int> &dst_groups, int 
 
 		dnet_log_write(&log, DNET_LOG_NOTICE, "ssend_test: %s: dst_groups: %s, copied: %d",
 				id.to_string().c_str(),
-				print_groups(dst_groups), copied);
+				print_groups(dst_groups).c_str(), copied);
 
 		return copied;
 	};
@@ -272,7 +272,7 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 	}
 
 	dnet_log_write(&log, DNET_LOG_NOTICE, "%s: keys: %d, dst_groups: %s, copied total: %d",
-			__func__, num, print_groups(dst_groups), copied);
+			__func__, num, print_groups(dst_groups).c_str(), copied);
 
 	// timeout check is different, session timeout (i.e. transaction timeout) is the same as timeout for every write
 	// command send by the iterator or server_send method, which means that if write expires (slow backend), session
@@ -289,7 +289,7 @@ static void ssend_test_server_send(session &s, int num, const std::string &id_pr
 static void ssend_test_set_delay(session &s, const std::vector<int> &groups, uint64_t delay) {
 	struct backend {
 		dnet_addr addr;
-		int backend_id;
+		uint32_t backend_id;
 
 		bool operator<(const backend &other) const {
 			if (auto cmp = dnet_addr_cmp(&addr, &other.addr))
