@@ -18,29 +18,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#ifdef HAVE_COCAINE
-#  include <cocaine/framework/services/storage.hpp>
-#endif
-
 namespace tests {
-
-static std::string cocaine_config_path()
-{
-	char *result = getenv("TEST_COCAINE_CONFIG");
-	if (!result)
-		throw std::runtime_error("TEST_COCAINE_CONFIG environment variable is no set");
-
-	return result;
-}
-
-static std::string cocaine_config_plugins()
-{
-	char *result = getenv("TEST_COCAINE_PLUGINS");
-	if (!result)
-		throw std::runtime_error("TEST_COCAINE_PLUGINS environment variable is no set");
-
-	return result;
-}
 
 static const char *ioserv_path()
 {
