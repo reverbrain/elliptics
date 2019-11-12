@@ -323,8 +323,4 @@ private:
 
 } } // namespace ioremap::elliptics
 
-#define debug(...) dnet_logger_write(m_logger, DNET_LOG_DEBUG, __VA_ARGS__)
-#define notice(...) dnet_logger_write(m_logger, DNET_LOG_NOTICE, __VA_ARGS__)
-
-
 #endif // CALLBACK_P_H

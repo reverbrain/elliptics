@@ -42,6 +42,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <type_traits>
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -55,10 +56,11 @@
 
 #include <boost/lexical_cast.hpp>
 
-#include <type_traits>
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
 
 #define BLACKHOLE_HEADER_ONLY
-//#include <blackhole/formatter/json.hpp>
 
 #include "common.h"
 
@@ -94,14 +96,22 @@ extern "C" int dnet_node_reset_log(struct dnet_node *n __unused)
 	return 0;
 }
 
-static void parse_logger(config_data *data, const config &logger)
+static void parse_logger(config_data *data, const config &logger __unused)
 {
-        auto log = blackhole::registry::configured()
-		->builder<blackhole::config::json_t>(std::istringstream(logger.at("frontends").to_string()))
+	auto &doc = data->parser->get_doc();
+	auto &logger_doc = doc["logger"];
+
+	rapidjson::StringBuffer buffer;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+	logger_doc.Accept(writer);
+	auto str = buffer.GetString();
+
+	auto inner = blackhole::registry::configured()
+		->builder<blackhole::config::json_t>(std::istringstream(str))
 		.build("root");
 
-	data->logger.manager().reset(log.manager().get());
-	//data->cfg_state.log = elliptics::logger(log, blackhole::attributes_t());
+	data->logger.reassign_base(std::move(inner));
+	data->cfg_state.log = &data->logger;
 }
 
 struct dnet_addr_wrap {

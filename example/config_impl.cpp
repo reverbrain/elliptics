@@ -67,6 +67,10 @@ struct transformer_t {
     }
 };
 
+const rapidjson::Document& config_parser::get_doc() const {
+	return doc_;
+}
+
 config config_parser::open(const std::string &path)
 {
 	FILE *f = fopen(path.c_str(), "r");
@@ -77,15 +81,14 @@ config config_parser::open(const std::string &path)
 
 	rapidjson::FileStream stream(f);
 
-	rapidjson::Document doc;
-	doc.ParseStream<0>(stream);
+	doc_.ParseStream<0>(stream);
 
 	fclose(f);
 
-	if (doc.HasParseError()) {
+	if (doc_.HasParseError()) {
 		std::ifstream in(path.c_str());
 		if (in) {
-			size_t offset = doc.GetErrorOffset();
+			size_t offset = doc_.GetErrorOffset();
 			std::vector<char> buffer(offset);
 			in.read(buffer.data(), offset);
 
@@ -118,19 +121,19 @@ config config_parser::open(const std::string &path)
 			const size_t dash_count = line_offset < offset ? offset - line_offset - 1 : 0;
 
 			throw config_error()
-				<< "parser error at line " << line_number << ": " << doc.GetParseError() << std::endl
+				<< "parser error at line " << line_number << ": " << doc_.GetParseError() << std::endl
 				<< data.substr(line_offset + 1) << std::endl
 				<< std::string(dash_count, ' ') << '^' << std::endl
 				<< std::string(dash_count, '~') << '+' << std::endl;
 		}
 
-		throw config_error() << "parser error: at unknown line: " << doc.GetParseError();
+		throw config_error() << "parser error: at unknown line: " << doc_.GetParseError();
 	}
 
-	if (!doc.IsObject())
+	if (!doc_.IsObject())
 		throw config_error() << "root must be an object";
 
-	root_ = transformer_t::transform(doc);
+	root_ = transformer_t::transform(doc_);
 	return root();
 }
 

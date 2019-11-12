@@ -341,8 +341,11 @@ public:
 
 	config open(const std::string &path);
 	config root() const;
+
+	const rapidjson::Document& get_doc() const;
 private:
 	blackhole::dynamic_t root_;
+	rapidjson::Document doc_;
 };
 
 struct config_data : public dnet_config_data

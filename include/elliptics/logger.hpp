@@ -56,17 +56,29 @@ static const char *severity_names[] = {
 static const size_t severity_names_count = sizeof(severity_names) / sizeof(severity_names[0]);
 
 static inline auto sevmap(std::size_t severity, const std::string& spec, blackhole::writer_t& writer) -> void {
-    if (severity < severity_names_count) {
-        writer.write(spec, severity_names[severity]);
-    } else {
-        writer.write(spec, severity);
-    }
+	if (severity < severity_names_count) {
+		writer.write(spec, severity_names[severity]);
+	} else {
+		writer.write(spec, severity);
+	}
 }
 
 class logger_base : public blackhole::root_logger_t {
 public:
-	logger_base() : blackhole::root_logger_t(logger_base::default_logger()) {}
-	logger_base(blackhole::root_logger_t &&other): blackhole::root_logger_t(std::move(other)) {}
+	logger_base() : blackhole::root_logger_t(logger_base::default_logger()) {
+	}
+	logger_base(blackhole::root_logger_t &&other): blackhole::root_logger_t(std::move(other)) {
+	}
+	logger_base(logger_base &&other): blackhole::root_logger_t(std::move(other)) {
+	}
+	virtual ~logger_base() {
+	}
+
+	logger_base &operator=(blackhole::root_logger_t&& other) {
+		((blackhole::root_logger_t *)this)->operator=(std::move(other));
+
+		return *this;
+	}
 
 	static blackhole::root_logger_t default_logger() {
 		auto log = blackhole::builder<blackhole::root_logger_t>()
@@ -78,11 +90,63 @@ public:
 				 		.build())
 					.build())
 			.build();
-	    return std::move(*log);
+		return std::move(*log);
 	}
 };
 
-typedef blackhole::wrapper_t logger;
+class logger {
+	public:
+	logger(logger_base &base) : m_logger(std::make_unique<blackhole::logger_facade<logger_base>>(base)) {
+	}
+	logger(logger_base &base, const blackhole::attributes_t &attrs) : m_logger(std::make_unique<blackhole::logger_facade<logger_base>>(base)), m_attrs(attrs) {
+	}
+	logger(logger_base &base, blackhole::attributes_t &&attrs) : m_logger(std::make_unique<blackhole::logger_facade<logger_base>>(base)), m_attrs(std::move(attrs)) {
+	}
+
+	logger(logger &other, const blackhole::attributes_t &attrs) : m_logger(std::make_unique<blackhole::logger_facade<logger_base>>(other.get_base())), m_attrs(attrs) {
+	}
+	logger(logger &other, blackhole::attributes_t &&attrs) : m_logger(std::make_unique<blackhole::logger_facade<logger_base>>(other.get_base())), m_attrs(std::move(attrs)) {
+	}
+
+	logger(logger &&other) {
+		std::swap(m_base, other.m_base);
+		std::swap(m_logger, other.m_logger);
+	}
+
+	virtual ~logger() {
+	}
+
+	logger_base &get_base() {
+		return m_logger->inner();
+	}
+
+	void reassign_base(logger_base &&base) {
+		m_base.reset(new logger_base(std::move(base)));
+		m_logger.reset(new blackhole::logger_facade<logger_base>(*m_base.get()));
+	}
+
+	auto log(int severity, const blackhole::string_view& pattern) -> void {
+		m_logger->log(severity, pattern);
+	}
+
+	auto log(int severity, const blackhole::string_view& pattern, const blackhole::attribute_list& attributes) -> void {
+		m_logger->log(severity, pattern, attributes);
+	}
+
+	template<typename T, typename... Args>
+	auto log(int severity, const blackhole::string_view& pattern, const T& arg, const Args&... args) -> void {
+		m_logger->log(severity, pattern, arg, args...);
+	}
+
+	void add_attributes(const blackhole::attributes_t &attributes) {
+		m_attrs.insert(m_attrs.end(), attributes.begin(), attributes.end());
+	}
+
+	private:
+	std::unique_ptr<logger_base> m_base;
+	std::unique_ptr<blackhole::logger_facade<logger_base>> m_logger;
+	blackhole::attributes_t m_attrs;
+};
 
 class file_logger : public logger_base
 {
@@ -120,10 +184,10 @@ void dnet_log_vwrite(dnet_logger *logger, int severity, const char *format, va_l
 void dnet_log_write(dnet_logger *logger, int severity, const char *format, ...) __attribute__ ((format(printf, 3, 4)));
 void dnet_log_write_err(dnet_logger *logger, int severity, int err, const char *format, ...) __attribute__ ((format(printf, 4, 5)));
 
-#define dnet_logger_write(logger, severity, format, a...) dnet_log_write((dnet_logger *)&logger, severity, format, ##a)
-
 #ifdef __cplusplus
 }
+
+void dnet_logger_write(const dnet_logger &logger, int severity, const char *format, ...) __attribute__ ((format(printf, 3, 4)));
 #endif
 
 #endif // __IOREMAP_LOGGER_HPP

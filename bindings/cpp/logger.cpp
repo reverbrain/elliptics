@@ -168,6 +168,14 @@ void dnet_log_write(dnet_logger *logger, int severity, const char *format, ...)
 	va_end(args);
 }
 
+void dnet_logger_write(const dnet_logger &logger, int severity, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	dnet_log_vwrite((dnet_logger *)&logger, severity, format, args);
+	va_end(args);
+}
+
 void dnet_log_write_err(dnet_logger *logger, int err, const char *format, ...)
 {
 	(void) err;

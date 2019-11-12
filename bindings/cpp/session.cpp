@@ -561,9 +561,7 @@ void session::set_trace_id(trace_id_t trace_id)
 	blackhole::attributes_t attributes = {
             {"request_id", trace_id}
 	};
-        auto new_l = logger(m_data->logger, std::move(attributes));
-
-	m_data->logger.manager().reset(new_l.manager().get());
+        m_data->logger.add_attributes(attributes);
 }
 
 trace_id_t session::get_trace_id() const
@@ -2380,15 +2378,15 @@ public:
 		memset(&id, 0, sizeof(id));
 		dnet_setup_id(&id, group_id, ios[0].id);
 
-		debug("BULK_READ, callback: %p, group: %d, next", this, group_id);
+		dnet_logger_write(m_logger, DNET_LOG_DEBUG, "BULK_READ, callback: %p, group: %d, next", this, group_id);
 
 		cur.reset(node, &id);
 		if (!cur) {
-			debug("BULK_READ, callback: %p, group: %d, id: %s, state: failed",
+			dnet_logger_write(m_logger, DNET_LOG_DEBUG, "BULK_READ, callback: %p, group: %d, id: %s, state: failed",
 				this, group_id, dnet_dump_id(&id));
 			return aggregated(m_sess, results.begin(), results.end());
 		}
-		debug("BULK_READ, callback: %p, id: %s, state: %s, backend: %d",
+		dnet_logger_write(m_logger, DNET_LOG_DEBUG, "BULK_READ, callback: %p, id: %s, state: %s, backend: %d",
 			this, dnet_dump_id(&id), dnet_state_dump_addr(cur.state()), cur.backend());
 
 		for (size_t i = 0; i < io_num; ++i) {
@@ -2397,11 +2395,11 @@ public:
 
 				next.reset(node, &next_id);
 				if (!next) {
-					debug("BULK_READ, callback: %p, group: %d, id: %s, state: failed",
+					dnet_logger_write(m_logger, DNET_LOG_DEBUG, "BULK_READ, callback: %p, group: %d, id: %s, state: failed",
 						this, group_id, dnet_dump_id(&next_id));
 					return aggregated(m_sess, results.begin(), results.end());
 				}
-				debug("BULK_READ, callback: %p, id: %s, state: %s, backend: %d",
+				dnet_logger_write(m_logger, DNET_LOG_DEBUG, "BULK_READ, callback: %p, id: %s, state: %s, backend: %d",
 					this, dnet_dump_id(&next_id), dnet_state_dump_addr(next.state()), next.backend());
 
 				/* Send command only if state changes or it's a last id */
@@ -2416,7 +2414,7 @@ public:
 
 			memcpy(&m_control.id, &id, sizeof(id));
 
-			notice("BULK_READ, callback: %p, start: %s: end: %s, count: %llu, state: %s, backend: %d",
+			dnet_logger_write(m_logger, DNET_LOG_NOTICE, "BULK_READ, callback: %p, start: %s: end: %s, count: %llu, state: %s, backend: %d",
 				this,
 				dnet_dump_id(&id),
 				dnet_dump_id(&next_id),
@@ -2427,7 +2425,7 @@ public:
 
 			results.emplace_back(send_to_single_state(m_sess, m_control));
 
-			debug("BULK_READ, callback: %p, group: %d", this, group_id);
+			dnet_logger_write(m_logger, DNET_LOG_DEBUG, "BULK_READ, callback: %p, group: %d", this, group_id);
 
 			start = i + 1;
 			cur.reset();
@@ -2436,7 +2434,7 @@ public:
 			id = next_id;
 		}
 
-		debug("BULK_READ, callback: %p, group: %d, count: %zd", this, group_id, count);
+		dnet_logger_write(m_logger, DNET_LOG_DEBUG, "BULK_READ, callback: %p, group: %d, count: %zd", this, group_id, count);
 
 		return aggregated(m_sess, results.begin(), results.end());
 	}
@@ -2445,7 +2443,7 @@ public:
 	{
 		(void) error;
 
-		debug("BULK_READ, callback: %p, ios_set.size: %zu, group_index: %zu, group_count: %zu",
+		dnet_logger_write(m_logger, DNET_LOG_DEBUG, "BULK_READ, callback: %p, ios_set.size: %zu, group_index: %zu, group_count: %zu",
 		      this, m_ios_set.size(), m_group_index, m_groups.size());
 
 		// all results are found or all groups are iterated
