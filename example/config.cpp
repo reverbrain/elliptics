@@ -96,7 +96,7 @@ extern "C" int dnet_node_reset_log(struct dnet_node *n __unused)
 	return 0;
 }
 
-static void parse_logger(config_data *data, const config &logger __unused)
+static void parse_logger(config_data *data, const config &logger_conf)
 {
 	auto &doc = data->parser->get_doc();
 	auto &logger_doc = doc["logger"];
@@ -112,6 +112,24 @@ static void parse_logger(config_data *data, const config &logger __unused)
 
 	data->logger.reassign_base(std::move(inner));
 	data->cfg_state.log = &data->logger;
+
+	if (logger_conf.has("level")) {
+		auto level_str = logger_conf.at("level").to_string();
+		int severity = DNET_LOG_INFO;
+		if (level_str == "debug") {
+			severity = DNET_LOG_DEBUG;
+		} else if (level_str == "notice") {
+			severity = DNET_LOG_NOTICE;
+		} else if (level_str == "info") {
+			severity = DNET_LOG_INFO;
+		} else if (level_str == "warning") {
+			severity = DNET_LOG_WARNING;
+		} else if (level_str == "error") {
+			severity = DNET_LOG_ERROR;
+		}
+
+		data->logger.set_severity(severity);
+	}
 }
 
 struct dnet_addr_wrap {

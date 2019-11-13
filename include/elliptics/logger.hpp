@@ -126,23 +126,34 @@ class logger {
 	}
 
 	auto log(int severity, const blackhole::string_view& pattern) -> void {
-		m_logger->log(severity, pattern);
+		if (severity >= m_severity) {
+			m_logger->log(severity, pattern);
+		}
 	}
 
 	auto log(int severity, const blackhole::string_view& pattern, const blackhole::attribute_list& attributes) -> void {
-		m_logger->log(severity, pattern, attributes);
+		if (severity >= m_severity) {
+			m_logger->log(severity, pattern, attributes);
+		}
 	}
 
 	template<typename T, typename... Args>
 	auto log(int severity, const blackhole::string_view& pattern, const T& arg, const Args&... args) -> void {
-		m_logger->log(severity, pattern, arg, args...);
+		if (severity >= m_severity) {
+			m_logger->log(severity, pattern, arg, args...);
+		}
 	}
 
 	void add_attributes(const blackhole::attributes_t &attributes) {
 		m_attrs.insert(m_attrs.end(), attributes.begin(), attributes.end());
 	}
 
+	void set_severity(int severity) {
+		m_severity = severity;
+	}
+
 	private:
+	int m_severity = DNET_LOG_INFO;
 	std::unique_ptr<logger_base> m_base;
 	std::unique_ptr<blackhole::logger_facade<logger_base>> m_logger;
 	blackhole::attributes_t m_attrs;
