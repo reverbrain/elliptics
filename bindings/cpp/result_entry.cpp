@@ -261,36 +261,6 @@ struct dnet_node_status *node_status_result_entry::node_status() const
 	DNET_DATA_END(sizeof(struct dnet_node_status));
 }
 
-exec_result_entry::exec_result_entry()
-{
-}
-
-exec_result_entry::exec_result_entry(const std::shared_ptr<callback_result_data> &data)
-	: callback_result_entry(data)
-{
-}
-
-exec_result_entry::exec_result_entry(const exec_result_entry &other) : callback_result_entry(other)
-{
-}
-
-exec_result_entry::~exec_result_entry()
-{
-}
-
-exec_result_entry &exec_result_entry::operator =(const exec_result_entry &other)
-{
-	callback_result_entry::operator =(other);
-	return *this;
-}
-
-exec_context exec_result_entry::context() const
-{
-	if (m_data->error)
-		m_data->error.throw_error();
-	return m_data->context;
-}
-
 iterator_result_entry::iterator_result_entry()
 {
 }

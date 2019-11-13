@@ -29,7 +29,7 @@
 #include <sstream>
 #include <thread>
 
-#include <blackhole/scoped_attributes.hpp>
+#include <blackhole/attributes.hpp>
 
 #include "elliptics/async_result_cast.hpp"
 
@@ -75,26 +75,6 @@ class session_scope
 		uint32_t m_policy;
 };
 
-class scoped_trace_id
-{
-public:
-	scoped_trace_id(session &sess) :
-		m_attributes(sess.get_logger(), create_attributes(sess))
-	{
-	}
-
-private:
-	static blackhole::log::attributes_t create_attributes(session &sess)
-	{
-		blackhole::log::attributes_t attributes = {
-			keyword::request_id() = sess.get_trace_id()
-		};
-		return std::move(attributes);
-	}
-
-	blackhole::scoped_attributes_t m_attributes;
-};
-
 typedef int (*complete_func)(struct dnet_net_state *, struct dnet_cmd *, void *);
 
 class callback_result_data
@@ -121,18 +101,12 @@ class callback_result_data
 
 		data_pointer data;
 		error_info error;
-		exec_context context;
 };
 
 enum special_count { unlimited };
 
 struct entry_converter
 {
-	static void convert(exec_result_entry &entry, callback_result_data *data)
-	{
-		data->context = exec_context::parse(entry.data(), &data->error);
-	}
-
 	static void convert(iterator_result_entry &entry, callback_result_data *)
 	{
 		dnet_convert_iterator_response(entry.reply());
@@ -346,9 +320,6 @@ private:
 	net_state_ptr m_state;
 	int m_backend;
 };
-
-#define debug(...) BH_LOG(m_logger, DNET_LOG_DEBUG, __VA_ARGS__)
-#define notice(...) BH_LOG(m_logger, DNET_LOG_NOTICE, __VA_ARGS__)
 
 } } // namespace ioremap::elliptics
 

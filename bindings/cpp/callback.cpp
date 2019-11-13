@@ -46,10 +46,10 @@ public:
 			return increment_completed();
 		}
 
-		BH_LOG(m_logger, cmd->status ? DNET_LOG_ERROR : DNET_LOG_NOTICE,
-			"%s: %s: handled reply from: %s, trans: %lld, cflags: %s, status: %d, size: %lld, client: %d, last: %d",
+		dnet_log_write((dnet_logger *)&m_logger, cmd->status ? DNET_LOG_ERROR : DNET_LOG_NOTICE,
+			"%s: %s: handled reply from: %s, trans: %lu, cflags: %s, status: %d, size: %lu, client: %d, last: %d",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), addr ? dnet_addr_string(addr) : "<unknown>",
-			uint64_t(cmd->trans), dnet_flags_dump_cflags(cmd->flags), int(cmd->status), uint64_t(cmd->size),
+			cmd->trans, dnet_flags_dump_cflags(cmd->flags), int(cmd->status), uint64_t(cmd->size),
 			!(cmd->flags & DNET_FLAGS_REPLY), !(cmd->flags & DNET_FLAGS_MORE));
 
 		auto data = std::make_shared<callback_result_data>(addr, cmd);
@@ -58,10 +58,6 @@ public:
 			data->error = create_error(*cmd);
 
 		callback_result_entry entry(data);
-
-		if (cmd->cmd == DNET_CMD_EXEC && cmd->size > 0) {
-			data->context = exec_context::parse(entry.data(), &data->error);
-		}
 
 		m_handler.process(entry);
 
@@ -100,7 +96,6 @@ private:
 template <typename Method, typename T>
 async_generic_result send_impl(session &sess, T &control, Method method)
 {
-	scoped_trace_id guard(sess);
 	async_generic_result result(sess);
 
 	detail::basic_handler *handler = new detail::basic_handler(sess.get_native_node()->log, result);
@@ -209,21 +204,6 @@ static size_t send_to_groups_io_impl(session &sess, dnet_io_control &ctl)
 async_generic_result send_to_groups(session &sess, dnet_io_control &control)
 {
 	return send_impl(sess, control, send_to_groups_io_impl);
-}
-
-async_generic_result send_srw_command(session &sess, dnet_id *id, sph *srw_data)
-{
-	scoped_trace_id guard(sess);
-	async_generic_result result(sess);
-
-	detail::basic_handler *handler = new detail::basic_handler(sess.get_native_node()->log, result);
-
-	const size_t count = dnet_send_cmd(sess.get_native(), id, detail::basic_handler::handler, handler, srw_data);
-
-	if (handler->set_total(count))
-		delete handler;
-
-	return result;
 }
 
 } } // namespace ioremap::elliptics

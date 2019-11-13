@@ -33,10 +33,11 @@
 #include <boost/intrusive/list.hpp>
 
 #include "library/elliptics.h"
-#include "indexes/local_session.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
+
+#include "elliptics/timer.hpp"
 
 #include "monitor/rapidjson/document.h"
 #include "monitor/rapidjson/writer.h"
@@ -498,7 +499,7 @@ private:
 	std::unique_lock<T> m_guard;
 	dnet_node *m_node;
 	char m_name[256];
-	elliptics_timer m_timer;
+        elliptics::timer m_timer;
 };
 
 }}

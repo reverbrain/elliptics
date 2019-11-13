@@ -45,26 +45,3 @@ int dnet_log_init(struct dnet_node *n, dnet_logger *l)
 
 	return 0;
 }
-
-static void dnet_log_raw_internal(dnet_logger *l, int level, const char *format, va_list args) {
-	DNET_LOG_BEGIN_ONLY_LOG(l, (enum dnet_log_level)level);
-	DNET_LOG_VPRINT(format, args);
-	DNET_LOG_END();
-}
-
-void dnet_log_raw_log_only(dnet_logger *l, int level, const char *format, ...) {
-	va_list args;
-
-	va_start(args, format);
-	dnet_log_raw_internal(l, level, format, args);
-	va_end(args);
-}
-
-void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
-{
-	va_list args;
-
-	va_start(args, format);
-	dnet_log_raw_internal(n->log, level, format, args);
-	va_end(args);
-}

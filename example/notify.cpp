@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
 	try {
 		file_logger log(logfile, log_level);
 
-		node n(logger(log, blackhole::log::attributes_t()), cfg);
+		node n(logger(log, blackhole::attributes_t()), cfg);
 		n.add_remote(address(remote_addr, remote_port, remote_family));
 
 		session s(n);

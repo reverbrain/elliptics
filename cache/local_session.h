@@ -22,7 +22,6 @@
 
 #include "../library/elliptics.h"
 #include "../include/elliptics/session.hpp"
-#include "../bindings/cpp/session_indexes.hpp"
 
 #include <chrono>
 
@@ -56,43 +55,6 @@ class local_session
 		dnet_net_state *m_state;
 		uint32_t m_ioflags;
 		uint64_t m_cflags;
-};
-
-class elliptics_timer
-{
-public:
-
-	typedef std::chrono::time_point<std::chrono::system_clock> time_point_t;
-
-	elliptics_timer()
-	{
-		m_last_time_chrono = std::chrono::system_clock::now();
-	}
-
-	template<class Period = std::chrono::milliseconds>
-	long long int elapsed() const
-	{
-		time_point_t time_chrono = std::chrono::system_clock::now();
-		return delta<Period>(m_last_time_chrono, time_chrono);
-	}
-
-	template<class Period = std::chrono::milliseconds>
-	long long int restart()
-	{
-		time_point_t time_chrono = std::chrono::system_clock::now();
-		std::swap(m_last_time_chrono, time_chrono);
-
-		return delta<Period>(time_chrono, m_last_time_chrono);
-	}
-
-private:
-	template<class Period>
-	long long int delta(const time_point_t& start, const time_point_t& end) const
-	{
-		return (std::chrono::duration_cast<Period> (end - start)).count();
-	}
-
-	time_point_t m_last_time_chrono;
 };
 
 #endif // LOCAL_SESSION_H

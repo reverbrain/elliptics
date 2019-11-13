@@ -48,10 +48,10 @@ struct dnet_backend_config_entry
 
 struct dnet_backend_info
 {
-	static blackhole::log::attributes_t make_attributes(uint32_t backend_id)
+	static blackhole::attributes_t make_attributes(uint32_t backend_id)
 	{
-		blackhole::log::attributes_t result = {
-			blackhole::attribute::make("backend_id", backend_id)
+		blackhole::attributes_t result = {
+			std::make_pair("backend_id", backend_id)
 		};
 		return std::move(result);
 	}

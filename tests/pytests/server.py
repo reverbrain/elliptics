@@ -37,7 +37,6 @@ class Servers:
         os.mkdir(self.path)
 
         config = dict()
-        config['srw'] = not without_cocaine
         config['fork'] = True
         config['monitor'] = True
         config['path'] = self.path

@@ -759,7 +759,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->bg_ionice_prio = cfg->bg_ionice_prio;
 	n->removal_delay = cfg->removal_delay;
 	n->flags = cfg->flags;
-	n->indexes_shard_count = cfg->indexes_shard_count;
 
 	if (!n->log)
 		dnet_log_init(n, cfg->log);
@@ -787,12 +786,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->client_prio = cfg->client_prio;
 	n->server_prio = cfg->server_prio;
 
-	if (!n->indexes_shard_count) {
-		n->indexes_shard_count = DNET_DEFAULT_INDEXES_SHARD_COUNT;
-		dnet_log(n, DNET_LOG_NOTICE, "Using default indexes shard count (%d shards).",
-				n->indexes_shard_count);
-	}
-
 	err = dnet_crypto_init(n);
 	if (err)
 		goto err_out_free;
@@ -819,7 +812,7 @@ err_out_free:
 err_out_exit:
 	pthread_sigmask(SIG_SETMASK, &previous_sigset, NULL);
 
-	dnet_log_only_log(cfg->log, DNET_LOG_ERROR, "Error during node creation.");
+	dnet_log_write(cfg->log, DNET_LOG_ERROR, "Error during node creation.");
 
 	return NULL;
 }

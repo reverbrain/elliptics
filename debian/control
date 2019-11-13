@@ -6,7 +6,7 @@ Build-Depends:	cdbs,
 		cmake (>= 2.6),
 		debhelper (>= 7.0.50~),
 		eblob (>= 0.23.11),
-		blackhole-dev (= 0.2.4-1),
+		blackhole-dev,
 		libboost-dev,
 		libboost-iostreams-dev,
 		libboost-program-options-dev,
@@ -14,9 +14,6 @@ Build-Depends:	cdbs,
 		libboost-system-dev,
 		libboost-thread-dev,
 		libboost-filesystem-dev,
-		libcocaine-core2,
-		libcocaine-dev (>= 0.11.2.1),
-		cocaine-framework-native-dev (>= 0.11.0.1),
 		libltdl-dev,
 		libmsgpack-dev,
 		python-dev,
@@ -31,7 +28,7 @@ XS-Python-Version: >= 2.6
 
 Package: elliptics
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.23.11), elliptics-client (= ${Source-Version}), libcocaine-core2, handystats (>= 1.10.0)
+Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.23.11), elliptics-client (= ${Source-Version}), handystats (>= 1.10.0)
 Replaces: elliptics-2.10, srw
 Provides: elliptics-2.10
 Description: Distributed hash table storage
@@ -42,18 +39,6 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, msgpack-python | python-msgpack, handystats (>= 1.10.0)
 Replaces: elliptics-2.10
 Description: Distributed hash table storage (client library)
- Elliptics network is a fault tolerant distributed hash table object storage.
-
-Package: libcocaine-plugin-elliptics
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, elliptics-client (= ${Source-Version})
-Description: Distributed hash table storage (cocaine plugin)
- Elliptics network is a fault tolerant distributed hash table object storage.
-
-Package: libcocaine-plugin-elliptics-dev
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, cocaine-framework-native-dev (>= 0.10.6.0)
-Description: Distributed hash table storage (cocaine plugin includes)
  Elliptics network is a fault tolerant distributed hash table object storage.
 
 Package: elliptics-dbg

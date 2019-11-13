@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
 		}
 
 		file_logger log(logfile, log_level);
-		node n(logger(log, blackhole::log::attributes_t()));
+		node n(logger(log, blackhole::attributes_t()));
 		finder find(n);
 
 		n.add_remote(remote);
