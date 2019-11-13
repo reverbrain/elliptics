@@ -148,16 +148,13 @@ void dnet_log_vwrite(dnet_logger *logger, int severity, const char *format, va_l
 	char buffer[2048];
 	const size_t buffer_size = sizeof(buffer);
 
-	vsnprintf(buffer, buffer_size, format, args);
-
-	buffer[buffer_size - 1] = '\0';
-
-	size_t len = strlen(buffer);
-	while (len > 0 && buffer[len - 1] == '\n')
-		buffer[--len] = '\0';
+	size_t len = vsnprintf(buffer, buffer_size, format, args);
+	if (len >= buffer_size) {
+		len = buffer_size;
+	}
 
 	//logger->log(severity, buffer, blackhole::attribute_list{});
-	logger->log(severity, buffer);
+	logger->log(severity, std::string(buffer, len));
 }
 
 void dnet_log_write(dnet_logger *logger, int severity, const char *format, ...)
