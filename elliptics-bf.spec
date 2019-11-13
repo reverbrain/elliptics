@@ -151,6 +151,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 13 2019 Evgeniy Polyakov <zbr@ioremap.net> - 3.0.0.1
+- added missing files
+
 * Wed Nov 13 2019 Evgeniy Polyakov <zbr@ioremap.net> - 3.0.0.0
 - major update to the latest (to date) libraries and compilers
 - updated to the latest blackhole logger (master branch) https://github.com/3Hren/blackhole
