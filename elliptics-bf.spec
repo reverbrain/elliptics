@@ -13,8 +13,6 @@ Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:	python-devel
-BuildRequires:	libcocaine-core2-devel >= 0.11.2.0
-BuildRequires:  cocaine-framework-native-devel >= 0.11.0.0
 BuildRequires:	eblob-devel >= 0.23.11
 BuildRequires:  libblackhole-devel = 0.2.4
 BuildRequires:	libev-devel libtool-ltdl-devel
@@ -58,15 +56,6 @@ Group:		Development/Libraries
 
 %description client
 Elliptics client library (C++/Python bindings)
-
-%package -n cocaine-plugin-elliptics
-Summary: Elliptics plugin for Cocaine
-Group: Development/Libraries
-Requires: %{name} = %{version}-%{release}
-
-%description -n cocaine-plugin-elliptics
-cocaine-plugin-elliptics
-
 
 %package client-devel
 Summary:	Elliptics library C++ binding development headers and libraries
@@ -117,10 +106,6 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_bindir}/dnet_run_servers
 %{_libdir}/libelliptics.so
-
-%files -n cocaine-plugin-elliptics
-%defattr(-,root,root,-)
-%{_libdir}/cocaine/elliptics-extensions.cocaine-plugin
 
 %files client
 %defattr(-,root,root,-)
