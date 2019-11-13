@@ -231,7 +231,6 @@ static int dnet_cmd_needs_backend(int command)
 	case DNET_CMD_REVERSE_LOOKUP:
 	case DNET_CMD_JOIN:
 	case DNET_CMD_ROUTE_LIST:
-	case DNET_CMD_EXEC:
 	case DNET_CMD_MONITOR_STAT:
 	case DNET_CMD_BACKEND_CONTROL:
 	case DNET_CMD_BACKEND_STATUS:

@@ -1,5 +1,5 @@
-cmake_minimum_required (VERSION 2.6 FATAL_ERROR)
-cmake_policy (VERSION 2.6.0)
+cmake_minimum_required (VERSION 2.8.7 FATAL_ERROR)
+cmake_policy (VERSION 2.8)
 
 #set(CMAKE_SKIP_RPATH OFF)
 #set(CMAKE_SKIP_BUILD_RPATH  OFF)
@@ -24,14 +24,13 @@ add_definitions(-DCONFIG_ELLIPTICS_VERSION_2=${ELLIPTICS_VERSION_2})
 add_definitions(-DCONFIG_ELLIPTICS_VERSION_3=${ELLIPTICS_VERSION_3})
 
 option(WITH_PYTHON "Build python bindings" ON)
-option(WITH_COCAINE "Build with cocaine support" ON)
 option(DISABLE_LONG_TEST "Disable tests which take long time" OFF)
 
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
 set(Boost_NO_BOOST_CMAKE TRUE)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -std=gnu++0x")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -std=gnu++14")
 include(CheckLargefile)
 include(CheckAtomic)
 include(CheckSendfile)
@@ -41,10 +40,7 @@ include(CheckProcStats)
 include(CreateStdint)
 include(FixRpath)
 
-find_path(BLACKHOLE_INCLUDE_DIRS NAMES "blackhole/attribute.hpp" PATH_SUFFIXES)
-if (NOT BLACKHOLE_INCLUDE_DIRS)
-	message(FATAL_ERROR "Blackhole development files have not been found")
-endif()
+find_package(Blackhole REQUIRED)
 include_directories(${BLACKHOLE_INCLUDE_DIRS})
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
@@ -79,13 +75,6 @@ endif()
 
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
 find_package(Threads REQUIRED)
-
-if(WITH_COCAINE)
-    # Find some cocaine
-    find_package(Cocaine REQUIRED)
-    include_directories(${COCAINE_INCLUDE_DIRS})
-    add_definitions(${COCAINE_CFLAGS})
-endif()
 
 # Find eblob
 find_package(Eblob REQUIRED)
@@ -130,28 +119,22 @@ set(ELLIPTICS_LIBRARIES
     ${SENDFILE_LIBRARIES}
     ${Boost_LIBRARIES}
     ${EBLOB_LIBRARIES}
-    ${COCAINE_LIBRARIES}
+    ${BLACKHOLE_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
     )
 
 # Build parts
-add_subdirectory(srw)
 add_subdirectory(cache)
-add_subdirectory(indexes)
 add_subdirectory(library)
 add_subdirectory(bindings)
 add_subdirectory(monitor)
 add_subdirectory(tests)
 add_subdirectory(example)
-if(WITH_COCAINE)
-    add_subdirectory(cocaine/plugins)
-endif()
 
 install(FILES
         include/elliptics/core.h
         include/elliptics/interface.h
         include/elliptics/packet.h
-        include/elliptics/srw.h
         include/elliptics/async_result.hpp
         include/elliptics/cppdef.h
         include/elliptics/debug.hpp

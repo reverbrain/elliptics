@@ -206,54 +206,6 @@ bool async_result<T>::get(T &entry)
 	return false;
 }
 
-template <>
-bool async_result<index_entry>::get(index_entry &entry)
-{
-	wait(session::throw_at_get);
-	if (!m_data->results.empty()) {
-		entry = m_data->results[0];
-		return true;
-	}
-	return false;
-}
-
-template <>
-bool async_result<find_indexes_result_entry>::get(find_indexes_result_entry &entry)
-{
-	wait(session::throw_at_get);
-	if (!m_data->results.empty()) {
-		entry = m_data->results[0];
-		return true;
-	}
-	return false;
-}
-
-/*!
- * \brief Waits for async result for get_index_metadata and sets it to output parameter \a entry
- * \param entry Output parameter where result will be placed
- * \return Returns true iff result was successfully obtained
- */
-template <>
-bool async_result<get_index_metadata_result_entry>::get(get_index_metadata_result_entry &entry)
-{
-	wait(session::throw_at_get);
-	if (!m_data->results.empty()) {
-		entry.index_size = 0;
-		entry.is_valid = true;
-		entry.shard_id = -1;
-		for (auto it = m_data->results.begin(); it != m_data->results.end(); ++it) {
-			if (it->is_valid) {
-				entry.index_size += it->index_size;
-			} else {
-				entry.is_valid = false;
-				return false;
-			}
-		}
-		return true;
-	}
-	return false;
-}
-
 template <typename T>
 T async_result<T>::get_one()
 {
@@ -507,43 +459,6 @@ void async_result_handler<T>::process(const T &result)
 	}
 }
 
-template <>
-void async_result_handler<index_entry>::process(const index_entry &result)
-{
-	std::unique_lock<std::mutex> locker(m_data->lock);
-	if (m_data->result_handler) {
-		m_data->result_handler(result);
-	} else {
-		m_data->results.push_back(result);
-	}
-}
-
-template <>
-void async_result_handler<find_indexes_result_entry>::process(const find_indexes_result_entry &result)
-{
-	std::unique_lock<std::mutex> locker(m_data->lock);
-	if (m_data->result_handler) {
-		m_data->result_handler(result);
-	} else {
-		m_data->results.push_back(result);
-	}
-}
-
-/*!
- * \brief Processes index metadata if result_handler is set or saves metadata into async_result array
- * \param result Index metadata
- */
-template <>
-void async_result_handler<get_index_metadata_result_entry>::process(const get_index_metadata_result_entry &result)
-{
-	std::unique_lock<std::mutex> locker(m_data->lock);
-	if (m_data->result_handler) {
-		m_data->result_handler(result);
-	} else {
-		m_data->results.push_back(result);
-	}
-}
-
 template <typename T>
 void async_result_handler<T>::complete(const error_info &error)
 {
@@ -594,46 +509,13 @@ bool async_result_handler<T>::check(error_info *error)
 	return true;
 }
 
-template <>
-bool async_result_handler<index_entry>::check(error_info *error)
-{
-	if (error)
-		*error = error_info();
-	return true;
-}
-
-template <>
-bool async_result_handler<find_indexes_result_entry>::check(error_info *error)
-{
-	if (error)
-		*error = error_info();
-	return true;
-}
-
-/*!
- * \brief Checks whether async_result was correctly obtained
- * \param error Out parameter filled with error_info if error occured during obtaining async_result
- * \return Returns true iff no error occured during obtaining async_result
- */
-template <>
-bool async_result_handler<get_index_metadata_result_entry>::check(error_info *error)
-{
-	if (error)
-		*error = error_info();
-	return true;
-}
-
 template class async_result<callback_result_entry>;
 template class async_result<read_result_entry>;
 template class async_result<lookup_result_entry>;
 template class async_result<monitor_stat_result_entry>;
 template class async_result<node_status_result_entry>;
 template class async_result<backend_status_result_entry>;
-template class async_result<exec_result_entry>;
 template class async_result<iterator_result_entry>;
-template class async_result<index_entry>;
-template class async_result<find_indexes_result_entry>;
-template class async_result<get_index_metadata_result_entry>;
 
 template class async_result_handler<callback_result_entry>;
 template class async_result_handler<read_result_entry>;
@@ -641,10 +523,6 @@ template class async_result_handler<lookup_result_entry>;
 template class async_result_handler<monitor_stat_result_entry>;
 template class async_result_handler<node_status_result_entry>;
 template class async_result_handler<backend_status_result_entry>;
-template class async_result_handler<exec_result_entry>;
 template class async_result_handler<iterator_result_entry>;
-template class async_result_handler<index_entry>;
-template class async_result_handler<find_indexes_result_entry>;
-template class async_result_handler<get_index_metadata_result_entry>;
 
 } }

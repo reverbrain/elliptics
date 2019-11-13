@@ -55,7 +55,7 @@ enum dnet_commands {
 						 * parameters.
 						 */
 	DNET_CMD_LIST_DEPRECATED,		/* List all objects for given node ID. Deprecated and forbidden */
-	DNET_CMD_EXEC,				/* Execute given command on the remote node */
+	__UNSUPPORTED_0,
 	DNET_CMD_ROUTE_LIST,			/* Receive route table from given node */
 	DNET_CMD_STAT_DEPRECATED,		/* Gather remote VM, LA and FS statistics */
 	DNET_CMD_NOTIFY,			/* Notify when object in question was modified */
@@ -68,9 +68,9 @@ enum dnet_commands {
 	DNET_CMD_BULK_READ,			/* Read a number of ids at one time */
 	DNET_CMD_DEFRAG_DEPRECATED,		/* Start defragmentation process if backend supports it. Deprecated and forbidden */
 	DNET_CMD_ITERATOR,			/* Start/stop/pause/status for server-side iterator */
-	DNET_CMD_INDEXES_UPDATE,		/* Update secondary indexes for id */
-	DNET_CMD_INDEXES_INTERNAL,		/* Update identificators table for certain secondary index. Internal usage only */
-	DNET_CMD_INDEXES_FIND,			/* Find all objects by indexes */
+	__UNSUPPORTED_1,
+	__UNSUPPORTED_2,
+	__UNSUPPORTED_3,
 	DNET_CMD_MONITOR_STAT,			/* Gather monitor json statistics */
 	DNET_CMD_UPDATE_IDS,			/* Update buckets' information */
 	DNET_CMD_BACKEND_CONTROL,		/* Special command to start or stop backends */

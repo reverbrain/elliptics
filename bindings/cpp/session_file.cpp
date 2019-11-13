@@ -51,8 +51,8 @@ void session::read_file(const key &id, const std::string &file, uint64_t offset,
 		throw_error(err, id, "Failed to write data into completion file: '%s'", file.c_str());
 	}
 
-	BH_LOG(get_logger(), DNET_LOG_NOTICE, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d.",
-			dnet_dump_id(&id.id()), file, offset, uint64_t(io->size), int(result.command()->status));
+	dnet_logger_write(get_logger(), DNET_LOG_NOTICE, "%s: read completed: file: '%s', offset: %zu, size: %zu, status: %d.",
+			dnet_dump_id(&id.id()), file.c_str(), offset, io->size, int(result.command()->status));
 }
 
 void session::write_file(const key &id, const std::string &file, uint64_t local_offset,
@@ -81,8 +81,8 @@ void session::write_file(const key &id, const std::string &file, uint64_t local_
 	}
 
 	if (local_offset >= (uint64_t)stat.st_size) {
-		BH_LOG(get_logger(), DNET_LOG_NOTICE, "%s: File is already uploaded: '%s'",
-				dnet_dump_id(&id.id()), file);
+		dnet_logger_write(get_logger(), DNET_LOG_NOTICE, "%s: File is already uploaded: '%s'",
+				dnet_dump_id(&id.id()), file.c_str());
 		return;
 	}
 

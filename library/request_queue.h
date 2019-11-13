@@ -5,14 +5,15 @@
 #include "murmurhash.h"
 
 #ifdef __cplusplus
-#include <unordered_map>
-#include <condition_variable>
-#include <mutex>
 #if __GNUC__ == 4 && __GNUC_MINOR__ < 5
 #  include <cstdatomic>
 #else
 #  include <atomic>
 #endif
+#include <condition_variable>
+#include <list>
+#include <mutex>
+#include <unordered_map>
 
 
 struct dnet_locks_entry
