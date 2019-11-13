@@ -3,7 +3,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.26.11.1
+Version:	3.0.0.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 13 2019 Evgeniy Polyakov <zbr@ioremap.net> - 3.0.0.0
+- major update to the latest (to date) libraries and compilers
+- updated to the latest blackhole logger (master branch) https://github.com/3Hren/blackhole
+- long-awaited drop of the secondary indexes
+- dropped cocaine/srw support
+
 * Fri Jan 13 2017 Evgeniy Polyakov <zbr@ioremap.net> - 2.26.11.1
 - man: converted to unix format, fixed comment macroses
 - python: use common python path
