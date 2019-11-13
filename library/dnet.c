@@ -154,32 +154,6 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	return err;
 }
 
-static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
-{
-	struct dnet_node *n = st->n;
-	struct sph *e = data;
-	int err = -ENOTSUP;
-
-	data += sizeof(struct sph);
-
-	dnet_convert_sph(e);
-
-	if (e->event_size + e->data_size + sizeof(struct sph) != cmd->size) {
-		err = -E2BIG;
-		dnet_log(n, DNET_LOG_ERROR, "%s: invalid size: event-size %d, data-size %llu must be: %llu",
-				dnet_dump_id(&cmd->id),
-				e->event_size,
-				(unsigned long long)e->data_size,
-				(unsigned long long)cmd->size);
-		goto err_out_exit;
-	}
-
-	err = dnet_cmd_exec_raw(st, cmd, e, data);
-
-err_out_exit:
-	return err;
-}
-
 static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, void *data)
 {
 	struct dnet_node *n = orig->n;
@@ -1438,9 +1412,6 @@ static int dnet_process_cmd_without_backend_raw(struct dnet_net_state *st, struc
 		case DNET_CMD_ROUTE_LIST:
 			err = dnet_cmd_route_list(st, cmd);
 			break;
-		case DNET_CMD_EXEC:
-			err = dnet_cmd_exec(st, cmd, data);
-			break;
 		case DNET_CMD_MONITOR_STAT:
 			err = dnet_monitor_process_cmd(st, cmd, data);
 			break;
@@ -1489,11 +1460,6 @@ static int dnet_process_cmd_with_backend_raw(struct dnet_backend_io *backend, st
 	switch (cmd->cmd) {
 		case DNET_CMD_ITERATOR:
 			err = dnet_cmd_iterator(backend, st, cmd, data);
-			break;
-		case DNET_CMD_INDEXES_UPDATE:
-		case DNET_CMD_INDEXES_INTERNAL:
-		case DNET_CMD_INDEXES_FIND:
-			err = dnet_process_indexes(backend, st, cmd, data);
 			break;
 		case DNET_CMD_NOTIFY:
 			if (!(cmd->flags & DNET_ATTR_DROP_NOTIFICATION)) {

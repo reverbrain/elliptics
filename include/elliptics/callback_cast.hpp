@@ -47,10 +47,6 @@ INIT_CALLBACK_TYPE(node_status_result_entry,
 	DNET_CMD_STATUS
 )
 
-INIT_CALLBACK_TYPE(exec_result_entry,
-	DNET_CMD_EXEC
-)
-
 INIT_CALLBACK_TYPE(iterator_result_entry,
 	DNET_CMD_ITERATOR,
 	DNET_CMD_SEND

@@ -1,3 +1,16 @@
+elliptics (3.0.0.1) unstable; urgency=low
+  * added missing files
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Nov 2019 15:54:33 UTC
+
+elliptics (3.0.0.0) unstable; urgency=low
+  * major update to the latest (to date) libraries and compilers
+  * updated to the latest blackhole logger (master branch) https://github.com/3Hren/blackhole
+  * long-awaited drop of the secondary indexes
+  * dropped cocaine/srw support
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Nov 2019 15:47:33 UTC
+
 elliptics (2.26.11.1) unstable; urgency=low
 
   * man: converted to unix format, fixed comment macroses

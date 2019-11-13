@@ -39,15 +39,6 @@
 #include "elliptics/interface.h"
 #include "common.hpp"
 
-#undef dnet_log
-#undef dnet_log_error
-
-#define dnet_log(__node__, ...) \
-	BH_LOG(*(__node__)->log, __VA_ARGS__)("source", "dnet_add_state")
-#define dnet_log_error(...) \
-	BH_LOG(__VA_ARGS__)("error", -errno)
-
-
 enum dnet_socket_state {
 	just_created = 0,
 	trying_to_connect,
@@ -524,7 +515,7 @@ private:
 			atomic_dec(&m_state->route_request_count);
 			dnet_interrupt_epoll(*m_state);
 
-			dnet_log(node, DNET_LOG_NOTICE, "Received route-list reply from state: %s, route_request_count: %lld",
+			dnet_log(node, DNET_LOG_NOTICE, "Received route-list reply from state: %s, route_request_count: %ld",
 				 server_addr, atomic_read(&m_state->route_request_count));
 
 			return err;
@@ -582,11 +573,11 @@ private:
 		if (added_to_queue) {
 			dnet_interrupt_epoll(*m_state);
 
-			dnet_log(node, DNET_LOG_INFO, "Trying to connect to additional %llu states of %llu original "
-					"from route_list_recv, state: %s, route_request_count: %lld",
+			dnet_log(node, DNET_LOG_INFO, "Trying to connect to additional %zu states of %zu original "
+					"from route_list_recv, state: %s, route_request_count: %ld",
 				 sockets_count, states_num, server_addr, atomic_read(&m_state->route_request_count));
 		} else {
-			dnet_log(node, DNET_LOG_ERROR, "Failed to connect to additional %llu states of %llu original "
+			dnet_log(node, DNET_LOG_ERROR, "Failed to connect to additional %zu states of %zu original "
 					"from route_list_recv, state: %s, state is already destroyed, adding to reconnect list",
 				 sockets_count, states_num, server_addr);
 
@@ -615,7 +606,7 @@ static void dnet_request_route_list(const dnet_connect_state_ptr &state, dnet_ne
 	int err = dnet_recv_route_list(st, dnet_request_route_list_handler::complete_wrapper, handler);
 	if (!err) {
 		atomic_inc(&state->route_request_count);
-		dnet_log(state->node, DNET_LOG_NOTICE, "Sent route-list request to state: %s, route_request_count: %lld",
+		dnet_log(state->node, DNET_LOG_NOTICE, "Sent route-list request to state: %s, route_request_count: %ld",
 			dnet_state_dump_addr(st), atomic_read(&state->route_request_count));
 	}
 }
@@ -692,7 +683,7 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 
 		dnet_socket_connect_new_sockets(state, local_queue);
 
-		dnet_log(state->node, DNET_LOG_NOTICE, "Received route-list reply, count: %llu, route_request_count: %lld",
+		dnet_log(state->node, DNET_LOG_NOTICE, "Received route-list reply, count: %zu, route_request_count: %ld",
 			 local_queue.size(), atomic_read(&state->route_request_count));
 
 		return;
@@ -726,6 +717,7 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 			dnet_addr_string(&socket->addr));
 
 		socket->state = started;
+		[[fallthrough]];
 		// Fall through
 	}
 	case started:
@@ -735,13 +727,13 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 		cmd->cmd = DNET_CMD_REVERSE_LOOKUP;
 
 		dnet_version_encode(&cmd->id);
-		dnet_indexes_shard_count_encode(&cmd->id, state->node->indexes_shard_count);
 		dnet_convert_cmd(cmd);
 
 		socket->state = send_reverse;
 		socket->io_data = reinterpret_cast<char*>(cmd);
 		socket->io_size = sizeof(dnet_cmd);
 
+		[[fallthrough]];
 		// Fall through
 	case send_reverse:
 		if (!dnet_send_nolock(state, socket))
@@ -754,13 +746,13 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 			break;
 
 		socket->state = recv_reverse;
+		[[fallthrough]];
 		// Fall through
 	case recv_reverse: {
 		if (!dnet_recv_nolock(state, socket))
 			break;
 
 		int (&version)[4] = socket->version;
-		int indexes_shard_count = 0;
 		int err;
 		dnet_net_state dummy_state;
 
@@ -772,7 +764,6 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 
 		dnet_convert_cmd(cmd);
 		dnet_version_decode(&cmd->id, version);
-		dnet_indexes_shard_count_decode(&cmd->id, &indexes_shard_count);
 
 		if (cmd->status != 0) {
 			err = cmd->status;
@@ -794,19 +785,6 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 			break;
 		}
 
-		dnet_log(state->node, DNET_LOG_NOTICE,
-				"%s: received indexes shard count: local: %d, remote: %d, using server one",
-				dnet_addr_string(&socket->addr), state->node->indexes_shard_count, indexes_shard_count);
-
-		if (indexes_shard_count != state->node->indexes_shard_count && indexes_shard_count != 0) {
-			dnet_log(state->node, DNET_LOG_INFO, "%s: local and remote indexes shard count are different: "
-					"local: %d, remote: %d, using remote (%d) one",
-					dnet_addr_string(&socket->addr),
-					state->node->indexes_shard_count, indexes_shard_count, indexes_shard_count);
-
-			state->node->indexes_shard_count = indexes_shard_count;
-		}
-
 		socket->buffer.reset(new(std::nothrow) char[cmd->size]);
 		if (!socket->buffer) {
 			err = -ENOMEM;
@@ -820,6 +798,7 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 		socket->io_size = cmd->size;
 
 		socket->state = recv_reverse_data;
+		[[fallthrough]];
 		// Fall through
 	}
 	case recv_reverse_data: {
@@ -847,9 +826,9 @@ static void dnet_process_socket(const dnet_connect_state_ptr &state, epoll_event
 		if (cmd->size < sizeof(dnet_addr_container) + cnt->addr_num * sizeof(dnet_addr) + sizeof(dnet_id_container)) {
 			err = -EINVAL;
 			dnet_log(state->node, DNET_LOG_ERROR, "%s: received dnet_addr_container "
-				"is invalid, size: %lld, expected at least: %llu, err: %d",
+				"is invalid, size: %lld, expected at least: %zu, err: %d",
 				dnet_addr_string(&socket->addr),
-				uint64_t(cmd->size),
+				(unsigned long long)cmd->size,
 				sizeof(dnet_addr_container) + cnt->addr_num * sizeof(dnet_addr) + sizeof(dnet_id_container),
 				err);
 			dnet_fail_socket(state, socket, err);
@@ -1144,8 +1123,8 @@ err_out_put:
 		err = -ECONNREFUSED;
 
 	dnet_log(state->node, DNET_LOG_INFO,
-			"dnet_socket_connect: succeed_count: %llu, failed_count: %llu, total_count: %llu"
-			", sockets_connected: %llu, sockets_queue: %llu, states_count: %llu, err: %d",
+			"dnet_socket_connect: succeed_count: %zu, failed_count: %zu, total_count: %zu"
+			", sockets_connected: %zu, sockets_queue: %zu, states_count: %zu, err: %d",
 		 state->succeed_count, state->failed_count, state->total_count, state->sockets_connected.size(),
 		 state->sockets_queue.size(), states_count, err);
 
@@ -1237,7 +1216,7 @@ static net_state_list_ptr dnet_check_route_table_victims(struct dnet_node *node,
 		}
 	}
 
-	dnet_log(node, DNET_LOG_INFO, "Requesting route address from %llu remote addresses", node->route_addr_num);
+	dnet_log(node, DNET_LOG_INFO, "Requesting route address from %zu remote addresses", node->route_addr_num);
 
 	for (size_t i = 0; i < node->route_addr_num; ++i) {
 		struct dnet_net_state *st = dnet_state_search_by_addr(node, &node->route_addr[i]);
@@ -1328,7 +1307,7 @@ int dnet_add_state(dnet_node *node, const dnet_addr *addrs, int num, int flags)
 		return at_least_one_exist ? 0 : -ENOMEM;
 	}
 
-	dnet_log(node, DNET_LOG_INFO, "Trying to connect to %llu states of %llu original", sockets.size(), addrs_count);
+	dnet_log(node, DNET_LOG_INFO, "Trying to connect to %zu states of %zu original", sockets.size(), addrs_count);
 
 	// sockets are freed by dnet_socket_connect
 	int err = dnet_socket_connect(node, sockets, join, net_state_list_ptr(), 0);
@@ -1353,9 +1332,9 @@ int dnet_add_state(dnet_node *node, const dnet_addr *addrs, int num, int flags)
 
 			size_t added_count = node->route_addr_num - old_count;
 
-			dnet_log(node, DNET_LOG_INFO, "Added %llu states to explicit route list", added_count);
+			dnet_log(node, DNET_LOG_INFO, "Added %zu states to explicit route list", added_count);
 		} else {
-			dnet_log(node, DNET_LOG_ERROR, "Failed to add %llu states to explicit route list, err: %d",
+			dnet_log(node, DNET_LOG_ERROR, "Failed to add %zu states to explicit route list, err: %d",
 					addrs_count, -ENOMEM);
 		}
 

@@ -75,19 +75,16 @@ monitor::monitor(struct dnet_node *n, struct dnet_config *cfg)
 	if (cfg->handystats_config != nullptr) {
 		//TODO: add parse/configuration errors logging when handystats will allow to get them
 		if (HANDY_CONFIG_FILE(cfg->handystats_config)) {
-			BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, config file '%s'",
-					cfg->handystats_config);
+			dnet_log_write(cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, config file '%s'", cfg->handystats_config);
 		} else {
-			BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: initializing stats subsystem, "
-					"error parsing config file '%s', using defaults",
-					cfg->handystats_config);
+			dnet_log_write(cfg->log, DNET_LOG_ERROR, "monitor: initializing stats subsystem, error parsing config file '%s', using defaults", cfg->handystats_config);
 		}
 	} else {
-		BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, no config file specified, using defaults");
+		dnet_log_write(cfg->log, DNET_LOG_INFO, "monitor: initializing stats subsystem, no config file specified, using defaults");
 	}
 	HANDY_INIT();
 #else
-	BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: stats subsystem disabled at compile time");
+	dnet_log_write(cfg->log, DNET_LOG_INFO, "monitor: stats subsystem disabled at compile time");
 #endif
 }
 
@@ -124,7 +121,7 @@ static void init_io_stat_provider(struct dnet_node *n, struct dnet_config *cfg) 
 	try {
 		add_provider(n, new io_stat_provider(n), "io");
 	} catch (const std::exception &e) {
-		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize io_stat_provider: %s.", e.what());
+		dnet_log_write(cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize io_stat_provider: %s.", e.what());
 	}
 }
 
@@ -132,7 +129,7 @@ static void init_backends_stat_provider(struct dnet_node *n, struct dnet_config 
 	try {
 		add_provider(n, new backends_stat_provider(n), "backends");
 	} catch (const std::exception &e) {
-		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize backends_stat_provider: %s.", e.what());
+		dnet_log_write(cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize backends_stat_provider: %s.", e.what());
 	}
 }
 
@@ -140,7 +137,7 @@ static void init_procfs_provider(struct dnet_node *n, struct dnet_config *cfg) {
 	try {
 		add_provider(n, new procfs_provider(n), "procfs");
 	} catch (const std::exception &e) {
-		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize procfs_stat_provider: %s.", e.what());
+		dnet_log_write(cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize procfs_stat_provider: %s.", e.what());
 	}
 }
 
@@ -158,14 +155,14 @@ static void init_top_provider(struct dnet_node *n, struct dnet_config *cfg) {
 
 		const auto monitor_cfg = get_monitor_config(n);
 		if (top_loaded && monitor_cfg) {
-			BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: top provider loaded: top length: %lu, events size: %lu, period: %d",
+			dnet_log_write(cfg->log, DNET_LOG_INFO, "monitor: top provider loaded: top length: %lu, events size: %lu, period: %d",
 			       monitor_cfg->top_length, monitor_cfg->events_size, monitor_cfg->period_in_seconds);
 		} else {
-			BH_LOG(*cfg->log, DNET_LOG_INFO, "monitor: top provider is disabled");
+			dnet_log_write(cfg->log, DNET_LOG_INFO, "monitor: top provider is disabled");
 		}
 
 	} catch (const std::exception &e) {
-		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize top_stat_provider: %s.", e.what());
+		dnet_log_write(cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize top_stat_provider: %s.", e.what());
 	}
 }
 
@@ -174,14 +171,14 @@ static void init_top_provider(struct dnet_node *n, struct dnet_config *cfg) {
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg) {
 	if (!get_monitor_port(n) || !cfg->family) {
 		n->monitor = NULL;
-		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: monitor hasn't been initialized because monitor port is zero.");
+		dnet_log_write(cfg->log, DNET_LOG_ERROR, "monitor: monitor hasn't been initialized because monitor port is zero.");
 		return 0;
 	}
 
 	try {
 		n->monitor = static_cast<void*>(new ioremap::monitor::monitor(n, cfg));
 	} catch (const std::exception &e) {
-		BH_LOG(*cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize monitor on port: %d: %s.", get_monitor_port(n), e.what());
+		dnet_log_write(cfg->log, DNET_LOG_ERROR, "monitor: failed to initialize monitor on port: %d: %s.", get_monitor_port(n), e.what());
 		return -ENOMEM;
 	}
 

@@ -92,7 +92,6 @@ static void ioserv_sigchild_handler(int sig __unused, siginfo_t *si __unused, vo
 	int status, pid;
 
 	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-		dnet_srw_update(global_n, pid);
 	}
 }
 

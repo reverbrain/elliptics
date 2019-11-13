@@ -67,10 +67,10 @@ node::~node()
 
 node node::from_raw(dnet_node *n)
 {
-	return node::from_raw(n, blackhole::log::attributes_t());
+	return node::from_raw(n, blackhole::attributes_t());
 }
 
-node node::from_raw(dnet_node *n, blackhole::log::attributes_t attributes)
+node node::from_raw(dnet_node *n, blackhole::attributes_t attributes)
 {
 	node result;
 	logger log(*dnet_node_get_logger(n), std::move(attributes));

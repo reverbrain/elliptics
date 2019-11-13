@@ -1,6 +1,6 @@
 #include "config.hpp"
 
-#include <blackhole/repository/config/parser/rapidjson.hpp>
+#include "elliptics/dynamic.hpp"
 
 #include <rapidjson/document.h>
 #include <rapidjson/filestream.h>
@@ -17,6 +17,60 @@ config_parser::~config_parser()
 {
 }
 
+using blackhole::dynamic_t;
+
+// Converter adapter specializations for rapidjson value.
+struct transformer_t {
+    typedef rapidjson::Value value_type;
+
+    static dynamic_t transform(const value_type& value) {
+        switch (value.GetType()) {
+        case rapidjson::kNullType:
+            throw std::runtime_error("null values are not supported");
+        case rapidjson::kFalseType:
+        case rapidjson::kTrueType:
+            return value.GetBool();
+        case rapidjson::kNumberType: {
+            if (value.IsInt()) {
+                return value.GetInt();
+            } else if (value.IsInt64()) {
+                return value.GetInt64();
+            } else if (value.IsUint()) {
+                return value.GetUint();
+            } else if (value.IsUint64()) {
+                return value.GetUint64();
+            } else {
+                return value.GetDouble();
+            }
+        }
+        case rapidjson::kStringType:
+            return value.GetString();
+        case rapidjson::kArrayType: {
+            dynamic_t::array_t array;
+            for (auto it = value.Begin(); it != value.End(); ++it) {
+                array.push_back(transformer_t::transform(*it));
+            }
+            return array;
+        }
+        case rapidjson::kObjectType: {
+            dynamic_t::object_t object;
+            for (auto it = value.MemberBegin(); it != value.MemberEnd(); ++it) {
+                std::string name = it->name.GetString();
+                dynamic_t value = transformer_t::transform(it->value);
+                object[name] = value;
+            }
+            return object;
+        }
+        default:
+            BOOST_ASSERT(false);
+        }
+    }
+};
+
+const rapidjson::Document& config_parser::get_doc() const {
+	return doc_;
+}
+
 config config_parser::open(const std::string &path)
 {
 	FILE *f = fopen(path.c_str(), "r");
@@ -27,15 +81,14 @@ config config_parser::open(const std::string &path)
 
 	rapidjson::FileStream stream(f);
 
-	rapidjson::Document doc;
-	doc.ParseStream<0>(stream);
+	doc_.ParseStream<0>(stream);
 
 	fclose(f);
 
-	if (doc.HasParseError()) {
+	if (doc_.HasParseError()) {
 		std::ifstream in(path.c_str());
 		if (in) {
-			size_t offset = doc.GetErrorOffset();
+			size_t offset = doc_.GetErrorOffset();
 			std::vector<char> buffer(offset);
 			in.read(buffer.data(), offset);
 
@@ -68,19 +121,19 @@ config config_parser::open(const std::string &path)
 			const size_t dash_count = line_offset < offset ? offset - line_offset - 1 : 0;
 
 			throw config_error()
-				<< "parser error at line " << line_number << ": " << doc.GetParseError() << std::endl
+				<< "parser error at line " << line_number << ": " << doc_.GetParseError() << std::endl
 				<< data.substr(line_offset + 1) << std::endl
 				<< std::string(dash_count, ' ') << '^' << std::endl
 				<< std::string(dash_count, '~') << '+' << std::endl;
 		}
 
-		throw config_error() << "parser error: at unknown line: " << doc.GetParseError();
+		throw config_error() << "parser error: at unknown line: " << doc_.GetParseError();
 	}
 
-	if (!doc.IsObject())
+	if (!doc_.IsObject())
 		throw config_error() << "root must be an object";
 
-	root_ = blackhole::repository::config::transformer_t<rapidjson::Value>::transform(doc);
+	root_ = transformer_t::transform(doc_);
 	return root();
 }
 

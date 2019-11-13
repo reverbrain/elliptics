@@ -69,46 +69,6 @@ struct dnet_net_state;
 
 extern __thread uint64_t trace_id;
 
-#define DNET_LOG_BEGIN_ONLY_LOG(log, level) \
-	do { \
-		dnet_logger * const local_dnet_log = log; \
-		dnet_logger_record * const local_dnet_record = dnet_log_open_record(local_dnet_log, level); \
-		if (local_dnet_record) {
-#define DNET_LOG_BEGIN(n, level) \
-	DNET_LOG_BEGIN_ONLY_LOG(n->log, level)
-
-#define DNET_LOG_VPRINT(format, args) \
-			dnet_log_vwrite(local_dnet_log, local_dnet_record, format, args);
-
-#define DNET_LOG_PRINT(format, a...) \
-			dnet_log_write(local_dnet_log, local_dnet_record, format, ##a);
-
-#define DNET_LOG_PRINT_ERR(err, format, a...) \
-			dnet_log_write_err(local_dnet_log, local_dnet_record, err, format": %s [%d]", ##a, strerror(-err), err);
-
-#define DNET_LOG_END() \
-			dnet_log_close_record(local_dnet_record); \
-		} \
-	} while (0)
-
-#define DNET_LOG_SET_TRACE_ID(trace_id, trace_bit) \
-	dnet_log_record_set_request_id(local_dnet_record, (trace_id), (trace_bit))
-
-#define dnet_log(n, level, format, a...) \
-	DNET_LOG_BEGIN(n, level) \
-	DNET_LOG_PRINT(format, ##a) \
-	DNET_LOG_END()
-
-#define dnet_log_only_log(log, level, format, a...) \
-	DNET_LOG_BEGIN_ONLY_LOG(log, level) \
-	DNET_LOG_PRINT(format, ##a) \
-	DNET_LOG_END()
-
-#define dnet_log_err(n, format, a...) \
-	DNET_LOG_BEGIN(n, DNET_LOG_ERROR) \
-	DNET_LOG_PRINT_ERR(-errno, format, ##a) \
-	DNET_LOG_END()
-
 struct dnet_io_req {
 	struct list_head	req_entry;
 
@@ -125,6 +85,11 @@ struct dnet_io_req {
 	off_t			local_offset;
 	size_t			fsize;
 };
+
+void dnet_log(struct dnet_node *n, int severity, const char *format, ...);
+
+#define dnet_log_err(n, format, a...) dnet_log(n, DNET_LOG_ERROR, format, ##a)
+
 
 /*
  * Currently executed network state machine:
@@ -633,10 +598,6 @@ struct dnet_node
 
 	char			cookie[DNET_AUTH_COOKIE_SIZE];
 
-	void			*srw;
-	void			*indexes;
-	int			indexes_shard_count;
-
 	int			server_prio;
 	int			client_prio;
 
@@ -865,18 +826,10 @@ int dnet_data_map(struct dnet_map_fd *map);
 int dnet_data_map_rw(struct dnet_map_fd *map);
 void dnet_data_unmap(struct dnet_map_fd *map);
 
-int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
-void dnet_srw_cleanup(struct dnet_node *n);
-int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *header, const void *data);
-
 void *dnet_cache_init(struct dnet_node *n, struct dnet_backend_io *backend, const void *config);
 void dnet_cache_cleanup(void *);
 int dnet_cmd_cache_io(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);
 int dnet_cmd_cache_lookup(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd);
-
-int dnet_indexes_init(struct dnet_node *, struct dnet_config *);
-void dnet_indexes_cleanup(struct dnet_node *);
-int dnet_process_indexes(struct dnet_backend_io *backend, struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 
 int dnet_ids_update(struct dnet_node *n, int update_local, const char *file, struct dnet_addr *cfg_addrs, size_t backend_id);
 
@@ -988,20 +941,6 @@ static inline void dnet_version_decode(struct dnet_id *id, int version[4])
 
 	for (i = 0; i < 4; ++i)
 		version[i] = dnet_bswap32(ids[i]);
-}
-
-static inline void dnet_indexes_shard_count_encode(struct dnet_id *id, int count)
-{
-	int *data = (int *)(id->id);
-
-	data[5] = dnet_bswap32(count);
-}
-
-static inline void dnet_indexes_shard_count_decode(struct dnet_id *id, int *count)
-{
-	int *data = (int *)(id->id);
-
-	*count = dnet_bswap32(data[5]);
 }
 
 static inline int dnet_empty_addr(struct dnet_addr *addr)

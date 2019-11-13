@@ -141,10 +141,10 @@ dnet_config& dnet_config_config(dnet_config &config) {
 class elliptics_node_python : public node, public bp::wrapper<node> {
 	public:
 		elliptics_node_python(logger_base &l)
-			: node(logger(l, blackhole::log::attributes_t())) {}
+			: node(logger(l, blackhole::attributes_t())) {}
 
 		elliptics_node_python(logger_base &l, dnet_config &cfg)
-			: node(logger(l, blackhole::log::attributes_t()), cfg) {}
+			: node(logger(l, blackhole::attributes_t()), cfg) {}
 
 		elliptics_node_python(const node &n): node(n) {}
 
@@ -230,7 +230,7 @@ void ios_base_failure_translator(const std::ios_base::failure &exc)
 
 void logger_log(logger_base &log, int level, const char *msg)
 {
-	BH_LOG(log, dnet_log_level(level), "%s", msg);
+	log.log(dnet_log_level(level), std::string(msg));
 }
 
 void next_impl(bp::api::object &value, const bp::api::object &next)
@@ -472,18 +472,18 @@ BOOST_PYTHON_MODULE(core)
 		.value("chunked_csum", record_flags_chunked_csum)
 	;
 
-	bp::enum_<blackhole::defaults::severity>("log_level",
+	bp::enum_<dnet_log_level>("log_level",
 	    "Different levels of verbosity elliptics logs:\n\n"
 	     "error\n    The level contains critical errors that materially affect the work\n"
 	     "warning\n    The level contains reports of the previous level and warnings that may not affect the work\n"
 	     "info\n    The level contains reports of the previous level and messages about the time of the various operations\n"
 	     "notice\n    The level is considered to be the first level of debugging\n"
 	     "debug\n    The level includes all sort of information about errors and work")
-		.value("error", blackhole::defaults::severity::error)
-		.value("warning", blackhole::defaults::severity::warning)
-		.value("info", blackhole::defaults::severity::info)
-		.value("notice", blackhole::defaults::severity::notice)
-		.value("debug", blackhole::defaults::severity::debug)
+		.value("error", dnet_log_level::DNET_LOG_ERROR)
+		.value("warning", dnet_log_level::DNET_LOG_WARNING)
+		.value("info", dnet_log_level::DNET_LOG_INFO)
+		.value("notice", dnet_log_level::DNET_LOG_NOTICE)
+		.value("debug", dnet_log_level::DNET_LOG_DEBUG)
 	;
 
 	bp::enum_<elliptics_exceptions_policy>("exceptions_policy",

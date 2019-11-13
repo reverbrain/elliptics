@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <malloc.h>
+#include <set>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -41,6 +42,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <type_traits>
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -54,15 +56,11 @@
 
 #include <boost/lexical_cast.hpp>
 
-#include <type_traits>
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
 
 #define BLACKHOLE_HEADER_ONLY
-#include <blackhole/repository.hpp>
-#include <blackhole/repository/config/parser/rapidjson.hpp>
-#include <blackhole/frontend/syslog.hpp>
-#include <blackhole/frontend/files.hpp>
-#include <blackhole/sink/socket.hpp>
-//#include <blackhole/formatter/json.hpp>
 
 #include "common.h"
 
@@ -98,58 +96,40 @@ extern "C" int dnet_node_reset_log(struct dnet_node *n __unused)
 	return 0;
 }
 
-static void parse_logger(config_data *data, const config &logger)
+static void parse_logger(config_data *data, const config &logger_conf)
 {
-	using namespace blackhole;
+	auto &doc = data->parser->get_doc();
+	auto &logger_doc = doc["logger"];
 
-	// Available logging sinks.
-	typedef boost::mpl::vector<
-	    blackhole::sink::files_t<
-	        blackhole::sink::files::boost_backend_t,
-	        blackhole::sink::rotator_t<
-	            blackhole::sink::files::boost_backend_t,
-	            blackhole::sink::rotation::watcher::move_t
-	        >
-	    >,
-	    blackhole::sink::syslog_t<dnet_log_level>,
-	    blackhole::sink::socket_t<boost::asio::ip::tcp>,
-	    blackhole::sink::socket_t<boost::asio::ip::udp>
-	> sinks_t;
+	rapidjson::StringBuffer buffer;
+	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+	logger_doc.Accept(writer);
+	auto str = buffer.GetString();
 
-	// Available logging formatters.
-	typedef boost::mpl::vector<
-	    blackhole::formatter::string_t
-//	    blackhole::formatter::json_t
-	> formatters_t;
+	auto inner = blackhole::registry::configured()
+		->builder<blackhole::config::json_t>(std::istringstream(str))
+		.build("root");
 
-	auto &repository = blackhole::repository_t::instance();
-	repository.configure<sinks_t, formatters_t>();
-
-	config frontends = logger.at("frontends");
-	frontends.assert_array();
-
-	const dynamic_t &dynamic = frontends.raw();
-	log_config_t log_config = repository::config::parser_t<log_config_t>::parse("root", dynamic);
-
-	const auto mapper = file_logger::mapping();
-	for(auto it = log_config.frontends.begin(); it != log_config.frontends.end(); ++it) {
-		it->formatter.mapper = mapper;
-	}
-
-	repository.add_config(log_config);
-
-	data->logger_base = repository.root<dnet_log_level>();
-	data->logger_base.add_attribute(keyword::request_id() = 0);
-
-	const config &level_config = logger.at("level");
-	const std::string &level = level_config.as<std::string>();
-	try {
-		data->logger_base.verbosity(file_logger::parse_level(level));
-	} catch (error &exc) {
-		throw config_error() << level_config.path() << " " << exc.what();
-	}
-
+	data->logger.reassign_base(std::move(inner));
 	data->cfg_state.log = &data->logger;
+
+	if (logger_conf.has("level")) {
+		auto level_str = logger_conf.at("level").to_string();
+		int severity = DNET_LOG_INFO;
+		if (level_str == "debug") {
+			severity = DNET_LOG_DEBUG;
+		} else if (level_str == "notice") {
+			severity = DNET_LOG_NOTICE;
+		} else if (level_str == "info") {
+			severity = DNET_LOG_INFO;
+		} else if (level_str == "warning") {
+			severity = DNET_LOG_WARNING;
+		} else if (level_str == "error") {
+			severity = DNET_LOG_ERROR;
+		}
+
+		data->logger.set_severity(severity);
+	}
 }
 
 struct dnet_addr_wrap {
@@ -277,12 +257,6 @@ void parse_options(config_data *data, const config &options)
 	data->parallel_start = options.at("parallel", true);
 	snprintf(data->cfg_state.cookie, DNET_AUTH_COOKIE_SIZE, "%s", options.at<std::string>("auth_cookie").c_str());
 
-	if (options.has("srw_config")) {
-		data->cfg_state.srw.config = strdup(options.at<std::string>("srw_config").c_str());
-		if (!data->cfg_state.srw.config)
-			throw std::bad_alloc();
-	}
-
 	dnet_set_addr(data, options.at("address", std::vector<std::string>()));
 
 	const std::vector<std::string> remotes = options.at("remote", std::vector<std::string>());
@@ -380,7 +354,7 @@ extern "C" struct dnet_node *dnet_parse_config(const char *file, int mon)
 		if (data->remotes.size() != 0) {
 			int err = dnet_add_state(node, reinterpret_cast<const dnet_addr *>(data->remotes.data()), data->remotes.size(), 0);
 			if (err < 0)
-				BH_LOG(*node->log, DNET_LOG_WARNING, "Failed to connect to remote nodes: %d", err);
+				dnet_log_write(node->log, DNET_LOG_WARNING, "Failed to connect to remote nodes: %d", err);
 		}
 
 	} catch (std::exception &exc) {
@@ -413,9 +387,7 @@ extern "C" void dnet_backend_log_raw(dnet_logger *l, int level, const char *form
 	va_list args;
 
 	va_start(args, format);
-	DNET_LOG_BEGIN_ONLY_LOG(l, dnet_log_level(level));
-	DNET_LOG_VPRINT(format, args);
-	DNET_LOG_END();
+	dnet_log_vwrite(l, level, format, args);
 	va_end(args);
 }
 
